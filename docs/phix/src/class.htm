@@ -44,6 +44,15 @@ class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ 
             An abstract class (or struct) cannot be instantiated, ie attempts to invoke <a href="structs.htm#new">new</a>() trigger compile-time and/or run-time errors.<br>
             By default struct and class variables cannot be set to null, unless the definition contains an explicit <b>nullable</b> clause.<br>
             The <a href="dynamic.htm">dynamic</a> and <a href="extended.htm">extends</a> clauses are explained separately.
+            <br>
+            <br>
+            Note that you should <i>never</i> pass a class reference to <a href="deep_copy.htm">deep_copy</a>(): doing so would almost guarantee
+            being left with a reference to reclaimed memory or a reclaimed slot in a class instances table, hence the latter now [1.0.5+] has a
+            guard in place to prevent such attempts. There are also some safety checks in builtins/structs.e that prohibit access to a shared
+            reference to a class instance that has (somehow) already been through the <a href="delete.htm">delete</a>() process, which would
+            normally only occur when the reference count drops to zero, unless some other bit of code is trying to force the issue, such as by
+            trying to manually destroy an instance-specific delegate, perhaps because setting it to null wasn&rsquo;t doing it immediately,
+            presumably because there was still some other reference to it when logically there should never be.
          </td>
         </tr>
         <tr>

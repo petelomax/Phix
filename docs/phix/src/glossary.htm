@@ -55,6 +55,14 @@
             If an abstraction cannot separate any of them, then it is truly not just abysmal, but obstructively unhelpful.<br>
             The only routines that can do anything useful without the slightest idea what/which it is, are almost inevitably
             so completely and utterly banal and trivial that they are indeed completely and utterly pointless themselves.<br>
+            Even those few that get close, such as <a href="print.htm">print</a>() and <a href="sort.htm">sort</a>(), are 
+            likely to fail miserably should you throw them <a href="sandc.htm">structs/classes</a> or 
+            <a href="mpfr.htm">mpfr</a> variables, as will throwing such at <a href="dict.htm">dictionaries</a> and 
+            <a href="pqueue.htm">priority queues</a>, at least that is without also providing a suitable comparison routine 
+            or limiting classes to those that implement a specific printable or comparable interface, with hopefully the 
+            latter not so meaninglessly generic it will happily let you compare (say) emotives, colours, and counties - the
+            only half-meaningful ordering of cheerful, chestnut, and chinese is alphabetical, and certainly not whatever
+            <a href="enum.htm">enum</a> they ended up with, though I guess {category,enum} might be ok.<br>
             Not a fan, be I, of deliberately meaningless abstraction, but should you be, you have my heartfelt pity.
             <br>
             <br>
@@ -168,6 +176,21 @@
             Note that "const" in a routine scope in JavaScript often reconstructs it one every invocation, whereas Phix (and for that
             matter Phix code transpiled to JavaScript) tries a bit harder to construct things only once.
             <br>
+              <a name=delegate></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            delegate
+         </td>
+         <td>
+            Something (or someone) that does something on another&rsquo;s behalf. You might, for instance, decide that shapes are part 
+            of the business logic, but actually drawing them is part of the gui subsystem, hence each shape might have a reference to
+            a fill delegate that it can instruct to draw the background, without ever actually knowing where to get it or even what it
+            is actually called. From the shape&rsquo;s perspective, it is just a single field it holds, and knows as little about it
+            as possible. Perfectly applicable to all programming paradigms, not just OOP (except perhaps functional, since that&rsquo;s
+            not allowed to have side effects, tee hee).
+            <br>
               <a name=delta></a>
          </td>
         </tr>
@@ -232,7 +255,7 @@
             side-by-side. Compounded (in other programming languages) by load-time resolution from details stored in a resource section, 
             which many programmers (myself included) find rather cryptic, and luckily phix does not have/need. A similar issue can be
             caused by 32/64 bit, though Windows has C:\Windows\System32\ for 64-bit dlls and C:\Windows\SysWOW64\ for 32-bit dlls, and
-            Linux something similar (but less confusing).
+            Linux something similar, but less confusing.
             <br>
             <br>
             Some suggested ways to avoid these kinds of issues are:
@@ -245,9 +268,10 @@
             Changing the filename only tends to work for single files that don&rsquo;t load anything else, unless all properly rebuilt.<br>
             Using directories typically needs a <a href="chdir.htm">chdir</a>() in before the open_dll() and an undo/back out after.<br>
             While the last option is clearly preferred on Linux, it also has symlinks to help you quickly and completely knobble it.<br>
-            <small><i>[Strong be the Force in this one to use latest and freshly built greatest, Master Luke. 
+            <small><i>[Strong be the Force in this one to use freshly built latest, Master Luke. 
                        Reverse polarity of symlink must we, to reach ancients... <small>nb: not advice ! </small>]</i></small><br>
-            Should you deliberately lie about the version when manually renaming a dll/so, you fully deserve every bit of pain you get.
+            Should you deliberately lie about the version when renaming a dll/so, you fully deserve every bit of pain you get.<br>
+            Note I often use the term dll to refer to both Windows .dll files and Linux .so, since they are effectively the same thing.
             <br>
             <br>
             While other programming languages rely on the operating system to resolve everything at load-time, via cryptic constructs
@@ -255,16 +279,23 @@
             and friends, in <i>your</i> code, where you <i>do</i> have the opportunity to catch any errors and try something else, and
             indeed initially constuct paths and filenames dynamically when desired. <br>
             In truth, phix is perfectly capable of load time resolution, but reserves that for really critical things such as LoadLibrary 
-            and GetProcAddress or dlopen and dlsym, for which there is no potential conflict and you have no say over name/location anyway. <br>
+            and GetProcAddress or dlopen and dlsym, for which there is no potential conflict and you have no say of any kind over either 
+            the name or the location of those specific things anyway. <br>
             While I may regularly ridicule the slow load times of many an executable created from other programming languages, in this 
-            one particular aspect an extra few milliseconds (if even that) is totally worth it, and almost completely insignificant. 
+            one particular aspect an extra few milliseconds (if even that) is totally worth it, and almost completely insignificant. <br>
+            In other words, Phix/open_dll() <i>can</i> be a smidgen slower than load-time resolution, but I defy you to even measure that 
+            when resolving less than a hundred globals in something being loaded less than a hundred times. One known exception is GTK, 
+            which in having at least 21,774 public entry points is or can be a tad slow to launch, esp the first time. Then again, I 
+            don&rsquo;t have a proper load-time resolution version of that to compare against, and that may or may not be just as slow.
             <br>
             <br>
             The main downside of open_dll() is there is no one true way to use it that will necessarily solve all such potential issues.<br>
+            <small>[Then again, there is <i>absolutely</i> no one true way to use cryptic resource section constructs to achieve that either...]</small><br>
             Probably the most tested (relevant) use of open_dll() is demo\pGUI\pGUI.e and tbh not quite as bad as I remember it.<br>
             The simplest one I can point you at is builtins\LiteZip.e though I only ever found a 32-bit windows dll for that.<br>
             Least tested would be demo\pSQLite\pSQLite.e whereas builtins\mpfr.e would easily be the messiest. <br>
-            Ideally after navigating to a dll/so in a file manager the version/bitsize should be obvious, not that I always manage that.
+            Ideally after navigating to a dll/so in a file manager the version/bitsize should be obvious, not that I always manage that.<br>
+            Should you open a dll/so with filedump.exw (or on Windows dependency walker/dependencies) it will be obvious what bitsize it is.
 <!--
 
             I liken it to `Waaah, pete@gmail.com has already been taken, it's not fair` and just like using the made-up pete3875@gmail.com, 
@@ -318,7 +349,7 @@
 <font color="#008080">    end type</font>
 </pre>
             <br>
-            You can (sometimes) alternatively use a #isginfo{} statement to instruct the compiler to perform an equivalent compile-time check.
+            You can (sometimes) alternatively use a #<a href="#isginfo">isginfo</a>{} statement to instruct the compiler to perform an equivalent compile-time check.
             <br>
               <a name=dynamic_typing></a>
          </td>
@@ -453,9 +484,87 @@
 <font color="#008080">    end type</font>
 </pre>
             <br>
-            You can (sometimes) alternatively use a #isginfo{} statement to instruct the compiler to perform an equivalent compile-time check.
+            You can (sometimes) alternatively use a #<a href="#isginfo">isginfo</a>{} statement to instruct the compiler to perform an equivalent compile-time check.
             Note however that the result of 1.5+1.5 is the integer 3, not the float 3.0, hence the above type is highly likely to cause a wholly 
             unnecessary type check failure at some point and rather rudely terminate the application.
+            <br>
+              <a name=greek></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            Greek letters
+         </td>
+         <td>
+            Mathematical papers are fond of using greek letters, so here is a quick lookup. Use (say) &amp;alpha; for &alpha; and &amp;Alpha; for &Alpha;.<br>
+            You can also use the unicode points 0x391 .. 0x3A9 but not 0x3A2 for uppercase and 0x3B1 .. 0x3C9 for lowercase. Note that 0x3C2 is used for
+            &sigmaf; (&amp;sigmaf;) instead of &sigma; (&amp;sigma;) at the end of a word, which is why there is no 0x3A2.<br>
+            &amp;alpha: &alpha;&Alpha;
+            &amp;beta: &beta;&Beta;
+            &amp;gamma: &gamma;&Gamma;
+            &amp;delta: &delta;&Delta;
+            &amp;epsilon: &epsilon;&Epsilon;
+            &amp;zeta: &zeta;&Zeta;
+            &amp;eta: &eta;&Eta;
+            &amp;theta: &theta;&Theta;
+            &amp;iota: &iota;&Iota;
+            &amp;kappa: &kappa;&Kappa;
+            &amp;lambda: &lambda;&Lambda;
+            &amp;mu: &mu;&Mu;
+            &amp;nu: &nu;&Nu;
+            &amp;xi: &xi;&Xi;
+            &amp;omicron: &omicron;&Omicron;
+            &amp;pi: &pi;&Pi;
+            &amp;rho: &rho;&Rho;
+            &amp;sigma: &sigma;&sigmaf;&Sigma;
+            &amp;tau: &tau;&Tau;
+            &amp;upsilon: &upsilon;&Upsilon;
+            &amp;phi: &phi;&Phi;
+            &amp;chi: &chi;&Chi;
+            &amp;psi: &psi;&Psi;
+            &amp;omega: &omega;&Omega;. &nbsp; Other useful letters/symbols include:<br>
+
+            &amp;not: &not;
+            &amp;plusmn: &plusmn;
+            &amp;middot: &middot;
+            &amp;rarr: &rarr;
+            &amp;rArr: &rArr;
+            &amp;hArr: &hArr;
+            &amp;forall: &forall;
+            &amp;part: &part; (partial)
+            &amp;exist: &exist; (exists)
+            &amp;empty: &empty; (emptyset)
+            &amp;nabla: &nabla;
+            &amp;isin: &isin; (in)
+            &amp;notin: &notin;
+            &amp;prod: &prod;
+            &amp;sum: &sum;
+            &amp;radic: &radic;
+            &amp;infin: &infin;
+            &amp;and: &and;
+            &amp;or: &or;
+            &amp;cap: &cap; (intersection)
+            &amp;cup: &cup; (union)
+            &amp;int: &int; (integral/integrate)
+            &amp;asymp: &asymp; (approx)
+            &amp;ne: &ne;
+            &amp;equiv: &equiv;
+            &amp;le: &le; (leq)
+            &amp;ge: &ge; (geq)
+            &amp;sub: &sub; (subset)
+            &amp;sup: &sup; (superset)
+            &amp;deg: &deg;
+            &amp;times: &times;
+            &amp;lfloor: &lfloor;
+            &amp;rfloor: &rfloor;
+            &amp;lceil: &lceil;
+            &amp;rceil: &rceil;
+            &amp;varepsilon: &varepsilon;
+            &amp;vartheta: &vartheta; (curly theta)
+            &amp;varpi: &varpi;
+            &amp;varrho: &varrho;
+            &amp;varsigma: &varsigma; (same as &amp;sigmaf;)
+            &amp;varphi: &varphi;
             <br>
               <a name=greg></a>
          </td>

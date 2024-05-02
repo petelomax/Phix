@@ -1,0 +1,1001 @@
+﻿--
+-- Universal_Lambda_Machine.exw
+-- ============================
+--https://rosettacode.org/wiki/Universal_Lambda_Machine
+--
+--Translation of "how it works" from https://justine.lol/lambda/ and hence bitmode-only, except for leading ' '..'/' trick, and I managed to get 
+--Quine8 to work with only a minor kludge.
+--If you think you can get blc8 to work, just be grateful that I decided at the eleventh hour and by the skin of my teeth against obfuscating this..
+--
+with javascript_semantics
+
+constant IOP = 0,  // code for gro, wr0, wr1, put
+         VAR = 1,  // code for variable lookup
+         APP = 2,  // code for applications
+         ABS = 3,  // code for abstractions
+         ROOT = 1  // sentinel kept at stack[1]
+
+sequence nexts, envps, refs, terms, // stack
+         mem                        // memory
+integer ip,         // instruction pointer
+        ep,         // end of code pointer
+        frep,       // freelist
+        contp,      // continuation stack
+        envp        // environment pointer
+
+constant M = 512 -- grow automatically
+--constant M = 50000 -- fixed limit (~safer)
+-- (Programs that are left to run out of memory will tend to
+--  gradually slow the machine, and sometimes even hang it.)
+
+procedure grow_memory()
+  if M!=512 then crash("out of memory") end if
+  -- else 512->1024->2048->4096->8192, etc.
+  mem &= repeat(0,length(mem))
+--?{"grow",length(mem)}
+end procedure
+
+procedure Gc(integer p)
+  // garbage collection (stack only, but not mem)
+  while p>ROOT do
+    refs[p] -= 1
+    if refs[p] then exit end if
+    Gc(nexts[p])
+    nexts[p] = frep
+--terms[p] = 0
+    frep = p
+    p = envps[p]
+  end while
+--if ip>=500 then
+----?"gc"
+--end if
+end procedure
+
+procedure Var()
+  integer e = envp, t = envp,
+          x = mem[ip+1], i = 1
+  while i<=x and e!=ROOT do
+    e = nexts[e]
+    i += 1
+  end while
+  assert(e!=ROOT,"UNDEFINED VARIABLE %d", {x})
+  ip = terms[e]
+  envp = envps[e]
+  refs[envp] += 1
+  Gc(t)
+end procedure
+
+bool bitmode
+string src, tgt
+integer sdx = 0, b = 0, c
+function nextbit()
+    if b=0 then
+        if sdx>=length(src) then return -1 end if
+        sdx += 1
+        c = src[sdx]
+        b = iff(bitmode?1:8)
+    end if
+    b -= 1
+    return shift_bits(c,b)&&1
+end function
+
+procedure Gro()
+  integer c = nextbit(), sc = ep+1
+  sequence g = iff(c!=-1?{ABS,APP,8,APP,2,VAR,0,ABS,ABS,VAR,even(c)}
+                        :{ABS,ABS,VAR,0})
+  ep += length(g)
+  if ep>=length(mem) then grow_memory() end if
+  mem[sc..ep] = g
+end procedure
+
+string outlog = ""
+integer o = 0, ob = 0
+bool quine8 -- mini-kludge...
+
+procedure Put()
+  integer ch = '1'-odd(ip)
+  ip = 3;
+  if not bitmode then
+    o = o*2+odd(ch)
+    ob += 1
+    if ob<8 then return end if
+    ch = o
+    o = 0
+    ob = 0
+  end if
+  if quine8 then
+    printf(1,"%02x",ch)
+  else
+    puts(1,ch)
+  end if
+  outlog &= ch
+end procedure
+
+procedure Abs()
+  // pops continuation and pushes it to environment
+  integer t = contp
+  contp = nexts[t]
+  nexts[t] = envp
+  envp = t
+  ip += 1
+end procedure
+
+procedure App()
+  // pushes continuation for argument
+  int x = mem[ip+1]
+  integer t = frep, e, term = ip+2+x
+  if t=0 then
+    nexts = append(nexts,0)
+    envps = append(envps,0)
+    refs = append(refs,0)
+    terms = append(terms,0)
+    t = length(terms)
+  end if
+  frep = nexts[t]
+  refs[t] = 1
+  terms[t] = term
+  if term>22 and term!=ep then
+    e = envp
+    refs[e] += 1
+  else
+    e = ROOT
+  end if    
+  envps[t] = e
+  nexts[t] = contp
+  contp = t
+  ip += 2
+end procedure
+
+procedure Iop()
+  if ip>=ep then
+    Gro()
+  else
+    Put()   // ip is an element of {6,13,20,21}
+  end if
+  Gc(envp)
+  envp = ROOT
+end procedure
+
+function NeedBit()
+  integer b = nextbit()
+  assert(b!=-1,"UNEXPECTED EOF")
+  return b
+end function
+
+function Parse()
+  integer t, start = ep, bit
+  bool need = false
+  while true do
+    if ep+2>=length(mem) then grow_memory() end if
+    bit = nextbit()
+    if bit==-1 then
+      if not need then exit end if
+      crash("UNFINISHED EXPRESSION");
+    elsif bit then
+      t = 0
+      while NeedBit() do t+=1 end while
+      ep += 2
+      mem[ep-1..ep] = {VAR,t}
+      exit
+    elsif NeedBit() then
+      t = ep+1
+      ep += 2;
+      mem[t..t+1] = {APP,Parse()}
+      need = true
+    else
+      ep += 1
+      mem[ep] = ABS
+    end if
+  end while
+  return ep-start
+end function
+
+procedure Krivine(bool soe)
+  ep = 25
+  mem[1..24] = {APP, 21, ABS, APP, 9, VAR, 0, ABS, APP, ABS, APP, 2, 
+                VAR, IOP, ABS, APP, 4, APP, 1, VAR, IOP, IOP, 0, APP}
+  mem[25] = Parse()
+  {nexts,envps,refs,terms} = {{0},{0},{1},{0}}
+  {b,frep,contp,envp,ip} = {0,0,0,ROOT,1}
+--integer ic = 0
+--sequence icounts = repeat(0,25)
+  while true do
+--/*
+--5000/25 = 200...
+if ip>=25 then
+--/*
+{2944836,4596664,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{2963530,4623970,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+0
+
+100 doors:
+1{47'/',20,33'!',0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{7670,75257,43073,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+
+342:
+{68'D',0,32' ',0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+0{500,18142,6113,145,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+
+
+0^0:
+1
+
+Hello, World!:
+{54,46,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,28,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,55,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,73,72,10,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,73,72,74,36,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,73,72,74,73,63,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,73,72,74,73,72,73,18,0,0,0,0,0,0,0,0,0,0,0,0,0}
+{54,73,72,73,73,73,72,74,73,72,73,72,46,0,0,0,0,0,0,0,0,0,0,0,0}
+--*/
+    icounts[floor(ip/20+1)] += 1
+    ic += 1
+    if remainder(ic,100)=0 then
+        printf(1,"\r%v\n",{icounts})
+    end if
+end if
+--*/
+    integer mip = mem[ip]
+    -- (aside: there is simply no way to exit loop from within
+    --         switch in JavaScript, since break is overloaded,
+    --         hence also banned on desktop/Phix under with js.)
+    if (mip=ABS and not contp)
+    or length(outlog)>length(tgt) then -- (soe all done)
+        exit
+    end if
+    switch mip do
+      case VAR: Var();
+      case APP: App();
+      case ABS: Abs();
+      case IOP: Iop();
+      default:  crash("CORRUPT TERM");
+    end switch
+  end while
+--printf(1,"\nicount: %d  %v\n",{ic,icounts})
+  if not soe then -- (which has a forced early exit)
+    int rc = mem[ip+2]
+    assert(rc=0,"CONTINUATIONS EXHAUSTED")
+  end if
+  printf(1,"\n\n")
+end procedure
+
+constant tests = {{"Quine","000101100100011010000000000001011011110010111100111111011111011010"&
+                           "000101100100011010000000000001011011110010111100111111011111011010",1},
+                  {"Quine8",x"16468005bcbcfdf68016468005bcbcfdf680",1},
+                  {"Sieve of Eratosthenes",
+                   "00010001100110010100011010000000010110000010010001010111110111101001000110100001110"&
+                   "011010000000000101101110011100111111101111000000001111100110111000000101100000110110",
+                   "0011010100010100010100010000010100000100010100010000010000010100000100010100000100010000010"&
+                   "0000001000101000101000100000000000001000100000101000000000101000001000001000100000100000101"&
+                   "0000000001010001010000000000010000000000010001010001000001010000000001000001000001000001010."},
+--                 "0000000001010001010000000000010000000000010001010001000001010000000001000001000001000001010"&
+--                 "0000100010100000000010000000000000100010100010000000000000100000100000000010100010000010000"&
+--                 "0001000001000001000100000100000001000100000001000000000101000000000101000001000100000100000"&
+--                 "0010001010001000000000001000000010001000000010001000001000000000001010000000000000000010000"&
+--                 "0100000000010000010000010100000100000000010000010000010100000100000100010100000000000100000"&
+--                 "0000101000100000100000101000000000001000100000100000001000000000100000001000000000100000001"&
+--                 "0000010000010001000000010000010001000000010001000000000000010000000001000000000001010000000"&
+--                 "0010100010100000000010000000000000100010100010000000000000100010100010000000000000000000100"&
+--                 "0100000001000000000100000001000100000100000100000000000001000100000100000100000001000001000"&
+--                 "00000000100010000010100."},
+                  {"100 doors",
+                   "00010001000101010001101000000101100000110011101100101000110100000000001011111110000001"&
+                   "01111101011001011001000110100001111100110100101111101111000000001011111111110110011001"&
+                   "11111101110000000010111111000000101111101011001101110010101100000010111101100101111001"&
+                   "1110011110110100000000001011011100111011110000000001000000111001110100000000101101110110",
+                   "1001000010000001000000001000000000010000000000001000000000000001000000000000000010000000000000000001"},
+                  {"342",
+                   "0101000110100000000110000101100111100000100101111101111000010101100000000110000111110"&
+                   "0000010111111011001011111101100101111010011101011110001000000101110010101000110100000"&
+                   "0000010110000101011111101111100000010101111011111011111100001011000000101111111010110"&
+                   "111000000111111000010110111101110011110100000010110000011011000100000101111000111001110",
+                   "11010"},
+--/!*
+                  {"0^0",
+                   "0001010110100000010110111011010",
+                   "1"},
+                  {"Hello, World!",
+                   " Hello, world!\n",2},
+--*!/
+--/* erm, no input... ("hello")
+                  {"vfpc",
+                   "00010001011001010101000110100000010100010001101000000101100000000001011001111111101111"&
+                   "00101111111011111101110100001100101111011101101001011000000101100000000101011111100000"&
+                   "10000011011000001100101100000010110000000010111111000001101101000001000001101100000100"&
+                   "000000101101110110",
+                   "0"},
+--*/
+                 }
+for ti,t in tests do
+--for ti,t in tests from 3 do
+    printf(1,"%s:\n",{t[1]})
+    src = t[2]
+    bitmode = (src[1]&&#FE)='0'
+    quine8 = ti==2
+    if ti<=2 then
+        if quine8 then
+            for c in src do
+                printf(1,"%02x",c)
+            end for
+        else
+            printf(1,src)
+        end if
+        printf(1," (src)\n")
+    end if
+    object t3 = t[3]
+    if integer(t3) then t3 = src[t3..$] end if
+    bool soe = t3[$]='.'  -- (force an early exit)
+    -- (no point leaving it running if you(/I) can't
+    --  be bothered to verify the output properly...)
+    if soe then t3 = t3[1..$-1] end if
+    tgt = t3
+    {sdx,b,outlog,o,ob} = {0,0,"",0,0}
+    mem = repeat(0,M) -- if M=512, extended as needed (and it will be)
+    Krivine(soe)
+    integer ld = length(outlog)-length(tgt)
+    if ld then
+        assert(soe and ld==1)
+        outlog = outlog[1..$-1]
+    end if
+    assert(outlog==tgt)
+end for
+
+?"done"
+wait_key()
+
+-- 0001000100010101000110100000010110000011001110110010100011010000000000101111111000000101111101011001011001000110100001111100110100101111101111000000001011111111110110011001111111011100000000101111110000001011111010110011011100101011000000101111011001011110011110011110110100000000001011011100111011110000000001000000111001110100000000101101110110
+
+-- 6! nope:
+--/*
+                  {"6!",
+                   x"11 c2 a3 40 b0 bf 65 ee 05 7c 0c ef 18 89 70 39 d0 39 ce 81 6e c0 3c e8 31",
+                   "720"},
+--*/
+--Hilbert curve. nope:
+--/*
+constant src = x"18181818111154680604155ff0419df9de16fffe5f3feff615ff94684058117e"&
+               x"05cbfebcbfee86cb946816005c0bfacbfbf71a85e05cf414d5fe08180b048d08"&
+               x"00e078016445ffe5ff7ffffe5fff2fc0eed97f5bfffffbfffcaafff7817ffadf"&
+               x"76695468060157f7e1605c13fe80b22c18581bfe5c1042ff805deec06c2c0c06"&
+               x"08191a00167fbcbcfdf65f7c0a20313233"
+--*/
+--Brainfuck: nope.
+--/*
+constant src = x"4451a1018455d502b7703022ff32f000bff9857f5ee16f957f7deec0e5546800"&
+               x"5855fdfbe04557fdebfbf0b6f02fd607e16f73d7f114bcc00bff2e1fa16f6617"&
+               x"e85bef2fcfff13ffe1ca34200ac8d00b99ee1fe5ff7f5a6a1fff0fff879d04d0"&
+               x"ab0005db2340b73b28ccc0b06c0e7410"&
+                "++++++++++[>+++++++>++++++++++>+++>+<<<<-]>++.>+.+++++++..+++.>+"&
+                "+.<<+++++++++++++++.>.+++.------.--------.>+.>.]"
+--          2b2b2b2b2b2b2b2b2b2b5b3e2b2b2b2b"&
+--             x"2b2b2b3e2b2b2b2b2b2b2b2b2b2b3e2b2b2b3e2b3c3c3c3c2d5d3e2b2b2e3e2b"&
+--             x"2e2b2b2b2b2b2b2b2e2e2b2b2b2e3e2b2b2e3c3c2b2b2b2b2b2b2b2b2b2b2b2b"&
+--             x"2b2b2b2e3e2e2b2b2b2e2d2d2d2d2d2d2e2d2d2d2d2d2d2d2d2e3e2b2e3e2e5d"
+--*/
+-- symbolic.Blc nope....
+--/*
+constant src = x"18181818181844451A101818457FFBCFF0B9FE00787F0B6FCFF87FC00B9FDE7E"&
+               x"F2CFE1B0BFE1FF0E6F79FFD340F3A44687340AA8D0802B0BFF7816FFFE16FC2D"&
+               x"FFFFFCABFF06551A005857EF8115BFBF0B6F02FD607E16F73D117F3F00DFFBC0"&
+               x"BFF97EF8855FE060DF70B7FFFFE55FF030306FDD805BB341BE85BFFFCAA3420A"&
+               x"C2BCC0378300C03C2BFF9FF51022BC033DF07195F657D0601805DFEFC0300BBF"&
+               x"7F019AC1702E805BFFE7C2DFFEE11555755541820A2028295C61"&
+               "010000011100111001110100000011100111010"
+--*/
+--/*
+constant src = x"194680558005f00bfe5f85f3f03c2db9fc3f85e9d65e5f0decbf0fc39befe185f70b7fb00cf67bb0391a1a"&
+                " Ni hao"
+--*/
+--/*
+010100011010000000010101100000000001111000010111111001111000010111001111000000111100001011011011100111110000111110000101111010011101001011001110000110110000101111100001111100001110011011110111110011110111011000011001000110100001101
+0011
+               &" 123Ni hao"
+
+--*/
+--/*
+constant src = "01010001101000000001010110000000000111100001011111100111100001011100111100000"&
+               "01111000010110110111001111100001111100001011110100111010010110011100001101100"&
+               "001011111000011111000011100110111101111100111101110110000110010001101000011010"
+               &" 123Ni hao"
+--*/
+
+--Yeah, BUT SOME THINGS SHOULD BE "CHALLENGING"...
+--I often think some people need to be reminded this is not a site just for those with a doctorate in abstract mathematics, but also perhaps for 
+--the pre-teenager who might very well only have been shown their very first few lines of python (or whatever) a couple of days ago.
+
+--RosettaCode is for comparing programming languages and not really a suitable home for IOCCC entries. I realise this may be a tall order, but
+--this task would probably benefit from a few simple fully worked through examples, and from my perspective a proper definition of blc8 - while 
+--I get packing 8 bits on input/ouput, I can only assume the different encodings and sizes are because different bits must be generated..
+--Most examples do not show any output, which is distinctly frowned upon round here. --~~~~
+
+--/*
+constant decoded = """
+The program implements a so called Krivine machine,
+enhanced with a basic input/output system
+and a reference counting garbage collector.
+The Krivine machine is a stepwise transformer of a global state consisting of
+the current term, the current environment (a list of closures), and a stack of continuations
+(See the 3rd reference for details.)
+
+The term space holds lambda calculus terms in the following format
+0 denotes some form of IO; the only four occurances are at
+  C=13: recognizes end of a byte
+  C=20: recognize output of 0 bit
+  C=21: recognize output of 1 bit
+  C=end: input list, expanded lazily
+1 denotes a variable, with next entry its de Bruijn index
+2 denotes application with next entry the size of the term being applied
+3 denotes lambda abstraction
+
+A closure consists of the following items
+0 pointer to the next closure (as part of an environment), or next record on free list
+1 reference count
+2 pointer to environment
+3 lambda term (index in term space)
+
+Here's what each variable does:
+
+L Lambda term space
+m mode; 0 for bits and 7 for bytes
+b bits remaining unread in I, -1 on EOF
+D Desirable temporary
+c continuation context
+a active environment pointer
+C Current term index
+U Ultimate term pointer
+u utility entry
+B Born to be free-list of closures
+I Input character
+O Output character
+e entry of current term
+
+Here\'s what each of the 6 auxiliary functions does:
+s: variable lookup in active environment with de Bruijn index u
+S: gets one bit of input, setting b to -1 on EOF or to remaining number of bits in current byte
+k: kopy fragment from string literal holding lambda terms xor 46 into current end of term space
+x: xpand input, adding 11 (resp. 99) entries to term space for bit (resp. byte) mode
+p: parses blc-encoded lambda term using S(), stores results in term space and returns length
+d: decrease reference counter, add record to free list on reaching zero
+"""
+
+
+function rot13(string s)
+integer ch
+    for i=1 to length(s) do
+        ch = upper(s[i])
+        if ch>='A' and ch<='Z' then
+            s[i] += iff(ch<='M',+13,-13)
+        end if
+    end for
+    return s
+end function
+?rot13("abjurer NOWHERE.")
+?rot13(how13)
+--*/
+
+--/* ugh
+constant M=50000
+enum I,O,V,A,L
+integer n=44,i,c
+sequence t={L,A,8,A,2,  V,0,L,L,V,
+    A,30,L,A,2,V,0,L,A,5,A,7,L,V,0,O,
+    A,14,L,A,2,V,0,L,A,5,A,2,  V,0,O,O,A},
+    T = t & repeat(0,M-length(t)),b,s;
+integer nc = 0, nf = 0, na = 0; // number of cells, number freed, number of allocs
+typedef struct _{
+  long t,r; 
+  struct _*e,*n;
+} C;
+C*e,*f,*l,*S[M];
+procedure x(integer l, u)
+    while l<=u do
+        T[n] = T[l]
+        n += 1
+        l += 1
+    end while
+end procedure
+function g()
+  i-=1
+  if i<0 then
+    i=b
+    c=getchar()
+  end if
+  return shift_bits(c,i)&&1;
+end function
+void d(C*l){
+  !l||--l->r||(d(l->e),d(l->n),l->n=f,nf++,f=l);
+}
+long p(long m){
+  if(g()){
+    for(T[n++]=V;g();T[n]++){}
+    n++;
+ }else {
+    T[m]=n++&&g()?(T[m+1]=p(++n),A):L,p(n);
+ }
+ return n-m;
+}
+
+int main(int t,char **_){
+ char o;
+ b=t>1?0:7;
+ T[43]=p(n);
+ i=0;
+ for(t=b?10:26;;) {
+  switch(T[t]) do
+    case I: 
+          g();
+          i += 1
+          assert(n<M-99);
+          if(~c&&b){
+            x(0,6);
+            T[n-5]=96;
+            while i do
+              T[n++]=!g()
+              x(0,9);
+            end while 
+          }
+          x(c<0?7:b,9);
+          T[n++]=!b&&!g();
+    case O: 
+          if b+t>42 then
+            o=2*o+t&&1
+            t=28
+          else
+            puts(1,iff(b?o:t+8))
+            t=iff(b?12:28);
+          end if
+    case V: 
+          l=e;
+          for(t=T[t+1];t--;e=e->n){}
+          t=e->t;
+          (e=e->e)&&e->r++;
+          d(l);
+    case A:
+          t+=2;
+          nc++;
+          f||(na++,f=calloc(1,sizeof(C)));
+          assert(f&&s<M);
+          l = f;
+          S[s++]=f;
+          f=l->n;
+          l->r=1;
+          l->t=t+T[t-1];
+          (l->e=e)&&e->r++;
+    case L: 
+          if s=0 then
+            printf(2,"\n%d cells\n%d freed\n%d allocated\n", {nc, nf, na});
+            return 0;
+          end if
+          s -= 1
+          S[s]->n=e;
+          e=S[s];
+          t++;
+   end switch
+ end for
+ printf(2,"%d cells %d allocated\n", {nf, na});
+ return T[t+2];
+}
+--*/
+
+--/*
+/*-*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;tab-width:8;coding:utf-8 -*-¦
+¦vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi¦
+¦------------------------------------------------------------------------------¦
+¦ Copyright 2022 Justine Alexandra Roberts Tunney                              ¦
+¦                                                                              ¦
+¦ Permission to use, copy, modify, and/or distribute this software for         ¦
+¦ any purpose with or without fee is hereby granted, provided that the         ¦
+¦ above copyright notice and this permission notice appear in all copies.      ¦
+¦                                                                              ¦
+¦ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL                ¦
+¦ WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED                ¦
+¦ WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE             ¦
+¦ AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL         ¦
+¦ DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR        ¦
+¦ PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER               ¦
+¦ TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR             ¦
+¦ PERFORMANCE OF THIS SOFTWARE.                                                ¦
++-----------------------------------------------------------------------------*/
+#ifndef __COSMOPOLITAN__
+#include <assert.h>
+#include <ctype.h>
+#include <locale.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <sys/resource.h>
+#include <sys/time.h>
+#include <unistd.h>
+#include <wchar.h>
+#endif
+--#include "blc.h"
+#pragma once
+#ifndef __COSMOPOLITAN__
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#endif
+
+#define BUILTINS 4
+#define LOC      12
+#define TERMS    5000000
+
+#define IOP 0  // code for gro, wr0, wr1, put
+#define VAR 1  // code for variable lookup
+#define APP 2  // code for applications
+#define ABS 3  // code for abstractions
+
+struct Parse {
+  int n;
+  int i;
+};
+
+struct Closure {
+  struct Closure *next;
+  struct Closure *envp;
+  int refs;
+  int term;
+};
+
+extern char vlog;
+extern char slog;
+extern char alog;
+extern char rlog;
+extern char safer;
+extern char style;
+extern char binary;
+extern char noname;
+extern char asciiname;
+extern int ci;
+extern int co;
+extern long ip;
+extern long ecp;
+extern int heap;
+extern FILE *logh;
+extern int mem[TERMS];
+extern struct Closure root;
+extern struct Closure *envp;
+extern struct Closure *frep;
+extern struct Closure *contp;
+
+--char GetBit(FILE *);
+--char NeedBit(FILE *);
+const char *GetLoc(const char *, int);
+--struct Parse Parse(int, FILE *);
+void Dump(int, int, FILE *);
+void Error(int, const char *, ...);
+void PrintLambda(int, int, int, int, FILE *);
+void PrintBinary(int, int, int, FILE *);
+void PrintDebruijn(int, int, int, FILE *);
+void PrintMachineState(FILE *);
+void PrintExpressions(FILE *, char, char);
+void Print(int, int, int, FILE *);
+void PrintVar(int, FILE *);
+--</blc.h>
+
+constant USAGE = """
+ [-?hubBdsarvnNlS] [FILE...] <stdin >expr.txt 2>memory.txt
+Binary Lambda Calculus Virtual Machine
+
+FLAGS
+
+  -h      help
+  -r      redex log
+  -b      binary 8-bit i/o
+  -B      debug print binary
+  -l      print lambda notation
+  -v      variable log [implies -r]
+  -a      action log [implies -r]
+  -s      full machine state logging
+  -n      disables name rewriting rules
+  -N      disables most unicode symbolism
+  -d      dump terms on successful exit
+"""
+
+#define NIL   23 // 0b10111
+#define TRUE  27 // 0b11011
+#define FALSE 23 // 0b10111
+
+#define REF(c) (++(c)->refs, c)
+
+static const char kRom[] = {
+    APP, 0,  //  0 (? 0 ? 0 (? 0 wr0 wr1) put) (main gro)
+    ABS,     //  2 ? 0 ? 0 (? 0 wr0 wr1) put
+    APP, 0,  //  3
+    VAR, 0,  //  5
+    ABS,     //  7
+    APP,     //  8
+    ABS,     //  9 ? 0 ? 0 wr0 wr1
+    APP, 2,  // 10
+    VAR,     // 12
+    IOP,     // 13
+    ABS,     // 14 ? 0 wr0 wr1
+    APP, 4,  // 15
+    APP, 1,  // 17
+    VAR,     // 19
+    IOP,     // 20 wr0
+    IOP, 0,  // 21 wr1
+    ABS,     // 23 (?? 0) a.k.a. nil
+    ABS,     // 24 exit
+    VAR,     // 25
+    0,       // 26 exit[0]
+    ABS,     // 27 (?? 1) a.k.a. true
+    ABS,     // 28
+    VAR, 1,  // 29
+};
+
+static int postdump;
+static int kLazy[256];
+
+void Quit(int sig) {
+  Dump(0, ecp, stderr);
+  exit(128 + sig);
+}
+
+void PrintUsage(const char *prog, int rc, FILE *f) {
+  fputs("Usage: ", f);
+  fputs(prog, f);
+  fputs(USAGE, f);
+  exit(rc);
+}
+
+int Backref(int x) {
+  return x - (ecp + 1);
+}
+
+static inline void Expand(int c) {
+  if (ecp >= TERMS) Error(5, "OUT OF TERMS");
+  mem[ecp++] = c;
+}
+
+void Gc(struct Closure *p) {
+  for (; p && p != &root; p = p->envp) {
+    if (-!-p->refs) break;
+    Gc(p->next);
+    p->next = frep;
+    frep = p;
+  }
+}
+
+void Var(void) {
+  int i, x;
+  struct Closure *t, *e;
+  e = t = envp;
+  x = mem[ip + 1];
+  for (i = 0; i < x && e != &root; ++i) {
+    e = e->next;
+  }
+  if (e == &root) Error(10 + x, "UNDEFINED VARIABLE %d", x);
+  ip = e->term;
+  envp = REF(e->envp);
+  Gc(t);
+}
+
+void Gro(void) {
+  int c = fgetc(stdin);
+  if (c != -1) {
+    Expand(ABS);
+    Expand(APP);
+    Expand(4);
+    Expand(APP);
+    Expand(Backref(binary ? kLazy[c] : c & 1 ? FALSE : TRUE));
+    Expand(VAR);
+    Expand(0);
+  } else {
+    Expand(ABS);
+    Expand(ABS);
+    Expand(VAR);
+    Expand(0);
+  }
+}
+
+void Put(void) {
+  int bit;
+  long newip;
+  if (!binary) {
+    co = '0' + (ip & 1);
+    fputc(co, stdout);
+    newip = 2;
+  } else if (mem[ip + 1] & 1) {  // ip ? {6,13}
+    fputc(co, stdout);
+    newip = 2;
+  } else {      // ip ? {20,21}
+    newip = 9;  // (? 0 (? 0 wr1 wr0))
+    bit = ip & 1;
+    co = (co * 2) | bit;
+  }
+  if (ferror(stdout)) {
+    exit(55);
+  }
+  ip = newip;
+}
+
+void Bye(void) {
+  int rc = mem[ip + 2];  // (? 0) [exitcode]
+  if (rc) Error(rc, "CONTINUATIONS EXHAUSTED");
+  if (postdump && !rc) Dump(0, ecp, stderr);
+  exit(0);
+}
+
+// pops continuation and pushes it to environment
+void Abs(void) {
+  if (!contp) Bye();
+  struct Closure *t = contp;
+  contp = t->next;
+  t->next = envp;
+  envp = t;
+  ++ip;
+}
+
+struct Closure *Alloc(void) {
+  struct Closure *t;
+  if (!(t = frep)) {
+    if (!(t = calloc(1, sizeof(struct Closure)))) {
+      Error(6, "OUT OF HEAP");
+    }
+  }
+  frep = t->next;
+  t->refs = 1;
+  ++heap;
+  return t;
+}
+
+// pushes continuation for argument
+void App(void) {
+  int x = mem[ip + 1];
+  struct Closure *t = Alloc();
+  t->term = ip + 2 + x;
+  t->envp = t->term > 21 && t->term != ecp ? REF(envp) : &root;
+  t->next = contp;
+  contp = t;
+  ip += 2;
+}
+
+int LoadByte(int c) {
+  int i, r = ecp;
+  for i=7 to 0 by -1 do
+    Expand(ABS);
+    Expand(APP);
+    Expand(i ? +4 : Backref(NIL));
+    Expand(APP);
+    Expand(Backref(c & (1 << i) ? FALSE : TRUE));
+    Expand(VAR);
+    Expand(0);
+  end for
+  return r;
+}
+
+void LoadRom(void) {
+  long i;
+  for (; ecp < sizeof(kRom) / sizeof(*kRom); ++ecp) {
+    mem[ecp] = kRom[ecp];
+  }
+  mem[4] = binary ? 2 : 9;
+  if (binary) {
+    for (i = 0; i < 256; ++i) {
+      kLazy[i] = LoadByte(i);
+    }
+  }
+  mem[1] = ecp - 2;
+}
+
+void Iop(void) {
+  if (ip == ecp) {
+    Gro();
+  } else {
+    Put();  // ip ? {6,13,20,21}
+  }
+  Gc(envp);
+  envp = &root;
+}
+
+static void Rex(void) {
+  if (slog) PrintMachineState(stderr);
+  if (rlog && (alog || mem[ip] != APP)) {
+    PrintExpressions(stderr, alog, vlog);
+  }
+  switch (mem[ip]) {
+    case VAR:
+      Var();
+      break;
+    case APP:
+      App();
+      break;
+    case ABS:
+      Abs();
+      break;
+    case IOP:
+      Iop();
+      break;
+    default:
+      Error(7, "CORRUPT TERM");
+  }
+}
+
+void Krivine(void) {
+  int main;
+  long gotoget;
+  LoadRom();
+  mem[ecp++] = APP;
+  gotoget = ecp++;
+  main = ecp;
+  mem[gotoget] = Parse(1).n;
+  if (rlog) {
+    Print(main, 1, 0, stderr);
+    fputs("\n", stderr);
+    if (alog) {
+      fputs("? wrap[", stderr);
+      Print(0, 1, 0, stderr);
+      fputs("]\n", stderr);
+    }
+  }
+  for (;;) Rex();
+}
+
+void LoadFlags(int argc, char *argv[]) {
+  int i;
+  const char *prog;
+  prog = argc ? argv[0] : "lambda";
+  while ((i = getopt(argc, argv, "?hubBdsarvnNlS")) != -1) {
+    switch (i) {
+      case 'b':
+        binary = 1;
+        break;
+      case 'S':
+        safer = 1;
+        break;
+      case 'n':
+        noname = 1;
+        break;
+      case 'N':
+        asciiname = 1;
+        break;
+      case 'B':
+        style = 2;
+        break;
+      case 'l':
+        style = 1;
+        break;
+      case 's':
+        slog = 1;
+        break;
+      case 'r':
+        rlog = 1;
+        break;
+      case 'a':
+        rlog = 1;
+        alog = 1;
+        break;
+      case 'v':
+        rlog = 1;
+        vlog = 1;
+        break;
+      case 'd':
+        postdump = 1;
+        break;
+      case '?':
+      case 'h':
+        PrintUsage(prog, 0, stdout);
+      default:
+        PrintUsage(prog, 1, stderr);
+    }
+  }
+}
+
+int main(int argc, char *argv[]) {
+  struct rlimit rlim = {512 * 1024 * 1024, 512 * 1024 * 1024};
+  setrlimit(RLIMIT_AS, &rlim);
+  signal(SIGQUIT, Quit);
+  signal(SIGPIPE, Quit);
+  LoadFlags(argc, argv);
+  setlocale(LC_ALL, "");
+  setvbuf(stdout, 0, _IOLBF, 0);
+  setvbuf(stderr, 0, _IOLBF, 0);
+  Krivine();
+}
+
+--*/
+

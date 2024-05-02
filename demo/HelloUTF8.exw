@@ -15,7 +15,8 @@
 --  is ansi-only, but Edita manages fairly well, at least where it matters,
 --  though not necessarily on the menus, config files, etc.
 --
-
+--with trace
+--trace(1)
 --constant vowels = utf8_to_utf32("AEIOUİÖaeiouæáåäéêıóöú"),
 --s = """
 --Norwegian, Icelandic, German, Turkish, French, Spanish, English:
@@ -231,14 +232,14 @@ typedef struct _CONSOLE_FONT_INFOEX {
   WCHAR FaceName[LF_FACESIZE];
 } CONSOLE_FONT_INFOEX, *PCONSOLE_FONT_INFOEX;
 """,
-tGCOCP = """
-UINT WINAPI GetConsoleOutputCP(void);
-""",
-tSCOCP = """
-BOOL WINAPI SetConsoleOutputCP(
-  _In_  UINT wCodePageID
-);
-""",		   
+--tGCOCP = """
+--UINT WINAPI GetConsoleOutputCP(void);
+--""",
+--tSCOCP = """
+--BOOL WINAPI SetConsoleOutputCP(
+--  _In_    UINT wCodePageID
+--);
+--""",		   
 tSCCFX = """
 BOOL WINAPI SetCurrentConsoleFontEx(
   _In_  HANDLE hConsoleOutput,
@@ -264,8 +265,8 @@ STD_OUTPUT_HANDLE = -11,
 idCOORD = define_struct(tCOORD),
 idCFI = define_struct(tCFI),
 k32 = open_dll("kernel32.dll"),
-xGetConsoleOutputCP = define_cffi_func(k32,tGCOCP),
-xSetConsoleOutputCP = define_cffi_func(k32,tSCOCP),
+--xGetConsoleOutputCP = define_cffi_func(k32,tGCOCP),
+--xSetConsoleOutputCP = define_cffi_func(k32,tSCOCP),
 xSetCurrentConsoleFontEx = define_cffi_func(k32,tSCCFX),
 xGetStdHandle = define_cffi_func(k32,tGSH),
 xWriteConsole = define_cffi_func(k32,tWC),
@@ -287,21 +288,50 @@ poke2(pCFI+name_offset,"Lucida Console\0")
 
 puts(1,"")  -- force console to exist
 atom hConsole = c_func(xGetStdHandle,{STD_OUTPUT_HANDLE})
-atom prevCP = c_func(xGetConsoleOutputCP,{})
-printf(1,"prevCP:%d\n",prevCP)
+--atom prevCP = c_func(xGetConsoleOutputCP,{})
+--printf(1,"prevCP:%d\n",prevCP)
 if c_func(xSetCurrentConsoleFontEx,{hConsole,FALSE,pCFI})=0 then
 --if 0 then
     printf(1,"SetCurrentConsoleFontEx failed\n")
 end if
--- the following is equivalent to running "chcp 65001":
-if c_func(xSetConsoleOutputCP,{CP_UTF8})=0 then
-    printf(1,"SetConsoleOutputCP failed\n")
-end if
+--18/3/24: (now in VM/fileioN.e, making this pointless)
+---- the following is equivalent to running "chcp 65001":
+--if c_func(xSetConsoleOutputCP,{CP_UTF8})=0 then
+--  printf(1,"SetConsoleOutputCP failed\n")
+--end if
 
 --NO:
 puts(1,"Unicode is supported on this terminal and U+25B3 is : \u25b3\n\n");
 puts(1,"Unicode is supported on this terminal and U+25B3 is : �\n\n");
 ?"Unicode is supported on this terminal and U+25B3 is : \u25b3\n\n"
+
+puts(1,"""
+from Go:
+    fmt.Println("     D1   D2   D3   D4")
+    fmt.Println("   ╔════╦════╦════╦════╗")
+    fmt.Printf("R1 ║ %2d ║ %2d ║ %2d ║ %2d ║ L1\n", n[0], n[1], n[2], n[3])
+    fmt.Println("   ╠════╬════╬════╬════╣")
+    fmt.Printf("R2 ║ %2d ║ %2d ║ %2d ║ %2d ║ L2\n", n[4], n[5], n[6], n[7])
+    fmt.Println("   ╠════╬════╬════╬════╣")
+    fmt.Printf("R3 ║ %2d ║ %2d ║ %2d ║ %2d ║ L3\n", n[8], n[9], n[10], n[11])
+    fmt.Println("   ╠════╬════╬════╬════╣")
+    fmt.Printf("R4 ║ %2d ║ %2d ║ %2d ║ %2d ║ L4\n", n[12], n[13], n[14], n[15])
+    fmt.Println("   ╚════╩════╩════╩════╝")
+    fmt.Println("     U1   U2   U3   U4\n")
+from Wren:
+    System.print("     D1   D2   D3   D4")
+    System.print("   ╔════╦════╦════╦════╗")
+    Fmt.print   ("R1 ║ $2d ║ $2d ║ $2d ║ $2d ║ L1", n[0], n[1], n[2], n[3])
+    System.print("   ╠════╬════╬════╬════╣")
+    Fmt.print   ("R2 ║ $2d ║ $2d ║ $2d ║ $2d ║ L2", n[4], n[5], n[6], n[7])
+    System.print("   ╠════╬════╬════╬════╣")
+    Fmt.print   ("R3 ║ $2d ║ $2d ║ $2d ║ $2d ║ L3", n[8], n[9], n[10], n[11])
+    System.print("   ╠════╬════╬════╬════╣")
+    Fmt.print   ("R4 ║ $2d ║ $2d ║ $2d ║ $2d ║ L4", n[12], n[13], n[14], n[15])
+    System.print("   ╚════╩════╩════╩════╝")
+    System.print("     U1   U2   U3   U4\n")
+""")
+
 --çais
 constant utf8delta = "U+25B3 is : �\n",
          utf16delta = utf8_to_utf16(utf8delta)
@@ -693,6 +723,8 @@ end procedure
 sequence tests = {"","   ","2","333",".55","tttTTT","4444 444k",
                   utf8_to_utf32("🐶🐶🐺🐶"),utf8_to_utf32("🎄🎄🎄🎄")}
 for i=1 to length(tests) do samechar(tests[i]) end for
+printf(1,"upside_down ?:%c, pi:%c\n",{191,960})
+
 
 --function filter(string s, integer fromch=' ', toch=#7E, abovech=#7F)
 --string res = ""
@@ -753,7 +785,7 @@ uc = "\u2D5A"&"E"
 --?'�' --DEV (doc)
 --?"�" --DEV
 --  �
-{} = c_func(xSetConsoleOutputCP,{prevCP})
+--{} = c_func(xSetConsoleOutputCP,{prevCP})
 
 
 --/*

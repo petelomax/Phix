@@ -4856,9 +4856,11 @@ atom p_vaddr
 --integer p_paddr
 atom p_paddr
 integer p_filesz
-integer p_memsz
+--integer p_memsz
+atom p_memsz
 integer p_flags
-integer p_align
+--integer p_align
+atom p_align
 integer vdx
 integer size
 integer k
@@ -7910,7 +7912,10 @@ fdx:67/67, sdx:115/115
     return 0 -- (ignored...)
 end function
 
+bool bTromp = false
 procedure decode_ELF_code_segment(integer idx, justsettab, supported, e_machine, atom e_entry=0)
+printf(1,"decode_ELF_code_segment(idx=%d, justsettab=%b, supported=%d, e_machine=%d, e_entry=%x\n",
+         {idx, justsettab, supported, e_machine, e_entry})
 --sequence p_offsets
 --sequence p_vaddrs
 --sequence p_fileszs
@@ -7949,6 +7954,9 @@ atom ilen
     end if
 --  CSvaddr = p_vaddrs[idx]
     CSvaddr = iff(idx>0?p_vaddrs[idx]:shaddrs[-idx])
+--?{"CSvaddr",CSvaddr}
+--{"CSvaddr",#400000}
+
 --19/2/23:
 --/* (not how we're doing it anymore...)
     if e_machine!=0x28 and CSvaddr=0 and idx>0 and p_paddrs[idx]!=0 then
@@ -7987,6 +7995,7 @@ end if
 --size:48 = #30
         else
             address = CSvaddr-(p_vaddrs[1]-p_offsets[1])
+--?{"address",address}
         end if
 --  p_offsets = {84'T'}
 --  p_offsets = {#54'T'}
@@ -8025,7 +8034,8 @@ else
 --?{"address",address}
 --if address=0 then ?9/0 end if
 --DEV
-if address=0 then ?"line 7894" address = #B0 size-=address end if
+--if address=0 then ?"line 7894" address = #B0 size-=address end if
+if address=0 then ?"line 7894" address = iff(bTromp?#50:#B0) size-=address end if
 end if
     elfv = append(elfv,{desc,address,0})    -- erm?
 --?desc
@@ -9140,12 +9150,15 @@ integer ei_abiversion
 integer e_type
 integer e_machine
 integer supported
-integer e_version
+--integer e_version
+atom e_version
 --integer e_entry
 atom e_entry
 integer e_phoff
-integer e_shoff
-integer e_flags
+--integer e_shoff
+atom e_shoff
+--integer e_flags
+atom e_flags
 integer ABIversion
 integer e_ehsize
 integer e_phentsize
@@ -9158,6 +9171,7 @@ atom p_type
 sequence codesegments
 --integer eds
 integer dti
+    bTromp = false
 
     elfv = {}
 --  elfv = append(elfv,{"full file",0,file_size})   -- temp/test
@@ -9176,6 +9190,11 @@ integer dti
     elsif ei_class=2 then
         desc = "64 bit"
         machine = 64
+    elsif ei_class=3 then -- tromp
+        desc = "64 bit (tromp?)"
+        machine = 64
+        ei_class = 2
+        bTromp = true
     else
         return fatal("unknown architecture")
     end if
@@ -9189,6 +9208,9 @@ integer dti
     ei_version = decode("ei_version",1,"")
     if ei_version=1 then
         desc = "current"
+    elsif ei_version=8 and bTromp then -- tromp
+        desc = "(assumed to be 1)"
+        ei_version = 1
     else
         return fatal("unknown version")
     end if
@@ -9409,6 +9431,9 @@ integer dti
     e_version = decode("e_version",4,"")
     if    e_version=0 then      desc = "no version(?)"
     elsif e_version=1 then      desc = "current"
+    elsif bTromp and
+          (e_version=331608 or
+           e_version=#7AEB5750) then    desc = "tromp??(0)"; e_version = 0;
     else return fatal("unknown version")
     end if
     res[tabidx][$][R_NOTES] = desc
@@ -9431,6 +9456,10 @@ integer dti
         e_shoff = decode("e_shoff","h4","section header table")
     elsif machine=64 then
         e_entry = decode("e_entry","h8","")
+        if e_entry = 0x4000FE and bTromp then
+            e_entry = 0x400050
+            res[tabidx][$][R_NOTES] = "(tromp: 0x400050 assumed)"
+        end if
 --      if e_machine=40 then
         if e_machine=0x28 then  -- ARM
             if and_bits(e_entry,0b01)=0b01 then
@@ -9448,6 +9477,9 @@ integer dti
         ?9/0
     end if
     e_flags = decode("e_flags","h4","")
+    --tromp:
+    if e_shoff>=1.8e+16 then e_shoff = 0 end if
+    if e_flags= #FCE2ABAC then e_flags = 0 end if
     if e_machine=0x28 then  -- ARM
         ABIversion = floor(e_flags/#1000000)
         e_flags = and_bits(e_flags,#00FFFFFF)
@@ -9463,6 +9495,12 @@ integer dti
     if machine=32 then
         if e_ehsize!=0x34 then return fatal("e_ehsize should be 0x34") end if
     elsif machine=64 then
+        if bTromp and 
+           (e_ehsize = 0x1AEB or
+            e_ehsize = 0xC3) then
+            res[tabidx][$][R_NOTES] = "ELF header size (assumed to be 0x40)"
+            e_ehsize = 0x40
+        end if
         if e_ehsize!=0x40 then return fatal("e_ehsize should be 0x40") end if
     else
         ?9/0
@@ -9482,6 +9520,10 @@ integer dti
     e_shentsize = decode("e_shentsize",2,"section header entry size")
     e_shnum = decode("e_shnum",2,"number of section header entries")
     if e_shnum!=0 then
+if bTromp and e_shentsize=0 then
+            res[tabidx][$][R_NOTES] = "number of section header entries (assumed to be 0)"
+            e_shnum = 0
+else
         if e_shoff=0 then return fatal("e_shoff is 0") end if
         if machine=32 then
             if e_shentsize!=40 then return fatal("e_shentsize should be 40") end if
@@ -9491,6 +9533,7 @@ integer dti
         else
             ?9/0
         end if
+end if
     end if
     e_shstrndx = decode("e_shstrndx",2,"section name string table index")
 
@@ -9584,6 +9627,9 @@ integer dti
 --DEV/SUG
 -- log all memory adresses when dissassembling code segment (in order, duplicates removed),
 -- and use them for a "smart dump" of the data segment.
+--#70   = 112
+--#38 =  56
+--#B0 = 176 -- 2*e_phentsize??
                     p_type = p_types[i]
 -- 1/12/14:
 --                  if p_type=PT_LOAD then  -- loadable
@@ -11647,7 +11693,7 @@ procedure mainELF()
 --      load_file(`C:\Users\Pete\Downloads\qman70\Share2\hola`)
 --      load_file(`C:\Users\Pete\Downloads\qman70\Share2\tiny0`)
 --      load_file(`C:\Program Files (x86)\Phix\p32`)
-        load_file(`C:\Program Files (x86)\Phix\bench\cf\blc.exe`)
+--      load_file(`C:\Program Files (x86)\Phix\bench\cf\blc.exe`)
 --      load_file(`F:\misc\rpi\fasm\fasm-1.73.30\fasm\fasm`)
 --      load_file(`F:\misc\rpi\fasm\fasm-1.73.30\fasm\fasm.x64`)
 --      load_file(`F:\misc\rpi\fasm\libc\fasm-1.73.30\fasm\fasm.o`)
@@ -11655,7 +11701,7 @@ procedure mainELF()
 --      load_file(`C:\Users\Pete\Downloads\qman70\Share2\hello_world`)
 --      load_file(`C:\FPC\3.0.4\bin\i386-win32\humble.exe`) -- 90K... cannot quite identify the entry point...
 --      load_file(`C:\Users\Pete\Documents\porn\test\older\lambda.com`)
---      load_file(`C:\Users\Pete\Documents\porn\test\older\blc`) -- ugh!
+        load_file(`C:\Users\Pete\Documents\porn\test\older\blc`) -- ugh!
 --      load_file(`C:\Users\Pete\Documents\porn\test\older\Blc1`) -- ugh!
 --      load_file(`C:\gtkX\bin\gtk3-demo.exe`) -- 32 bit!!
 --      load_file(`C:\gtkX\bin\libgtk-3-0.dll`)

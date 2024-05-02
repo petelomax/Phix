@@ -39,19 +39,22 @@ constant gopath = `C:\Program Files\Go\bin\`,
       juliapath = `E:\downloads\misc\wren\julia-1.6.2-win64\julia-1.6.2\bin\`,
        phixpath = `C:\Program Files (x86)\Phix\`, 
          pypath = `C:\Program Files (x86)\Python37-32\`,
-       wrenpath = `E:\downloads\misc\wren\wren_cli-windows-0.3.0\`,
-        gopause = "var s string\nfmt.Printf(\"done\")\nfmt.Scan(&s)\n",
-      phixpause = "?\"done\"\n{}=wait_key()\n",
+--     wrenpath = `E:\downloads\misc\wren\wren_cli-windows-0.3.0\`,
+       wrenpath = `E:\downloads\misc\wren\wren-cli-windows-0.4.0\`,
+--      gopause = "var s string\nfmt.Printf(\"done\")\nfmt.Scan(&s)\n",
+--      gopause = "fmt.Printf(\"done\")\nfmt.Scanln()\n",
+--    phixpause = "?\"done\"\n{}=wait_key()\n",
 --        jsrun = {`pw.exe`, `runjs.exw`}
-      cliordome = {`wren_cli-0.3.0.exe`,`dome.exe`},
+--    cliordome = {`wren_cli-0.3.0.exe`,`dome.exe`},
+      cliordome = {`wren_cli.exe`,`dome.exe`},
       -- it should be pretty straightforward to comment out any that you don't want,
       -- and/or insert similar entries for other programming languages that you do:
-      languages = {{`Go`,         gopath, `go.exe`,    `.go`, `"%s" run "%s"`, gopause},
-                   {`JavaScript`, jspath, `open`,    `.html`, `"%s"`,``},
-                   {`Julia`,   juliapath, `julia.exe`, `.jl`, `"%s" "%s"`, ``},
-                   {`Phix`,     phixpath, `pw.exe`,   `.exw`, `"%s" "%s"`, phixpause},
-                   {`Python`,     pypath, `python.exe`,`.py`, `"%s" "%s"`, ``},
-                   {`Wren`,     wrenpath,  cliordome,`.wren`, `"%s" "%s"`, ``}},
+      languages = {{`Go`,         gopath, `go.exe`,    `.go`, `"%s" run "%s"`},
+                   {`JavaScript`, jspath, `open`,    `.html`, `"%s"`},
+                   {`Julia`,   juliapath, `julia.exe`, `.jl`, `"%s" "%s"`},
+                   {`Phix`,     phixpath, `pw.exe`,   `.exw`, `"%s" "%s"`},
+                   {`Python`,     pypath, `python.exe`,`.py`, `"%s" "%s"`},
+                   {`Wren`,     wrenpath,  cliordome,`.wren`, `"%s" "%s"`}},
           langs = vslice(languages,1)
 
 Ihandle langsel, taskfilter, textsearch, table, add_pause, codetext, statusbar, clipboard
@@ -127,6 +130,75 @@ function get_selected_language()
     -- oops?
 end function
 
+bool paused = false
+sequence pausel
+
+function nz(integer i)
+    assert(i!=0)
+    return i
+end function
+
+constant gopause = "\n"&"""
+    defer func() {
+        fmt.Printf("done")
+        fmt.Scanln()
+    }()
+""",
+juliapause = "\n"&"""
+println("done")
+c = read(stdin, Char)
+""",
+phixpause = "\n"&"""
+?"done"; wait_key()
+""",
+pythonpause = "\n"&"""
+import click
+print('done')
+c = click.getchar()   # Gets a single character
+"""
+
+function add_final_pause(string txt, integer ldx)
+    string lang = languages[ldx][1]
+    if lang="Go" then
+        integer pm = nz(match("package main",txt)),
+                fmt = nz(match(`"fmt"`,txt)),  -- insert??
+                fm = nz(match("func main()", txt)),
+                ob = nz(find('{',txt,fm))
+        txt[ob+1..ob] = gopause
+    elsif lang="JavaScript" and match("<html>",txt) then
+        -- <no point if running in a browser...>
+    elsif lang="Julia" then
+        txt &= juliapause
+    elsif lang="Phix" then
+        txt &= phixpause
+    elsif lang="Python" then
+        txt &= pythonpause
+    elsif lang="Wren" then
+        if not match(`import "dome"`,txt) then
+            if not match("ioutil",txt) then
+                txt = "import \"./ioutil\" for Input\n" & txt
+            end if
+            txt &= "\nInput.text(\"done\")\n"
+        end if
+--/*
+import "./ioutil" for Input
+...
+Input.text("done")
+--*/
+    elsif not paused or not pausel[ldx] then
+--      ?9/0 -- placeholder...
+        printf(1,"Sorry, add_final_pause() not yet implemented for %s",{lang})
+        wait_key()
+        free_console() -- otherwise console not recognised/respoonded to...
+        if not paused then
+            pausel = repeat(false,length(languages))
+            paused = true
+        end if
+        pausel[ldx] = true
+    end if
+    return txt
+end function
+
 function run(atom c)
     string text = IupGetAttribute(codetext,"VALUE"), cmd
     if length(text) then
@@ -143,6 +215,7 @@ function run(atom c)
         sequence {name,d,exe,ext,fmt} = languages[ldx]
         string filename = join_path({d,"rcre"&ext})
         if name="Wren" then
+--filename = "rcre"&ext
             exe = exe[iff(match(`import "dome"`,text)?2:1)]
             sequence lines = split(text,"\n"),
                    missing = {}
@@ -150,11 +223,14 @@ function run(atom c)
                 string li = lines[i]
                 if length(li)>7 and li[1..7]="import " then
                     string lib = trim(li[8..find(' ',li,9)-1],". \"/")
+if lib!="random" then
                     lib &= iff(lib="dome"?".exe":".wren")
                     string libpath = join_path({d,lib})
                     if not file_exists(libpath) then
+--?9/0
                         missing = append(missing,lib)
                     end if
+end if
                 end if
             end for
             if length(missing) then
@@ -162,6 +238,10 @@ function run(atom c)
                 IupSetStrAttribute(statusbar,"TITLE",missing)
                 return IUP_IGNORE
             end if
+--          if name="Wren" then
+--              filename = "rcre"&ext
+--          end if
+            cmd = sprintf(fmt,{exe,"rcre"&ext})
         elsif name="JavaScript" then
             if not match("<html>",text) then
                 IupSetStrAttribute(statusbar,"TITLE","<html> only")
@@ -170,7 +250,7 @@ function run(atom c)
             cmd = sprintf(fmt,{filename})
             mode = 4
         end if
-        if mode=8 then
+        if mode=8 and name!="Wren" then
             string execname = join_path({d,exe})
             cmd = sprintf(fmt,{execname,filename})
         end if
@@ -178,17 +258,21 @@ function run(atom c)
 --      if c=K_F6 and name="Wren" then
 --          cmd = sprintf("cd \"%s\"; %s",{directory,cmd})
 --      end if
-        integer fn = open(filename,"w")
-        -- you may need to add write permissons for this...
-        if fn=-1 then crash("error opening "&filename) end if
-        puts(fn,text)
         if IupGetInt(add_pause,"VALUE") then
             -- I suppose you could check that Go imports fmt,
             -- and maybe append this thing much earlier on,
             -- and maybe disable add_pause when length==0.
-            sequence pauses = vslice(languages,6)
-            puts(fn,pauses[ldx])
+--          sequence pauses = vslice(languages,6)
+--          puts(fn,pauses[ldx])
+--          txt &= pauses[ldx]
+--          txt &= languages[ldx][6]
+            text = add_final_pause(text,ldx)
+--          ,languages[ldx][6])
         end if
+        integer fn = open(filename,"w")
+        -- you may need to add write permissons for this...
+        if fn=-1 then crash("error opening "&filename) end if
+        puts(fn,text)
         close(fn)
         -- (clear CF_UNICODETEXT etc first, as per IupClipboard() docs)
         IupSetAttribute(clipboard,"TEXT",NULL)
@@ -285,6 +369,7 @@ procedure set_blocks(sequence di, integer i)
         if start=1 then ?9/0 end if
 --      finish = match(`</l`&`ang>`,text,start)
         finish = match(clang,text,start)
+        if finish=0 then ?9/0 end if
         blocks = append(blocks,trim_head(text[start..finish-1]))
         start = finish+7
     end while
@@ -357,7 +442,9 @@ function load_tasks()
                 curr = contents[start+11..finish-1]
                 if curr!=prev then
                     if finishk then
-                        finishes[finishk] = start-3
+--8.4.24...
+--                      finishes[finishk] = start-3
+                        finishes[finishk] = start-1
                         finishk = 0
                     end if
                     integer k = find(curr,langs)
@@ -383,9 +470,13 @@ function load_tasks()
             and IupLoopStep()=IUP_CLOSE then -- (nb requires that inIdle handling)
                 return IUP_CLOSE
             end if
-            if time()>t1 and wastitle="" then
-                IupSetStrAttribute(statusbar, "TITLE", "Processing %d/%d (%.1f%%)\r",
-                                                {i,length(tasks),i/length(tasks)*100})
+            if time()>t1 then
+                if wastitle="" then
+                    IupSetStrAttribute(statusbar, "TITLE", "Processing %d/%d (%.1f%%)\r",
+                                                    {i,length(tasks),i/length(tasks)*100})
+                elsif wastitle="x" then
+                    wastitle=""
+                end if
                 t1 = time()+0.2
             end if
         end for
@@ -579,6 +670,7 @@ procedure main()
                 radiobtn = IupToggle(lang)
         bool bOK = true
         if cmd!="open" then
+--?{d,get_file_type(d),FILETYPE_DIRECTORY}
             bOK = (get_file_type(d)==FILETYPE_DIRECTORY)
             if bOK then
                 if string(cmd) then
@@ -587,10 +679,12 @@ procedure main()
                     for c=1 to length(cmd) do
                         bOK = file_exists(join_path({d,cmd[c]}))
                         if not bOK then exit end if
+--                      if not bOK then ?9/0 end if
                     end for
                 end if
             end if
             if not bOK then
+?9/0
                 disabled[i] = true
                 status_msgs = append(status_msgs,lang)
             end if

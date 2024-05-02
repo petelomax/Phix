@@ -1,0 +1,230 @@
+--
+-- Cubefree_numbers.exw
+-- ====================
+--
+--https://rosettacode.org/wiki/Greatest_prime_dividing_the_n-th_cubefree_number
+--
+-- tryme:
+--/*
+I've added a reference to "The number of integers in a given interval which are a multiple of at least one of the given numbers". 
+One way to do this is to calculate the number of numbers between 1 and 26 not divisible by 8, add it to the number of numbers 
+between 28 and 124 not divisible by 8 or 27 ... until you find the 10 millionth, then find the highest prime factor.
+    --Nigel Galloway (talk) 14:43, 7 March 2024 (UTC)
+so: (a:=(27[-0]-1))-floor(a/8)
+   +(a:=(125-27-1))-floor(a/8)-floor(a/27)
+   +(a:=(343-125-1))-floor(a/8)-floor(a/27)-floor(a/125)
+-- until ^^^ > n, and obvs last round with reduced a when it is.
+--*/
+{} = sprint(0,9)
+with javascript_semantics
+--with trace
+function cubes_before(atom n)
+    -- nb: if n is /not/ cube-free it /is/ included in the result.
+    -- nth := n-cubes_before(n) means n is the nth cube-free integer,
+    --                but only if cubes_before(n-1)==cubes_before(n),
+    -- otherwise cubes_before(cubicate) isn't really very meaningful.
+    atom r = 0
+--  atom r = 1
+--,pp3 = 0
+--if n=8 then trace(1) end if
+    bool xpm = true -- extend prior multiples
+    sequence pm = {}
+    for i=1 to floor(power(n,1/3)) do
+        atom p3 = power(get_prime(i),3)
+--/*
+,             a = min(p3,n)-pp3-1, l = 0
+if a<0 then exit end if
+        for f in pm do
+--          l -= floor(a/f)
+            l += floor(a/f)
+        end for
+        r += l
+--      if p3>=n then exit end if
+        pm &= p3
+        pp3 = p3
+    end for
+--*/
+--/*
+{"cubes_before",2000,335}
+{"cubes_before",1500,250}
+{"cubes_before",1250,209}
+{"cubes_before",1125,187}iff 250)...
+{"cubes_before",1187,198}
+{"cubes_before",1218,203}
+{"cubes_before",1202,200}
+{"cubes_before",1194,199}iff 15)...
+{"cubes_before",1198,199}
+{"cubes_before",1200,200}
+{"cubes_before",1199,199}
+{"cubes_before",1198,199}
+The 1,000th term of a[n] is 1,199 with highest divisor 109.
+{"cubes_before",20000,3461}
+{"cubes_before",15000,2589}
+{"cubes_before",12500,2153}
+{"cubes_before",11250,1937}
+{"cubes_before",11875,2047}
+{"cubes_before",12187,2100}
+{"cubes_before",12031,2075}
+{"cubes_before",12109,2088}
+{"cubes_before",12070,2081}iff 78)...
+{"cubes_before",12089,2084}
+{"cubes_before",12079,2083}
+{"cubes_before",12084,2084}
+{"cubes_before",12083,2083}
+{"cubes_before",12082,2083}
+The 10,000th term of a[n] is 12,083 with highest divisor 281.
+{"cubes_before",200000,34861}
+{"cubes_before",150000,26127}
+{"cubes_before",125000,21765}
+--good:
+
+{"cubes_before",2000,335}
+{"cubes_before",1500,252}
+{"cubes_before",1250,209}iff 500)...
+{"cubes_before",1125,187}iff 250)...
+{"cubes_before",1187,197}
+{"cubes_before",1218,203}iff 63)...
+{"cubes_before",1202,200}iff 31)...
+{"cubes_before",1194,199}
+{"cubes_before",1198,199}iff 8)...
+{"cubes_before",1200,200}
+{"cubes_before",1199,199}
+{"cubes_before",1198,199}
+The 1,000th term of a[n] is 1,199 with highest divisor 109.
+{"cubes_before",20000,3361}
+
+--*/
+--/!*
+        if p3>n then exit end if
+        atom k = floor(n/p3)
+        for mask=1 to power(2,length(pm))-1 do
+            integer m = mask, mi = 0, bc = count_bits(mask)
+            atom kpm = p3  
+            while m do  
+                mi += 1
+                if odd(m) then
+                    kpm *= pm[mi]
+                end if
+                m = floor(m/2)
+            end while
+            if kpm>n then
+                if bc=1 then
+                    xpm = false
+                    pm = pm[1..mi-1]
+                    exit
+                end if
+            else
+                -- account for already counted multiples.
+                atom l = floor(n/kpm)
+                -- -pairs +triples -quads as per link above
+                if odd(bc) then
+                    k -= l
+                else
+                    k += l
+                end if
+            end if
+        end for
+        r += k
+        if xpm then
+            pm &= p3
+--if n=12020569022 then ?pm end if
+--{8,27,125,343,1331,2197,4913,6859,12167,24389,29791,50653,68921,79507,103823}
+        end if
+    end for
+--*!/
+--?{"cubes_before",n,r}
+--wait_key()
+    return r
+end function
+
+--for i=1 to 30 do
+--  ?{"cubes_before",i,cubes_before(i)}
+--end for
+--{} = wait_key()
+--/*
+{"cubes_before",1,0}
+{"cubes_before",2,0}
+{"cubes_before",3,0}
+{"cubes_before",4,0}
+{"cubes_before",5,0}
+{"cubes_before",6,0}
+{"cubes_before",7,0}
+{"cubes_before",8,1}
+{"cubes_before",9,1}
+{"cubes_before",10,1}
+{"cubes_before",11,1}
+{"cubes_before",12,1}
+{"cubes_before",13,1}
+{"cubes_before",14,1}
+{"cubes_before",15,1}
+{"cubes_before",16,2}
+{"cubes_before",17,2}
+{"cubes_before",18,2}
+{"cubes_before",19,2}
+{"cubes_before",20,2}
+{"cubes_before",21,2}
+{"cubes_before",22,2}
+{"cubes_before",23,2}
+{"cubes_before",24,3}
+{"cubes_before",25,3}
+{"cubes_before",26,3}
+{"cubes_before",27,4}
+{"cubes_before",28,4}
+{"cubes_before",29,4}
+{"cubes_before",30,4}
+
+--*/
+
+function cube_free(atom nth)
+    -- get the nth cube-free integer
+    atom lo = nth, hi = lo*2, mid, cb, k
+    while hi-cubes_before(hi)<nth do
+        lo = hi
+        hi = lo*2
+    end while
+    -- bisect until we have a possible...
+    atom t1 = time()+1
+    while true do
+        mid = floor((lo+hi)/2)
+        cb = cubes_before(mid)
+        k = mid-cb
+        if k=nth then
+            -- skip omissions
+            while cubes_before(mid-1)!=cb do
+                mid -= 1
+                cb -= 1
+            end while
+            exit
+        elsif k<nth then
+            lo = mid
+        else
+            hi = mid
+        end if
+        if time()>t1 then
+            progress("bisecting %,d..%,d (diff %,d)...\r",{lo,hi,hi-lo})
+            t1 = time()+1
+        end if
+    end while 
+    return mid
+end function
+
+function A370833(atom nth)
+    if nth=1 then return {1,1,1} end if
+    atom n = cube_free(nth)
+    sequence f = prime_powers(n)
+    return {nth,n,f[$][1]}
+end function
+
+atom t0 = time()
+--/!*
+sequence f100 = vslice(apply(tagset(100),A370833),3)
+printf(1,"First 100 terms of a[n]:\n%s\n",join_by(f100,1,10," ",fmt:="%3d"))
+--*!/
+--for n in sq_power(10,tagset(11,3)) do -- 93s
+for n in sq_power(10,tagset(10,3)) do
+    printf(1,"The %,dth term of a[n] is %,d with highest divisor %,d.\n",A370833(n))
+end for
+?elapsed(time()-t0)
+
+?"done"
+{} = wait_key()
