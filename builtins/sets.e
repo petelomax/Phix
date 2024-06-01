@@ -23,14 +23,21 @@ type set_type(object s)
     return is_set
 end type
 
--- Just in case it helps, I struggled a bit to decide whether these next three 
--- should be (object x, set_type s) or (set_type s, object x), and settled on 
--- the latter due to parallels with append().
+global function is_empty(set_type s)
+    --
+    -- Returns true if x is empty.
+    -- Symbolically represented with a circle with a diagonal through it (&empty;)
+    --
+    return length(s)=0
+end function
+
+-- Aside: settled on (set_type s, object x) over (object x, set_type s)
+--        for the next few, due to parallels with append(), but op2 find.
 
 global function is_member(set_type s, object x)
     --
     -- Returns true if x is a member of s.
-    -- Symbolically represented with an E shape.    
+    -- Symbolically represented with an E shape (&isin;).   
     --
     return find(x,s)!=0
 end function
@@ -54,7 +61,7 @@ end function
 global function union(sequence s1, object s2=-1)
     --
     -- Returns anything that occurs in any set.
-    -- Symbolically represented with a U shape.
+    -- Symbolically represented with a U shape (&cup;).
     -- Can be invoked as union(s1,s2) or union({s1,s2}),
     --  where s1 and s2 are sequences and the second
     --  form permits more than two/any number of sets.
@@ -89,7 +96,7 @@ global function union(sequence s1, object s2=-1)
     return s1
 end function
 
-function set_default(sequence s1, object s2=-1)
+local function set_default(sequence s1, object s2=-1)
     -- (local) return {} or "" as the new set default
     bool bAllString = true
     if s2!=-1 then
@@ -108,7 +115,7 @@ end function
 global function intersection(sequence s1, object s2=-1)
     --
     -- Returns anything that occurs in every set.
-    -- Symbolically represented as upsidedown U
+    -- Symbolically represented as upsidedown U (&cap;)
     -- Can be invoked as intersection(s1,s2) or as
     --  intersection({s1,s2}), where s1 and s2 are 
     --  sequences and the second form permits more 
@@ -167,6 +174,7 @@ global function difference(sequence s1, object s2=-1, bool symmetric=true)
     -- Symbolically represented as: symmetric: a triangle, or sometimes
     --                              as a circle with a horizontal line,
     --                              relative: a backslash
+    --                              (dunno any html codes for this one)
     -- 
     set_type res = set_default(s1,s2)
     if s2!=-1 then
@@ -233,7 +241,7 @@ end function
 global function is_subset(set_type subset, superset)
     --
     -- return false if any element of subset is not in superset
-    -- Symbolically represented as: underlined C shape
+    -- Symbolically represented as: underlined[?] C shape (&sub;)
     --
     for i=1 to length(subset) do
 --      if not is_member(sub[i],super) then
@@ -251,7 +259,7 @@ end function
 global function is_superset(set_type superset, subset)
     --
     -- returns true if all elements of subset are in superset
-    -- Symbolically represented as: underlined reverse C
+    -- Symbolically represented as: underlined[?] reverse C (&sup;)
     --
    return is_subset(subset, superset)
 end function

@@ -57,13 +57,14 @@
           <br>
           <br>
             For efficiency reasons, if the item to be repeated appears to be a character, ie is an integer in the range 7 to 255, 
-            a <a href="string.htm">string</a> is created, otherwise a <a href="html/glossary.htm#dwordseq">dword-sequence</a> 
+            a <a href="string.htm">string</a> is created, otherwise a <a href="glossary.htm#dwordseq">dword-sequence</a> 
             is created. Better overall performance was also observed by making repeat(0,n) create a dword-sequence rather than a 
             string of nulls which was very likely to be auto-expanded to a dword sequence in the near future. Generally speaking, 
             all further handling of the result is completely transparent whether a string or dword-sequence is created, with the 
-            following exceptions: performance gains, explicit tests with the <a href="string.htm">string</a>() builtin, #isginfo 
-            directives, accessing it using inline assembly, and lastly holding raw binary can be done in a string as one byte per 
-            element, rather than 4 or 8, which might need a secondary <a href="poke.htm">poke</a>() before use.
+            following exceptions: performance gains, explicit tests with the <a href="string.htm">string</a>() builtin, 
+            #<a href="glossary.htm#isginfo">isginfo</a> directives, accessing it using inline assembly, and lastly holding raw 
+            binary can be done in a string as one byte per element, rather than 4 or 8, which might need a secondary 
+            <a href="poke.htm">poke</a>() before use.
           <br>
           <br>
             In JavaScript, strings are "immutable", and hence pwa/p2js.js/$repe() performs <code>s[1..i-1] & ch & s[i+1..$]</code> 
@@ -163,10 +164,14 @@ repeat('=', 10)     -- "=========="  (a string)
             and has the advantage of yielding type string, rather than sequence (string|dword_sequence), and in so doing may permit
             subsequent optimisations, via type inference. There are in fact a couple of places in the compiler itself that take 
             advantage of the fact that repeat(0,n) and repeat(&lsquo;\0&rsquo;,n) are treated differently, and specifically there are
-            #isginfo{code/data_section,T_String..} directives to ensure that interpretation can use them in-situ rather than allocate
-            and poke every time we run anything. Note that explicitly calling repeatch, which is not available on Euphoria, performs 
-            an implicit "non-integer agnostic" low-level and_bits(x,#FF), and hence yields incorrect results if x is not an integer 
-            or outside the range 0..255, rather than an error, so if you must use repeatch(), do so sparingly and carefully. 
+            #<a href="glossary.htm#isginfo">isginfo</a>{code/data_section,T_String..} directives to ensure that interpretation can use 
+            them in-situ rather than allocate and poke every time we run anything. Note that explicitly calling repeatch, which is not 
+            available on Euphoria, performs an implicit "non-integer agnostic" low-level and_bits(x,#FF), and hence yields incorrect 
+            results if x is not an integer or outside the range 0..255, rather than an error, so if you must use repeatch(), do so 
+            sparingly and carefully. Of course repeating a unicode character/code point of #100 or perhaps more realistically #80 and
+            above would require a <a href="glossary.htm#dwordseq">dword-sequence</a> rather than a "string", and the equivalent UTF-8
+            string would be constructed either by applying <a href="utf32_to_utf8.htm">utf32_to_utf8</a>() to said or perhaps applying
+            <a href="join.htm">join</a>() to several multi-byte strings, but in either case repeatch() would be wholly inapplicable.
             <br>
             <br>
             repeatch() has an optional third parameter, nFrames, for the benefit of repeat(), so that the runtime error message 

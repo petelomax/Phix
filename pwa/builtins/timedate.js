@@ -684,23 +684,24 @@ function $julian_day_to_timedate(/*integer*/ jd, /*integer*/ hour, /*integer*/ m
     y = (100*(n-49)+i)+l;
     return ["sequence",y,m,d,hour,mins,secs,ms];
 }
-const $day_in_seconds = (24*60)*60;  // (=86400)
+
+/*local*/ const $DAY_IN_SECONDS = (24*60)*60; // (=86400)
 function $timedate_to_seconds(/*timedate*/ td) {
 // returns an atom
 //22/3/18:
-//  return $timedate_to_julian_day(td)*$day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+//  return $timedate_to_julian_day(td)*$DAY_IN_SECONDS+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
 //25/4/19:
-//  return ($timedate_to_julian_day(td)-2440588)*$day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+//  return ($timedate_to_julian_day(td)-2440588)*$DAY_IN_SECONDS+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
     let /*atom*/ s = ($subse(td,DT_HOUR)*60+$subse(td,DT_MINUTE))*60+$subse(td,DT_SECOND);
     if (compare(length(td),DT_MSEC)>=0) { s += $subse(td,DT_MSEC)/1000; }
-    return ($timedate_to_julian_day(td)-2440588)*$day_in_seconds+s;
+    return ($timedate_to_julian_day(td)-2440588)*$DAY_IN_SECONDS+s;
 }
 function $seconds_to_timedate(/*atom*/ seconds) {
     let /*integer*/ days, minutes, hours, milliseconds;
 //22/3/18:
-//  days = floor(seconds/$day_in_seconds)
-    days = floor(seconds/$day_in_seconds)+2440588;
-    seconds = remainder(seconds,$day_in_seconds);
+//  days = floor(seconds/$DAY_IN_SECONDS)
+    days = floor(seconds/$DAY_IN_SECONDS)+2440588;
+    seconds = remainder(seconds,$DAY_IN_SECONDS);
     hours = floor(seconds/3600);
     seconds -= hours*3600;
     minutes = floor(seconds/60);
@@ -711,12 +712,43 @@ function $seconds_to_timedate(/*atom*/ seconds) {
 }
 
 /*global*/ function adjust_timedate(/*sequence*/ td, /*atom*/ delta) {
-    let /*integer*/ y, m, d, dsrule, tz, stz;
+    let /*integer*/ [,y,m,d] = td, dsrule, tz, stz;
+    if (m<1) {
+        while (true) {
+            m += 12;
+            y -= 1;
+            if (m>1) {
+                break;
+            }
+        }
+        td = $repe(td,DT_YEAR,y);
+        td = $repe(td,DT_MONTH,m);
+    } else if (m>12) {
+        while (true) {
+            m -= 12;
+            y += 1;
+            if (m<=12) {
+                break;
+            }
+        }
+        td = $repe(td,DT_YEAR,y);
+        td = $repe(td,DT_MONTH,m);
+    }
+    if (d===0) {
+        delta -= $DAY_IN_SECONDS;
+        td = $repe(td,DT_DAY,1);
+    }
     let /*atom*/ secs = $timedate_to_seconds(td);
     secs += delta;
-//p2js
-    td = deep_copy(td);
-    td = $repss(td,1,7,$seconds_to_timedate(secs));
+//1/5/24:
+    let /*integer*/ ltd = length(td);
+    if (ltd>=7) {
+    //p2js
+        td = deep_copy(td);
+        td = $repss(td,1,7,$seconds_to_timedate(secs));
+    } else {
+        td = $seconds_to_timedate(secs);
+    }
     delta = 0;
     if (equal(length(td),$DT_DSTZ)) {
         dsrule = $get_DST_rule(td,$DT_DSTZ);
@@ -768,6 +800,8 @@ function $seconds_to_timedate(/*atom*/ seconds) {
         td = $repe(td,DT_DOY,day_of_year(y,m,d));
     }
 //  end if
+//1/5/24:
+    if (ltd<9 && compare(ltd,length(td))<0) { td = $subss(td,1,ltd); }
     return td;
 }
 

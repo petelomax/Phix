@@ -30,22 +30,30 @@
           <br>
           <br>
             id: Identifier(s) of the interface element(s).<br>
-            attributes: string with the attributes in the format 
+            attributes: Four cases exist:<br>
+            <ul>
+<!-- maybe/DEV: Five/Three:
+            <li> attributes is a dword sequence rather than string, treated as "==", attributes (see next) and args must be {}.</li>
+-- or maybe just that one option... (and just crash when porting, in gSetAttributres that is, not xpGUI_from_pGUI.exw)
+-->
+            <li> "==": args is a pair-list, eg 
+                {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>, <i>attr<small><sub>1</sub></small></i>}, 
+                 {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>, <i>attr<small><sub>2</sub></small></i>},...}<br>
+                Elements of args may also be triplets, which trigger a 
+                <code><a href="sprintf.htm">sprintf</a>(<i>attr<small><sub>i</sub></small></i>, <i>arg3<small><sub>i</sub></small></i>)</code>.</li>
+            <li> leading '=' followed by comma-separated names, eg 
+                <i>&ldquo;=name<small><sub>1</sub></small>,
+                           name<small><sub>2</sub></small>,...&rdquo;</i><br>
+                 then args is {<i>attr<small><sub>1</sub></small></i>, <i>attr<small><sub>2</sub></small></i>,...} of the 
+                 correct/exact/matching length.<br>
+                 Note that any desired <a href="sprintf.htm">sprintf</a>() would have to be explicitly coded.</li>
+<!-- or just delete both these [DEV] -->
+            <li> "=!=": (planned) run-time warning =&gt; compiler pause for next, see comments.</li>
+            <li> string with the attributes in the format 
             <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
                       name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
-            args: if not {}, it performs <code>attributes = <a href="sprintf.htm">sprintf</a>(attributes,args)</code>.
-            <br>
-            <br>
-            Alternatively, if attributes is <i>&ldquo;=name<small><sub>1</sub></small>, 
-                                                       name<small><sub>2</sub></small>,...&rdquo;</i>, ie leading '=' 
-            followed by comma-separated names, <br> then args must be 
-            {<i>attr<small><sub>1</sub></small></i>,<i>attr<small><sub>2</sub></small></i>,...} of the correct/exact/matching length.
-            <br>
-            <br>
-            Another alternative is that if attributes is just/exactly "==" then args is a pair-list: <br>
-            {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>,<i>attr<small><sub>1</sub></small></i>}, 
-             {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>,<i>attr<small><sub>2</sub></small></i>},...}
-            <br>
+                 when args!={} this case invokes a <code><a href="sprintf.htm">sprintf</a>(attributes,args)</code>.</li>
+            </ul>
          </td>
         </tr>
         <tr>
@@ -61,7 +69,14 @@
           <b>Comments:</b>
          </td>
          <td>
-            Fairly obviously the (new in 1.0.4) names-only/pair-list attributes is a trivial loop with individual values of any type.<br>
+<!--
+            Note that pGUI (and C) use a string-only version in the format
+            <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
+                      name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
+            which needs re-working into one of the above two forms when porting to xpGUI, likewise any
+            <span class="illegal">IupSetAttributesf</span>() and <span class="illegal">IupSetAtt</span>().
+.-->
+            Fairly obviously the (new in 1.0.4) pair-list/names-only attributes is a trivial loop with individual values of any type.<br>
             The rest of this section is about the older all-string/sprintf handling <small><i>(/me wonders how/why I ever coped!)</i></small>:
             <br>
             <br>
@@ -96,7 +111,16 @@
             parsing), but I&rsquo;m not keen and would probably struggle to justify the potential additional confusion that would probably 
             introduce. Any such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() 
             directly. If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
-            <small><i>[It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs (bar legacy code)]</i></small>
+            <br>
+            <br>
+[DEV: I should just do this...]<br>
+            It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs, bar legacy 
+            code. To that end, it is planned for the fourth case to start showing a run-time warning (first time only), with "=!=" being 
+            a quick temporary trick, that generates a compile-time message stall rather than annoy real end-users, before finally removing
+            all this stuff, over the course of several releases of phix/xpGUI. That won&rsquo;t happen until pGUI is no longer part of the
+            standard distro, but will continue to be available as a separate download, which is all some way off yet and assumes that xpGUI
+            will manage to outshine it in every way, which is not yet a given either.
+            
 <!-- [FIXED]
             <br>
             <br>

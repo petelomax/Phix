@@ -16,7 +16,8 @@
             include builtins\timedate.e
             <br>
             <br>
-            <a href="timedatetype.htm">timedate</a> td = adjust_timedate(<a href="timedatetype.htm">timedate</a> td, <a href="atom.htm">atom</a> delta)
+            <a href="timedatetype.htm">timedate</a> td = adjust_timedate(<a href="timedatetype.htm">timedate</a><a name=notd></a><sup><small><a href="#notd1">1</a></small></sup> td, 
+                                                                         <a href="atom.htm">atom</a> delta)
          </td>
         </tr>
         <tr>
@@ -48,9 +49,21 @@
             <br>
             <br>
             While the day of year is automatically recalculated, note however this routine assumes that td[<a href="date.htm">DT_DOW</a>] is 
-            actually td[<a href="date.htm">DT_MSEC</a>] and applies any fraction of a second in delta accordingly. As per the example below, 
-            while format_timedate() does not actually use or believe the content of td[<a href="date.htm">DT_DOW</a>], you might need that 
-            commented out line, or similar, if you are using it directly.
+            actually td[<a href="date.htm">DT_MSEC</a>] and applies any fraction of a second in delta accordingly. Hence in some rare cases
+            you may need to explicitly zero that field to prevent the seconds clocking over (or not). 
+            As per the example below, while <a href="format_timedate.htm">format_timedate</a>() does not actually use or believe the content 
+            of td[<a href="date.htm">DT_DOW</a>], you might need that commented out <a href="day_of_week.htm">day_of_week</a>() call, or 
+            similar, should you be using it directly.
+            <br>
+            <br>
+            <a name=notd1></a><sup><a href="#notd">1</a></sup> The input td parameter is not actually immediately validated as a timedate, 
+            which can help with "normalising" nonsensical months and day 0 as shown in the last 3 lines below. While fairly obviously you 
+            would rarely want to literally ask for the 13<small><sup>th</sup></small> month, you might very well want month+/-1 or +/-6.
+            A day of zero is also permitted (in/at the start of this specific routine only) to mean the last day of the previous month,
+            removing any fuss over how many days there are in each month. Obviously y/13/0 translates to (y-1)/21/31, and similar.
+            The td parameter is however fully validated after adjusting the year/month/day0 (only), so you cannot for example specify 
+            the 99<small><sup>th</sup></small> of January, since that sort of thing would no doubt mess up leap days, and rather than put
+            say 300 hours directly in the td, that would want to go in the <a href="timedelta.htm">timedelta</a>() instead.
          </td>
         </tr>
         <tr>
@@ -67,16 +80,22 @@ td = adjust_timedate(td,timedelta(days:=4))
 --td[DT_DOW] = day_of_week(td[DT_YEAR],td[DT_MONTH],td[DT_DAY])
 ?format_timedate(td,"Dddd, Mmmm dst, yyyy")
 -- displays "Monday, January 5th, 2015"
+--td = {2024,14,0,0,0,0,0,0} -- boom (typecheck error)
+td = adjust_timedate({2024,14,0,0,0,0,0,0},0) -- ok!
+?td -- {2025,1,31,0,0,0,0,31} (trailing 31 is [DT_DOY], btw)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\timedate.e
-</font><font color="#004080">timedate</font><font color="#000000"> td</font><font color="#0000FF"> =</font><font color="#5E005E"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"1/1/2015"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"D/M/YYYY"</font><font color="#800000">}</font><font color="#0000FF">)
-?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dst, yyyy"</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- displays "Thursday, January 1st, 2015"
-</i></font><font color="#000000">td</font><font color="#0000FF"> =</font><font color="#5E005E"> adjust_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#5E005E">timedelta</font><font color="#800000">(</font><font color="#000000">days</font><font color="#0000FF">:=</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">)
-</font><font color="#000080"><i>--td[DT_DOW] = day_of_week(td[DT_YEAR],td[DT_MONTH],td[DT_DAY])
-</i></font><font color="#0000FF">?</font><font color="#5E005E">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dst, yyyy"</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- displays "Monday, January 5th, 2015"</i></font>
+<font color="#008080">include</font><font color="#000000"> builtins\timedate.e</font>
+<font color="#004080">timedate</font><font color="#000000"> td</font><font color="#0000FF"> =</font><font color="#7060A8"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"1/1/2015"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"D/M/YYYY"</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#7060A8">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dst, yyyy"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "Thursday, January 1st, 2015"</i></font>
+<font color="#000000">td</font><font color="#0000FF"> =</font><font color="#7060A8"> adjust_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#7060A8">timedelta</font><font color="#800000">(</font><font color="#000000">days</font><font color="#0000FF">:=</font><font color="#000000">4</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--td[DT_DOW] = day_of_week(td[DT_YEAR],td[DT_MONTH],td[DT_DAY])</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">format_timedate</font><font color="#0000FF">(</font><font color="#000000">td</font><font color="#0000FF">,</font><font color="#008000">"Dddd, Mmmm dst, yyyy"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "Monday, January 5th, 2015"
+--td = {2024,14,0,0,0,0,0,0} -- boom (typecheck error)</i></font>
+<font color="#000000">td</font><font color="#0000FF"> =</font><font color="#7060A8"> adjust_timedate</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">2024</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)</font><font color="#000080"><i> -- ok!</i></font>
+<font color="#0000FF">?</font><font color="#000000">td</font><font color="#000080"><i> -- {2025,1,31,0,0,0,0,31} (trailing 31 is [DT_DOY], btw)</i></font>
 </pre>
          </td>
         </tr>

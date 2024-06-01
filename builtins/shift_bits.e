@@ -35,7 +35,8 @@ global function shift_bits(object n, integer shift_distance)
             end if
         end if
     end if
-    n = and_bits(n, 0xFFFFFFFF)
+--6/4/24...
+--  n = and_bits(n, 0xFFFFFFFF)
     return n
 end function
 

@@ -803,6 +803,8 @@ global function hideNested(sequence nested_funcs)
                 tnxt = symtab[nfi][S_Nlink]
         if tt[tidx+EQ]!=nfi then ?9/0 end if
         tt[tidx+EQ] = tnxt
+--11/3/24:
+        symtab[nfi][S_Nlink] = -2
     end for
     return {}
 end function
@@ -1246,8 +1248,7 @@ integer tidx
 end function
 
 procedure initialConstant(sequence name, atom v)
-integer N
-integer state, sig, wasttidx, slink, nlink, snext
+integer N, state, sig, wasttidx, slink, nlink, snext, vartype=S_Const
     tt_string(name,-2)
     wasttidx = ttidx
     nlink = tt[wasttidx+EQ]
@@ -1274,8 +1275,12 @@ integer state, sig, wasttidx, slink, nlink, snext
     else
         sig = T_atom
     end if
+--  if fine(name,{"TEST_EPSILON"}) then
+--      vartype = S_GVar2
+--  end if
     symtab[symlimit] = {wasttidx,       -- S_Name[1]
-                        S_Const,        -- S_NTyp[2]
+--                      S_Const,        -- S_NTyp[2]
+                        vartype,        -- S_NTyp[2]
                         fileno,         -- S_FPno[3]    --DEV 0??
                         state,          -- S_State[4]
                         nlink,          -- S_Nlink[5]
@@ -1624,7 +1629,15 @@ end procedure
 sequence hll_stubs
 
 global function get_hll_stub(integer N)
+--29/4/24: (no help)
     return hll_stubs[N]
+--  integer r = hll_stubs[N],
+--          u = symtab[r][S_State]
+--  if not and_bits(u,S_used) then
+--      symtab[r][S_State] = u+S_used
+--  end if
+--  agchecktt(symtab[r][S_Name])
+--  return r
 end function
 
 without trace
@@ -2193,6 +2206,7 @@ atom pi, inf, nan
     initialConstant("TEST_PAUSE",1)             -- (always pause)
 --  initialConstant("TEST_QUIET",0)             -- (never pause)
     initialConstant("TEST_PAUSE_FAIL",-1)       -- (pause on failure)
+--  initialConstant("TEST_EPSILON",1e-9)        -- (error margin)
 
 --/* not just yet...
     -- for url.e
@@ -2659,6 +2673,7 @@ end if
     initialAutoEntry("binary_search",           S_Func,"FOPIII","bsearch.e",0,E_none,2)
     initialAutoEntry("chdir",                   S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",             S_Func,"F",     "pbreak.e",0,E_other)
+    initialAutoEntry("lambda",                  S_Type,"TO",    "closures.e",0,E_none)
     initialAutoEntry("copy_directory",          S_Func,"FSSI",  "pfile.e",0,E_other,2)
     initialAutoEntry("copy_file",               S_Func,"FSSI",  "pfile.e",0,E_other,2)
 --  symtab[symlimit][S_ParmN] = 2
@@ -2791,7 +2806,7 @@ end if
     initialAutoEntry("set_file_date",           S_Func,"FSI",   "pfile.e",0,E_other,1)
     initialAutoEntry("sizeof",                  S_Func,"FI",    "dll.e",0,E_none)
     initialAutoEntry("square_free",             S_Func,"FNI",   "pfactors.e",0,E_none,1)
-    initialAutoEntry("still_has_delete_routine",S_Func,"FO","hasdel.e",0,E_none)
+    initialAutoEntry("still_has_delete_routine",S_Func,"FOI",   "hasdel.e",0,E_none,1)
     initialAutoEntry("struct",                  S_Type,"TO",    "structs.e",0,E_none)           Z_struct = symlimit
 --  symtab[symlimit][S_State] = or_bits(symtab[symlimit][S_State],K_struc)
     Alias("class",symlimit)
@@ -2804,6 +2819,7 @@ end if
     initialAutoEntry("save_bitmap",             S_Func,"FPP",   "image.e",0,E_other)
 --DEV document/test/remove:
     initialAutoEntry("TlsAlloc",                S_Func,"F",     "ptls.ew",0,E_other)
+    initialAutoEntry("valid_index",             S_Func,"FPO",   "pseqc.e",0,E_none)
     initialAutoEntry("wildcard_match",          S_Func,"FPP",   "wildcard.e",0,E_none)
     Alias("is_match", symlimit, "wildcard_match")
     initialAutoEntry("wildcard_file",           S_Func,"FPP",   "wildcard.e",0,E_none)
@@ -2950,14 +2966,17 @@ end if
     initialAutoEntry("columnize",                       S_Func,"FPOO",  "pcolumn.e",0,E_none)
     initialAutoEntry("combinations",                    S_Func,"FPIIPP","permute.e",0,E_none,2)
     initialAutoEntry("combinations_with_repetitions",   S_Func,"FPIIPP","permute.e",0,E_none,1)
-    initialAutoEntry("command_line",                    S_Func,"F",     "VM\\pcmdlnN.e",0,E_none)   T_command_line = symlimit
+    initialAutoEntry("command_line",                    S_Func,"FI",    "VM\\pcmdlnN.e",0,E_none,0) T_command_line = symlimit
                                                                                                     Z_command_line = 0
 --DEV Eu4 has another 2 optional params..
 --  initialAutoEntry("custom_sort",                 S_Func,"FIP",   "sort.e",0,E_none)
     initialAutoEntry("custom_sort",                 S_Func,"FOPOI", "sort.e",0,E_none,2)
     initialAutoEntry("sort_columns",                S_Func,"FPP",   "sort.e",0,E_none)
-    initialAutoEntry("date",                        S_Func,"FI",    "pdate.e",0,E_none,1)
+--11/3/24 (sip??)
+--  initialAutoEntry("date",                        S_Func,"FI",    "pdate.e",0,E_none,1)
+    initialAutoEntry("date",                        S_Func,"FI",    "pdate.e",0,E_none,0)
     initialAutoEntry("db_table_list",               S_Func,"F",     "database.e",0,E_none)
+    initialAutoEntry("define_lambda",               S_Func,"FOPII", "closures.e",0,E_none,2)
     initialAutoEntry("extract",                     S_Func,"FPPI",  "pextract.e",0,E_none,2)
     initialAutoEntry("factors",                     S_Func,"FNO",   "pfactors.e",0,E_none,1)
     initialAutoEntry("filter",                      S_Func,"FPOOS", "pFilter.e",0,E_none,2)
@@ -3000,6 +3019,7 @@ end if
     initialAutoEntry("match_all",                   S_Func,"FOPIII","match.e",0,E_none,2)
     initialAutoEntry("match_replace",               S_Func,"FOPOI", "matchrepl.e",0,E_none,3)
     initialAutoEntry("new",                         S_Func,"FOP",   "structs.e",0,E_other,1)        T_new = symlimit
+    initialAutoEntry("new_dicts",                   S_Func,"FI",    "dict.e",0,E_none)
     initialAutoEntry("pad",                         S_Func,"FSISI", "pseqc.e",0,E_none,2)
     initialAutoEntry("pad_head",                    S_Func,"FSII",  "pseqc.e",0,E_none,2)
     initialAutoEntry("pad_tail",                    S_Func,"FPIO",  "pseqc.e",0,E_none,2)
@@ -3021,7 +3041,8 @@ end if
 --  initialAutoEntry("repeat",                      S_Func,"FOI",   "repeat.e",0,E_other)       T_repeat = symlimit
     initialAutoEntry("repeat",                      S_Func,"FOII",  "repeat.e",0,E_other,2)     T_repeat = symlimit
     initialAutoEntry("replace",                     S_Func,"FPONN", "pseqc.e",0,E_none,3)
-    initialAutoEntry("reverse",                     S_Func,"FPP",   "misc.e",0,E_none,1)
+--  initialAutoEntry("reverse",                     S_Func,"FPP",   "misc.e",0,E_none,1)
+    initialAutoEntry("reverse",                     S_Func,"FP",    "misc.e",0,E_none)
     initialAutoEntry("scanf",                       S_Func,"FSS",   "scanf.e",0,E_none)
     initialAutoEntry("serialize",                   S_Func,"FO",    "serialize.e",0,E_none)
     initialAutoEntry("shuffle",                     S_Func,"FP",    "shuffle.e",0,E_none)
@@ -3061,16 +3082,18 @@ end if
 --else
 --  initialAutoEntry("call_func",           S_Func,"FIP",   "pcfunc.e",0,E_all)
 --end if
+    initialAutoEntry("call_lambda",         S_Func,"FOO",   "closures.e",0,E_none,1)
     initialAutoEntry("count_bits",          S_Func,"FOI",   "shift_bits.e",0,E_none,1)
     initialAutoEntry("day_of_week",         S_Func,"FOIII", "pdates.e",0,E_none,1)
     initialAutoEntry("db_record_data",      S_Func,"FI",    "database.e",0,E_none)
     initialAutoEntry("db_record_key",       S_Func,"FI",    "database.e",0,E_none)
-    initialAutoEntry("deep_copy",           S_Func,"FOII",  "repeat.e",0,E_other,1)
-if newEmit then
---  initialAutoEntry("delete_routine",      S_Func,"FOI",   "VM\\pDeleteN.e",0,E_other)
-else
-    initialAutoEntry("delete_routine",      S_Func,"FOI",   "pdelete.e",0,E_other)
-end if
+--  initialAutoEntry("deep_copy",           S_Func,"FOII",  "repeat.e",0,E_other,1)
+    initialAutoEntry("deep_copy",           S_Func,"FO",    "repeat.e",0,E_other)
+--if newEmit then
+----    initialAutoEntry("delete_routine",      S_Func,"FOI",   "VM\\pDeleteN.e",0,E_other)
+--else
+--  initialAutoEntry("delete_routine",      S_Func,"FOI",   "pdelete.e",0,E_other)
+--end if
     initialAutoEntry("deserialize",         S_Func,"FOII",  "serialize.e",0,E_none,1)
     initialAutoEntry("dir",                 S_Func,"FPI",   "pdir.e",0,E_none,1)
     initialAutoEntry("fetch_field",         S_Func,"FPS",   "structs.e",0,E_none)       T_fetch_field = symlimit
@@ -3220,7 +3243,7 @@ end if
     initialAutoEntry("c_proc",              S_Proc,"PIP",   "VM\\pcfunc.e",0,E_all)
     initialAutoEntry("call",                S_Proc,"PN",    "VM\\pcfunc.e",0,E_all)
 --  initialAutoEntry("call_proc",           S_Proc,"PIP",   "VM\\pcallfunc.e",0,E_all)  -- now opCallProc
-    initialAutoEntry("crash",               S_Proc,"PSOI",  "pCrashN.e",0,E_other,1)
+    initialAutoEntry("crash",               S_Proc,"PSOI",  "pCrashN.e",0,E_other,1)            T_crash = symlimit
     initialAutoEntry("cursor",              S_Proc,"PI",    "pscreen.e",0,E_other)
     initialAutoEntry("db_dump",             S_Proc,"PII",   "database.e",0,E_other)
     initialAutoEntry("check_free_list",     S_Proc,"P",     "database.e",0,E_other)
@@ -3235,7 +3258,7 @@ end if
 --else
 --  initialAutoEntry("delete",              S_Proc,"PO",    "pdelete.e",0,E_other)
 --end if
-    initialAutoEntry("destroy_dict",        S_Proc,"PII",   "dict.e",0,E_other,1)               T_destroy_dict = symlimit
+    initialAutoEntry("destroy_dict",        S_Proc,"POI",   "dict.e",0,E_other,1)               T_destroy_dict = symlimit
     initialAutoEntry("destroy_queue",       S_Proc,"PI",    "pqueue.e",0,E_other)
     Alias("destroy_stack", symlimit, "destroy_queue")
     initialAutoEntry("display_text_image",  S_Proc,"PPP",   "pscreen.e",0,E_other)
@@ -3284,6 +3307,7 @@ end if
     initialAutoEntry("resume_thread",       S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
     initialAutoEntry("requires",            S_Proc,"POI",   "get_interpreter.e",0,E_other,1)
     initialAutoEntry("suspend_thread",      S_Proc,"PN",    "VM\\pThreadN.e",0,E_other)
+    initialAutoEntry("set_captures",        S_Proc,"PPO",   "closures.e",0,E_other)
     initialAutoEntry("set_system_doevents", S_Proc,"PIO",   "syswait.ew",0,E_other)
     initialAutoEntry("set_test_abort",      S_Proc,"PI",    "unit_test.e",0,E_other)
     initialAutoEntry("set_test_logfile",    S_Proc,"PS",    "unit_test.e",0,E_other)
@@ -3296,6 +3320,7 @@ end if
     Alias("putd", symlimit, "setd")
     initialAutoEntry("setd_default",        S_Proc,"POI",   "dict.e",0,E_other)
     initialAutoEntry("store_field",         S_Proc,"PPOO",  "structs.e",0,E_other)              T_store_field = symlimit
+    initialAutoEntry("store_field_element", S_Proc,"PPIOO", "structs.e",0,E_other)              T_store_field_element = symlimit
     initialAutoEntry("struct_add_field",    S_Proc,"PSIOI", "structs.e",0,E_other,2)            T_struct_field = symlimit
     initialAutoEntry("struct_start",        S_Proc,"PISIS", "structs.e",0,E_other,2)            T_struct_start = symlimit
     initialAutoEntry("system",              S_Proc,"PSI",   "syswait.ew",0,E_other,1)
@@ -3310,13 +3335,13 @@ end if
     initialAutoEntry("task_yield",          S_Proc,"P",     "VM\\pTask.e",0,E_all)
     initialAutoEntry("task_clock_stop",     S_Proc,"P",     "VM\\pTask.e",0,E_other)
     initialAutoEntry("task_clock_start",    S_Proc,"P",     "VM\\pTask.e",0,E_other)
-    initialAutoEntry("test_equal",          S_Proc,"POOSI", "unit_test.e",0,E_other,2)
-    initialAutoEntry("test_fail",           S_Proc,"PS",    "unit_test.e",0,E_other,0)
-    initialAutoEntry("test_false",          S_Proc,"PIS",   "unit_test.e",0,E_other,1)
-    initialAutoEntry("test_not_equal",      S_Proc,"POOSI", "unit_test.e",0,E_other,2)
-    initialAutoEntry("test_pass",           S_Proc,"PS",    "unit_test.e",0,E_other)
-    initialAutoEntry("test_summary",        S_Proc,"PI",    "unit_test.e",0,E_other,1)
-    initialAutoEntry("test_true",           S_Proc,"PIS",   "unit_test.e",0,E_other,1)
+    initialAutoEntry("test_equal",          S_Proc,"POOSOOI","unit_test.e",0,E_other,2)
+    initialAutoEntry("test_fail",           S_Proc,"PSP",   "unit_test.e",0,E_other,0)
+    initialAutoEntry("test_false",          S_Proc,"PISP",  "unit_test.e",0,E_other,1)
+    initialAutoEntry("test_not_equal",      S_Proc,"POOSOO","unit_test.e",0,E_other,2)
+    initialAutoEntry("test_pass",           S_Proc,"PSP",   "unit_test.e",0,E_other,0)
+    initialAutoEntry("test_summary",        S_Proc,"PI",    "unit_test.e",0,E_other,0)
+    initialAutoEntry("test_true",           S_Proc,"PISP",  "unit_test.e",0,E_other,1)
     initialAutoEntry("traverse_dict",       S_Proc,"PIOII", "dict.e",0,E_other,1)
     initialAutoEntry("traverse_dict_partial_key",S_Proc,"PIOOII","dict.e",0,E_other,1)
 

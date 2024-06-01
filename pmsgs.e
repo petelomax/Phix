@@ -64,7 +64,9 @@ global procedure Message(sequence msg)
 --if not batchmode then
     if r_proemh=-1 then
         puts(1,msg)
-        if wait_key() then end if
+        if not find("-nopause",lower(command_line(true))) then
+            if wait_key() then end if
+        end if
     else
         if call_func(r_proemh,{"Warning",msg,MB_OK}) then end if
     end if
@@ -297,11 +299,13 @@ end if
                         nshown = 0
 if not batchmode then
                         puts(1,"\nPress Enter for next page or 'q' to quit...\n")
-                        if find(wait_key(),"qQ") then
-                            -- stop displaying, carry on writing to pr, and prevent
-                            -- final 'Press Enter' message:
---                          nwarns=-1
-                            fn1=0
+                        if not find("-nopause",lower(command_line(true))) then
+                            if find(wait_key(),"qQ") then
+                                -- stop displaying, carry on writing to pr, and prevent
+                                -- final 'Press Enter' message:
+--                              nwarns=-1
+                                fn1=0
+                            end if
                         end if
 end if
                     end if
@@ -330,15 +334,16 @@ end if
 --      and (not testall or pauseOnWarnings) then
         and pauseOnWarnings
 --      and not equal(mainfile,"t00.exw") 
-        and not batchmode
-        then
-if DEBUG then
+        and not batchmode then
+--if DEBUG then
             puts(1,"\nPress Enter, or d for diagnostics...")
-            if find(wait_key(),"dD") then ?9/0 end if
-else
-            puts(1,"\nPress Enter...")
-            if wait_key() then end if
-end if
+            if not find("-nopause",lower(command_line(true))) then
+                if find(wait_key(),"dD") then ?9/0 end if
+            end if
+--else
+--          puts(1,"\nPress Enter...")
+--          if wait_key() then end if
+--end if
             puts(1,"\n")
         end if 
         warnmsgs = {}
@@ -482,13 +487,15 @@ end if
         if nwarns=0 then
 --if not equal(mainfile,"t00.exw") then
 if not batchmode and not repl then
-    if DEBUG then
+--  if DEBUG then
             puts(1,"\nPress Enter, or d for diagnostics...")
-            if find(wait_key(),"dD") then ?9/0 end if
-    else
-            puts(1,"\nPress Enter...")
-            if wait_key() then end if
-    end if
+            if not find("-nopause",lower(command_line(true))) then
+                if find(wait_key(),"dD") then ?9/0 end if
+            end if
+--  else
+--          puts(1,"\nPress Enter...")
+--          if wait_key() then end if
+--  end if
             puts(1,"\n")
 end if
         else
@@ -576,15 +583,17 @@ integer fn
 --if not equal(mainfile,"t00.exw") then
 if not batchmode then
         puts(1,msg)
-    if DEBUG then
+--  if DEBUG then
         puts(1,"\n\n\nPress Enter, or d for diagnostics...")
         --DEV pass msg or fn to pdiag??
-        if find(wait_key(),"dD") then ?9/0 end if
-    else
+        if not find("-nopause",lower(command_line(true))) then
+            if find(wait_key(),"dD") then ?9/0 end if
+        end if
+--  else
         puts(1,"\n\n\nPress Enter...")
-        if getc(0) then end if  --DEV??
+--      if getc(0) then end if  --DEV??
 --      if wait_key() then end if
-    end if
+--  end if
         puts(1,"\n")
 end if
     else

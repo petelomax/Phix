@@ -99,3 +99,7 @@ global function replace(sequence src, object replacement, integer start, integer
     return src
 end function
 
+global function valid_index(sequence s, object idx)
+    return integer(idx) and abs(idx)>=1 and abs(idx)<=length(s)
+end function
+

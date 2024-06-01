@@ -479,3 +479,132 @@ utf8 characters:
 ===============
 bad:0, good:1,111,936
 --*/
+
+--/* SUG: (needs benchmarking, unit tests, and documentation)
+function unicode_reverse(sequence utf)
+    --
+    -- reverse string preserving combining unicode characters
+    -- input may be (string) utf8 or (dword_sequence) utf32
+    -- return is of the same type as input, in said regard
+    -- no expectation of good behaviour on malformed unicode
+    --
+    bool bString = string(utf)
+    if bString then utf = utf8_to_utf32(utf) end if
+    sequence utf32 = {}, cdm = {}
+-- maybe, instead of cdm, should be faster (benchmarking rqd):
+--  integer cce = 0
+    for i=length(utf) to 1 by -1 do
+        integer ch = utf32[i]
+        if (ch>=0x300 and ch<=0x36f)    // combining diacritical marks
+        or (ch>=0x1ab0 and ch<=0x1aff)  // combining diacritical marks extended
+        or (ch>=0x1dc0 and ch<=0x1dff)  // combining diacritical marks supplement
+        or (ch>=0x20d0 and ch<=0x20ff)  // combining diacritical marks for symbols
+        or (ch>=0xfe20 and ch<=0xfe2f) then // combining half marks
+            cdm &= ch
+--          if cce=0 then cce = i end if
+--      elsif cce then
+--          utf32 &= utf[i..cce]
+--          for k=i to cce do utf32 &= utf[k] end if
+--          cce = 0
+        else
+--          for k=i to max(cce,i) do utf32 &= utf[k] end if
+            utf32 &= ch
+            if length(cdm) then
+--          if cce then
+--          if false then
+                utf32 &= cdm
+--              utf32 &= utf[i+1..cce]
+--              for k=i+1 to cce do utf32 &= utf[k] end if
+                cdm = {}
+--              cce = 0
+            end if
+        end if
+    end for
+    assert(cdm=={})
+--  assert(cce==0)
+    utf = if(bString?utf32_to_utf8(utf32):utf32)
+    return utf
+end function
+--*/
+
+--/*
+-- and maybe:
+function unicode_length(sequence utf, integer idx = 0)
+    --
+    -- if idx is zero, returns the visual length of utf
+    -- if idx>0, returns the start utf32 idx of idx'th:
+    --  apart from 1st and last, each rqd slice to get
+    --  all combining marks wd need two calls to this,
+    --  and it will return virtual start of last+1'th.
+    -- stick to giving this utf32 for the best results.
+    --
+    -- Aside: it occurs to me that some unicode point
+    -- for say a_acute would naturally sort way past z,
+    -- so you might deliberately replace such with a &
+    -- combining acute to get things in the right order
+    -- Same thing I suppose as a case-insensitive sort
+    -- Whether at matches a-acute-t is another thing
+    --  that might benefit from splittable graphemes.
+    --
+    if string(utf) then utf = utf8_to_utf32(utf) end if
+    integer l = length(utf), chidx = 0
+    for i,ch in utf do
+        if (ch>=0x300 and ch<=0x36f)    // combining diacritical marks
+        or (ch>=0x1ab0 and ch<=0x1aff)  // combining diacritical marks extended
+        or (ch>=0x1dc0 and ch<=0x1dff)  // combining diacritical marks supplement
+        or (ch>=0x20d0 and ch<=0x20ff)  // combining diacritical marks for symbols
+        or (ch>=0xfe20 and ch<=0xfe2f) then // combining half marks
+            l -= 1
+        elsif ch=0x200D then -- ZERO WIDTH JOINER
+            l -= 2
+            chidx -= 1
+        else
+            chidx += 1
+            assert(idx!=1 or i==1)
+            if chidx=idx then return i end if
+        end if
+    end for
+    assert(chidx==l)
+    if idx = chidx+1 then return l+1 end if
+    assert(idx==0)
+    return l
+end function
+--*/
+
+--/* [DONE, except untested and undocumented]
+-- https://gist.github.com/acsellers/26f8f9cfc0cf5ed8353cc1eab4c07219
+-- Golang Reverse String preserving Combining Characters
+package main
+
+import (
+        "fmt"
+        "unicode"
+)
+
+var combining = &unicode.RangeTable{
+        R16: []unicode.Range16{
+                {0x0300, 0x036f, 1}, // combining diacritical marks
+                {0x1ab0, 0x1aff, 1}, // combining diacritical marks extended
+                {0x1dc0, 0x1dff, 1}, // combining diacritical marks supplement
+                {0x20d0, 0x20ff, 1}, // combining diacritical marks for symbols
+                {0xfe20, 0xfe2f, 1}, // combining half marks
+        },
+}
+
+func reverse(s string) string {
+        sv := []rune(s)
+        rv := make([]rune, 0, len(sv))
+        cv := make([]rune, 0)
+        for ix := len(sv) - 1; ix >= 0; ix-- {
+                r := sv[ix]
+                if unicode.In(r, combining) {
+                        cv = append(cv, r)
+                } else {
+                        rv = append(rv, r)
+                        rv = append(rv, cv...)
+                        cv = make([]rune, 0)
+                }
+        }
+        return string(rv)
+}
+--*/

@@ -3,7 +3,7 @@
 -- =================
 --
 --without debug
-with debug
+--with debug
 include builtins\get_routine_info.e
 
 enum APPLY_PROC, APPLY_FUNC

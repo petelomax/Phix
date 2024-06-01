@@ -9,6 +9,7 @@
 //      ord(integer n) yields "st", "nd", "rd", or "th".
 //      ordinal(atom n) yields "first", "second", etc.
 //      ordinal(atom n, bool bJustSpell:=true) yields "one", "two", etc.
+//      ordinant(atom n) yields "never", "once", "twice", "three times", etc.
 //
 
 /*global*/ function ord(/*atom*/ n) {
@@ -19,20 +20,42 @@
 }
 let /*integer*/ $oinit = false;
 let /*sequence*/ $twenties, $decades, $orders, $irregs, $ordinals;
-function $inito() {
+
+/*local*/ function $inito() {
     $twenties = ["sequence","zero","one","two","three","four","five","six","seven","eight","nine","ten","eleven","twelve","thirteen","fourteen","fifteen","sixteen","seventeen","eighteen","nineteen"];
     $decades = ["sequence","twenty","thirty","forty","fifty","sixty","seventy","eighty","ninety"];
+//  $orders = {{power(10,18),"quintillion"},
+ /* -- actually, I suppose we /could/ use these if we output "ish" after 15/18 sig digs, or input strings, or within mpfr...
+Sextillion          10^21
+Septillion          10^24
+Octillion           10^27
+Nonillion           10^30
+Decillion           10^33
+Undecillion         10^36
+Duodecillion        10^39
+Tredecillion        10^42
+Quattuordecillion   10^45
+Quindecillion       10^48
+Sexdecillion        10^51
+Septendecillion     10^54
+Octodecillion       10^57
+Novemdecillion      10^60
+Vigintillion        10^63
+*/ 
     $orders = ["sequence",["sequence",power(10,15),"quadrillion"],["sequence",power(10,12),"trillion"],["sequence",power(10,9),"billion"],["sequence",power(10,6),"million"],["sequence",power(10,3),"thousand"]];
     [,$irregs,$ordinals] = columnize(["sequence",["sequence","one","first"],["sequence","two","second"],["sequence","three","third"],["sequence","five","fifth"],["sequence","eight","eighth"],["sequence","nine","ninth"],["sequence","twelve","twelfth"]]);
     $oinit = true;
 }
-function $twenty(/*integer*/ n) {
+
+/*local*/ function $twenty(/*integer*/ n) {
     return $subse($twenties,mod(n,20)+1);
 }
-function $decade(/*integer*/ n) {
+
+/*local*/ function $decade(/*integer*/ n) {
     return $subse($decades,mod(n,10)-1);
 }
-function $hundred(/*integer*/ n) {
+
+/*local*/ function $hundred(/*integer*/ n) {
     if (n<20) {
         return $twenty(n);
     } else if (equal(mod(n,10),0)) {
@@ -40,7 +63,8 @@ function $hundred(/*integer*/ n) {
     }
     return $conCat($conCat($decade(floor(n/10)), 0X2D), $twenty(mod(n,10)));
 }
-function $thousand(/*integer*/ n, /*string*/ withand) {
+
+/*local*/ function $thousand(/*integer*/ n, /*string*/ withand) {
     // (aside: p2js.exw/insert_dollars() 
     //  must not $hundred -> $$hundred this:)
     let /*string*/ sphun = " hundred";
@@ -51,7 +75,8 @@ function $thousand(/*integer*/ n, /*string*/ withand) {
     }
     return $conCat($conCat($conCat($twenty(floor(n/100)), sphun), " and "), $hundred(mod(n,100)));
 }
-function $triplet(/*atom*/ n) {
+
+/*local*/ function $triplet(/*atom*/ n) {
     let /*atom*/ order, high, low;
     let /*string*/ name, res = "";
     for (let i=1, i$lim=length($orders); i<=i$lim; i+=1) {
@@ -88,7 +113,8 @@ function $triplet(/*atom*/ n) {
     }
     return res;
 }
-function $spell(/*atom*/ n) {
+
+/*local*/ function $spell(/*atom*/ n) {
     let /*string*/ res = "";
     if (n<0) {
         res = "minus ";

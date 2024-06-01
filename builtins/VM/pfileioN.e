@@ -2843,8 +2843,10 @@ end procedure -- (for Edita/CtrlQ)
             mov [stdin_redirected],1
       @@:
 --3/4/17: (messed up trace - DEV)
---      push 65001                          -- wCodePageID (CP_UTF8)
---      call "kernel32.dll","SetConsoleOutputCP"
+--      mov eax, 65001                      -- wCodePageID (CP_UTF8)
+--      push eax
+        push 65001                          -- wCodePageID (CP_UTF8)
+        call "kernel32.dll","SetConsoleOutputCP"
         pop eax     -- restore
         ret
     [ELF32,ELF64]

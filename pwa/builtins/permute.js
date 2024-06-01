@@ -19,7 +19,13 @@
     if (bFast) {
         // (old and somewhat quirky algorithm, but faster)
         if (!string(s)) {
-            s = deep_copy(s,1); // (top level only needed)
+//          s = deep_copy(s,1)  -- (top level only needed)
+            let /*object*/ t = s;
+            s = repeat(0,l);
+            for (let i=1, i$lim=l; i<=i$lim; i+=1) {
+                s = $repe(s,i,$subse(t,i));
+            }
+            t = 0;
         }
         for (let i=l; i>=1; i-=1) {
             let /*integer*/ w = remainder(n,i)+1;
@@ -137,6 +143,26 @@
     }
     return res;
 }
+// here's a simplified version I wrote for Go (zebra puzzle), which 
+// needed all permutations of {1,2,3,4,5} [matches permutes(tagset(5))]:
+ /*
+function premutes(integer i)
+    if i<=1 then return {repeat(1,i)} end if
+    sequence s = premutes(i-1), res = {}, 
+             r = repeat(0,i)
+    for k=1 to i do
+        r[1] = k
+        for si in s do
+            for j=2 to i do
+                integer sj = si[j-1]
+                r[j] = sj+(sj>=k)
+            end for
+            res = append(res,deep_copy(r))
+        end for
+    end for
+    return res
+end function
+*/ 
 
 /*global*/ function combinations(/*sequence*/ s, /*integer*/ k, at=1, /*sequence*/ res=["sequence"], part="") {
     //

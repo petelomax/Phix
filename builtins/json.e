@@ -153,6 +153,8 @@ function pj_rec(object fn, object o, integer indent=0, bool addcomma=false)
             -- keyword
             fn = pj_print(fn,o[2])
         else
+--?o
+--wait_key()
             return not_valid()
         end if
     end if
@@ -328,9 +330,12 @@ integer tokstart
             end if
             nxtCh = text[col]
             if nxtCh='\\' then
+                nxtCh = text[col+1]
+                nxtCh = "\n\"\'\r\t\\"[find(nxtCh,`n"'rt\`)]
                 token &= text[tokstart+1..col-1]
-                tokstart = col
+                token &= nxtCh
                 col += 1
+                tokstart = col
             elsif nxtCh='"' then
                 col += 1
                 exit

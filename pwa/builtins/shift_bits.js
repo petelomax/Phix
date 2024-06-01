@@ -37,7 +37,8 @@
             }
         }
     }
-    n = and_bits(n,0xFFFFFFFF);
+//6/4/24...
+//  n = and_bits(n, 0xFFFFFFFF)
     return n;
 }
 

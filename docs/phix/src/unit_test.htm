@@ -344,27 +344,45 @@ test_summary()
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_equal</b>(object a, b, string name=""<small><i>, bool eq=<a href="logicops.htm#tf">true</a></i></small>)
-             -- test two values for (approximate) equality
+            <b>test_equal</b>(object a, b, string name="", [sequence args={},]
+                                           bool_or_string bApprox=<a href="logicops.htm#tf">false</a><small><i>,
+                                           bool eq=<a href="logicops.htm#tf">true</a></i></small>)
             </dt><dd class="pad">
+            <br>
+            test two values for (approximate) equality
+            <br>
             <br>
             a, b: the two values which should be equal.<br>
             name: the test name (optional).<br>
+            args: (optional) if not sequence-but-not-string params[5..6] := params[4..5], iyswim, otherwise
+                             if not {} a name=sprintf(name,args) is performed.<br>
+            bApprox: use approximate equality, see below (optional).<br>
             <small><i>eq: for internal use only: <a href="logicops.htm#tf">true</a> means it is test_equal() rather 
             than test_not_equal(), and vice versa.</i></small><br>
 <!--
             <small>&nbsp;<i>&nbsp;(Ignore that without a matching shim, and you&rsquo;ll mess up the crash(nFrames) handling.)</i></small><br>
 -->
             <br>
-            Currently uses a simplistic "abs(a-b)<1e-9" test [nested to any depth] to implement the (approximate) equality test,
-            that is, specifically with regard to any [embedded] floating point results, eg test_equal(1.999999999000001, 2, "about two") is 
-            actually OK, by the skin of its teeth (one more zero and it fails on 32-bit, you can squeeze in max 4 more zeroes on 64-bit). 
-            Of course as written it looks wrong, but it is exactly the sort of thing needed for real-world tests, since absolute equality is 
-            <a href="accuracy.htm#quiterare">quite rare</a> in IEEE 754 floating-point-land. 
-            Should something fail that you think should pass, or perhaps vice versa, your best bet is to write your own approximately_equal() 
-            routine and pass the result of that to test_true(), or perhaps test_false(). <br>
-            I will consider incorporating any such code posted (and discussed/debated over) on euforum into the next release. <br>
-            I may even consider a new set_test_atom() routine with (say) TEST_MONEY, TEST_PERCENT, TEST_SPRINTFG, TEST_1E9, etc.
+            When bApprox is false, everything must match exactly (the default). A value of true is the same as "%g", and other
+            <a href="sprintf.htm">sprintf</a>() format strings such as "%5.2f" can be specified, in which case it uses a recursive/nested
+            <code>(a==b) or (sprintf(fmt,a)==sprintf(fmt,b))</code> test, in other words the sprintf() are only triggered when actually 
+            needed and only apply to pairs of atoms in the same place/depth in (as yet at least) identical shapes/structures.
+<!-- (leave it out!)
+            <br>
+            <br>
+            Some discrepancies may occur in the handling of strings when bApprox!=false, specifically {'a','b','c'} becomes unequal to "abc"
+            but only when something else mismatches, but passes bApprox, let me know should that cause any grief. In some cases you might
+            want to take advantage of that to prove you get strings-for-strings, not dword_sequences treated equal for compatibility sake.
+-->
+<!-- (erm, I might pull this...)
+            While for compatibility reasons "abc" and {'a','b','c'} are usually equivalent, that is deemed inappropriate here and any 
+            strings in either of a and b must also be strings in the other, so those <i>won&rsquo;t</i> match.<br>
+            Should something fail that you think should pass, or perhaps vice versa, your best bet is probably to write your own close_enough() 
+            or approximately_equal() routine and pass the result of that to test_true(), or perhaps test_false(). 
+            I will consider incorporating any such code posted (and discussed/debated over) on euforum into the next release. 
+            You might also consider using locally defined constants such as TEST_MONEY (0.001), TEST_PERCENT (0.1), TEST_SPRINTFG ("%g"), or 
+            TEST_1EM9 (1e-9), etc.
+-->
 <!--
 TEST_MONEY: round(a)=round(b) and round((a-round(a))*100)=round((b-round(b))*100), or as TEST_SPRINTFG but using "%.2f".
 TEST_PERCENT: {a,b}=sort(sq_abs({a,b}), abs(1-a/b)<1e6 (never tried anything like that. as a!=b min/max avoids /0. unsure about 6dp tho)
@@ -372,7 +390,11 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
 -->
             <br>
             <br>
-            Omitting the name is probably only sensible when a and/or b already contain sufficient information to identify the failing test.
+            Omitting the name is probably only sensible when a and/or b already contain sufficient information to identify the failing test.<br>
+            Normally the lowest-level error logging prints a and b using "%v", however when they are both "\nhelpful strings" that begin with
+            '\n' (which could in fact also be the not-deliberately-planned consequence of a bApprox applied to two atoms) it will use "%s",
+            which will effectively hide the '\n' but may hopefully help make some error messages much easier to read. Conversely there may be
+            cases when you need to deliberately crop or artificially prefix leading '\n' to get the more precise form back.
 <!--
             <br>
             <br>
@@ -390,12 +412,13 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_not_equal</b>(object a, b, string name="") -- test two values for inequality
+            <b>test_not_equal</b>(object a, b, string name="", [sequence args={},]
+                                               bool_or_string bApprox=<a href="logicops.htm#tf">false</a><small><i>) -- test two values for inequality
             </dt><dd class="pad">
             <br>
             a, b: the two values which should <i>not</i> be (approximately) equal.<br>
             <br>
-            Note this simply invokes test_equal(a,b,name,false).
+            Note this simply invokes test_equal(a,b,name,args,bApprox,false).
             </dd></dl>
             <br>
           </td></tr>
@@ -404,11 +427,12 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_true</b>(bool success, string name="") -- test something is true
+            <b>test_true</b>(bool success, string name="", sequence args={}) -- test something is true
             </dt><dd class="pad">
             <br>
             success: a value which should be <a href="logicops.htm#tf">true</a><br>
             name: the test name (optional but recommended)<br>
+            args: if not {}, name=sprintf(name,args) is performed<br>
             <br>
             Unless set_test_abort(TEST_CRASH) is in force, omitting the name may make it harder to identify the failing test, 
             although when there are only a few tests [in a section/module], that is unlikely to be a significant issue.<br>
@@ -422,12 +446,12 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_false</b>(bool success, string name="") -- test something is false
+            <b>test_false</b>(bool success, string name="", sequence args={}) -- test something is false
             </dt><dd class="pad">
             <br>
             success: a value which should be false<br>
             <br>
-            Equivalent to test_true(not success,name)
+            Equivalent to test_true(not success,name,args)
             </dd></dl>
             <br>
           </td></tr>
@@ -436,10 +460,10 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_pass</b>(string name=="") -- a test has succeeded
+            <b>test_pass</b>(string name="", sequence args={}) -- a test has succeeded
             </dt><dd class="pad">
             <br>
-            Equivalent to test_true(true,name)
+            Equivalent to test_true(true,name,args)
             <br>
             <br>
             Typically used when some condition does not easily fit on one line, the main/only point of invoking this directly 
@@ -452,10 +476,10 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_fail</b>(string name="") -- a test has failed
+            <b>test_fail</b>(string name="", sequence args={}) -- a test has failed
             </dt><dd class="pad">
             <br>
-            Equivalent to test_true(false,name)
+            Equivalent to test_true(false,name,args)
             <br>
             <br>
             Typically used when some condition does not easily fit on one line.

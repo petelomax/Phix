@@ -1127,7 +1127,9 @@ integer rootAct, rootSig
         end if
     end if
 --DEV suspect use of forward here... (gets set by/defined before sq_able)
-    if forward_call and routineNo>T_Ainc then
+--13/5/24 (type robots in robot_names.e with just crash()...)
+--  if forward_call and routineNo>T_Ainc then
+    if (forward_call and routineNo>T_Ainc) or act=0 then
 --      if sig=T_integer and (act=T_atom or act=T_N) then
 --          sig = T_atom
 --      elsif find(sig,T_intatm)
@@ -2421,9 +2423,11 @@ end if
         end if
         -- save eax if rqd
 --DEV needed for opApnd/Ppnd (as they use leamov()):
-        integer intstoo = iff(scode=opConcat?INTSTOO -- normal binary concat
-                                            :NOTINTS)
-        saveFunctionResultVars(opsidx,intstoo)
+--4/5/24 (for exercism runner)
+--      integer intstoo = iff(scode=opConcat?INTSTOO -- normal binary concat
+--                                          :NOTINTS)
+--      saveFunctionResultVars(opsidx,intstoo)
+        saveFunctionResultVars(opsidx,INTSTOO)
 --      if scode=opConcat then -- normal binary concat
 --          saveFunctionResultVars(opsidx,INTSTOO)
 --      else
@@ -4255,6 +4259,9 @@ forward procedure MultipleAssignment(integer isDeclaration, integer Typ)
 --13/4/23:
 integer atokline, atokcol
 
+--29/4/24 (partial workaround: force nested routines to be declared first
+bool nestedok = false
+
 procedure Locals(integer AllowOnDeclaration)
 -- process local declarations
 --  invoked from DoRoutineDef and Block
@@ -4272,6 +4279,10 @@ integer SNtyp
         if tokno<=0 then exit end if
         used = symtab[tokno]
         if used[S_NTyp]!=S_Type then exit end if
+
+--29/4/24:
+        nestedok = false
+
         used = used[S_State]    -- (also kills a refcount)
         if not and_bits(used,S_used) then
             symtab[tokno][S_State] = used+S_used
@@ -5580,7 +5591,11 @@ end if
                 end if
             end if -- emitON
             freeTmp(-opsidx)
-            if routineNo=T_abort then LastStatementWasAbort = 1 end if
+            if routineNo=T_abort then
+                LastStatementWasAbort = 1
+            end if
+        elsif routineNo=T_crash then
+            LastStatementWasAbort = 1
         end if
 --DEV removed for multiple assignment (idx may be on the stack)
 --      if DEBUG then
@@ -6256,6 +6271,8 @@ procedure Statics()
 end procedure
 
 sequence nested_funcs = {}
+
+integer BlastStatementWasAbort
 --with trace
 --25/11/19:
 --procedure DoRoutineDef(integer Rtype)
@@ -6308,6 +6325,15 @@ integer wasreturnvar = returnvar    -- (NESTEDFUNC)
 --end if
     bool bHideScope = (scopetypes[scopelevel]=S_Rtn),
          bNested = (Rtype=T_nested)
+--29/4/24:
+--if bNested then ?"9/0" end if
+    bool wasnok = nestedok
+    if not bNested then
+        nestedok = true
+    elsif not nestedok then
+        Aborp("nested routines must be declared before anything else")
+    end if
+
     if bNested then
         if bLambda then Aborp("uh?") end if
         if if_level then Aborp("not permitted within an if statement") end if
@@ -6842,7 +6868,8 @@ else -- (old code)
 end if
     returnint = 0
 
-    if not CheckForFunctionReturn then
+    if not CheckForFunctionReturn
+    and not BlastStatementWasAbort then
         if Rtype = R_Func then
             Aborp("function does not return a value")
         elsif Rtype = R_Type then
@@ -6988,8 +7015,12 @@ end if
 --      rtnttidx
         nested_funcs &= N
     elsif length(nested_funcs) then
+--?"nested_funcs line 6991..."
         nested_funcs = hideNested(nested_funcs)
+--      nested_funcs = {}
     end if
+--if bNested then ?"9/0" end if
+    nestedok = wasnok
 end procedure
 
 --with trace
@@ -9166,19 +9197,39 @@ if length(struct_fields) then
                 Call(T_fetch_field,{FUNC,T_sequence,T_string,T_integer},FUNC,true)
 --*/
 --      elsif subscript then
+        integer sdx, slit
         if subscript then
 --      if subscript then
-            tokline = sstokline
-            tokcol = sstokcol
-            Aborp("not yet supported")
+--?9/0 -- one w/o CompoundAssignment is fine...
+--                  subscript = SliceOp
+--              else
+--                  subscript = SubscriptOp <-- YEP!
+--noofsubscripts=1
+--16/5/24:
+            if subscript=SubscriptOp
+            and not CompoundAssignment
+            and opsidx=1
+            and opstype[1]=T_integer then
+                sdx = opstack[1]
+                slit = opsltrl[1]
+                opsidx = 0 
+                subscript = 1
+            else
+                tokline = sstokline
+                tokcol = sstokcol
+                Aborp("not yet supported")
+            end if
         end if
         if opsidx!=0 then ?9/0 end if
         PushFactor(tidx,false,T_Dsq)                            -- (varno/struct)
         {s,fN,const} = struct_fields
 --      PushFactor(s,false,T_sequence)                          -- (varno/struct)
         PushFactor(fN,const,T_string)                           -- (field_name)
-        if CompoundAssignment then
+        if subscript then
+            PushFactor(sdx,slit,T_integer)                      -- idx
+        elsif CompoundAssignment then
 --      PushFactor(tidx,false,T_Dsq)                            -- (varno/struct)
+--if subscript then ?9/0 end if
             if length(struct_fields)!=3 then ?9/0 end if
 --          {s,fN,const} = struct_fields
             PushFactor(s,false,T_sequence)                      -- (varno/struct)
@@ -9196,12 +9247,19 @@ if length(struct_fields) then
 --?{"line 8439",tokline,CompoundAssignment}
         end if
         if opTopIsOp then PopFactor() end if
-        if opsidx!=3 then ?9/0 end if
+--      if opsidx!=3 then ?9/0 end if
+--16/5/24:
+        if opsidx!=3+subscript then ?9/0 end if
 --      integer rep = opstack[opsidx]
         --erm... (because Call() is not expected on lhs of assignment...)
         VAmask = 0      -- (... as per the same below/before rhs)
         PushFactor(class_def,true,T_integer)                    -- (context)
-        Call(T_store_field,{PROC,T_sequence,T_string,T_object,T_integer},PROC,true)
+--16/5/24:
+        if subscript then
+            Call(T_store_field_element,{PROC,T_sequence,T_string,T_integer,T_object,T_integer},PROC,true)
+        else
+            Call(T_store_field,{PROC,T_sequence,T_string,T_object,T_integer},PROC,true)
+        end if
 else
     if CompoundAssignment
     or subscript then
@@ -13713,6 +13771,7 @@ integer N, isLit, etype
 --  LastStatementWasExit = 0
     emitline = line
     oktoinit = 1
+
 --puts(1,"Statement\n")
     if toktype!=LETTER then
         if toktype='?' then
@@ -13908,6 +13967,12 @@ if toktype=LETTER and (ttidx=T_static or ttidx=T_constant) and returnvar!=-1 the
 --if tokline=1611 then trace(1) end if
     Statics()
 else
+
+--2/4/24:
+        if toktype!=LETTER or ttidx!=T_nested then
+            nestedok = false
+        end if
+
         if toktype!=LETTER then
             if not find(toktype,{HEXDEC,'?','{',LABEL}) then exit end if
             Statement()
@@ -13967,6 +14032,7 @@ end if
             if dropScope(-1,S_Block) then end if
         end if
     end if
+    BlastStatementWasAbort = LastStatementWasAbort
     LastStatementWasAbort = 0
     if probable_logic_error then show_ple() end if
 end procedure

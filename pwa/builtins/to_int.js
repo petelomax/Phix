@@ -41,8 +41,10 @@
     }
     for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
         ch = $subse(s,i);
+// 8/4/24 treats ':' as '3'...
         d = ch-((ch>0X39) ? ((ch>=0X61) ? 0X61 : 0X41)-10 : 0X30);
-        if (d<0 || d>base) {
+//      if d<0 or d>base then
+        if ((d<0 || d>base) || (ch>0X39 && d<10)) {
             return def_value;
         }
         let /*atom*/ rchk = res*base+d;

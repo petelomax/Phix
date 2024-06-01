@@ -59,7 +59,10 @@
           <br>
  %n - print "\n" or "" from a boolean, from an args[i] of non-zero or zero respectively
           <br>
+<!--
  %c - print an atom as a single character. NB: not unicode, performs <a href="and_bits.htm">and_bits</a>(args[i],#FF)
+-->
+ %c - print an atom as a single character. Integers #80..#10FFFF are converted to UTF-8 strings.
           <br>
  %v - print the string result from <a href="sprint.htm">sprint</a>(args[i],asCh:=-1)
           <br>
@@ -73,6 +76,8 @@
  %X - as %x but using <i>lower case(!!)</i> letters (a..f)
           <br>
  %o - print an atom as an octal integer
+          <br>
+ %O - as %o but with a leading 0o prefix
           <br>
  %b - print an atom as a binary integer
           <br>
@@ -161,13 +166,22 @@
           <br>
           <br>
             Unicode is supported via utf-8 strings, which this routine treats exactly the same as ansi. <br>
+<!--
             %c does <i><b>not</b></i> support the printing of single unicode characters, but instead performs 
             <a href="and_bits.htm">and_bits</a>(a,#FF) and prints it as a standard ascii character. <br>
             To print a single unicode character, held in the integer uchar, I recommend using %s on the 
             result from <a href="utf32_to_utf8.htm">utf32_to_utf8</a>({uchar}).<br>
+-->
             To print a utf-32 or utf-16 sequence it should first be passed through 
             <a href="utf32_to_utf8.htm">utf32_to_utf8</a>() or
-            <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a>() respectively.
+            <a href="utf16_to_utf32.htm#utf16_to_utf8">utf16_to_utf8</a>() respectively.<br>
+            Note the standard Windows console does not render unicode well, for instance (taking Phix out of the 
+            equation completely) run `notepad demo\HelloUTF8.exw` and `type demo\HelloUTF8.exw | more` alongside 
+            that and compare what they look like screen-by-screen. Obviously it is simply not possible to make 
+            printf(1,&lt;utf8&gt;) achieve anything better on a Windows console. Linux & Browsers do much better.
+            Actually, one thing we can and now do is [the equivalent of] `chcp 65001`: run that before running the
+            type|more to get slightly better but still not exactly stellar results, which Phix should match (but 
+            only if you have saved the source code in UTF8 rather than ascii, obviously).
           <br>
           <br>
             Note that %x and %X are "the wrong way round" for historical/compatibility reasons.

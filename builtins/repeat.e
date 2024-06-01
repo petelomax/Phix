@@ -11,6 +11,7 @@
 --  Also implements deep_copy(), for the benefit of pwa/p2js.
 --
 without debug
+--with debug
 --
 --  Since JavaScript has pass-by-sharing semantics, whereas Phix has pass-by-reference-with-copy-on-write semantics,
 --  and implementing either in the other is sheer madness, this enables software depending on neither to be written.
@@ -64,7 +65,8 @@ without debug
 --  With a bucket of luck and a following wind, there might not be anything much of a
 --  noticeable performance hit, at other times it could be tragic and merit a rethink.
 --
-global function deep_copy(object o, integer depth=-1, bool bIfNeeded=false)
+--global function deep_copy(object o, integer depth=-1, bool bIfNeeded=false)
+global function deep_copy(object o)
     --
     -- Clone o, by default making a perfectly independant copy.
     --
@@ -92,7 +94,10 @@ global function deep_copy(object o, integer depth=-1, bool bIfNeeded=false)
     -- Also note that JavaScript does not have a reference count, so obviously
     -- bIfNeeded cannot be implemented there, and will just be quietly ignored.
     --
+    assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
     if sequence(o) and not string(o) then
+--      assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
+--/*
         -- see also below, could be improved on by checking the
         --  "with js" flag directly (when bIfNeeded set or not).
         if bIfNeeded then
@@ -114,15 +119,17 @@ global function deep_copy(object o, integer depth=-1, bool bIfNeeded=false)
         end if
         if depth then
             depth -= 1
+--*/
             integer l = length(o)
             sequence res = repeat(0,l)
             for i=1 to l do
-                -- aside: don't pass bIfNeeded here, since it cannot possibly
-                --        be useful, or perhaps I should say ever be correct.
-                res[i] = deep_copy(o[i],depth)
+--              -- aside: don't pass bIfNeeded here, since it cannot possibly
+--              --        be useful, or perhaps I should say ever be correct.
+--              res[i] = deep_copy(o[i],depth)
+                res[i] = deep_copy(o[i])
             end for
             return res
-        end if
+--      end if
     end if
     return o
 end function

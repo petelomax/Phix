@@ -209,13 +209,15 @@ end function
 --
 function normalize(sequence n)
 sequence mantissa
-integer first, last
+integer first, last, sgn, exponent
 
-    if n[SIGN]<SG_MINUS or n[SIGN]>SG_PLUS then
+    {sgn,exponent,mantissa} = n
+--  if n[SIGN]<SG_MINUS or n[SIGN]>SG_PLUS then
+    if sgn<SG_MINUS or sgn>SG_PLUS then
         return NO_VALUE
     end if
 
-    mantissa = n[DIGITS]
+--  mantissa = n[DIGITS]
     first = 1
     last = length(mantissa)
     while last and mantissa[last]=0 do
@@ -225,13 +227,18 @@ integer first, last
         first += 1
     end while
 
-    if first>last or not n[SIGN] then
+--  if first>last or not n[SIGN] then
+    if first>last or not sgn then
         n = BA_ZERO
     else
-        n = deep_copy(n,1)
-        n[DIGITS]  = mantissa[first..last]
+--      n = deep_copy(n,1)
+--      n = deep_copy(n)
+--      n[DIGITS]  = mantissa[first..last]
+        mantissa  = mantissa[first..last]
 --      n[EXPONENT] -= first-1
-        n[EXPONENT] = n[EXPONENT] - (first-1)
+--      n[EXPONENT] = n[EXPONENT] - (first-1)
+        exponent -= first-1
+        n = {sgn,exponent,mantissa}
     end if
 
     return n
@@ -605,16 +612,20 @@ end function
 function expand(sequence N)
     sequence digits = deep_copy(N[DIGITS])
     integer exponent = N[EXPONENT],
+            sgn = N[SIGN],
             len = length(digits)-1
 
-    N = deep_copy(N,1)
+--  N = deep_copy(N,1)
+--  N = deep_copy(N)
     if exponent<0 then
         digits = repeat(0, -exponent) & digits
-        N[EXPONENT] = 0
+--      N[EXPONENT] = 0
+        exponent = 0
     elsif exponent>len then
         digits &= repeat(0, exponent-len)
     end if
-    N[DIGITS] = digits
+--  N[DIGITS] = digits
+    N = {sgn,exponent,digits}
 
     return N
 end function
@@ -883,8 +894,10 @@ integer len
             -- exponential format
             expfmt = 1+(c='E')
             exponent = N[EXPONENT]
-            N = deep_copy(N,1)
-            N[EXPONENT] = 0
+--          N = deep_copy(N,1)
+--          N = deep_copy(N)
+--          N[EXPONENT] = 0
+            N = {N[SIGN],0,N[DIGITS]}
             all = 1
         end if
         if all then
@@ -987,12 +1000,12 @@ end procedure
 -- Equating the exponents and the same number of digits in both mantissas.
 --
 function align(sequence A, B)
-integer expA, expB, offset
+integer sgnA, sgnB, expA, expB, offset
 sequence digsA, digsB
 integer last
 
-    {?, expA, digsA} = A
-    {?, expB, digsB} = B
+    {sgnA, expA, digsA} = A
+    {sgnB, expB, digsB} = B
     digsA = deep_copy(digsA)
     digsB = deep_copy(digsB)
 
@@ -1019,12 +1032,18 @@ integer last
     while last and digsA[last]=0 and digsB[last]=0 do
         last -= 1
     end while
-    A = deep_copy(A,1)
-    B = deep_copy(B,1)
-    A[DIGITS] = digsA[1..last]
-    B[DIGITS] = digsB[1..last]
-    A[EXPONENT] = expA
-    B[EXPONENT] = expB
+--  A = deep_copy(A,1)
+--  A = deep_copy(A)
+--  B = deep_copy(B,1)
+--  B = deep_copy(B)
+--  A[DIGITS] = digsA[1..last]
+    digsA = digsA[1..last]
+--  B[DIGITS] = digsB[1..last]
+    digsB = digsB[1..last]
+--  A[EXPONENT] = expA
+--  B[EXPONENT] = expB
+    A = {sgnA,expA,digsA}
+    B = {sgnB,expB,digsB}
 
     return {A, B}
 end function

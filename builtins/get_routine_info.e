@@ -48,6 +48,7 @@ global function get_routine_info(integer rid, bool bName=true)
         grid = -9
         return {0,0,"XX"}
     end if
+--if rid<=0 then return 0 end if
     if bName and grid=0 then grid = rtnid("get_routine_info") end if
     if rid<=0 then
         #ilASM{

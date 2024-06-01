@@ -150,3 +150,5 @@ end function
 global function filter_count(sequence s, rid_string rs, object userdata = {}, string rangetype = "")
     return filter(s,rs,{userdata,rangetype},"COUNT")
 end function
+
+

@@ -17,7 +17,13 @@ global function permute(integer n, sequence s, bool bFast=false)
     if bFast then
         -- (old and somewhat quirky algorithm, but faster)
         if not string(s) then
-            s = deep_copy(s,1)  -- (top level only needed)
+--          s = deep_copy(s,1)  -- (top level only needed)
+            object t = s
+            s = repeat(0,l)
+            for i=1 to l do
+                s[i] = t[i]
+            end for
+            t = 0
         end if
         for i=l to 1 by -1 do 
             integer w = remainder(n,i)+1
@@ -136,6 +142,27 @@ global function permutes(sequence s, integer cb=0, k=length(s))
     end if
     return res
 end function
+
+-- here's a simplified version I wrote for Go (zebra puzzle), which 
+-- needed all permutations of {1,2,3,4,5} [matches permutes(tagset(5))]:
+--/*
+function premutes(integer i)
+    if i<=1 then return {repeat(1,i)} end if
+    sequence s = premutes(i-1), res = {}, 
+             r = repeat(0,i)
+    for k=1 to i do
+        r[1] = k
+        for si in s do
+            for j=2 to i do
+                integer sj = si[j-1]
+                r[j] = sj+(sj>=k)
+            end for
+            res = append(res,deep_copy(r))
+        end for
+    end for
+    return res
+end function
+--*/
 
 global function combinations(sequence s, integer k, at=1, sequence res={}, part="")
     --

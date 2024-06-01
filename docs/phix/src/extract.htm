@@ -14,7 +14,7 @@
          </td>
          <td>
          <a href="sequence.htm">sequence</a> res = extract(<a href="sequence.htm">sequence</a> source, indexes, 
-                                                           <a href="integer.htm#bool">bool</a> invert=<a href="logicops.htm#tf">false</a>)
+                                                           <a href="integer.htm">integer</a> invert=<a href="logicops.htm#tf">false</a>)
          </td>
         </tr>
         <tr>
@@ -27,7 +27,7 @@
             <br>
             source : the sequence from which to extract elements.<br>
             indexes : a sequence of atoms, the indexes of the elements to be fetched in source.<br>
-            invert : invert the indexes, see note below.
+            invert : invert the indexes, and/or force <a href="html/glossary.htm#dwordseq">dword-sequence</a> return, see notes below.
             <br>
             <br>
             Returns a sequence, of the same length as indexes.
@@ -55,9 +55,15 @@
             To clarify, <code>..,{3,1,2},true)</code> [re-]creates indexes as {0,0,0} -> {0,0,1} -> {2,0,1} -> {2,3,1}, before being used.
             <br>
             <br>
-            If invert is <a href="logicops.htm#tf">true</a> and 
+            Should invert be <a href="logicops.htm#tf">true</a>(odd) but 
             <a href="sort.htm">sort</a>(indexes)!=<a href="tagset.htm">tagset</a>(<a href="length.htm">length</a>(indexes))
-            then I expect an error would probably ensue, not that I can be adamantly certain of that.
+            then I expect an error would probably ensue, not that I test for or can be adamantly certain of that.<br>
+            <br>
+            <br>
+            If invert is odd/true/1 extract() inverts the indexes as just explained.<br>
+            If invert is false/0/true/1 extract() returns a string when the source is one.<br>
+            If invert is any other non-zero value (eg 2 to avoid inversion) extract() returns a <a href="html/glossary.htm#dwordseq">dword-sequence</a>.<br>
+            <a name=reinstate></a>
          </td>
         </tr>
         <tr>
@@ -70,20 +76,22 @@
                                                                        <a href="integer.htm#bool">bool</a> invert=<a href="logicops.htm#tf">false</a>)
             <br>
             <br>
-            Allows (for example) some previously extracted elements to be replaced, not necessarily but usually in the same order/slots.<br>
-            While the (reinstate) example below emulates <a href="reverse.htm">reverse</a>(), and in fact the same effect could be achieved by 
-            using that routine on either the indexes or the results from extract(), it is probably more likely that you would manipulate the 
-            results from extract() before using reinstate() to put them all back in exactly the same place.<br>
-            Note that the routine name <a href="replace.htm">replace</a>() is already in use as an otherwise almost pointless compatibility routine 
-            for Euphoria, and obviously must not be confused with reinstate().
-            <br>
-            <br>
-            If indexes is an integer then replacements is the entire item to be put into that slot and invert must be false, otherwise
-            a fatal error occurs if <a href="length.htm">length</a>(indexes)!=<a href="length.htm">length</a>(replacements) [except as below].
+            Allows (for example) some previously extracted elements to be replaced, not necessarily but usually in the same order/slots.
+            Often also a useful way to initialise the first value or first few values of a freshly generated sequence.<br>
+            If indexes is an integer then replacements is the entire item to be put into that slot and invert must be false.<br>
+            if replacements is an atom or a sequence of length 1 (when wrong) it is treated as a sequence of that of the required length, otherwise 
+            a fatal error occurs should <a href="length.htm">length</a>(indexes)!=<a href="length.htm">length</a>(replacements), except as below. <br>
+            Special attention may need to be applied to the case when length(indexes) is 1 but other cases are relying on an implicit repeat of a 
+            length-1 replacements, in other words for a given fixed length-1 replacements and assuming {idx1,..idxN} works then you may need to pass 
+            idx and replacements or {idx} and {replacements} rather than {idx} and replacements. As ever, careful testing helps, see examples.
+<!--
+    done:
             <small><i>(It would be perfectly reasonable and straightforward to also allow eg reinstate(s,{1,2,3},4) to return s with [1..3] set to 4,
-            should a real world use case of that ilk [all reps atom] ever arise, but for now an error is deemed probably more helpful. Likewise there
-            may be calls for nested subscripts, eg reinstate(s,{{1,2,3}},4) to return s with s[1][2][3] set to 4, but y&rsquo;know, [variable length]
-            slice substitution and all that jazz probably needs a bit of design/thought, along with a decent set of tests.)</i></small>
+            should a real world use case of that ilk [all reps atom] ever arise, but for now an error is deemed probably more helpful. 
+    hmmm:
+            Likewise there may be calls for nested subscripts, eg reinstate(s,{{1,2,3}},4) to return s with s[1][2][3] set to 4, but y&rsquo;know, 
+            [variable length] slice substitution and all that jazz probably needs a bit of design/thought, along with a decent set of tests.)</i></small>
+-->
             <br>
             <br>
             If source is {} and indexes is a <a href="sequence.htm">sequence</a>, source is replaced with 
@@ -93,6 +101,13 @@
             For example reinstate({},{3,5,7},{}) returns {0,0,1,0,2,0,3}, ie res[3] is 1 which is the position where the 3 was in indexes.<br>
             You could have just done a <a href="find.htm">find</a>(3,indexes) instead, but in some cases that might not scale quite so well, or
             if you would have needed to make a copy anyway, you might as well convert it.
+            <br>
+            <br>
+            While the (reinstate) example below emulates <a href="reverse.htm">reverse</a>(), and in fact the same effect could be achieved by 
+            using that routine on either the indexes or the results from extract(), it is probably more likely that you would manipulate the 
+            results from extract() before using reinstate() to put them back in the same set of places but a different order.<br>
+            Note that the routine name <a href="replace.htm">replace</a>() is already in use as an otherwise almost pointless compatibility routine 
+            for Euphoria, and obviously must not be confused with reinstate().
          </td>
         </tr>
         <tr>
@@ -104,11 +119,27 @@
 ?extract({11,13,15,17},{3,1,2,1,4}) -- prints {15,11,13,11,17}
 string s = "nip"
 ?reinstate(s,{3,1},extract(s,{1,3})) -- prints "pin"
+sequence sieve = reinstate(repeat(true,12),1,false) -- {false,true,true,true...}
+sequence res = reinstate(repeat(0,12),{1,2},{1,1}) -- {1,1,0,0,0,0,0,0,0,0,0...}
+?reinstate(repeat(0,12),{1,2},{1,1}) -- {1,1,0,0,0,0,0,0,0,0,0,0}
+?reinstate(repeat(0,10),{1,2},{1}) -- {{1},{1},0,0,0,0,0,0,0,0}
+?reinstate(repeat(0,12),{1,2},1) -- {1,1,0,0,0,0,0,0,0,0,0,0}
+?reinstate(repeat(0,11),{1},{1}) -- {1,0,0,0,0,0,0,0,0,0,0} -- cf 2 lines above
+?reinstate(repeat(0,10),1,{1}) -- {{1},0,0,0,0,0,0,0,0,0}
+?reinstate(repeat(0,11),1,1) -- {1,0,0,0,0,0,0,0,0,0,0}
 </eucode-->
 <pre>
 <font color="#0000FF">?</font><font color="#7060A8">extract</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">11</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#0000FF">,</font><font color="#000000">15</font><font color="#0000FF">,</font><font color="#000000">17</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {15,11,13,11,17}</i></font>
 <font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "nip"</font>
 <font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#7060A8">extract</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800080">}</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints "pin"</i></font>
+<font color="#004080">sequence</font><font color="#000000"> sieve</font><font color="#0000FF"> =</font><font color="#7060A8"> reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font><font color="#000080"><i> -- {false,true,true,true...}</i></font>
+<font color="#004080">sequence</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,1,0,0,0,0,0,0,0,0,0...}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,1,0,0,0,0,0,0,0,0,0,0}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{1},{1},0,0,0,0,0,0,0,0}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,1,0,0,0,0,0,0,0,0,0,0}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">11</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,0,0,0,0,0,0,0,0,0,0} -- cf 2 lines above</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{1},0,0,0,0,0,0,0,0,0}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">11</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">)</font><font color="#000080"><i> -- {1,0,0,0,0,0,0,0,0,0,0}</i></font>
 </pre>
          </td>
         </tr>
@@ -121,6 +152,36 @@ string s = "nip"
          </td>
         </tr>
        </table>
+       <div class="clear"></div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

@@ -526,6 +526,8 @@ end procedure -- (for Edita/CtrlQ)
             cmp esi,h4
             jge @f
                 -- integer, promote to atom:
+--14/2/24!!
+                mov [edi],esi
                 fild dword[edi]
                 fldpi                   -- (any non-integer value would do)
                 call :%pStoreFlt        -- (preserves all registers)
@@ -580,6 +582,8 @@ end procedure -- (for Edita/CtrlQ)
             cmp rsi,r15
             jge @f
                 -- integer, promote to atom:
+--14/2/24!!
+                mov [rdi],rsi
                 fild qword[rdi]
                 fldpi                   -- (any non-integer value would do)
                 call :%pStoreFlt        -- (preserves most registers)

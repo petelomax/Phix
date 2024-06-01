@@ -4,14 +4,24 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">No closures</h1>
+      <h1 class="title">closures</h1>
       <div id="mainSection">
-        Many programmers swear by closures: they can make for some neat-looking code
+        The file builtins/closures.e (an auto-include) provides an explicit alternative to the traditional implicit closures of
+        other programming languages.
+        <br>
+        <br>
+        Phix does not support <i>any</i> form of implicit "value capture": instead you must be explicit. If you want the specified code to receive 
+        a value, you specify that value, if instead you want that code to receive a reference from which it can retrieve a current value, then guess 
+        what, you pass it a suitable reference. What you don&rsquo;t do is slap down some implicit code and either hope it works or deliberately or 
+        by trial and error and quite probably sheer luck somehow manage to create the "appropriate implicit lexical scope" or "rebind" for it to work.
+        <br>
+        <br>
+        Many programmers swear by [implicit] closures: they can make for some neat-looking code
 <!--
         Note that Phix does <i><b>not</b></i> support closures. Many programmers swear by closures: they can make for some neat-looking code
 -->
         but they also require a far from intuitive "value capture" and inevitably introduce a hidden state, which can make debugging nigh on 
-        impossible (hence all the swearing). Clearly closures are great when they work, confusing and counter-intuitive for beginners, a
+        impossible (hence all the swearing). Clearly [implicit] closures are great when they work, confusing and counter-intuitive for beginners, a
 <!--
         While I seem 
         to get the part about a "neat trick from lambda calculus", albeit with more than a few concerns about the convoluted complexity and
@@ -26,7 +36,7 @@
         <br>
  <pre>
  <span style="color: #008080;">function</span> <span style="color: #000000;">showHelp</span><span style="color: #0000FF;">(</span><span style="color: #000000;">help</span><span style="color: #0000FF;">)</span> <span style="color: #0000FF;">{</span>
-   <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #000000;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #008000;">'help'</span><span style="color: #0000FF;">).</span><span style="color: #7060A8;">textContent</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">;</span>
+   <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #008000;">'help'</span><span style="color: #0000FF;">).</span><span style="color: #7060A8;">textContent</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">help</span><span style="color: #0000FF;">;</span>
  <span style="color: #0000FF;">}</span>
  
  <span style="color: #000080;font-style:italic;">//function makeHelpCallback(help) {
@@ -45,7 +55,7 @@
    <span style="color: #008080;">for</span> <span style="color: #0000FF;">(</span><span style="color: #7060A8;">var</span> <span style="color: #000000;">i</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">0</span><span style="color: #0000FF;">;</span> <span style="color: #000000;">i</span> <span style="color: #0000FF;"><</span> <span style="color: #000000;">helpText</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">length</span><span style="color: #0000FF;">;</span> <span style="color: #000000;">i</span><span style="color: #0000FF;">++)</span> <span style="color: #0000FF;">{</span>
  <span style="color: #000080;font-style:italic;">//  // Culprit is the use of `var` on this line</span>
      <span style="color: #7060A8;">var</span> <span style="color: #000000;">item</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">helpText</span><span style="color: #0000FF;">[</span><span style="color: #000000;">i</span><span style="color: #0000FF;">];</span>
-     <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #000000;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">id</span><span style="color: #0000FF;">).</span><span style="color: #000000;">onfocus</span> <span style="color: #0000FF;">=</span> <span style="color: #008080;">function</span> <span style="color: #0000FF;">()</span> <span style="color: #0000FF;">{</span> <span style="color: #000000;">showHelp</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">help</span><span style="color: #0000FF;">);</span> <span style="color: #0000FF;">};</span>
+     <span style="color: #7060A8;">document</span><span style="color: #0000FF;">.</span><span style="color: #7060A8;">getElementById</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">id</span><span style="color: #0000FF;">).</span><span style="color: #7060A8;">onfocus</span> <span style="color: #0000FF;">=</span> <span style="color: #008080;">function</span> <span style="color: #0000FF;">()</span> <span style="color: #0000FF;">{</span> <span style="color: #000000;">showHelp</span><span style="color: #0000FF;">(</span><span style="color: #000000;">item</span><span style="color: #0000FF;">.</span><span style="color: #000000;">help</span><span style="color: #0000FF;">);</span> <span style="color: #0000FF;">};</span>
  <span style="color: #000080;font-style:italic;">//  document.getElementById(item.id).onfocus = makeHelpCallback(item.help);
  //or:
  //  (function () {
@@ -70,8 +80,11 @@
 <!--
         That "really neat code" is clearly anything but free in terms of cognitive overhead.
 -->
+        <br>
+        <br>
         The problem is the obsessive yearning for excessively spartan code with implicit and non-immediately-intuitive "magic", without a care in the
-        world for either practical run/compile-time costs or the cognitive overheads unwittingly burdened on the programmer, or the maintainer.<br>
+        world for either practical run/compile-time costs or the cognitive overheads unwittingly burdened on the programmer, or the maintainer.
+<!--
         I am also aware that much of this is triggered by the inability or extra hoop-jumping needed in some programming languages to pass a single
         function pointer, rather than either f or {f,g}, and similar when storing in a single field of a structure - and of course <i>neither</i> of 
         those would be any kind of problem in standard Phix [hll] code (but admittedly still a potential issue when, say, interfacing to C, not that
@@ -80,6 +93,127 @@
         <br>
         OK, so now we&rsquo;ve dished the dirt and done disparaging, let&rsquo;s look at something a little more relevant, and how we might achieve 
         a similar effect in Phix. <br>
+-->
+       <br>
+       <br>
+        Some further reading on closures can be found <a href="javascript:ExternalLink('ext173');" title='http://jibbering.com/faq/notes/closures/'
+        id="ext173" style="color:#9B5565" >here</a>, and it rather tickles me to contemplate that all of that was almost certainly written
+        <i>in favour of</i> [implicit] closures<i>!!!</i>
+        Also <a href="javascript:ExternalLink('ext288');" title='https://www.davepacheco.net/blog/2015/programming-language-debuggability/'
+        id="ext288" style="color:#9B5565" >this</a>.
+       <br>
+       <br>
+        Phix solves these problems by forcing the programmer to be explicit.
+        <br>
+        <a name=lambda></a>
+        <br>
+        type <b>lambda</b>(<a href="object.htm">object</a> l)
+        <br>
+        Of the form {cdx} where cdx is an index to the private tables of closures.e and the rest of the application should consider such values 
+        opaque/meaningless. Strongly typed, especially when bCleanup is/was true, but of course generally speaking even a 0.1s saving would be 
+        worth a thousand times as much as some vague smudge of extra type-safety.
+        <br>
+        <a name=define_lambda></a>
+        <br>
+        lambda res = <b>define_lambda</b>(<a href="object.htm">object</a> rid, 
+                                          <a href="sequence.htm">sequence</a> partial_args, 
+                                          <a href="integer.htm#bool">bool</a> bSoleOwner=<a href="logicops.htm#tf">false</a>,
+                                                                              bCleanup=<a href="logicops.htm#tf">true</a>)
+        <br>
+        <br>
+        <div style="display:flex;">
+         <div>rid:&nbsp;
+         </div>
+         <div>          usually the plain name of a function, but can also be some prior defined/partially curried function,<br>
+                        ie the result of some previous invocation of define_lambda(), itself perhaps also nested to any reasonable depth.<br>
+                        In fact if rid is from a previous define_lambda(), it simply prepends partial_args with a copy before continuing.<br>
+                        Note that direct use of any such partially curried functions would be difficult, unless the base function somehow <br>
+                        returned a variable number of captured values, which would not be shared with any derivatives anyway (see below).
+         </div>
+        </div>
+        <div style="display:flex;">
+         <div>partial_args:&nbsp;
+         </div>
+         <div>          hopefully self-explanatory, the explicit captures for rid, such that call_lambda() only has to provide the rest.
+         </div>
+        </div>
+        <div style="display:flex;">
+         <div>bSoleOwner:&nbsp;
+         </div>
+         <div>          if true rid is given the only copy of any captures, and must return them, which may help performancewise.
+         </div>
+        </div>
+        <div style="display:flex;">
+         <div>bCleanup:&nbsp;
+         </div>
+         <div>          by default builtins/closures.e reclaims unused slots in it&rsquo;s internal tables when things go out of scope,<br>
+                        but you can disable that should it be unnecessary, in particular for a closure that never goes out of scope.<br>
+                        (You never know, it might make a big difference when you&rsquo;ve got thousands of them...)
+         </div>
+        </div>
+        <br>
+        The result from rid must be an atom or {[captures,]res}. rid must return [all] captures if sole owner or it updates any (except as next).
+        <br>
+        <br>
+        Note that Phix closures do <i>not</i> naturally share [updates to] captures, as typically achieved in other programming languages 
+        by returning several closures at the same time, which will not work in Phix. Instead you would have to generate/capture some form 
+        of index or other lookup key (as part of partial_args) and fetch/store from somewhere else via that. A similar approach is also
+        generally advised for other reference types such as <a href="class.htm">classes</a> and <a href="mpfr.htm">mpfr</a> variables, or
+        perhaps explicitly cloning them to <i>prevent</i> them from interfering with each other. In particular, should closures.e invoke
+        <a href="deep_copy.htm">deep_copy</a>() it might object to any <a href="delete_routine.htm">delete_routine</a>() it encounters, 
+        since just copying such would be a pretty sure-fire way to be left with a reference to reclaimed memory or similar.
+        <br>
+        <a name=set_captures></a>
+        <br>
+        <b>set_captures</b>(<a href="sequence.htm">sequence</a> lambdas, <a href="object.htm">object</a> caps)
+        <br>
+        <br>
+        lambdas: one or more results from define_lambda()<sup><small>1</small></sup>.<br>
+        caps: a replacement for partial_args, assuming that wasn&rsquo;t quite ready any earlier.<br>
+        An example use of this can be found in demo\rosetta\Variadic_fixed-point_combinator.exw<br>
+        There would be no real harm in using an index capture and central store as mentioned above, <br>
+        so things can be updated from anywhere, and at any time, or even one-at-a-time, but then again <br>
+        such things would also have to be fetched/stored from <i>everywhere</i>.<br>
+        <br>
+        <small><sup>1</sup></small> Such params would often be type object and that way imply one or many, but in this case a single lambda 
+        is also a sequence, fear not it <i>is</i> smart enough to cope with lambda and {lambda}, treating them identically.
+        <br>
+        <a name=call_lambda></a>
+        <br>
+        <a href="object.htm">object</a> res = <b>call_lambda</b>(<a href="object.htm">object</a> f, args)
+        <br> 
+        <br> 
+        f: a result from define_lambda(), can also be a plain function name should that help any.<br>
+        args: any remaining parameters not already provided via partial_args.
+        <br> 
+        <br> 
+        call_lambda() can thus be used as a simple shim to call_func(), if f is int, ie a plain function name as
+        opposed to a result from define_lambda(), which might simplify some uses. Since the args parameter of 
+        call_lambda() <i>can</i> be an atom, which is currently illegal for call_func(), the shim forwards an
+        atom(args) as {args}, which might even further simplify some things. Alongside instinctively knowing
+        that delete_routine(&lt;int&gt;,rid) never worked [now fixed], this is another reason why the return
+        value from define_lambda() was made {cdx} rather than a plain cdx.
+        <br> 
+        <br> 
+        Note:
+        <ul>
+        <li>all "captured" values must (instead) be explicitly specified in the define_lambda() call.</li>
+        <li>the return from a closure must be either an atom result or of the form {[captures,]res}.</li>
+        <li>if a closure is the sole owner of any captures, it must return the full {captures,res}.</li>
+        <li>in the length-2 sequence case length(result[1]) must match define_lambda&rsquo;s partial_args.</li>
+        <li>the first k parameters replace an implicit "environment" containing an arbitrary set of captures.</li>
+        </ul>
+        While no doubt some will complain these things should be implicit:
+        <ul>
+        <li>there is zero chance explicit closures will be accidentally and unintentionally created.</li>
+        <li>there is far less danger of accidentally capturing things you don&rsquo;t actually really need.</li>
+        <li>there is no sleight-of-hand additional nesting level to force the required lexical scope.</li>
+        <li>there is no need to list reasons why they don&rsquo;t work and what you must do to fix them.</li>
+        <li>there is no need ask what on earth and in the name of all that is holy "rebind" actually means<sup><small>1</small></sup>.</li>
+        </ul>
+        <small><small><sup>1</sup></small> I don&rsquo;t know, and I don&rsquo;t care to <i>ever</i> know.</small>
+        <br> 
+        <br> 
         Consider the following snippet (in JavaScript, again):
         <a name=eg2></a>
  <pre>
@@ -98,8 +232,36 @@
  <span style="color: #0000FF;">}</span>
  <span style="color: #000000;">test</span><span style="color: #0000FF;">()</span></pre>
         Which creates a couple of implicit lexical scopes that contain the x=5 and x=10.<br>
-        Phix takes the view that a little bit more explicit code, to keep/reference an x that shouldn&rsquo;t really be there anymore, is no bad thing.<br>
-        An equivalent for the above can be found on the <a href="nested.htm#eg2">parent page</a>. Another quick example:
+        Phix takes the view that replacing that implict x that isn&rsquo;t there anymore with an explict 5 or 10 is no bad thing:<br>
+<!--eucode>
+procedure test()
+    nested function adder(integer x, y)
+        return x + y
+    end nested function
+
+    object add5 = define_lambda(adder,{5})
+    object add10 = define_lambda(adder,{10})
+ 
+    ?call_lambda(add5,2) // 7
+    ?call_lambda(add10,2) // 12
+end procedure
+test()
+</eucode-->
+<pre>
+<font color="#008080">procedure</font><font color="#7060A8"> test</font><font color="#0000FF">()</font>
+<font color="#008080">    nested function</font><font color="#000000"> adder</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+<font color="#008080">        return</font><font color="#000000"> x</font><font color="#0000FF"> +</font><font color="#000000"> y</font>
+<font color="#008080">    end nested function
+</font>
+<font color="#004080">    object</font><font color="#000000"> add5</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">adder</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">5</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#004080">    object</font><font color="#000000"> add10</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">adder</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">10</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#C0C0C0"> </font>
+<font color="#0000FF">    ?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">add5</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> // 7</i></font>
+<font color="#0000FF">    ?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">add10</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> // 12</i></font>
+<font color="#008080">end procedure</font>
+<font color="#7060A8">test</font><font color="#0000FF">()</font>
+</pre>
+        An alternative equivalent for the above can also be found <a href="nested.htm#eg2">here</a>. Another quick example (in js):<br>
         <a name=eg3></a>
  <pre>
  <span style="color: #008080;">const</span> <span style="color: #000000;">findByIndex</span> <span style="color: #0000FF;">=</span> <span style="color: #0000FF;">()</span> <span style="color: #0000FF;">=></span> <span style="color: #0000FF;">{</span>
@@ -116,22 +278,159 @@
    <span style="color: #0000FF;">};</span>
  <span style="color: #0000FF;">};</span>
  
- <span style="color: #008080;">const</span> <span style="color: #7060A8;">find</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">findByIndex</span><span style="color: #0000FF;">();</span>
+ <span style="color: #008080;">const</span> <span style="color: #7060A8;">find_by_index</span> <span style="color: #0000FF;">=</span> <span style="color: #000000;">findByIndex</span><span style="color: #0000FF;">();</span>
  
- <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">110351</span><span style="color: #0000FF;">);</span>
- <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">911234</span><span style="color: #0000FF;">);</span>
- <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">520109</span><span style="color: #0000FF;">);</span>
- <span style="color: #7060A8;">find</span><span style="color: #0000FF;">(</span><span style="color: #000000;">398</span><span style="color: #0000FF;">);</span></pre>
+ <span style="color: #7060A8;">find_by_index</span><span style="color: #0000FF;">(</span><span style="color: #000000;">110351</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find_by_index</span><span style="color: #0000FF;">(</span><span style="color: #000000;">911234</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find_by_index</span><span style="color: #0000FF;">(</span><span style="color: #000000;">520109</span><span style="color: #0000FF;">);</span>
+ <span style="color: #7060A8;">find_by_index</span><span style="color: #0000FF;">(</span><span style="color: #000000;">398</span><span style="color: #0000FF;">);</span></pre>
+<!--
         I would add a more persuasive example that better highlights the true purpose and usefulness of closures, only I&rsquo;ve looked, and there really isn&rsquo;t one.<br>
         However it is certainly no bad thing for Phix to have private statics and routines, even should they technically have little or nothing to do with closures.<br>
-        Again, the equivalent in Phix for the above can also be found on the <a href="nested.htm#eg3">parent page</a>.
+-->
+        The above in Phix looks like this:<br>
+<!--eucode>
+atom t0 = time()
+function findByIndex(sequence numbers, integer index)
+    if numbers={} then
+        integer k = 1000000
+        numbers = apply(true,sprintf,{{"n%d"},tagset(k)})
+        printf(1,"n(%d) built (%s)\n",{k,elapsed(time()-t0)})
+    end if
+    return {{numbers},numbers[index]}
+end function
+constant find_by_index = define_lambda(findByIndex,{{}},true)
+?call_lambda(find_by_index,110351)
+?call_lambda(find_by_index,911234)
+?call_lambda(find_by_index,520109)
+?call_lambda(find_by_index,398)
+?elapsed(time()-t0)
+-- output:
+--  n(1000000) built (1.6s)
+--  "n110351"
+--  "n911234"
+--  "n520109"
+--  "n398"
+--  "1.7s"
+</eucode-->
+<pre>
+<font color="#004080">atom</font><font color="#000000"> t0</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()</font>
+<font color="#008080">function</font><font color="#000000"> findByIndex</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> numbers</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> index</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> numbers</font><font color="#0000FF">={}</font><font color="#008080"> then</font>
+<font color="#004080">        integer</font><font color="#000000"> k</font><font color="#0000FF"> =</font><font color="#000000"> 1000000
+        numbers</font><font color="#0000FF"> =</font><font color="#7060A8"> apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"n%d"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#7060A8">tagset</font><font color="#800080">(</font><font color="#000000">k</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"n(%d) built (%s)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">k</font><font color="#0000FF">,</font><font color="#7060A8">elapsed</font><font color="#800080">(</font><font color="#7060A8">time</font><font color="#00FF00">()</font><font color="#0000FF">-</font><font color="#000000">t0</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
+    return</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#000000">numbers</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">numbers</font><font color="#800000">[</font><font color="#000000">index</font><font color="#800000">]</font><font color="#0000FF">}</font>
+<font color="#008080">end function
+constant</font><font color="#000000"> find_by_index</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">findByIndex</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">find_by_index</font><font color="#0000FF">,</font><font color="#000000">110351</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">find_by_index</font><font color="#0000FF">,</font><font color="#000000">911234</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">find_by_index</font><font color="#0000FF">,</font><font color="#000000">520109</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">find_by_index</font><font color="#0000FF">,</font><font color="#000000">398</font><font color="#0000FF">)
+?</font><font color="#7060A8">elapsed</font><font color="#0000FF">(</font><font color="#7060A8">time</font><font color="#800000">()</font><font color="#0000FF">-</font><font color="#000000">t0</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- output:
+--  n(1000000) built (1.6s)
+--  "n110351"
+--  "n911234"
+--  "n520109"
+--  "n398"
+--  "1.7s"</i></font>
+</pre>
+        In that example, making findByIndex the sole owner avoids a deep_copy on every call and as a result saves about 0.3s overall.<br>
+        One thing I certainly prefer is "define_lamba()" looking useful, over "const find_by_index =" looking pointless, not that it is.<br>
+        Likewise an equivalent in Phix for the above can also be found <a href="nested.htm#eg3">here</a>, which may in fact be slightly better.
        <br>
        <br>
-        Some further reading on closures can be found <a href="javascript:ExternalLink('ext173');" title='http://jibbering.com/faq/notes/closures/'
-        id="ext173" style="color:#9B5565" >here</a>, and it rather tickles me to contemplate that all of that was almost certainly written
-        <i>in favour of</i> closures<i>!!!</i>
-        Also <a href="javascript:ExternalLink('ext288');" title='https://www.davepacheco.net/blog/2015/programming-language-debuggability/'
-        id="ext288" style="color:#9B5565" >this</a>.
+        define_lambda() can also [partially] curry already [partially] curried functions, for example:<br>
+<!--eucode>
+function f2(integer a, b, c)
+    return {{a,b},a+b+c}
+end function    
+
+object f_2 = define_lambda(f2,{1})
+object f12 = define_lambda(f_2,{2})
+?call_lambda(f12,5) -- 8
+
+object f13 = define_lambda(f_2,{3})
+object f14 = define_lambda(f12,{})
+?call_lambda(f13,5) -- 9
+?call_lambda(f14,5) -- 8
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> f2</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#008080">    return</font><font color="#0000FF"> {</font><font color="#800000">{</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#000000">b</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">a</font><font color="#0000FF">+</font><font color="#000000">b</font><font color="#0000FF">+</font><font color="#000000">c</font><font color="#0000FF">}</font>
+<font color="#008080">end function    
+</font>
+<font color="#004080">object</font><font color="#000000"> f_2</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">f2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#004080">object</font><font color="#000000"> f12</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">f_2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">f12</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- 8
+</i></font>
+<font color="#004080">object</font><font color="#000000"> f13</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">f_2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#004080">object</font><font color="#000000"> f14</font><font color="#0000FF"> =</font><font color="#7060A8"> define_lambda</font><font color="#0000FF">(</font><font color="#000000">f12</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">)
+?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">f13</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- 9</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">call_lambda</font><font color="#0000FF">(</font><font color="#000000">f14</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- 8</i></font>
+</pre>
+        Note however that f_2 /cannot/ be invoked via call_lambda(), since that has declared a closure that will
+        return one captured value whereas f2() returns two such. Such would however be possible as long as f2 did
+        not return any [updated] captures. Also, of course, f12 creates an entirely new and independant capture 
+        set: were f2() to modify a, and you defined an f13, then it would do its own thing with the original 1, 
+        and not be affected in any way by anything f12 does or has done. Conversely, f14 takes a fresh copy of 
+        the current state of the captures of f12, and hence would be affected by anything that had happened to 
+        f12 before f14 was defined, but not after.
+       <br>
+       <br>
+<!--
+-- in no implicit closures...
+--My prior objections to...
+--Assuming you are not confusing them with partially curried functions, closures do not actually exist in 
+--a pure functional programming language - and you certainly cannot "modify the state" before returning.
+--The origin of closures is a horrible hack to make the imperative paradigm behave a more functional way,
+--spurred on by the desire to make them look really elegant when behind the scenes they are anything but.
+-->
+        Lastly, since I haven&rsquo;t yet documented them [or rather managed to find the best place to do so], I
+        should point out that anonymous lambda expressions <i>do</i> in fact already exist:<br>
+<!--eucode>
+integer f = function (integer i) return i*2 end function
+?f(2) -- 4
+--Entirely equivalent, apart from the additional identifier:
+--function sq(integer i) return i*2 end function
+--integer f = sq
+--NO:
+--integer f = function sq(integer i) return i*2 end function
+--                      ^ '(' expected
+--integer p = procedure (integer i) ?i*2 end procedure
+--            ^ illegal use of reserved word
+</eucode-->
+<pre>
+<font color="#004080">integer</font><font color="#000000"> f</font><font color="#0000FF"> =</font><font color="#008080"> function</font><font color="#0000FF"> (</font><font color="#004080">integer</font><font color="#000000"> i</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> i</font><font color="#0000FF">*</font><font color="#000000">2</font><font color="#008080"> end function</font>
+<font color="#0000FF">?</font><font color="#000000">f</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- 4
+--Entirely equivalent, apart from the additional identifier:
+--function sq(integer i) return i*2 end function
+--integer f = sq
+--NO:
+--integer f = function sq(integer i) return i*2 end function
+--                      ^ &rsquo;(&rsquo; expected
+--integer p = procedure (integer i) ?i*2 end procedure
+--            ^ illegal use of reserved word</i></font>
+</pre>
+        Obviously there is no gain in that particular case over a normal function, but a similar rhs expression could 
+        be embedded in something else and that way prove more useful, not that I have a suitable example to hand.
+        I could probably be persuaded to quietly ignore the embedded sq, letting it be there solely to clarify intent.
+        I might even be persuaded to permit "{ ... }" instead of " ... end function", not that I&rsquo;m really keen,
+        and not that said offer would extend to any embedded end if/for/while, which I always find rather ugly in an
+        inline lambda expression whatever the programming language is anyway (and as with regular expressions, lambdas
+        may sometimes be the perfect band-aid for minor duties but just not meant for anything more serious).
+       <br>
+        <a name=end></a>
+       <br>
+        So the answer to the question &ldquo;Does Phix support closures?&rdquo; is &ldquo;In a more explicit fashion, that doesn&rsquo;t need
+        the docs to explain all the ways to fix them when they don&rsquo;t work.&rdquo; <img src="images/ksk-smile.png" alt="smile" /> 
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
        <br>

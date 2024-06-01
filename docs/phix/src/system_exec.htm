@@ -79,7 +79,7 @@
             <br>
             <br>
             If bit #08 in mode is set, this routine does not wait for the command to finish (though it does allow it 
-            0.4s to get going) and the return value is a process handle or -1.
+            0.4s to get going, unless bit #10 is also set) and the return value is a process handle or -1.
             This is the (non-overrideable) behaviour of <a href="system.htm">system</a>().
             <br>
             <br>
@@ -97,8 +97,8 @@
            <table>
             <col style="width: 5%"/>
             <tr> <td align=center><b>result/wait</b></td>   <td align=center><b>redirect/builtin</b></td>   <td><b>invoke</b></td>      <td><b>aka</b></td> </tr>
-            <tr> <td align=center>no</td>                   <td align=center>yes</td>                       <td><a href="system.htm">system</a>(st) </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,12)</td> </tr>
-            <tr> <td align=center>no</td>                   <td align=center>no</td>                        <td>            </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,8)</td> </tr>
+            <tr> <td align=center>no</td>                   <td align=center>yes</td>                       <td><a href="system.htm">system</a>(st) </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,12) (or #1C)</td> </tr>
+            <tr> <td align=center>no</td>                   <td align=center>no</td>                        <td>            </td>       <td>res<sup><small>1</small></sup> = <a href="system_exec.htm">system_exec</a>(st,8) (or #18)</td> </tr>
             <tr> <td align=center>yes</td>                  <td align=center>yes</td>                       <td>            </td>       <td>res = <a href="system_exec.htm">system_exec</a>(st,4)</td> </tr>
             <tr> <td align=center>yes</td>                  <td align=center>no</td>                        <td><a href="system_exec.htm">system_exec</a>(st)</td>  <td>res = <a href="system_exec.htm">system_exec</a>(st[,0])</td> </tr>
            </table>
@@ -109,8 +109,11 @@
             than any processes the shell might initiate.
          <br>
          <br>
-            Note that the bit 4/8 settings of the mode parameter have no known equivalents on Euphoria, though otherwise 
-            <a href="system.htm">system</a>() and <a href="system_exec.htm">system_exec</a>() work the same.
+            Note that the bit 4/8/10 settings of the mode parameter have no known equivalents on Euphoria, though otherwise 
+            <a href="system.htm">system</a>() and <a href="system_exec.htm">system_exec</a>() work the same. Bit #10 is
+            completely ignored unless bit #08 is also set. When bit 8 is set you should expect any files it uses/creates to
+            still be in use; when bit #10 is also set there is a high probability any such will not even have been opened yet,
+            and should multiple spawned instances start fighting over files/locks/anything, that&rsquo;s on you.
          <br>
          <br>
             For example if you want to run DEL or a batch file or the command string contains "&lt; input" or "&gt; output", then 
@@ -119,7 +122,7 @@
             functionality.
          <br>
          <br>
-            If however you want to run an exe file then <a href="system_exec.htm">system_exec</a>(st,8) (no result, returns immediately),
+            If however you want to run an exe file then <a href="system_exec.htm">system_exec</a>(st,[#1]8) (no result, returns immediately),
             or <a href="system_exec.htm">system_exec</a> (result, does not return until the invoked executable terminates) may be more
             appropriate, and without an "ugly black box" - unless triggered by something like <a href="qu.htm">?</a>, 
             <a href="puts.htm">puts</a>(1,xx) or <a href="getc.htm">getc</a>(0).

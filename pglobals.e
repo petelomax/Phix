@@ -37,7 +37,7 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {1,0,2},  -- 1.0.2    -- 26/02/23
 --global constant pxversion = {1,0,3},  -- 1.0.3    -- 07/08/23
 --global constant pxversion = {1,0,4},  -- 1.0.4    -- 23/12/23
-global constant phixversion = {1,0,5},  -- 1.0.5    -- ??/??/24
+global constant phixversion = {1,0,5},  -- 1.0.5    -- 01/06/24
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -665,6 +665,7 @@ global integer T_ptr = 0,
                T_Bin = 0,
                T_Asm = 0,
                T_abort = 0,
+               T_crash = 0,
                T_repeat = 0,
                T_repeatch = 0,
                T_Ainc = 0,
@@ -717,6 +718,7 @@ global integer T_ptr = 0,
 --             T_field_type = 0,
                T_fetch_field = 0,
                T_store_field = 0,
+               T_store_field_element = 0,
                Z_struct = 0,
                T_free = 0,
                T_ffree = 0,

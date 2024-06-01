@@ -154,6 +154,11 @@ global constant p2js_keywords = {
 for phix.py... [DEV]
     types = (
 """,
+        cont_js = """
+for cm.js... [DEV]
+    types = (
+""",
+
         symbols = sort('`'&`!&|#*/+-,.:;<=>?~\$%([{}])"'0A`)
 --      symbols = `$,<@\|`&'`' -- #24,#2C,#3C,#40,#5C,#7C & #60
 --36,44,60,64,92,96,124
@@ -240,7 +245,9 @@ end if
                filename = join_path({path,"p2js_keywords.e"}),
                content = cont0,
                ppycontent = cont_py,
-               cy = "       "
+               cmzcontent = cont_js,
+               cy = "       ",
+               cz = "       "
 --/*
     types = (
         'atom', 'number', 'int', 'integer', 'string', 'seq', 'sequence', 'object', 
@@ -294,6 +301,23 @@ end if
                 else
                     cy &= sprintf(" '%s',",{n})
                 end if
+--DEV one day, either move this above, or better yet use it to purge p2js_keywords.e, and re-publish syntaxhighlight.phix.js and pygments4phix (whatever thez really called)
+                if not begins("cd",n)
+                and not begins("Ihandl",n)
+                and not begins("CD_",n)
+                and not begins("Icallback",n)
+                and not begins("iup_",n)
+                and not begins("Iup",n)
+                and not begins("IUP_",n)
+                and not begins("K_",n) then
+                    if length(cz)+length(n)+9>80 then
+                        cz &= '\n'
+                        cmzcontent &= cz
+                        cz = sprintf("        '%s':true,",{n})
+                    else
+                        cz &= sprintf(" '%s':true,",{n})
+                    end if
+                end if
             end if
 --          if find(n,{"object","volatile","xor","yield","wait_key"}) then
 --          if find(n,{"object","try","xor","xor_bits","yield"}) then
@@ -305,11 +329,16 @@ end if
                 if length(ps) then
                     cy[$] = '\n'
                     cy &= "    )\n    " & ps & " = (\n"
+                    cz[$] = '\n'
+                    cz &= "    )\n    " & ps & " = (\n"
                 else
                     cy &= '\n'
+                    cz &= '\n'
                 end if
                 ppycontent &= cy
+                cmzcontent &= cz
                 cy = "       "
+                cz = "       "
                 sections = sections[2..$]
                 pysections = pysections[2..$]
             end if
@@ -319,6 +348,9 @@ end if
         cy[$] = '\n'
         cy &= "    )\n"
         ppycontent &= cy
+        cz[$] = '\n'
+        cz &= "    )\n"
+        cmzcontent &= cz
 
         printf(1,"\nOverwrite %s and restart?",{filename})
         if not find(upper(wait_key()),{'Q','N',#1B}) then
@@ -332,6 +364,12 @@ end if
             fn = open(filename,"w")
             if fn=-1 then crash("cannot open "&filename) end if
             puts(fn,ppycontent)
+            close(fn)
+--14/5/24:
+            filename = join_path({path,"cm.js"})
+            fn = open(filename,"w")
+            if fn=-1 then crash("cannot open "&filename) end if
+            puts(fn,cmzcontent)
             close(fn)
 
             requires(-machine_bits(),false) -- restart

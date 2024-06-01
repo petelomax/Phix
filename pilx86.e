@@ -319,7 +319,7 @@ constant
 --       mov_eax_edid32 = {#8B,#87},    -- 0o213 0o207 d32          -- mov eax,[edi+d32]
          mov_eax_edx    = {#8B,#C2},    -- 0o213 0o302              -- mov eax,edx
          mov_eax_ebx    = {#8B,#C3},    -- 0o213 0o303              -- mov eax,edx
-         mov_ecx_eax    = {#8B,#C8},    -- 0o213 0o310              -- mov ecx,eax
+--       mov_ecx_eax    = {#8B,#C8},    -- 0o213 0o310              -- mov ecx,eax
          mov_ecx_edx    = {#8B,#CA},    -- 0o213 0o312              -- mov ecx,edx
          mov_ecx_esp    = {#8B,#CC},    -- 0o213 0o314              -- mov ecx,esp
          mov_edx_eax    = {#8B,#D0},    -- 0o213 0o320              -- mov edx,eax
@@ -361,7 +361,7 @@ constant
          mov_edid32_i32 = {#C7,#87},    -- 0o307 0o207 d32 imm32    -- mov [edi+d32],imm32
          mov_regimm32   =  #C7,         -- 0o307 0o30r imm32        -- mov reg,imm32
 --       shl_eax_1      = {#D1,#E0},    -- 0o321 0o340              -- shl eax,1
-         shl_ecx_1      = {#D1,#E1},    -- 0o321 0o341              -- shl ecx,1
+--       shl_ecx_1      = {#D1,#E1},    -- 0o321 0o341              -- shl ecx,1
          shl_edx_1      = {#D1,#E2},    -- 0o321 0o342              -- shl edx,1
          shl_esi_1      = {#D1,#E6},    -- 0o321 0o346              -- shl esi,1
 --       shr_eax_1      = {#D1,#E8},    -- 0o321 0o350              -- shr eax,1
@@ -9086,7 +9086,7 @@ end if
                             if and_bits(symtab[src][S_State],K_Fres) then ?9/0 end if
                             loadMem(edx,src)                                    -- mov edx,[src]    init int
                             loadToReg(ecx,src2)                                 -- mov ecx,[src2]   init int
-if 1 then -- new code 2/11/15
+--if 1 then -- new code 2/11/15
                             clearReg(ecx)   -- (btw, this block leaves edi intact)
                             clearReg(esi)
 --DEV cdq??
@@ -9134,7 +9134,8 @@ if 1 then -- new code 2/11/15
                                 -- fatal error, does not return. (calc [edi]=(eax*ecx+edx)/ecx, as a float, and tcf it.)
                             x86[backpatch] = length(x86)-backpatch              -- @@:
                             storeReg(eax,dest,1,1)                          -- mov [dest],eax
-else -- (old code)
+--/*
+--else -- (old code)
                             clearReg(ecx)   -- (btw, this block leaves esi,edi intact)
                             if X64 then
                                 emitHex1(#48)
@@ -9192,7 +9193,8 @@ else -- (old code)
 --                          if sched then
 --                              sch00n = 0 -- (just the above line)
 --                          end if
-end if
+--end if
+--*/
                         end if
                     end if
                 end if
@@ -14082,7 +14084,9 @@ end if
 
         elsif opcode=opDeSeq then
             if not isGscan 
+--29/5/24: (no help, put back)
             and with_js=1 then
+--then
                 src = s5[pc+1]                                  -- T_const0 or T_const1
                 if src=T_const0 then
                     if X64 then

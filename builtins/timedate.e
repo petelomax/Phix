@@ -740,26 +740,26 @@ integer n = floor((4*l)/146097)
     return {y,m,d,hour,mins,secs,ms}
 end function
 
-constant day_in_seconds = 24*60*60  -- (=86400)
+local constant DAY_IN_SECONDS = 24*60*60    -- (=86400)
 
 function timedate_to_seconds(timedate td)
 -- returns an atom
 --22/3/18:
---  return timedate_to_julian_day(td)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+--  return timedate_to_julian_day(td)*DAY_IN_SECONDS+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
 --25/4/19:
---  return (timedate_to_julian_day(td)-2440588)*day_in_seconds+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
+--  return (timedate_to_julian_day(td)-2440588)*DAY_IN_SECONDS+(td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]+td[DT_MSEC]/1000
     atom s = (td[DT_HOUR]*60+td[DT_MINUTE])*60+td[DT_SECOND]
     if length(td)>=DT_MSEC then s+=td[DT_MSEC]/1000 end if
-    return (timedate_to_julian_day(td)-2440588)*day_in_seconds+s
+    return (timedate_to_julian_day(td)-2440588)*DAY_IN_SECONDS+s
 end function
 
 function seconds_to_timedate(atom seconds)
 integer days, minutes, hours, milliseconds
 
 --22/3/18:
---  days = floor(seconds/day_in_seconds)
-    days = floor(seconds/day_in_seconds)+2440588
-    seconds = remainder(seconds, day_in_seconds)
+--  days = floor(seconds/DAY_IN_SECONDS)
+    days = floor(seconds/DAY_IN_SECONDS)+2440588
+    seconds = remainder(seconds, DAY_IN_SECONDS)
 
     hours = floor(seconds/3600)
     seconds -= hours*3600
@@ -775,12 +775,37 @@ end function
 
 
 global function adjust_timedate(sequence td, atom delta)
-integer y, m, d, dsrule, tz, stz
+    integer {y,m,d} = td, dsrule, tz, stz
+    if m<1 then
+        do
+            m += 12
+            y -= 1
+        until m>1
+        td[DT_YEAR] = y
+        td[DT_MONTH] = m
+    elsif m>12 then
+        do
+            m -= 12
+            y += 1
+        until m<=12
+        td[DT_YEAR] = y
+        td[DT_MONTH] = m
+    end if
+    if d=0 then
+        delta -= DAY_IN_SECONDS
+        td[DT_DAY] = 1
+    end if
     atom secs = timedate_to_seconds(td)
     secs += delta
---p2js
-    td = deep_copy(td)
-    td[1..7] = seconds_to_timedate(secs)
+--1/5/24:
+    integer ltd = length(td)
+    if ltd>=7 then
+    --p2js
+        td = deep_copy(td)
+        td[1..7] = seconds_to_timedate(secs)
+    else
+        td = seconds_to_timedate(secs)
+    end if
     delta = 0
     if length(td)=DT_DSTZ then
         dsrule = get_DST_rule(td,DT_DSTZ)
@@ -832,6 +857,8 @@ integer y, m, d, dsrule, tz, stz
             td[DT_DOY] = day_of_year(y,m,d)
         end if
 --  end if
+--1/5/24:
+    if ltd<9 and ltd<length(td) then td = td[1..ltd] end if
     return td
 end function
 

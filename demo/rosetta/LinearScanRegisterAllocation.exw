@@ -1846,6 +1846,10 @@ Investigate xpGUI.e/gRotatePolygon() as well... I really didn't expect 33 vs 5 p
 C:\FPC\3.0.4\bin\i386-win32\ormiston2.pas - 3s vs Phix 39.8s...
 C:\FPC\3.0.4\bin\i386-win32\perfect.pas - 9:29 vs Phix 9:34 (but worth a look purely on the grounds of simplicity...)
 C:\FPC\3.0.4\bin\i386-win32\squarefree.pas - 1e9 in 4.6s vs Phix/square_free() doing 1e7 in 1min 6s....
+https://rosettacode.org/wiki/Smallest_square_that_begins_with_n#Phix (10* slower than fpc... 3* faster than wren)
+==> see E:\downloads\misc\wren\wren-cli-windows-0.4.0\ssq.wren which also contains the Phix version,
+    and C:\FPC\3.0.4\bin\i386-win32\ssq.pas
+
 That'll do for now...
 
 48:017 054 300
@@ -1894,6 +1898,26 @@ of actual instructions that can be re-ordered, etc. I'm favouring an {idx,len,ma
 where idx is an index into some constant table that (with mask) generates var-length machine code,
 and again if we have consistent lengths we can retain our "flat" performance gains (and trash all of
 that horrible blurph() and scanforShortJmp() nonsense, hopefully). All much easier in a CPU emulator.
+
+"Hardware emulator"??
+=====================
+Performance has the lowest possible priority: ease of writing/maintenance and debugging is first.
+Create a suitable executable, starting with those made via fasm/as and as disassembed by filedump...
+In fact, perhaps, emulate the filedump.s files...
+run.bat login (oh gawd...)
+OH YOU DONK: what we need is to run off the AST! That's where reversible debugging, extra scope info,
+and all that jazz come from. The only teensy downside, if you can even call it that, is that we have
+to traverse the AST to figure out where some machine address (/trace(1)) is, having left suitable
+clues therein when we generated it [and we (really) don't need any of that for .exe crash reports].
+
+IDEA:
+vlqtable. In 1.x the symbol table was a flat sequence and symindexes were a plain integer idii.
+In 2.x the symbol table is a nested tree, so symindexes want to be more like {7,5,12}, however a 
+better approach is to have a flat vlqtable with (say) {...,?,3,7,5,12,...} in it and a symindex 
+which points to that 3 (so itself still an integer) is open to easy replacement by whatever that
+? holds when compiling. Nodes in the tree are kept in/with sorted order and can be binary chopped
+on lookup: the mess that is ttree can hopefully go (worked really well, but a horror to debug).
+
 --*/
 
 -- *** an inline routine cannot inline recursion *** (I just made that up) The AST must have an

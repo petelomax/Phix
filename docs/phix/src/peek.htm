@@ -55,9 +55,10 @@
             with the first row obtaining signed values and the second unsigned.
           <br>
           <br>
-            The peekNS() function takes three parameters: (addr or {addr,len}), size, and signed. By way of illustration, peek4u(a)===peekNS(a,4,false).<br>
+            The peekNS() function takes three parameters: (addr or {addr,len}), size, and signed. <br>
+            By way of illustration, peek4u(a)===peekNS(a,4,<a href="logicops.htm#tf">false</a>).<br>
             The peekns() function is a simple hll wrapper of peekNS() that defaults size to <a href="machine_bits.htm">machine_word</a>()
-            and signed to <a href="logicops.htm#tf">trur</a>; more convenient but less performant (see Implementation notes below).<br>
+            and signed to <a href="logicops.htm#tf">true</a>; more convenient but less performant (see Implementation notes below).<br>
             The peeknu() function is identical to peekns() except that it defaults signed to <a href="logicops.htm#tf">false</a>.
           <br>
           <br>
@@ -186,16 +187,11 @@ result = peek8u({addr,2})
             (Internally it uses a simple and straightforward "is the reconstructed qword binary identical?" test. In
              decimal, the largest integer on 32 bit is 9,007,199,254,740,992 as per <a href="accuracy.htm">floats are not exact</a>.)
             Note that when two dwords are returned, they are always unsigned, even for peek8s, and are in the correct
-            order for
-          <code>sprintf("#%08x%08x",result[2])</code> but the wrong order for
-          <code>poke4(addr+8,result[2])</code>, 
-            whereas
-          <code>poke8(addr,result[1])</code> together with
-          <code>poke4(addr+8,reverse(result[2]))</code> would 
-            make for the perfect bitwise copy, and obviously it would all be far easier if you just did it all using 
-            peek4s/u and poke4s/u, as I recommended in the first place. (And likewise, on 32 bit, if you try and shift/
-            add the results from peek4s/u together to form a quadword, you will get exactly the same precision loss that
-            all this was trying to avoid.)
+            order for <code>sprintf("#%08x%08x",result[2])</code> but the wrong order for <code>poke4(addr+8,result[2])</code>, 
+            whereas <code>poke8(addr,result[1])</code> together with <code>poke4(addr+8,reverse(result[2]))</code> 
+            make for the perfect bitwise copy, and obviously it would all be far easier to use peek4s/u and poke4s/u, as 
+            recommended in the first place. Likewise, on 32 bit, should you shift/add the results from peek8s/u together 
+            to form a quadword, you will get exactly the same precision loss all this was trying to avoid.
           <br>
           <br>
             Naturally poke8 would go hopelessly wrong should you pass it a pair of dwords obtained from peek8s/u, that is, 
@@ -232,10 +228,8 @@ end if
             any of this, not that your code would suffer much from a few <a href="sequence.htm">sequence</a>() checks on the result.
           <br>
           <br>
-            Note that the last two parameters to the peekNS routine must be integers: a
-          <code>size</code> of 2.001 should (for performance reasons) 
-            trigger a run-time error, as it is not one of the integers (1|2|4|8), in contrast
-          <code>sign</code> is just tested for non-zero rather 
+            Note that the last two parameters to the peekNS routine must be integers: a <code>size</code> of 2.001 should (for performance reasons) 
+            trigger a run-time error, as it is not one of the integers (1|2|4|8), in contrast <code>sign</code> is just tested for non-zero rather 
             than formally validated as being (0|1).
          </td>
         </tr>

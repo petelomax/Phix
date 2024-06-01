@@ -211,14 +211,19 @@
         <li><b>{s[i]} = {ch}</b> becomes illegal when s is a string. JavaScript has some pretty decent Array
         destructuring operations, but also immutable strings and no char (see below), so in order to be able
         to use/emit faster and more elegant code it is not permitted to modify individual characters as part
-        of a multiple assignment statement. 
+        of a multiple assignment statement. When applicable, you might well consider using something like
+        <code>str = <a href="extract.htm#reinstate">reinstate</a>(str,{i,j,k},"abc")</code> instead, since
+        that doesn&rsquo;t have any such issues.<br>
         A crash("p2js violation: JavaScript does not support string subscript destructuring") occurs should
         such an invalid operation be attempted on desktop/Phix when with js is in force, which obviously you 
         will have to fix, but of course <code>s[i] = ch</code> and similar are still all perfectly fine when 
         <i>not</i> part of a destructuring operation, and handled differently behind the scenes.</li>
 <!-- DEV Did I not just add a runtime error for this?? [NOPE, I did not, this is still true 27/9/21] -->
         <li><b>{ch1,ch2} = s</b> likewise becomes illegal when s is a string under with js, fairly rare and 
-        easily replaced with <code>ch1 = s[1]; ch2 = s[2]</code>.
+        easily replaced with <code>ch1 = s[1]; ch2 = s[2]</code>, or perhaps (replacing troublesome syntax 
+        with hll calls often works) <code>{ch1,ch2} = <a href="extract.htm">extract</a>(s,{1,2},2)</code>.
+        <br><small>[aside: pretty sure transpiling to {ch1,ch2} = $charArray(s), with a minor tweak to that
+        routine, would work just fine should it ever really be needed.]</small>
 <!-- fixed 1/5/22 (the missing error part anyway):
         Note however there is (as yet) no runtime 
         checking for this on either desktop/Phix or pwa/p2js, and the latter <i>will</i> just fail silently, 
@@ -230,7 +235,7 @@
         </li>
         <li><b>{s[i..j]} = {x}</b> also becomes illegal, for both strings and dword sequences. JavaScript 
         handles slices using Array.s[p]lice() which is not a valid destructuring target in JavaScript, nor 
-        would anything similar be valid on desktop/Phix, such as <code>{a,slice(b),c} := xyz</code>.<br>
+        would similar be valid on desktop/Phix, such as <code>{a,slice(b),c} := xyz</code>.<br>
         A "p2js violation: JavaScript does not support slice destructuring" compilation error is emitted 
         in desktop/Phix for attempts to perform slices during a destructuring operation when with js is in 
         force. <br>
@@ -288,6 +293,10 @@
 </pre>
         </small>
         which is obviously completely compatible, and both much clearer and slightly faster anyway.</li>
+        <li><b>i & s</b> sometimes needs to be replaced with deep_copy({i}) & s. One of those I cannot
+        really adequately explain, but at least it moans about the precise statement it is unhappy with.
+        It is probably due to that expression being optimised to prepend(i,s) and the latter being 
+        somehow re-optimised again at some later point in a js-unfriendly manner. Thankfully quite rare.</li>
         <li><b>{a,b} @= c</b> forms of multiple assignment were deemed unnecessary and remain unsupported,
         and can normally be replaced with either an explicit <code>{a,b} = repeat(c,2)</code>, or breaking
         it down into individual statements/declarations such as <code>a = c [,] b = c</code> or similar.<br>

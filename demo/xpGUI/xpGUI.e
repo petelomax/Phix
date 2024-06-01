@@ -5261,10 +5261,12 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={}, int
              XPGLEX_TK_NAME  = 3,
              XPGLEX_TK_HEX   = 4;
     if length(attributes) then
+//      assert(attributes[1]='=',"old format",nFrames:=nFrames)
         if attributes[1]='=' then
             if attributes="==" then
-                for i=1 to length(args) do
-                    {string n, object v} = args[i]
+                for a in args do
+                    {string n, object v} = a
+                    if length(a)>2 then v = sprintf(v,a[3]) end if
 --                  gSetAttribute(id,n,v,nFrames:=nFrames+1)
                     gSetAttribute(id,n,v,nFrames:=nFrames)
                 end for
@@ -5278,6 +5280,7 @@ global procedure gSetAttributes(gdx id, string attributes, sequence args={}, int
             end for
             return
         end if
+puts(1,"Warning: gSetAttributes old format detected...\n")
         if length(args) then
             attributes = sprintf(attributes,args)
         end if

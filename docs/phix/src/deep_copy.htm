@@ -13,9 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="object.htm">object</a> x = deep_copy(<a href="object.htm">object</a> x, 
+          <a href="object.htm">object</a> x = deep_copy(<a href="object.htm">object</a> x) 
+<!--
                                                         <a href="integer.htm">integer</a> depth=-1,
                                                         <a href="integer.htm#bool">bool</a> bIfNeeded=<a href="logicops.htm#tf">false</a>)
+-->
          </td>
         </tr>
         <tr>
@@ -27,8 +29,10 @@
             <br>
             <br>
             x: the object to clone.<br>
+<!--
             depth: (optional, experimental) the depth to clone, defaults to full.<br>
             bIfNeeded: (optional, experimental) avoids a clone if the refcount of x is already 1.<br>
+-->
          </td>
         </tr>
         <tr>
@@ -52,9 +56,11 @@
             pass-by-sharing-side-effect-laden JavaScript, which would need to be debugged using the browser development tools.<br>
             Note that "with js" is ignored by the compiler, repl, and transpiler, and the latter errors out on "without js".<br>
             <small>Aside: I don&rsquo;t really expect anyone to type out "with javascript_semantics" when they can just use 
-            "with js", however searching for the latter on rosettacode is [not] going to be very productive.</small>
+            "with js", however searching for the latter on rosettacode is [not] going to be very productive.
+            TIP: set with debug/withjs=1 in pHeap.e to debug/OllyDbg a -c&rsquo;d executable. </small>
             <br>
             <br>
+<!--
             The depth and bIfNeeded parameters are firmly in the premature optimisations camp and may be removed without notice.<br>
             bIfNeeded can only possibly be of any use in two cases: <code><small>x = deep_copy(x)</small></code> where x is a local 
             variable, or <code><small>x = deep_copy(<i>expr</i>)</small></code> where the input argument is an unnamed temp.
@@ -62,7 +68,20 @@
             Obviously since JavaScript has no reference counts, it can do nothing but completely ignore bIfNeeded.
             <br>
             <br>
+-->
             Has no effect if x is an atom or string, since non-1 refcounts on those do not cause JavaScript (and/or p2js.js) any trouble.
+            <br>
+            <br>
+            Since cloning something which has an attached <a href="delete_routine.htm">delete_routine</a>() is an almost sure-fire way
+            to be left with a reference to reclaimed memory or a reclaimed slot in a table, this routine now [1.0.5+] throws an error
+            should such be detected.
+<!--
+         Note that you should <i>never</i> pass a class reference to <a href="deep_copy.htm">deep_copy</a>(): doing so would almost guarantee
+             in closures.e does <i>not</i> transfer <a href="delete_routine.htm">delete_routine</a>()
+        to the new clone, with the consequence that should the original drop out of scope first you could be left with a reference to
+        reclaimed memory.
+-->
+
             <br>
             <br>
             Note that deep_copy</a> does <b>not</b> produce thread-safe atoms and strings, it only does that for 

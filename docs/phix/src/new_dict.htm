@@ -23,6 +23,10 @@
             <i>-- or --</i>
             <br>
           <a href="integer.htm">integer</a> tid = new_dict(<a href="integer.htm">integer</a> existing_tid)
+            <br>
+            <i>-- or --</i>
+            <br>
+          <a href="sequence.htm">sequence</a> tids = new_dicts(<a href="integer.htm">integer</a> n)
          </td>
         </tr>
         <tr>
@@ -32,7 +36,7 @@
          <td>
             Creates a new dictionary, so that clashes with other uses of {key,data} pairings can be avoided, and optionally 
             initialises it with a set of {key,data} pairs, or a diagnostic name, or makes a complete copy of some other
-            already existing dictionary.
+            already existing dictionary, or makes n empty dictionaries.
          </td>
         </tr>
         <tr>
@@ -158,7 +162,7 @@ integer dictcs = init_cs(), tid
             If pool_only is greater than 1, the routine adds the specified number of entries to the freelist and returns 0.
             Such a call is of course expected to be made before any <a href="create_thread.htm">create_thread</a>() or other
             new_dict() calls, and certainly before any <a href="destroy_dict.htm">destroy_dict</a>() calls - you should verify 
-            the result actually is zero to guard against the latter.
+            the result actually is zero to guard against the latter. 
             <br>
             <br>
             Subsequent invocations of new_dict(pool_only:=1) [presumably from within an appropriate critical section] will yield 0 
@@ -174,6 +178,16 @@ integer dictcs = init_cs(), tid
             Tip: it costs very little to create a pool of say 500 dicts, and any such overhead would be completely and utterly 
             dwarfed by trying to create 500 threads. Conversely, limiting the pool size may keep memory useage spikes down and
             otherwise help spread out the workload.
+            <br>
+            <br>
+            Alternatively you can create as many(/all) dictionaries as you need up-front, before creating any threads, and hence
+            not need any locking, and farm them out to the threads as you create them, in which case you have implicitly created 
+            a large enough pool, assuming there won&rsquo;t be any more new_dict() calls further down the line or occurring in
+            other unrelated threads. Likewise should each thread invoke <a href="destroy_dict.htm">destroy_dict</a>() that would 
+            still need locking, but if you wait for them all to finish, then you can delete them all in one go without any locking 
+            - again assuming there are no other threads using dictionaries still running. Not that there&rsquo;s any harm or it
+            isn&rsquo;t simpler to lock around bulk deletion, but note that locking around bulk creation would be insufficient 
+            if the pool wasn&rsquo;t already large enough beforehand.
             <br>
             <br>
             Let me reiterate to make all this as clear as possible: 

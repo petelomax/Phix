@@ -1156,6 +1156,43 @@ global procedure store_field(struct s, string field_name, object v, context=0)
     end if
 end procedure
 
+--16/5/24:
+global procedure store_field_element(struct s, string field_name, integer idx, object v, context=0)
+    integer sdx = s[I_SDX],
+            stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
+    if stype=S_CFFI then
+        crash("not supported on S_CFFI",2)
+    elsif stype=S_DYNAMIC then
+        crash("not supported on S_DYNAMIC",2)
+    else
+        integer fdx = getd({sdx,field_name},vtable), tid
+        if fdx=NULL then
+            crash("no such field (%s)",{field_name},2)
+        else
+            tid = structs[sdx][S_FIELDS][fdx][S_TID]
+            if tid!=ST_SEQUENCE
+            and not (tid=ST_STRING and and_bits(v,#FF)=v) then
+                string sname = structs[sdx][S_NAME]
+                crash("type error assigning %v to %s.%s[%d]",{v,sname,field_name,idx},2)
+            end if
+            if context!=0 then context = struct_dx(context,true) end if
+            if context!=sdx
+            and and_bits(structs[sdx][S_FIELDS][fdx][S_FLAGS],SF_PRIVATE) then
+                object cdii = getd({"extends",sdx},vtable)
+                if cdii=NULL or not find(context,cdii) then
+                    crash("attempt to modify private field (%s)",{field_name},2)
+                end if
+            end if
+        end if
+        if stype<=S_CLASS then
+            integer cdx = s[I_DATA]
+            instances[sdx][C_INSTANCES][cdx][fdx][idx] := v
+        else
+            ?9/0 -- stype is 0/has been corrupted
+        end if
+    end if
+end procedure
+
 global function fetch_field(struct s, string field_name, object context=0)
     integer sdx = s[I_SDX],
             stype = and_bits(structs[sdx][S_FLAGS],S_CORE),

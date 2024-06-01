@@ -4,7 +4,7 @@
 --
 --  Phix implementation of still_has_delete_routine(). 
 --
-global function still_has_delete_routine(object x)
+global function still_has_delete_routine(object x, integer specifically=0)
     if integer(x) then return false end if
     integer rid
     #ilASM{ [32]
@@ -19,7 +19,9 @@ global function still_has_delete_routine(object x)
                 shr rax,8
                 mov [rid],rax
           }
-    return rid!=0
+--13/3/24 (ignore the dummy set by pEmit2.e)
+--  return rid!=0
+    return rid!=0 and rid!=1 and (specifically=0 or specifically=rid)
 end function
 
 

@@ -74,6 +74,12 @@ end function
     if (sequence(y)) { [,y,m,d] = y; }     // (extract DT_YEAR,DT_MONTH,DT_YEAR)
     let /*integer*/ l;
     if (!$dinit) { $initd(); }
+//23/5/24: (erm, still maybe.. [untested])
+//  if m=13 then y += 1; m = 1 elsif m=0 then y -= 1 m = 12 end if
+//  if d=0 then
+//      if m=1 then y -=1; m = 12 else m -= 1 end if
+//      d = days_in_month(y, m)
+//  end if
     if ((((d<1 || d>31) || m<0) || m>12) || ((!equal(y,0)) && compare(y,1752)<0)) { crash("9/0"); }
     if ((((!equal(y,0)) || (m!==0)) || !bAsText) || d>7) {
         y -= m<3;

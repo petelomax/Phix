@@ -763,13 +763,26 @@ end procedure
 global function ppExf(object o, sequence options)
 -- return object pretty printed, with options (as per ppOpt)
 -- The previous pretty_print options are restored on exit.
+--3/4/24: (changed my mind)
+--  bool ppNestFound = false
     for i=1 to length(options) by 2 do
         if options[i]=pp_Nest then
             ppEx(o,options&{pp_File,0})
             return ppp_result
+--          ppNestFound = true
+            exit
         end if
     end for
-    ppEx(o,options&{pp_File,0,pp_Nest,-1})
+--  if not ppNestFound and (not ppp_Init or ppp_Nest==0 or ppp_Nest=={1,0}) then
+--3/4/24:
+    if not ppp_Init or ppp_Nest==0 or ppp_Nest=={1,0} then
+        ppEx(o,options&{pp_File,0,pp_Nest,-1})
+    else
+        integer was_pp_File = ppp_File
+        ppp_File = 0
+        ppEx(o,options)
+        ppp_File = was_pp_File
+    end if
     return ppp_result
 end function
 

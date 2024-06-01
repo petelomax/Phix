@@ -391,11 +391,23 @@ end function
 local function open_download(string name, url, integer i=0, n=0)
     {bool refetch, string {text, why, filename}} = check_cache(name)
 --DEV temp:
-string urlc = url_clean(url),
-       urlu = substitute(url," ","%20")
-if urlu!=urlc then ?urlu ?urlc end if
+--string urlc = url_clean(url),
+--     urlu = substitute(url," ","%20")
+--if urlu!=urlc then ?urlu ?urlc end if
     if refetch then
         url = url_clean(url)
+--?url
+--/*
+1670 tasks found
+"https://rosettacode.org/wiki/Continued_fraction_convergents?action=history&dir=prev&limit=1"
+Downloading (281/1670, 16.8%) rc_cache\Continued_fraction_convergents.hist (not found)...
+C:\Program Files (x86)\Phix\demo\rosetta\rosettacode_cache.e:467
+assertion failure
+
+--> see C:\Program Files (x86)\Phix\demo\rosetta\ex.err
+Press Enter...
+--*/
+
         wastitle = "x" -- don't clobber
         string nofn = iff(n?sprintf("(%d/%d, %.1f%%) ",{i,n,i/n*100}):""),
                title = sprintf("Downloading %s%s (%s)...",{nofn,filename,why})
@@ -426,6 +438,8 @@ if urlu!=urlc then ?urlu ?urlc end if
             refresh_cache += day -- did I mention it is slow?
         end if
         text = get_text(filename)
+--      show_title("")
+--?9/0
     end if
     return text
 end function
@@ -433,11 +447,20 @@ end function
 constant rcorg = "https://rosettacode.org",
       base_cat = rcorg&"/wiki/Category:",
       base_htm = rcorg&"/wiki/",
-     base_hist = rcorg&"/w/index.php?title=%s&action=history"&
+--1/3/24:
+--   base_hist = rcorg&"/w/index.php?title=%s&action=history"&
+--https://rosettacode.org/w/index.php?title=ASCII%20control%20characters&action=history&dir=prev&limit=1
+--https://rosettacode.org/wiki/ASCII_control_characters?action=history&dir=prev&limit=1
+     base_hist = rcorg&"/wiki/%s?action=history"&
                        "&dir=prev&limit=1",
     base_query = rcorg&"/w/api.php?action=query&format=xml"&
                        "&list=categorymembers&cmlimit=100",
-      base_raw = rcorg&"/w/index.php?title=%s&action=raw"
+--1/3/24:
+--    base_raw = rcorg&"/w/index.php?title=%s&action=raw"
+--https://rosettacode.org/w/index.php?title=100%20doors&action=raw
+--https://rosettacode.org/wiki/100_doors?action=raw
+      base_raw = rcorg&"/wiki/%s?action=raw"
+
 
 global function open_category(string filename, integer i=0, n=0)
     string contents = open_download(filename&".htm",base_cat&filename,i,n)
@@ -450,7 +473,11 @@ global function get_rc_htm(string task)
 end function
 
 global function get_rc_hist(string task, integer i=0, n=0)
-    string contents = open_download(task&".hist",sprintf(base_hist,{task}),i,n)
+--1/3/24:
+    string utask = substitute(task,` `,`_`)
+    string contents = open_download(task&".hist",sprintf(base_hist,{utask}),i,n)
+--assert(match(`<span class='history-user'><a href="`,contents)!=0)
+--  string contents = open_download(task&".hist",sprintf(base_hist,{task}),i,n)
     return contents
 end function
 
@@ -514,7 +541,11 @@ global function get_rc_category(string name, integer i=0, n=0, bool refetch=fals
 end function
 
 global function get_rc_raw(string task)
-    string contents = open_download(task&".raw",sprintf(base_raw,{task}))
+--added 1/3/124:
+    string ftask = file_clean(task),
+           utask = substitute(task,` `,`_`)
+    string contents = open_download(ftask&".raw",sprintf(base_raw,{utask}))
+--  string contents = open_download(task&".raw",sprintf(base_raw,{task}))
     return contents
 end function
 
@@ -525,7 +556,11 @@ end function
 global function get_rc_stitched(string name, integer clean_block=0)
     {bool refetch, string {text, why, filename}} = check_cache(name&".html")
     if refetch then
-        string url = sprintf("%s/w/index.php?title=Category:%s",{rcorg,name}), 
+--1/3/24:
+--      string url = sprintf("%s/w/index.php?title=Category:%s",{rcorg,name}), 
+--https://rosettacode.org/w/index.php?title=Category:Programming_Languages
+--https://rosettacode.org/wiki/Category:Programming_Languages
+        string url = sprintf("%s/wiki/Category:%s",{rcorg,name}), 
                ppt = "(previous page) ("
         if curl=NULL then curl_init() end if
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL) -- (i/c it got set above)
@@ -562,7 +597,10 @@ global function get_rc_stitched(string name, integer clean_block=0)
             assert(npt[1..10]=`(<a href="`)
             assert(npt[-15..-1]=`>next page</a>)`)
             url = rcorg & npt[11..find('"',npt,12)]
-            url = substitute_all(url,"&amp;","&")
+--1/3/24...
+--          url = substitute_all(url,"&amp;","&")
+--          url = substitute_all(url,{"&amp;"},{"&"})
+            url = substitute(url,"&amp;","&")
             ppt = "previous page"
         end while
         -- create/overwrite filename

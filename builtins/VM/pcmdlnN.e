@@ -172,7 +172,7 @@ integer l
     return get_proper_path(tmp)
 end function
 
-global function command_line()
+global function command_line(bool bRaw=false)
 --/**/object symtab,tmp2
 sequence plainstr,res
 object tmp
@@ -370,6 +370,7 @@ integer pArg4,W,N
         lr -= 1                     -- eg {"C:\Euphoria\exw","test.exw"} ==> {"test.exw"}
     end if
 
+    if bRaw then return res end if
 --pp(res)
 
     l = 0
@@ -433,5 +434,6 @@ integer pArg4,W,N
         res = prepend(res,res[1])           -- eg {"t.exe"} ==> {"t.exe","t.exe"}
     end if
 --*/
+--?{"final res",res}
     return res
 end function

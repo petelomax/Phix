@@ -1,25 +1,538 @@
 --
--- demo\xpGUI\gSlider.exw
+-- demo\xpGUI\gCanvas.exw
 -- ======================
 -- 
---requires(64)
+-- DEV may now well be "working" in xpGUI.js, except for tiny canvas size...
+-- DEV does not work on 64-bit GTK... I might /never/ have had that right. [Seems much better 20/8/23...]
+--
+-- Tests ((32|64)x(WinApi|gUsekGtk), ie fourfold):
+--  Is the default window filled and 240x163?
+--  Can it be resized (including shrinking)?
+--  Are the edges properly anti-aliased and shapes filled? (more of a to-do, that one, on WinAPI anyway)
+--   (work for the latter probably best done in aaline.exw rather than here...)
+--
+--requires(64,true) --DEV no resizing under GTK3... (19/10/23) [NOW APPARENTLY FIXED]
 with javascript_semantics
-include xpGUI.e
+include xpGUI.e -- DEV silly size under WinAPI [FIXED 20/8/23]
+--include xpGUI4.e
+--include xpGUI3.e -- DEV [25/8/23] allows some shrinkage under GTK...
+--include backup\xpGUI.0220.e -- GOOD
+--include backup\xpGUI.0801.e -- GOOD
+--include backup\xpGUI.0826.e -- GOOD
+--include backup\xpGUI.1004.e -- GOOD
+--include backup\xpGUI.1220.e -- GOOD
+--include backup\xpGUI.1414.e -- GOOD
+--include backup\xpGUI.1475.e -- X
+--include backup\xpGUI.1476.e -- X
+--include backup\xpGUI.1477.e -- GOOD
+--include backup\xpGUI.1483.e -- GOOD
+--include backup\xpGUI.1486.e -- GOOD
+--include backup\xpGUI.1487.e -- GOOD
+--include backup\xpGUI.1488.e -- BAD
+--include backup\xpGUI.1490.e -- BAD
+--include backup\xpGUI.1502.e -- X
+--include backup\xpGUI.1507.e -- BAD
+--include backup\xpGUI.1530.e -- BAD
+--include backup\xpGUI.1531.e -- BAD
+--include backup\xpGUI.1532.e -- BAD
+--include backup\xpGUI.1533.e -- BAD
+--include backup\xpGUI.1535.e -- BAD
+--include backup\xpGUI.1542.e -- BAD
+--include backup\xpGUI.1545.e -- X
+--include backup\xpGUI.1572.e -- BAD
+--include xpGUI2.e
+--DEV [20/8/23] Won't permit size reduction.... (xpGUI3.e does, although it gives me a 242x156 window[ie +2,-7])
+--DEV [23/8/23] Now better, but limited to initial size...
+--DEV [2/12/23 under WinAPI w,h get 238,124 but under GTK they get 12,14...
 --gUseGTK()
-constant title = "gSlider"
+--ERM: why are **ALL** these XPG_NW,0??
+--{"xpg_shifta","oxoy(orig)",{205,87'W'},"rxry(adj)",{0,0},"nxny(new)",{205,87'W'},"xy(old)",{205,87'W'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{177,55'7'},"rxry(adj)",{0,0},"nxny(new)",{177,55'7'},"xy(old)",{177,55'7'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{158,71'G'},"rxry(adj)",{0,0},"nxny(new)",{158,71'G'},"xy(old)",{158,71'G'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{54'6',23},"rxry(adj)",{0,0},"nxny(new)",{54'6',23},"xy(old)",{54'6',23},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{67'C',97'a'},"rxry(adj)",{0,0},"nxny(new)",{67'C',97'a'},"xy(old)",{67'C',97'a'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{181,9},"rxry(adj)",{0,0},"nxny(new)",{181,9},"xy(old)",{181,9},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{164,31},"rxry(adj)",{0,0},"nxny(new)",{164,31},"xy(old)",{164,31},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{1,0},"rxry(adj)",{0,0},"nxny(new)",{1,0},"xy(old)",{1,0},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{121'y',47'/'},"rxry(adj)",{0,0},"nxny(new)",{121'y',47'/'},"xy(old)",{121'y',47'/'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{218,109'm'},"rxry(adj)",{0,0},"nxny(new)",{218,109'm'},"xy(old)",{218,109'm'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{225,62'>'},"rxry(adj)",{0,0},"nxny(new)",{225,62'>'},"xy(old)",{225,62'>'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{120'x',109'm'},"rxry(adj)",{0,0},"nxny(new)",{120'x',109'm'},"xy(old)",{120'x',109'm'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{1,62'>'},"rxry(adj)",{0,0},"nxny(new)",{1,62'>'},"xy(old)",{1,62'>'},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{92'\',0},"rxry(adj)",{0,0},"nxny(new)",{92'\',0},"xy(old)",{92'\',0},"XPG_NW",0}
+--{"xpg_shifta","oxoy(orig)",{211,47'/'},"rxry(adj)",{0,0},"nxny(new)",{211,47'/'},"xy(old)",{211,47'/'},"XPG_NW",0}
 
-procedure value_changed(gdx id)
-    gdx dlg = gGetDialog(id)
-    atom v = gGetAttribute(id,"VALUE")
-    gSetAttribute(dlg,"TITLE","%s:%g",{title,v})
+
+--bool bUsePoly = true -- (avoids bresenham edges on filled arcs under WinAPI)
+bool bUsePoly = false -- (bresenham edges on filled arcs under WinAPI)
+
+--include backup\xpGUI.5875.e -- good fonts
+--include backup\xpGUI.5877.e -- good fonts
+--include backup\xpGUI.5878.e -- duff fonts (& background)
+--include backup\xpGUI.5881.e -- duff fonts (& background)
+--include backup\xpGUI.5890.e -- duff fonts
+--include backup\xpGUI.5909.e -- duff fonts
+--include backup\xpGUI.5960.e -- duff
+--include backup\xpGUI.5965.e -- duff fonts
+--include backup\xpGUI.3521.e -- good (resize)
+--include backup\xpGUI.3524.e -- duff
+--include backup\xpGUI.3525.e -- duff
+--include backup\xpGUI.3526.e -- duff
+--include backup\xpGUI.3527.e -- duff [GTK3 bad]
+--include backup\xpGUI.3528.e -- near but off (fonts good) [GTK3 good]
+--include backup\xpGUI.3529.e -- duff
+--include backup\xpGUI.3530.e -- duff
+--include backup\xpGUI.3531.e -- duff
+--include backup\xpGUI.3532.e -- duff
+--include backup\xpGUI.2290.e -- good (resize) [esp GTK - now in xpGUI3.e]
+--include backup\xpGUI.2320.e -- good
+--include backup\xpGUI.2321.e -- duff
+--include backup\xpGUI.2345.e -- duff
+--include backup\xpGUI.2353.e -- duff
+--include backup\xpGUI.2406.e -- duff
+--include backup\xpGUI.2421.e -- duff
+--include backup\xpGUI.2433.e -- duff
+--include backup\xpGUI.2229.e -- (same resize flicker - I wonder whether using a gImage would help...)
+--include backup\xpGUI.2344.e -- duf (resize)
+--include backup\xpGUI.0731.e -- ok
+--include backup\xpGUI.0735.e -- ok
+--include backup\xpGUI.0739.e -- ok
+--include backup\xpGUI.0756.e -- duff
+--include backup\xpGUI.0780.e -- duff
+--include backup\xpGUI.0810.e -- duff
+--include backup\xpGUI.1176.e -- still duff
+--include backup\xpGUI.1753.e -- still duff
+--include backup\xpGUI.1914.e -- still duff
+--include backup\xpGUI.1950.e -- ok
+--include backup\xpGUI.1961.e -- ok
+--include backup\xpGUI.1962.e -- ok
+--include backup\xpGUI.2003.e -- duff
+--include backup\xpGUI.2032.e -- duff
+--gUseGTK()
+
+--/*
+constant xpm_txt = {
+"24 24 2 1",
+"         c None",
+".        c #000000",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                        ",
+"                  .     ",
+"                ..      ",
+"               ..       ",
+"              ..        ",
+"             ..         ",
+"    ....    ..     ...  ",
+"   .   ..  ..   ....    ",
+"   .   ...........      ",
+"    ....   ....         ",
+"          ..            ",
+"         ...            ",
+"        .  .            ",
+"       .   .            ",
+"       .  .             ",
+"       ...              ",
+"                        ",
+"                        ",
+"                        ",
+"                        "}
+--*/
+--/*
+-- test codewide>1 (assert failure as it stands)
+constant xpm_txt = """
+24 24 2 2
+._ c None
+*_ c #000000
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._*_._._._._._
+._._._._._._._._._._._._._._._._*_*_._._._._._._
+._._._._._._._._._._._._._._._*_*_._._._._._._._
+._._._._._._._._._._._._._._*_*_._._._._._._._._
+._._._._._._._._._._._._._*_*_._._._._._._._._._
+._._._._*_*_*_*_._._._._*_*_._._._._._*_*_*_._._
+._._._*_._._._*_*_._._*_*_._._._*_*_*_*_._._._._
+._._._*_._._._*_*_*_*_*_*_*_*_*_*_*_._._._._._._
+._._._._*_*_*_*_._._._*_*_*_*_._._._._._._._._._
+._._._._._._._._._._*_*_._._._._._._._._._._._._
+._._._._._._._._._*_*_*_._._._._._._._._._._._._
+._._._._._._._._*_._._*_._._._._._._._._._._._._
+._._._._._._._*_._._._*_._._._._._._._._._._._._
+._._._._._._._*_._._*_._._._._._._._._._._._._._
+._._._._._._._*_*_*_._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+"""
+--*/
+--/!*
+constant xpm_txt = """
+24 24 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+........................
+........................
+"""
+--*!/
+--/*
+constant xpm_txt = {
+"32 32 6 1",
+"  s None c None",
+". c #808080",
+"X c #FFFFFF",
+"o c #000000",
+"O c #c0c0c0",
+"+ c #ffff00",
+"    ...................         ",
+"    .XXXXXXXXXXXXXXXXX.o        ",
+"    .XXXXXXXXXXXXXXXXX..o       ",
+"    .XXXXXXXXXXXXXXXXX.O.o      ",
+"    .XXXXXXXXXXXXXXXXX.XO.o     ",
+"    .XXXXXXXXXXXXXXXXX.XXO.o    ",
+"    .XXXXXXXXXXXXXXXXX.oooooo   ",
+"    .XXooOXXXXXXXXXXXXXXXXXOo   ",
+"    .XoOooXXXXXXXXXXXXXXXXXOo   ",
+"    .o+o...XXXXXX.XXXXXXXXXOo   ",
+"    o+..OO.OXXX..XXXXXXXXXXOo   ",
+"   o+Xo+O+.OX..XXXXXXXXXXXXOo   ",
+" oo+X+oO+O.O.XXXXXXXXXXXXXXOo   ",
+"oXOX+XooO+.OOXXXXXXXXXXXXXXOo   ",
+"o+.+++oOoX.OOXXXXXXXXXXXXXXOo   ",
+"o+.O+Oo.o+.O.....XXXXXXXXXXOo   ",
+"o..+O+oo+X.OOXXXXXXXXXXXXXXOo   ",
+" oo.+Oo+X+.OOXXXXXXXXXXXXXXOo   ",
+"   o.+oX+X.O.XXXXXXXXXXXXXXOo   ",
+"    o...XO.OO..XXXXXXXXXXXXOo   ",
+"    .o.oOO.OOXX..XXXXXXXXXXOo   ",
+"    .Xo.ooOOOXXXX.XXXXXXXXXOo   ",
+"    .XXoooOOOXXXXXXXXXXXXXXOo   ",
+"    .XXXOOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .OOOOOOOOOOOOOOOOOOOOOOOo   ",
+"    ooooooooooooooooooooooooo   "}
+--*/
+--/*
+constant xpm_txt = """
+16 16 5 1
+.        c #000000
++        c #C0C0C0
+@        c #808080
+#        c #FF0000
+_        c #FFFFFF
+_______________.
+_++++++++++++++.
+_+++++++++++++@.
+_+++++###.++++@.
+_+++#####.++++@.
+_+#######.++++@.
+_+#######.++++@.
+_+++#####.++++@.
+_+++++###.++++@.
+_++++++...++++@.
+_++++++...++++@.
+_++++++...++++@.
+_+++++......++@.
+_+++.........+@.
+_+++++++++++++@.
+_@@@@@@@@@@@@@@.
+"""
+--*/
+constant xpm = gImage_from_XPM(xpm_txt)
+--DEV: I mangled the above to:
+--constant xpm = (xpm_txt)
+--which led to a very weird "p2js violation: JavaScript does not support string subscript destructuring" 
+--inside printf() from the first line of xpg_lm_dump_ctrls()... Note that an assert(src[1]="gImage") in
+--gImageDraw() successfully (but unintentionally) averted the issue... What I did find was that ?"bang"
+--(in"") was displayed but ?"crash" not, with the ex.err claiming it had long since left that routine.
+--With a bit of luck it's just a duff era somewhere in that statement... (an atom {a,b,c,d} = str[2]).
+--I may well have optimised that kind of thing, but not updated the error handling to match properly.
+
+
+function xy_mul(sequence poly, atom xm, ym)
+    poly = deep_copy(poly)
+    for i=1 to length(poly) do
+        for j=1 to length(poly[i]) by 2 do
+            poly[i][j] *= xm
+            poly[i][j+1] *= ym
+        end for
+    end for
+    return poly
+end function
+
+--procedure redraw(gdx canvas)
+procedure redraw(gdx canvas, integer w, h)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE"),
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--  ?{"redraw",w,h} -- 238,131 under WinAPI, but 430,221 under GTK...
+--?to_rgba(XPG_YELLOW) -- hmm, {255,255,0,0}
+--?to_rgba(XPG_RED) -- hmm, {255,0,0,0}
+--?gGetTextExtent(canvas,"W")
+--  gSetAttribute(canvas,"FGCLR",XPG_GREEN)
+--  gCanvasArc(canvas,cx,cy,w,h,0,360)
+
+    gSetAttribute(canvas,"FGCLR",XPG_GREEN)
+    gCanvasLine(canvas,0,cy,w-1,cy)
+    gCanvasLine(canvas,cx,0,cx,h-1)
+--  gCanvasLine(canvas,0,0,w,h)
+--  gCanvasLine(canvas,0,h,w,0)
+    gCanvasArc(canvas,cx,cy,w,h,15,50)
+--  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK)
+    gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_NORMAL)
+--  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_ITALIC)
+    atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
+    gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
+    gCanvasText(canvas,cx+dx/2,cy+dy/2,"15",XPG_NE,0,XPG_GREY)
+--  gCanvasText(canvas,cx+round(dx/2),cy+round(dy/2),"15",XPG_NE,0,XPG_GREY)
+         dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
+    gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
+    gCanvasText(canvas,cx+dx/2,cy+dy/2,"50",XPG_NE,0,XPG_GREY)
+
+if bUsePoly then
+    -- These were hand-generated by manually dragging control points to match an overlaid gCanvasArc(),
+    -- that is within the gCanvasPolygon.exw example, and the code needed/added should still be there.
+    -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
+    sequence psect = xy_mul({{0,117,8,72,42,48},{66,34,91,20,128,5},{195,0},{214,129}},w/430,h/260),
+             pchrd = xy_mul({{337,234,287,256,244,258},{214,258,156,260,34,231},{5,161}},w/430,h/260)
+    gCanvasPolygon(canvas,psect,colour:=XPG_OLIVE)
+    gCanvasPolygon(canvas,pchrd,colour:=XPG_AMBER)
+else
+-- bresenham edges (under winAPI):
+    gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR+XPG_FILLED,-1,-1,XPG_OLIVE)
+    gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,XPG_AMBER)
+-- no bresenham lines (under winAPI):
+--  gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR,-1,-1,XPG_OLIVE)
+--  gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD,-1,-1,XPG_AMBER)
+end if
+    gCanvasText(canvas,w*.3,h*.25,"sector",XPG_CENTRE,0,XPG_BLACK)
+    gCanvasText(canvas,w*.35,h*.85,"chord",XPG_CENTRE,0,XPG_BLACK)
+    atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
+--?"red:"
+    gCanvasCircle(canvas,x3,y4,r,colour:=XPG_RED)
+--  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED) -- but back still parchment!!!
+--  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED,fillcolour:=XPG_RED)
+--?"/red"
+    gCanvasLine(canvas,x3,y4,x3+r2,y4-r2,-1,1,XPG_GREY)
+    gCanvasText(canvas,x3+r4,y4-r4,"r",XPG_NW,0,XPG_GREY)
+    gCanvasText(canvas,x3,y4,"circle",XPG_S,0,XPG_BLACK)
+    gSetAttribute(canvas,"FGCLR",XPG_GREEN)
+    gCanvasText(canvas,0,0,"0,0",XPG_SE)
+    gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE)
+--?sin(90*XPG_DEG2RAD) -- 1
+--?cos(90*XPG_DEG2RAD) -- ~0
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SE,90}) -- <crap>[FIXED]
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,colour:={XPG_RED,XPG_BLUE}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_S,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_W,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_E,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NE,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_N,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,90}) -- GOOD
+--  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_C,90}) -- <crap>[FIXED]
+    gCanvasText(canvas,w,h,"w,h",XPG_NW)
+    gSetAttribute(canvas,"FGCLR",XPG_BLACK)
+    string degrees = utf32_to_utf8({#00B0})
+    gCanvasText(canvas,w,cy,"0"&degrees,XPG_SW)
+    gCanvasText(canvas,cx,h,"90"&degrees,XPG_NE,style:=XPG_ITALIC)
+--  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_ITALIC)
+--  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_BOLD)
+--  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_NORMAL)
+    gCanvasText(canvas,0,cy,"180"&degrees,XPG_SE,style:=XPG_BOLD)
+    gCanvasText(canvas,cx,0,"270"&degrees,XPG_SW,style:=XPG_BOLDITALIC)
+    gCanvasText(canvas,w,cy,"360"&degrees,XPG_NW)
+
+--DEV:
+--  gSetAttribute(canvas,"LINEWIDTH",2)
+    gCanvasCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+
+--  gSetAttribute(canvas,"LINEWIDTH",5)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_CONTINUOUS)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_DASHED)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_DOTTED)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_DASH_DOT)
+--  gSetAttribute(canvas,"LINESTYLE",XPG_DASH_DOT_DOT)
+--  for px = 20 to 40 by 1 do
+--      for py=20 to 40 do
+--          gCanvasPixel(canvas,px,py,XPG_BLUE)
+--      end for
+--  end for
+--  gCanvasRect(canvas, 10, 90, 10, 90, true, 5)
+--  gCanvasRect(canvas, 10, 90, 10, 90, true)
+--  gCanvasRect(canvas, 10, 90, 10, 90, false, 5)
+--  gCanvasRect(canvas, 10, 90, 10, 90, false)
+--  gCanvasRect(canvas, 10, 90, 10, 90)
+--  gCanvasRect(canvas, 0, 118, 0, 46)
+--  gCanvasRect(canvas, 0, 240, 0, 180)
+
+    gImageDraw(xpm,canvas,w*.3, h*.3)
+--?gCanvasGetFont
+--?gGetAttribute(canvas,"FONT")
 end procedure
 
-gdx slider = gSlider(value_changed,"SIZE=220x30"),
---gdx slider = gSlider(value_changed,"ORIENTATION=VERTICAL"),
-    vbox = gVbox({slider},"MARGIN=9x9"),
---  dialog = gDialog(slider,title,`SIZE=240x80`)
-    dialog = gDialog(vbox,title,`SIZE=240x80`)
---gSetAttribute(slider,"VALUE",75)
+--/* -- works fine:
+function click(gdx canvas, sequence status, integer x, y)
+--procedure click(gdx canvas, sequence status)
+    integer {button,pressed,ctrl,shift,alt} = status
+    printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d)\n",
+             {button,pressed,ctrl,shift,alt,x,y})
+--  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d)\n",
+--           {button,pressed,ctrl,shift,alt})
+    return false
+end function
+--*/
+--/* -- works fine:
+--procedure mousemove(gdx canvas, integer x,y)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, bool left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right, ctrl,shift,alt)
+procedure mousemove(gdx canvas, integer x,y, bool left,middle,right, ctrl,shift,alt)
+--  ?{"mousemove",x,y}
+--  ?{"mousemove",x,y,left,middle,right}
+    ?{"mousemove",x,y,left,middle,right,ctrl,shift,alt}
+end procedure
+--*/
+
+gdx canvas = gCanvas(redraw), -- DEV silly size under GTK... (fully resizeable under WinAPI)
+--gdx canvas = gCanvas(redraw,`SIZE=238x126`),
+--  dialog = gDialog(canvas,`gCanvas`,`SIZE=330x240`)
+    dialog = gDialog(canvas,`gCanvas`,`SIZE=240x156`) -- matches docs
+gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
+--gSetAttribute(canvas,"BGCLR",XPG_LIGHT_PARCHMENT)
+--?gGetAttribute(dialog,"MINSIZE")
+--gSetAttribute(canvas,"FONT","Arial,Italic 9")
+--gSetAttribute(canvas,"FONT","Arial, 9")
+--gSetHandler(canvas,"CLICK",click)
+--gSetHandler(canvas,"MOUSEMOVE",mousemove)
+--gSetBodge(canvas,{0,0,0,0})
 gShow(dialog)
---?gGetAttribute(slider,"SIZE")
+--?gGetTextExtent(canvas,"W")
+--gSetAttribute(canvas,"SIZE",NULL) -- no help
+--gSetAttribute(canvas,"SIZE",{0,0}) -- no help
+--?gGetAttribute(canvas,"SIZE") -- (still wrong!)
 gMainLoop()
+--?"done"
+--wait_key()
+--/*
+{"xpg_resize",2,414,221,2561112}
+{"xpg_normalise_sizes",2}
+{"xpg_disperse_user_sizes",2,414,221,{0,0}}
+{"xpg_apply_offsets",2}
+{"xpg_apply_offsets",1}
+{"xpg_apply_offsets",1,0,0,11,15}
+{"xpg_apply_offsets",2,0,0,430,260}
+{"gShow(initial position)",2,745,410,0,0}
+{"xpg_resize",2,414,221,2561112}
+{"redraw",11,15}
+id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0   0   0   0   0  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0   0   0   0   0  27  54 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+--I think we might want: (probably no need for permanant accumsizes)
+ 1 Canvas         0   0 414 221   0   0  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0 430 260  11  15  27  54 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+--with w|h*2:
+id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0   0   0   0   0  22  30   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0   0   0   0   0  38  69 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+--with w|h=0:
+id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0   0   0   0   0   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0   0   0   0   0  16  39 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+
+GOOD: (3521)
+{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",203,124'|',{1},0}
+=={"xpg_resize",2,203,124'|',2101580,{234,234,205,156}}
+{"lmgdds",{234,234,205,156},{0,0,203,124'|'},2,32' '}
+{"lmgdds",{234,234,205,156},{0,0,203,124'|'},2,32' '}
+{"lmdus",217,131,219,163,2,32' '}
+{"xpg_lm_disperse_user_sizes",2,217,131,{219,163}}
+{"xwxh",217,131}
+{"xpg_lm_disperse_user_sizes",1,217,131,{0,0}}
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 217 131   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0 217 131   2  32 219 163  0  {1}        CF_MAPPED+CF_NEVER_SHOWN+CF_CLOSE_ON_ESC
+{"xpg_lm_apply_offsets",2,0,0,233,170}
+{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",217,131,{1},13307436}
+{"xpg_WinAPI_resize",2,217,131}
+{"xpg_resize",2,217,131,2101580,{234,234,219,163}}
+{"gShow(initial position)",2,850,458,0,0}
+{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",217,131,{1},13307436}
+{"xpg_WinAPI_resize",2,217,131}
+{"xpg_resize",2,217,131,2101580,{850,458,219,163}}
+{"redraw",217,131}
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 217 131   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0 217 131   2  32 219 163  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+{850,458,219,163}
+
+BAD:
+=={"xpg_resize",2,203,124'|',22875492,{78'N',78'N',205,156}}
+--14,7:
+{"xpg_lm_disperse_user_sizes",2,203,124'|',{219,163}}
+{"xpg_lm_disperse_user_sizes",1,203,124'|',{0,0}}
+{"xpg_lm_apply_offsets",2,0,0,217,131}
+{"lmgdds",{78'N',78'N',203,124'|'},{0,0,201,92'\'},2,32' '}
+{"lmgdds",{78'N',78'N',203,124'|'},{0,0,201,92'\'},2,32' '}
+{"lmdus",217,131,219,163,2,32' '}
+{"xpg_lm_disperse_user_sizes",2,217,131,{219,163}}
+{"xpg_lm_disperse_user_sizes",1,217,131,{11,15}}
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 217 131  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0 217 131  13  47 219 163  0  {1}        CF_MAPPED+CF_NEVER_SHOWN+CF_CLOSE_ON_ESC
+{"xpg_lm_apply_offsets",1,0,0,217,131}
+{"xpg_lm_apply_offsets",2,0,0,231,138}
+{"xpg_resize",2,215,99'c',22875492,{78'N',78'N',217,131}}
+{"xpg_lm_disperse_user_sizes",2,215,99'c',{219,163}}
+{"xpg_lm_disperse_user_sizes",1,215,99'c',{11,15}}
+{"xpg_lm_apply_offsets",1,0,0,215,99'c'}
+{"xpg_lm_apply_offsets",2,0,0,229,106'j'}
+{"gShow(initial position)",2,852,490,0,0}
+{"xpg_resize",2,213,67'C',22875492,{852,490,215,99'c'}}
+{"xpg_lm_disperse_user_sizes",2,213,67'C',{219,163}}
+{"xpg_lm_disperse_user_sizes",1,213,67'C',{11,15}}
+{"xpg_lm_apply_offsets",1,0,0,213,67'C'}
+{"xpg_lm_apply_offsets",2,0,0,227,74'J'}
+{"redraw",213,67'C'}
+id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Canvas         0   0 213  67  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
+ 2 Dialog         0   0 213  67  13  47 219 163  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
+{852,490,213,67'C'}
+
+--*/
+

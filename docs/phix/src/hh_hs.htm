@@ -53,6 +53,29 @@ type            current     proposed
         Note that any nested sequences have the same potential optimisations available to them.<br>
         There is probably very little gain for "sequence of arrays" over "sequence of sequence"<br>
 
+        <h3>pointer types</h3>
+        I am also toying with the idea of pointer types. There would be insufficient gain on a
+        (single integer)* or (single atom)* so we can forget about those and assume that a pointer
+        implicitly refers to an array. Further, to achieve a significant performance gain they should
+        be homogenous. An array cannot be resized, except perhaps shorten-in-situ.<br>
+        <pre>
+procedure p(integer* a)
+end procedure
+
+p(&myarray)</pre>
+        <br>
+        The procedure p recieves a pointer to an array of integer. The invocation makes it clear
+        that myarray might and probably will be modified. A fatal error occurs should myarray not
+        have a reference count of 1, and that is <i>not</i> incremented by the call, or of course
+        decremented when p returns. The actual argument a is probably an atom, boxed into a float
+        when it exceeds #3FFFFFFFF, but the compiler and hopefully also the debugger both know 
+        what it really is. A string* would be an array of strings, the recipient of a single string
+        would be a byte* (which may be raw binary). Other types would be float64* and float128*,
+        but I just don&rsquo;t see atom*, sequence*, or object* as being sufficiently worthwhile.
+        Anonymous arguments such as &g() might be an issue: forcing such to be stored in a local
+        var first would a) offer sufficient type into to be inferred/specified and b) be somewhere 
+        or something which we can decref and free properly. Or maybe integer^ to mean sole owner?
+
 <!--
 #01 (0b0001)    int         (unchanged)
 #02 (0b0010)    T_N         deprecated, -> float64

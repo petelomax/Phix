@@ -102,7 +102,9 @@ function $show_module() {
                 // (the above may be needed when $tests_run is > 10,000)
         $test_log("\n %d tests run, %d passed, %d failed, %s%% success\n",["sequence",$tests_run,$tests_passed,$tests_failed,passpc]);
         if (($pause_summary===TEST_PAUSE) || (($pause_summary===TEST_PAUSE_FAIL) && $tests_failed>0)) {
-            if (!equal(platform(),JS)) {
+//?{"cl",command_line(true)}
+//?{"cl",lower(command_line(true)),command_line(true)}
+            if ((!equal(platform(),JS)) && !find("-nopause",lower(command_line(true)))) {
                 puts(1,"Press any key to continue...");
                 /*[,] =*/ wait_key();
                 puts(1,"\n");
@@ -160,9 +162,14 @@ let set_test_section = set_test_module;
 //global procedure set_test_section(string name)
 //  set_test_module(name)
 //end procedure
+function $sn2(/*sequence*/ s) {
+    // both/two "\nhelpful strings"?
+    return ((((string($subse(s,1)) && length($subse(s,1))) && (equal($subse($subse(s,1),1),0XA))) && string($subse(s,2))) && length($subse(s,2))) && (equal($subse($subse(s,2),1),0XA));
+}
 function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, level) {
+//  string fmt = iff(fdx=1?"  failed: %s: %v should %sequal %v\n"
     let /*string*/ fmt = 
-                         ((fdx===1) ? "  failed: %s: %v should %sequal %v\n" : "  failed: %s\n");
+                         ((fdx===1) ? (($sn2(extract(args,["sequence",2,4]))) ? "  failed: %s: %s should %sequal %s\n" : "  failed: %s: %v should %sequal %v\n") : "  failed: %s\n");
     $tests_run += 1;
     if (success) {
         if (($verbosity===TEST_SHOW_ALL) && (!equal($subse(args,1),""))) {
@@ -181,8 +188,92 @@ function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, leve
         $tests_failed += 1;
     }
 }
+/*
+local function str_equal(object a, b, string fmt)
+    -- a and b always have the same "shape"
+    if string(a) or string(b) then
+        return string(a) and string(b) and a==b
+    elsif not atom(a) then
+        bool success = true
+        for i=1 to length(a) do
+            success = str_equal(a[i],b[i],fmt)
+            if not success then exit end if
+        end for
+        return success
+    end if
+    return (a==b) or (sprintf(fmt,a)==sprintf(fmt,b))
+end function
 
-/*global*/ function test_equal(/*object*/ a, /*object*/ b, /*string*/ name="", /*bool*/ eq=true) {
+local function atom_equal(object a, b, atom epsilon)
+    -- a and b always have the same "shape"
+    if string(a) or string(b) then
+        return string(a) and string(b) and a==b
+    elsif not atom(a) then
+        bool success = true
+        for i=1 to length(a) do
+            success = atom_equal(a[i],b[i],epsilon)
+            if not success then exit end if
+        end for
+        return success
+    elsif not atom(b) then
+        return false
+    end if
+    return abs(a-b)<epsilon
+end function
+
+local type atom_or_string(object o)
+    return string(o) or atom(o)
+end type
+*/
+
+///!*
+/*local*/ function $rec_equal(/*object*/ a, b, /*string*/ fmt) {
+    if (string(a) || string(b)) {
+        return (string(a) && string(b)) && (equal(a,b));
+    } else if (!equal(atom(a),atom(b))) {
+        return false;
+    } else if (!atom(a)) {
+        if (!equal(length(b),length(a))) { return false; }
+        let /*bool*/ success = true;
+        for (let i=1, i$lim=length(a); i<=i$lim; i+=1) {
+            success = $rec_equal($subse(a,i),$subse(b,i),fmt);
+            if (!success) { break; }
+        }
+        return success;
+    }
+    // both atoms:
+    if (equal(a,b)) { return true; }
+    let /*string*/ sa = sprintf(fmt,a), 
+                   sb = sprintf(fmt,b);
+    if (sa===sb) { return true; }
+    // catch eg `-0.000000000000000`
+    //        != `0.000000000000000`
+//?sa
+//?sb
+    return (equal(filter(sa,"out","0-."),"")) && (equal(filter(sb,"out","0-."),""));
+}
+
+/*local*/ function $bool_or_string(/*object*/ o) {
+//  return iff(integer(o) ? o==not not o : string(o))
+    return ((integer(o)) ? compare(abs(o),1)<=0 : string(o));
+}
+//*!/
+
+//global procedure test_equal(object a, object b, string name="", atom_or_string epsilon=1e-9, bool eq=true)
+//global procedure test_equal(object a, object b, string name="", object args={}, $bool_or_string bApprox=false, bool eq=true)
+/*global*/ function test_equal(/*object*/ a, /*object*/ b, /*string*/ name="", /*object*/ args=["sequence"], /*$bool_or_string*/ bApprox=-1, /*bool*/ eq=true) {
+    if (sequence(args) && !string(args)) {
+        if (!equal(args,["sequence"])) { name = sprintf(name,args); }
+        bApprox = compare(bApprox,0)>0;
+    } else if (equal(bApprox,-1)) { // (no args and one bool/str case)
+        bApprox = args;
+    } else {
+                          // (no args but two more args case)
+        assert(eq);         // 3 args specified??
+        eq = bApprox;
+        bApprox = args;
+    }
+//global procedure test_equal(object a, object b, string name="", bool bApprox = false, eq=true)
     let /*bool*/ success;
 /* I completely forgot about bool eq, bit of a daft idea anyway.
     -- Eu compatibility, ie args of (name, a, b):
@@ -196,51 +287,54 @@ function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, leve
 */
     if (equal(a,b)) {
         success = true;
-    } else if (equal(sq_mul(0,a),sq_mul(0,b))) {
-        // for complicated sequences values (same shape)
-        if (atom(a)) {
-            success = compare(abs(a-b),1e-9)<0;
-        } else {
-            success = or_all(sq_lt(flatten(sq_abs(sq_sub(a,b))),1e-9));
-            // or maybe:
- /*
-            success = true
-            a = flatten(a)
-            b = flatten(b)
-            for i=1 to length(a) do
-                atom ai = a[i],
-                     bi = b[i]
-                if ai!=bi
-                and not(abs(ai-bi)<1e9) then
-                    success = false
-                    exit
-                end if
-            end for
-*/ 
-        }
-    } else {
+/*
+    elsif sq_mul(0,a)=sq_mul(0,b) then
+        -- for complicated sequences values (same shape)
+        if string(epsilon) then
+            success = str_equal(a,b,epsilon)
+        elsif not atom(a) then
+            success = atom_equal(a,b,epsilon)
+        else
+            success = abs(a-b)<epsilon
+        end if
+    else
+*/
+    } else if (equal(bApprox,false)) {
         success = false;
+    } else {
+        if (equal(bApprox,true)) { bApprox = "%g"; }
+        success = $rec_equal(a,b,bApprox);
+//      success = $rec_equal(a,b,iff(string(bApprox)?bApprox:"%g"))
+        if ((!success && atom(a)) && atom(b)) {
+            a = sprintf(bApprox,a);
+            b = sprintf(bApprox,b);
+        }
     }
     let /*string*/ ne = ((eq) ? "" : "not ");
     $test_result(success===eq,["sequence",name,a,ne,b],1,4-eq);
 }
-
-/*global*/ function test_not_equal(/*object*/ a, /*object*/ b, /*string*/ name="") {
-    test_equal(a,b,name,false);
+//global procedure test_not_equal(object a, object b, string name="", atom_or_string epsilon=1e-9)
+/*global*/ function test_not_equal(/*object*/ a, /*object*/ b, /*string*/ name="", /*object*/ args=["sequence"], /*$bool_or_string*/ bApprox=false) {
+//  test_equal(a,b,name,epsilon,false)
+    test_equal(a,b,name,args,bApprox,false);
 }
 
-/*global*/ function test_true(/*bool*/ success, /*string*/ name="") {
+/*global*/ function test_true(/*bool*/ success, /*string*/ name="", /*sequence*/ args=["sequence"]) {
+    if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(success,["sequence",name],2,3);
 }
 
-/*global*/ function test_false(/*bool*/ success, /*string*/ name="") {
+/*global*/ function test_false(/*bool*/ success, /*string*/ name="", /*sequence*/ args=["sequence"]) {
+    if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(!success,["sequence",name],2,3);
 }
 
-/*global*/ function test_pass(/*string*/ name="") {
+/*global*/ function test_pass(/*string*/ name="", /*sequence*/ args=["sequence"]) {
+    if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(true,["sequence",name],2,3);
 }
 
-/*global*/ function test_fail(/*string*/ name="") {
+/*global*/ function test_fail(/*string*/ name="", /*sequence*/ args=["sequence"]) {
+    if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(false,["sequence",name],2,3);
 }

@@ -578,9 +578,8 @@ local function toRoman(integer n, bool lowercase)
         elsif n then
             idx += 1;
             rn /= iff(odd(idx)?5:2);
---(sip, untested:)
---          if odd(idx) then tenth = floor(rn/10) end if
-            if odd(idx) then tenth = rn/10 end if
+            -- (aside: floor rqd, 0.1 is not an integer!)
+            if odd(idx) then tenth = floor(rn/10) end if
         end if
     end while
     if lowercase then res = lower(res) end if
@@ -707,6 +706,7 @@ integer tmp
                 -- 22/05/21 'a' and 'A' added
                 -- 10/08/22 'F' added
                 -- 08/02/24 'r', 'R' added
+                -- 17/03/24 'O' added
                 blankTZ = false
                 if fi='a' or fi='A' then
                     lowerHex = fi='a'
@@ -734,6 +734,9 @@ integer tmp
                     elsif fi='r' then
                         lowerHex = true -- (repurposed here)
                         fi = 'R'
+                    elsif fi='O' then
+                        lowerHex = true -- (repurposed here)
+                        fi = 'o'
                     end if
 --                  fidx = find(fi,"dxobstcvefgEXG")
 --                  fidx = find(fi,"dxobstncvefgEXG")
@@ -825,8 +828,10 @@ end if
                         r1 = repeat(' ',0)
 --1/11/22: (print powers of 2 exactly, by avoiding discrepancies that creep in for /10 when work>2^75, but don't for /2)
                         bool bViaBase2 = (base=10 and 
-                                          work>37778931862957161709568 and -- (power(2,75), btw)
-                                          count_bits(work)=1)
+--1/5/24 (grains tests, on 32 bit)
+--                                        work>37778931862957161709568 and -- (power(2,75), btw)
+--                                        count_bits(work)=1)
+                                          work>=power(2,iff(machine_bits()=32?53:75)))
                         if bViaBase2 then base = 2 end if
                         while work do
                             -- NB: The result of prepend is always a sequence, 
@@ -883,6 +888,9 @@ end if
                             elsif minfieldwidth>length(r1) then
                                 r1 &= repeat('0',minfieldwidth-length(r1))
                             end if
+                        end if
+                        if lowerHex and base=8 then -- 'O', 17/3/24
+                            r1 &= "o0"
                         end if
                         r1len = length(r1)
                         -- as promised, reverse it:
@@ -943,9 +951,14 @@ end if
                         o = allascii(o,enquote)
                     end if
                     if atom(o) then
---                      r1 = " "
-                        r1 = repeat(' ',1)
-                        r1[1] = and_bits(#FF,o) -- (nb: keeps r1 a string)
+--15/4/24:
+                        if fi='c' and integer(o) and o>#7F and o<=#10FFFF then
+                            r1 = utf32_to_utf8({o})
+                        else
+--                          r1 = " "
+                            r1 = repeat(' ',1)
+                            r1[1] = and_bits(#FF,o) -- (nb: keeps r1 a string)
+                        end if
 --                  elsif fidx=6 then -- 'c'
                     elsif fi='c' then
 --/**/                  #ilASM{ mov al,76                           -- Phix

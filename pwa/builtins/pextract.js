@@ -39,7 +39,8 @@
         res = $repe(res,indexes,replacements);
     } else {
         let /*integer*/ l = length(indexes), ii;
-        if (!equal(length(replacements),l)) { crash("9/0"); }
+//2/5/24:
+//      if length(replacements)!=l then ?9/0 end if
         if (invert) {
             let /*sequence*/ inverse = repeat(0,l);
             for (let i=1, i$lim=l; i<=i$lim; i+=1) {
@@ -48,9 +49,19 @@
             }
             indexes = inverse;
         }
-        for (let i=1, i$lim=l; i<=i$lim; i+=1) {
-            ii = $subse(indexes,i);
-            res = $repe(res,ii,$subse(replacements,i));
+        if (atom(replacements)) {
+            for (let i=1, i$lim=l; i<=i$lim; i+=1) {
+                ii = $subse(indexes,i);
+                res = $repe(res,ii,replacements);
+            }
+        } else {
+//21/5/24:
+            let /*bool*/ one = (equal(length(replacements),1)) && (!equal(length(indexes),1));
+            assert(one || (equal(length(replacements),l)));
+            for (let i=1, i$lim=l; i<=i$lim; i+=1) {
+                ii = $subse(indexes,i);
+                res = $repe(res,ii,$subse(replacements,((one) ? 1 : i)));
+            }
         }
     }
     return res;

@@ -1956,7 +1956,9 @@ sequence msgs =
     -- a deliberate optimisation.
 --DEV maybe we shouldn't inline unless it's a sequence of integer?
  "attempt to subscript an atom\n",                              -- e04atsaa
- "subscript is not an atom\n",                                  -- e05sinaa
+--30/4/24
+-- "subscript is not an atom\n",                                -- e05sinaa
+ "subscript is not an integer\n",                               -- e05sinaa
  "index %d out of bounds, assigning to sequence length %d\n",   -- e06ioob
  "slice start is less than 1 (%d)\n",                           -- e07ssilt1
     -- Note that the value shown is that after adjustment 
@@ -2823,7 +2825,9 @@ end if
                 name = si[S_Name]
                 if atom(name) then
                     --DEV/SUG unnamed index temps -> ioob??? (see e01tcf)
-                    name = sprintf("???(symtab[%d][S_name]=%d)",{varno,si})
+--30/4/24 (assume"")
+--                  name = sprintf("???(symtab[%d][S_name]=%d)",{varno,si})
+                    name = "subscript"
                 end if
                 sNTyp = si[S_NTyp]
                 if sNTyp!=S_GVar2
@@ -3657,7 +3661,10 @@ end if
 --  if not batchmode then
 --?batchmode
         puts(1,"Press Enter...")
-        if wait_key() then end if
+        if not find("-nopause",lower(command_line(true))) then
+--?command_line(true)
+            if wait_key() then end if
+        end if
 --      abort(abortcode)
     end if
     abort(abortcode)

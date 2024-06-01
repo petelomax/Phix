@@ -81,17 +81,19 @@ constant htxt =
         "open dialogue). Note that icons for executable files are stored in the files themselves, rather than set here.\n\n"&
 
         "Edit with Edita and Run with Phix are assumed to be self-explanatory. The locations of Phix and Edita are initially "&
-        `deduced from the command line used to run pgui. Normally Type/Icon/Edit show the full set of ".e,.err,.ex,.exw", `&
+        `deduced from the command line used to run pdemo (the thing you're currently looking at). Normally Type/Icon/Edit show "&
+        "the full set of ".e,.err,.ex,.exw", `&
         "unless only some of them need applying or in the case of undo, the first value that will be restored, see next.\n\n"&
 
-        "The action drop-down allows detailed step-by-step control of the program (not normally required):\n"&
-        "* create undo.reg  -- allows you to deliberately overwrite an existing file to make a fresh restore point.\n"&
-        "* edit undo.reg    -- using Edita, or if that this not available, Notepad.\n"&
-        "* reload undo.reg  -- ensure (hidden) copies of various values are brought back up to date.\n"&
-        "* merge undo.reg   -- restore the registry to the original settings/last restore point/as just edited.\n"&
-        "* create setup.reg -- allows you to vet and/or edit the file, and manually apply it (r/click merge).\n"&
-        "* edit setup.reg   -- using Edita, or if that this not available, Notepad.\n"&
-        "* merge setup.reg  -- applies a manually modified file.\n"&
+        "The action drop-down allows detailed step-by-step control of the program (not normally required):\n\n"&
+        "* create undo.reg  -- allows you to deliberately overwrite an existing file to make a fresh restore point.\n\n"&
+        "* edit undo.reg    -- using Edita, or if that this not available, Notepad.\n\n"&
+        "* reload undo.reg  -- ensure (hidden) copies of various values are brought back up to date.\n\n"&
+        "* merge undo.reg   -- restore the registry to the original settings/last restore point/as just edited.\n\n"&
+        "* create setup.reg -- allows you to vet and/or edit the file, and manually apply it (r/click merge).\n\n"&
+        "* edit setup.reg   -- using Edita, or if that this not available, Notepad.\n\n"&
+        "* merge setup.reg  -- applies a manually modified file.\n\n"&
+        "* broadcast        -- send a system-wide WM_SETTINGCHANGE message to force path (etc) reload.\n\n"&
         "* apply (default)  -- creates an undo.reg if one does not already exist, and a setup.reg, and merges it.\n\n"&
 
         "Generally the last (default) action is all that is required, unless something does not seem to work properly. "&
@@ -134,7 +136,8 @@ constant A_CREATEUNDO=1,
          A_CREATESETUP=5,
          A_EDITSETUP=6,
          A_MERGESETUP=7,
-         A_APPLY=8
+         A_BROADCAST=8,
+         A_APPLY=9
 --DEV already in pdemo.exw?? (now in create_tab2())
 constant actset = {"create undo.reg",
                    "edit undo.reg",
@@ -143,6 +146,7 @@ constant actset = {"create undo.reg",
                    "create setup.reg",
                    "edit setup.reg",
                    "merge setup.reg",
+                   "broadcast",
                    "apply (default)"}
 
 constant HKCR = `HKEY_CLASSES_ROOT\`,
@@ -1823,14 +1827,19 @@ include builtins\syswait.ew
 procedure merge(string filename)
 -- (bugfix: using 64-bit regedit stopped a pointless system32->syswow64 on a shell icon)
 --string cmd = sprintf(`regedit "%sdemo\arwendemo\pgui\%s"`,{basedir,filename})
-string cmd
     if platform()!=WINDERS then ?9/0 end if
 --  cmd = sprintf(`C:\windows\regedit "%sdemo\arwendemo\pgui\%s"`,{basedir,filename})
-    cmd = sprintf(`C:\windows\regedit "%sdemo\pGUI\pdemo\%s"`,{basedir,filename})
+    string cmd = sprintf(`C:\windows\regedit "%sdemo\pGUI\pdemo\%s"`,{basedir,filename})
 --  void = sysexec(cmd)
-    {} = system_exec(cmd)
+    integer res = system_exec(cmd)
+    if res!=0 then
+        IupMessage("Error",sprintf("%s failed with error code %d",{cmd,res}))
+    end if
 --  void = system_exec(cmd,4)   --DEV maybe?
     setButtonStates()
+end procedure
+
+procedure broadcast()
     -- (note: will likely make the program become unresponsive for 10s or more)
     {} = c_func(xSendMessage,{HWND_BROADCAST,WM_SETTINGCHANGE,0,"Environment"})
 end procedure
@@ -1878,9 +1887,11 @@ procedure apply_action()
         case A_CREATESETUP: createDotReg(CREATE,1)
         case A_EDITSETUP:   edit("setup.reg")
         case A_MERGESETUP:  merge("setup.reg")
+        case A_BROADCAST:   broadcast()
         case A_APPLY:       createDotReg(UNDO,0)
                             createDotReg(CREATE,0)
                             merge("setup.reg")
+                            broadcast()
     end switch
 end procedure
 

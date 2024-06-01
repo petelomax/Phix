@@ -106,7 +106,11 @@ global procedure test_summary(bool close_log=true)
                  {tests_run, tests_passed, tests_failed, passpc})
         if pause_summary=TEST_PAUSE
         or (pause_summary=TEST_PAUSE_FAIL and tests_failed>0) then
-            if platform()!=JS then
+--?{"cl",command_line(true)}
+--?{"cl",lower(command_line(true)),command_line(true)}
+            if platform()!=JS
+--          and not find("-batch",lower(command_line(true))) then
+            and not find("-nopause",lower(command_line(true))) then
                 puts(1,"Press any key to continue...")
                 {} = wait_key()
                 puts(1,"\n")
@@ -166,8 +170,16 @@ end procedure
 --  set_test_module(name)
 --end procedure
 
+function sn2(sequence s)
+    -- both/two "\nhelpful strings"?
+    return string(s[1]) and length(s[1]) and s[1][1]='\n'
+       and string(s[2]) and length(s[2]) and s[2][1]='\n'
+end function
+
 procedure test_result(bool success, sequence args, integer fdx, level)
-    string fmt = iff(fdx=1?"  failed: %s: %v should %sequal %v\n"
+--  string fmt = iff(fdx=1?"  failed: %s: %v should %sequal %v\n"
+    string fmt = iff(fdx=1?iff(sn2(extract(args,{2,4}))?"  failed: %s: %s should %sequal %s\n"
+                                                       :"  failed: %s: %v should %sequal %v\n")
                           :"  failed: %s\n")
     tests_run += 1
     if success then
@@ -188,7 +200,92 @@ procedure test_result(bool success, sequence args, integer fdx, level)
     end if
 end procedure
 
-global procedure test_equal(object a, object b, string name="", bool eq=true)
+--/*
+local function str_equal(object a, b, string fmt)
+    -- a and b always have the same "shape"
+    if string(a) or string(b) then
+        return string(a) and string(b) and a==b
+    elsif not atom(a) then
+        bool success = true
+        for i=1 to length(a) do
+            success = str_equal(a[i],b[i],fmt)
+            if not success then exit end if
+        end for
+        return success
+    end if
+    return (a==b) or (sprintf(fmt,a)==sprintf(fmt,b))
+end function
+
+local function atom_equal(object a, b, atom epsilon)
+    -- a and b always have the same "shape"
+    if string(a) or string(b) then
+        return string(a) and string(b) and a==b
+    elsif not atom(a) then
+        bool success = true
+        for i=1 to length(a) do
+            success = atom_equal(a[i],b[i],epsilon)
+            if not success then exit end if
+        end for
+        return success
+    elsif not atom(b) then
+        return false
+    end if
+    return abs(a-b)<epsilon
+end function
+
+local type atom_or_string(object o)
+    return string(o) or atom(o)
+end type
+--*/
+
+--/!*
+local function rec_equal(object a, b, string fmt)
+    if string(a) or string(b) then
+        return string(a) and string(b) and a==b
+    elsif atom(a)!=atom(b) then
+        return false
+    elsif not atom(a) then
+        if length(b)!=length(a) then return false end if
+        bool success = true
+        for i=1 to length(a) do
+            success = rec_equal(a[i],b[i],fmt)
+            if not success then exit end if
+        end for
+        return success
+    end if
+    -- both atoms:
+    if a==b then return true end if
+    string sa = sprintf(fmt,a),
+           sb = sprintf(fmt,b)
+    if sa==sb then return true end if
+    -- catch eg `-0.000000000000000`
+    --        != `0.000000000000000`
+--?sa
+--?sb
+    return filter(sa,"out","0-.")=""
+       and filter(sb,"out","0-.")=""
+end function
+
+local type bool_or_string(object o)
+--  return iff(integer(o) ? o==not not o : string(o))
+    return iff(integer(o) ? abs(o)<=1 : string(o))
+end type
+--*!/
+
+--global procedure test_equal(object a, object b, string name="", atom_or_string epsilon=1e-9, bool eq=true)
+--global procedure test_equal(object a, object b, string name="", object args={}, bool_or_string bApprox=false, bool eq=true)
+global procedure test_equal(object a, object b, string name="", object args={}, bool_or_string bApprox=-1, bool eq=true)
+    if sequence(args) and not string(args) then
+        if args!={} then name = sprintf(name,args) end if
+        bApprox = bApprox>0
+    elsif bApprox=-1 then -- (no args and one bool/str case)
+        bApprox = args
+    else                  -- (no args but two more args case)
+        assert(eq)          -- 3 args specified??
+        eq = bApprox
+        bApprox = args
+    end if
+--global procedure test_equal(object a, object b, string name="", bool bApprox = false, eq=true)
 
     bool success
 
@@ -205,53 +302,57 @@ global procedure test_equal(object a, object b, string name="", bool eq=true)
     
     if a=b then
         success = true
+--/*
     elsif sq_mul(0,a)=sq_mul(0,b) then
         -- for complicated sequences values (same shape)
-        if atom(a) then
-            success = abs(a-b)<1e-9
+        if string(epsilon) then
+            success = str_equal(a,b,epsilon)
+        elsif not atom(a) then
+            success = atom_equal(a,b,epsilon)
         else
-            success = or_all(sq_lt(flatten(sq_abs(sq_sub(a,b))),1e-9))
-            -- or maybe:
---/*
-            success = true
-            a = flatten(a)
-            b = flatten(b)
-            for i=1 to length(a) do
-                atom ai = a[i],
-                     bi = b[i]
-                if ai!=bi
-                and not(abs(ai-bi)<1e9) then
-                    success = false
-                    exit
-                end if
-            end for
---*/
+            success = abs(a-b)<epsilon
         end if
     else
+--*/
+    elsif bApprox==false then
         success = false
+    else
+        if bApprox==true then bApprox = "%g" end if
+        success = rec_equal(a,b,bApprox)
+--      success = rec_equal(a,b,iff(string(bApprox)?bApprox:"%g"))
+        if not success and atom(a) and atom(b) then
+            a = sprintf(bApprox,a)
+            b = sprintf(bApprox,b)
+        end if
     end if
     string ne = iff(eq?"":"not ")
-    test_result(success=eq,{name,a,ne,b},1,4-eq)
+    test_result(success==eq,{name,a,ne,b},1,4-eq)
 
 end procedure
 
-global procedure test_not_equal(object a, object b, string name="")
-    test_equal(a,b,name,false)
+--global procedure test_not_equal(object a, object b, string name="", atom_or_string epsilon=1e-9)
+global procedure test_not_equal(object a, object b, string name="", object args={}, bool_or_string bApprox=false)
+--  test_equal(a,b,name,epsilon,false)
+    test_equal(a,b,name,args,bApprox,false)
 end procedure
 
-global procedure test_true(bool success, string name="")
+global procedure test_true(bool success, string name="", sequence args={})
+    if args!={} then name = sprintf(name,args) end if
     test_result(success,{name},2,3)
 end procedure
 
-global procedure test_false(bool success, string name="")
+global procedure test_false(bool success, string name="", sequence args={})
+    if args!={} then name = sprintf(name,args) end if
     test_result(not success,{name},2,3)
 end procedure
 
-global procedure test_pass(string name="")
+global procedure test_pass(string name="", sequence args={})
+    if args!={} then name = sprintf(name,args) end if
     test_result(true,{name},2,3)
 end procedure
 
-global procedure test_fail(string name="")
+global procedure test_fail(string name="", sequence args={})
+    if args!={} then name = sprintf(name,args) end if
     test_result(false,{name},2,3)
 end procedure
 

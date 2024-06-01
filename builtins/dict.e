@@ -426,14 +426,7 @@ global function named_dict(string name)
     return NULL
 end function
 
-----DEV temp: (didn't help...)
---function f(object o) return o end function
---if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
-
 global function new_dict(object kd_pairs = {}, integer pool_only=0)
---if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
---kd_pairs = f(kd_pairs)
---pool_only = f(pool_only)
     if not init_dict then dict_init() end if
     integer tid = free_trees
     if tid!=0 then
@@ -492,31 +485,43 @@ global function new_dict(object kd_pairs = {}, integer pool_only=0)
     return tid
 end function
 
-global procedure destroy_dict(integer tid, bool justclear=false)
+global function new_dicts(integer n)
+    sequence res = repeat(0,n)
+    for i=1 to n do
+        res[i] = new_dict()
+    end for
+    return res
+end function
+
+global procedure destroy_dict(object tid, bool justclear=false)
 --global procedure destroy_dict(dictionary tid, bool justclear=false)
 --
 -- Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
 --       In contrast, destroy_dict(5) is fatal when 5 is not a valid dictionary, or
 --       (equivalently) was the recent subject of a destroy_dict() call.
 --
-    check_tid(tid)
-    if tid=1 or justclear then
-        -- just empty the default, but leave it still available
-        -- (this also means that new_dict() can never return 1)
-        trees[tid] = {}
---      trees[tid] = repeat(0,0)
-        roots[tid] = NULL
-        sizes[tid] = 0
-        defaults[tid] = NULL
---      freelists[tid] = 0
-        if freelists[tid]!=0 then ?9/0 end if
+    if sequence(tid) then
+        for t in tid do destroy_dict(t,justclear) end for
     else
-        trees[tid] = free_trees
-        roots[tid] = NULL
-        sizes[tid] = 0
-        defaults[tid] = NULL
-        free_trees = tid
-        freelists[tid] = 0
+        check_tid(tid)
+        if tid=1 or justclear then
+            -- just empty the default, but leave it still available
+            -- (this also means that new_dict() can never return 1)
+            trees[tid] = {}
+--          trees[tid] = repeat(0,0)
+            roots[tid] = NULL
+            sizes[tid] = 0
+            defaults[tid] = NULL
+--          freelists[tid] = 0
+            if freelists[tid]!=0 then ?9/0 end if
+        else
+            trees[tid] = free_trees
+            roots[tid] = NULL
+            sizes[tid] = 0
+            defaults[tid] = NULL
+            free_trees = tid
+            freelists[tid] = 0
+        end if
     end if
 end procedure
 

@@ -7,6 +7,7 @@
 --      ord(integer n) yields "st", "nd", "rd", or "th".
 --      ordinal(atom n) yields "first", "second", etc.
 --      ordinal(atom n, bool bJustSpell:=true) yields "one", "two", etc.
+--      ordinant(atom n) yields "never", "once", "twice", "three times", etc.
 --
 
 global function ord(atom n)
@@ -19,13 +20,31 @@ end function
 integer oinit = false
 sequence twenties, decades, orders, irregs, ordinals
 
-procedure inito()
+local procedure inito()
     twenties = {"zero","one","two","three","four","five",
                 "six","seven","eight","nine","ten","eleven",
                 "twelve","thirteen","fourteen","fifteen",
                 "sixteen","seventeen","eighteen","nineteen"}    
     decades = {"twenty","thirty","forty","fifty",
                "sixty","seventy","eighty","ninety"}
+--  orders = {{power(10,18),"quintillion"},
+--/* -- actually, I suppose we /could/ use these if we output "ish" after 15/18 sig digs, or input strings, or within mpfr...
+Sextillion          10^21
+Septillion          10^24
+Octillion           10^27
+Nonillion           10^30
+Decillion           10^33
+Undecillion         10^36
+Duodecillion        10^39
+Tredecillion        10^42
+Quattuordecillion   10^45
+Quindecillion       10^48
+Sexdecillion        10^51
+Septendecillion     10^54
+Octodecillion       10^57
+Novemdecillion      10^60
+Vigintillion        10^63
+--*/
     orders = {{power(10,15),"quadrillion"},
               {power(10,12),"trillion"},
               {power(10,9),"billion"},
@@ -41,15 +60,15 @@ procedure inito()
     oinit = true
 end procedure
 
-function twenty(integer n)
+local function twenty(integer n)
     return twenties[mod(n,20)+1]
 end function
  
-function decade(integer n)
+local function decade(integer n)
     return decades[mod(n,10)-1]
 end function
  
-function hundred(integer n)
+local function hundred(integer n)
     if n<20 then
         return twenty(n)
     elsif mod(n,10)=0 then
@@ -58,7 +77,7 @@ function hundred(integer n)
     return decade(floor(n/10)) & '-' & twenty(mod(n,10))
 end function
  
-function thousand(integer n, string withand)
+local function thousand(integer n, string withand)
     -- (aside: p2js.exw/insert_dollars() 
     --  must not hundred -> $hundred this:)
     string sphun = " hundred"
@@ -70,7 +89,7 @@ function thousand(integer n, string withand)
     return twenty(floor(n/100)) & sphun & " and " & hundred(mod(n,100))
 end function
  
-function triplet(atom n)
+local function triplet(atom n)
     atom order, high, low
     string name, res = ""
     for i=1 to length(orders) do
@@ -108,7 +127,7 @@ function triplet(atom n)
     return res
 end function
  
-function spell(atom n)
+local function spell(atom n)
     string res = ""
     if n<0 then
         res = "minus "

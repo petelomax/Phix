@@ -100,3 +100,7 @@
     src = $repss(src,start,stop,replacement);
     return src;
 }
+
+/*global*/ function valid_index(/*sequence*/ s, /*object*/ idx) {
+    return (integer(idx) && compare(abs(idx),1)>=0) && compare(abs(idx),length(s))<=0;
+}

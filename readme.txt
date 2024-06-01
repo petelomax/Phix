@@ -24,7 +24,10 @@ it will create both a new p.exe and a new pw.exe, again automatically for you.
 
 Please note the following entries are probably more for my benefit than yours.
 
+Version 1.0.5
+
 Version 1.0.3
+=============
 13/04/2023: Improved the compilation error reporting in the following case:
                 procedure p()
                     return true

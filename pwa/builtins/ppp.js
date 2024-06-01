@@ -722,13 +722,26 @@ function $pp_Ex(/*object*/ o, /*sequence*/ options) {
 /*global*/ function ppExf(/*object*/ o, /*sequence*/ options) {
 // return object pretty printed, with options (as per ppOpt)
 // The previous pretty_print options are restored on exit.
+//3/4/24: (changed my mind)
+//  bool ppNestFound = false
     for (let i=1, i$lim=length(options); i<=i$lim; i+=2) {
         if (equal($subse(options,i),pp_Nest)) {
             ppEx(o,$conCat(options, ["sequence",pp_File,0]));
             return $ppp_result;
+//          ppNestFound = true
+            break;
         }
     }
-    ppEx(o,$conCat(options, ["sequence",pp_File,0,pp_Nest,-1]));
+//  if not ppNestFound and (not $ppp_Init or $ppp_Nest==0 or $ppp_Nest=={1,0}) then
+//3/4/24:
+    if ((!$ppp_Init || (equal($ppp_Nest,0))) || (equal($ppp_Nest,["sequence",1,0]))) {
+        ppEx(o,$conCat(options, ["sequence",pp_File,0,pp_Nest,-1]));
+    } else {
+        let /*integer*/ was_pp_File = $ppp_File;
+        $ppp_File = 0;
+        ppEx(o,options);
+        $ppp_File = was_pp_File;
+    }
     return $ppp_result;
 }
 

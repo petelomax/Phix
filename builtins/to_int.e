@@ -39,8 +39,10 @@ global function to_integer(string s, integer def_value = 0, base = 10)
     end if
     for i=1 to length(s) do
         ch = s[i]
+-- 8/4/24 treats ':' as '3'...
         d = ch-iff(ch>'9'?iff(ch>='a'?'a':'A')-10:'0')
-        if d<0 or d>base then
+--      if d<0 or d>base then
+        if d<0 or d>base or (ch>'9' and d<10) then
             return def_value
         end if
         atom rchk = res*base + d

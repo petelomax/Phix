@@ -335,7 +335,11 @@ global procedure requires(object x, bool bQuiet=false)
                     msg = iff(m==x?sprintf("%d bit",m):"restart")
                     printf(1,"requires %s: %s\n",{msg,cmd})
                     printf(1,"Press Escape to abandon, Enter to retry as above...")
-                    if not find(upper(wait_key()),{'Q','N',#1B}) then
+                    integer wk = ' '
+                    if not find("-nopause",lower(command_line(true))) then
+                        wk = wait_key()
+                    end if
+                    if not find(upper(wk),{'Q','N',#1B}) then
                         puts(1,"\n")
                         {} = system_exec(cmd)
                     end if

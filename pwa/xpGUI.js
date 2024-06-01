@@ -2565,8 +2565,10 @@ function gSetAttributes(id, attributes, args = []) {
     if (attributes && typeof(attributes) === "string" && attributes.length>0) {
         if (equal($subse(attributes,1),0X3D)) { // '='
             if (attributes==="==") {
-                for (let i=1, i$lim=length(args); i<=i$lim; i+=1) {
-                    let [,/*string*/ n,/*object*/ v] = $subse(args,i);
+                for (let a$idx = 1, a$lim = length(args); a$idx <= a$lim; a$idx += 1) {
+                    let a = $subse(args,a$idx);
+                    let [,/*string*/ n,/*object*/ v] = a;
+                    if (length(a)>2) { v = sprintf(v,$subse(a,3)); }
                     gSetAttribute(id,n,v);
                 }
                 return;

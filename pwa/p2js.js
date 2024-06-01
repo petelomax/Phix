@@ -169,7 +169,8 @@ function puts(fn, text, cleanup=true) {
                    .replace(sp,"&ensp;")
                    .replace(lf,"<br>");
     }
-    let where = (fn === 2) ? "afterbegin" : "beforeend";
+//  let where = (fn === 2) ? "afterbegin" : "beforeend";
+    let where = "beforeend";
     if ($tx_clr !== -1 || $bg_clr !== -1) {
         text = `<span style="` + ($tx_clr !== -1?`color:`+$tx_clr+`;`:"")
                                + ($bg_clr !== -1?`background-color:`+$bg_clr+`;`:"")
@@ -229,10 +230,12 @@ function integer(i, name = "") {
 //5/11/22:
 //  if ((ti !== "boolean") && (ti !== "function") && (ti != "undefined") && (i!="") && (i!=~~i)) {
 //7/11/23:
-  if ((ti !== "object") && !(i instanceof HTMLElement)) {
+//  if ((ti !== "object") && !(i instanceof HTMLElement)) {
 
     if ((ti === "undefined") || 
-        (ti === "object") || 
+//29/5/24:
+//      (ti === "object") || 
+        ((ti === "object") && !(i instanceof HTMLElement)) || 
         (ti === "string") || 
         ((ti !== "boolean") && (ti !== "function") && (i!=~~i))) {
 // ^^^ put back 7/11/23...
@@ -240,7 +243,7 @@ function integer(i, name = "") {
 //      ((ti !== "boolean") && (i!=~~i))) {
         return $typeCheckError(name,i);
     }
-  }
+//  }
     return true;
 }
 let int = integer;
@@ -293,17 +296,19 @@ function length(o) {
     crash("length of an atom is not defined");
 }
 
-function deep_copy(p, depth=-1) {
+//function deep_copy(p, depth=-1) {
+function deep_copy(p) {
     // (we got no refcount here, so must ignore bIfNeeded)
     if (Array.isArray(p)) {
         p = p.slice();
-        if (depth) {
-            depth -= 1;
+//      if (depth) {
+//          depth -= 1;
             let pl = p.length;
             for (let i = 1; i < pl; i += 1) {
-                p[i] = deep_copy(p[i],depth);
+//              p[i] = deep_copy(p[i],depth);
+                p[i] = deep_copy(p[i]);
             }
-        }
+//      }
     }
     return p;
 }
@@ -311,6 +316,8 @@ function deep_copy(p, depth=-1) {
 function $charArray(s) {
 // Needed because Array.from(string) produces lots of diddy-strings...
 //  whereas this produces the array of codePointAt I was expecting.
+//SUG: (instead of next, which tmr has never triggered, not even once)
+//  if (!string(s)) { return s; }
     string(s,"s");
     let l = s.length, i = 1;
     let res = ["sequence"];
@@ -1075,23 +1082,24 @@ function rand_range(/*integer*/ lo, hi) {
 //  return Math.floor(n);
 //}
 
-function reverse(src, from_to = ["sequence",1,-1]) {
-    let lo = from_to[1],
-        hi = from_to[2],
-        len = length(src)+1;
-    if (lo < 0) { lo += len; }
-    if (hi < 0) { hi += len; }
-    let res = [...src];
-    if (len > 2 && lo < hi) {
-        let mid = floor((lo+hi-1)/2);
-        for (let lx = lo; lx <= mid; lx += 1) {
-            res[hi] = src[lx];
-            res[lx] = src[hi];
-            hi -= 1;
-        }
-    }
-    return res;
-}
+//21/3/24 should be in pwa/builtins/misc.js...
+//function reverse(src, from_to = ["sequence",1,-1]) {
+//  let lo = from_to[1],
+//      hi = from_to[2],
+//      len = length(src)+1;
+//  if (lo < 0) { lo += len; }
+//  if (hi < 0) { hi += len; }
+//  let res = [...src];
+//  if (len > 2 && lo < hi) {
+//      let mid = floor((lo+hi-1)/2);
+//      for (let lx = lo; lx <= mid; lx += 1) {
+//          res[hi] = src[lx];
+//          res[lx] = src[hi];
+//          hi -= 1;
+//      }
+//  }
+//  return res;
+//}
 
 function routine_id(rtn_name) {
     if (typeof(rtn_name) === "function") { return rtn_name; }

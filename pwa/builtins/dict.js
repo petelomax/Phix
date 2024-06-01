@@ -408,14 +408,8 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
     }
     return NULL;
 }
-//--DEV temp: (didn't help...)
-//function f(object o) return o end function
-//if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
 
 /*global*/ function new_dict(/*object*/ kd_pairs=["sequence"], /*integer*/ pool_only=0) {
-//if "abc"="def" then object x=f(1) x=f(1.5); x=f(""); x=f({1,1.5,"",{x}}) end if
-//kd_pairs = f(kd_pairs)
-//pool_only = f(pool_only)
     if (!$init_dict) { $dict_init(); }
     let /*integer*/ tid = $free_trees;
     if (tid!==0) {
@@ -430,10 +424,10 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
         $trees = append($trees,["sequence"]);
 //      $trees = append($trees,repeat(0,0))
         $treenames = append($treenames,"");
-        $roots = $conCat($roots, NULL);
-        $sizes = $conCat($sizes, 0);
-        $defaults = $conCat($defaults, 0);
-        $freelists = $conCat($freelists, 0);
+        $roots = $conCat($roots, NULL, false);
+        $sizes = $conCat($sizes, 0, false);
+        $defaults = $conCat($defaults, 0, false);
+        $freelists = $conCat($freelists, 0, false);
         tid = length($trees);
     } else if (pool_only>1) {
         if (length(kd_pairs)) { crash("9/0"); }
@@ -444,10 +438,10 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
             $trees = append($trees,$free_trees);
             $treenames = append($treenames,"");
             $free_trees = length($trees);
-            $roots = $conCat($roots, NULL);
-            $sizes = $conCat($sizes, 0);
-            $defaults = $conCat($defaults, 0);
-            $freelists = $conCat($freelists, 0);
+            $roots = $conCat($roots, NULL, false);
+            $sizes = $conCat($sizes, 0, false);
+            $defaults = $conCat($defaults, 0, false);
+            $freelists = $conCat($freelists, 0, false);
         }
     }
     if (string(kd_pairs)) {
@@ -474,31 +468,43 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
     return tid;
 }
 
-/*global*/ function destroy_dict(/*integer*/ tid, /*bool*/ justclear=false) {
+/*global*/ function $new_dicts(/*integer*/ n) {
+    let /*sequence*/ res = repeat(0,n);
+    for (let i=1, i$lim=n; i<=i$lim; i+=1) {
+        res = $repe(res,i,new_dict());
+    }
+    return res;
+}
+
+/*global*/ function destroy_dict(/*object*/ tid, /*bool*/ justclear=false) {
 //global procedure destroy_dict($dictionary tid, bool justclear=false)
 //
 // Note: It is (and should be) perfectly legal to destroy_dict(1) at the very start.
 //       In contrast, destroy_dict(5) is fatal when 5 is not a valid $dictionary, or
 //       (equivalently) was the recent subject of a destroy_dict() call.
 //
-    $check_tid(tid);
-    if ((tid===1) || justclear) {
-        // just empty the default, but leave it still available
-        // (this also means that new_dict() can never return 1)
-        $trees = $repe($trees,tid,["sequence"]);
-//      $trees[tid] = repeat(0,0)
-        $roots = $repe($roots,tid,NULL);
-        $sizes = $repe($sizes,tid,0);
-        $defaults = $repe($defaults,tid,NULL);
-//      $freelists[tid] = 0
-        if (!equal($subse($freelists,tid),0)) { crash("9/0"); }
+    if (sequence(tid)) {
+        for (let t$idx = 1, t$lim = length(tid); t$idx <= t$lim; t$idx += 1) { let t = $subse(tid,t$idx); destroy_dict(t,justclear); }
     } else {
-        $trees = $repe($trees,tid,$free_trees);
-        $roots = $repe($roots,tid,NULL);
-        $sizes = $repe($sizes,tid,0);
-        $defaults = $repe($defaults,tid,NULL);
-        $free_trees = tid;
-        $freelists = $repe($freelists,tid,0);
+        $check_tid(tid);
+        if ((equal(tid,1)) || justclear) {
+            // just empty the default, but leave it still available
+            // (this also means that new_dict() can never return 1)
+            $trees = $repe($trees,tid,["sequence"]);
+//          $trees[tid] = repeat(0,0)
+            $roots = $repe($roots,tid,NULL);
+            $sizes = $repe($sizes,tid,0);
+            $defaults = $repe($defaults,tid,NULL);
+//          $freelists[tid] = 0
+            if (!equal($subse($freelists,tid),0)) { crash("9/0"); }
+        } else {
+            $trees = $repe($trees,tid,$free_trees);
+            $roots = $repe($roots,tid,NULL);
+            $sizes = $repe($sizes,tid,0);
+            $defaults = $repe($defaults,tid,NULL);
+            $free_trees = tid;
+            $freelists = $repe($freelists,tid,0);
+        }
     }
 }
 

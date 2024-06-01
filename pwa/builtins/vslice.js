@@ -43,6 +43,9 @@ end function
         }
     } else {
         let /*integer*/ [,s,e] = ((equal(length(column),2)) ? column : ["sequence",0,0]);
+//19/5/24 (permit -ve idx)
+        if (s<0) { s = (length(source)+s)+1; }
+        if (e<0) { e = (length(source)+e)+1; }
         if (s<1 || e<s-1) { crash("vslice(%v)",["sequence",column]); }
         for (let i=1, i$lim=length(source); i<=i$lim; i+=1) {
             if (atom($subse(source,i)) || compare(e,length($subse(source,i)))>0) {

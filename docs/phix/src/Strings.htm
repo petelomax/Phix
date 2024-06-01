@@ -6,32 +6,31 @@
      <stripped>
       <h1 class="title">Strings</h1>
       <div id="mainSection">
-        A character is really just an integer. Individual characters may be specified using
-        <i>single</i> quotes, e.g:
+        A character is really just an integer. Individual characters may be specified using <i>single</i> quotes, e.g:
 <!--eucode>
      'B'
 </eucode-->
 <pre>
-<font color="#008000">     'B'</font>
+<font color="#008000">     &rsquo;B&rsquo;</font>
 </pre>
-        which is completely indistinguishable from the (4 or 8 byte) integer 66, the 
-        equivalent ASCII code.<br>
-        Note that single quotes define a single 8-bit byte in the range 0..255 in Phix, and not a string.
+        which is completely indistinguishable from the (4 or 8 byte) integer 66, the equivalent ASCII code.<br>
+        Note that single quotes define a single 8-bit byte in the range 0..255 in Phix, and not a string, nor a multibyte UTF-8 character.
        <br>
        <br>
-        Just as integers can be considered an optimised form of atom, strings can be
-        considered an optimised form of sequence of character. Strings may be specified
-        using
-        <i>double quotes</i>, e.g:
+        Just as integers can be considered an optimised form of atom, strings can be considered an optimised form of sequence of character, 
+        with each ASCII character occupying one byte, and multibyte UTF-8 characters occupying said multiple bytes. Strings may be specified
+        using <i>double quotes</i>, e.g:
 <!--eucode>
      "ABCDEFG"
 </eucode-->
 <pre>
 <font color="#008000">     "ABCDEFG"</font>
 </pre>
-        Character strings may be manipulated and operated upon just like any other 
-        sequences. For example the above string is equivalent to the 
-        <a href="html/glossary.htm#dwordseq">dword-sequence</a>:
+        Character strings may be manipulated and operated upon just like any other sequences. Yes, you read that right: strings are mutable,
+        with constants pooled by the compiler and automatically protected from accidental mutilation by the copy-on-write semantics of Phix,
+        and have the baked-in performance characteristics of things like StringBuilder - but all that is handled for you automatically and
+        there is no need to worry about it at all. The following <a href="html/glossary.htm#dwordseq">dword-sequence</a> is in fact almost
+        entirely equivalent to the above string, except for explicit type tests and the space used, but they compare as equal:
 <!--eucode>
      {65, 66, 67, 68, 69, 70, 71}
 </eucode-->
@@ -39,25 +38,20 @@
 <font color="#0000FF">     {</font><font color="#000000">65</font><font color="#0000FF">,</font><font color="#000000"> 66</font><font color="#0000FF">,</font><font color="#000000"> 67</font><font color="#0000FF">,</font><font color="#000000"> 68</font><font color="#0000FF">,</font><font color="#000000"> 69</font><font color="#0000FF">,</font><font color="#000000"> 70</font><font color="#0000FF">,</font><font color="#000000"> 71</font><font color="#0000FF">}</font>
 </pre>
         which contains the corresponding ASCII codes (see technical note below).<br>
-        Note that any multibyte UTF-8 characters would have to be part of a string (see also <a href="utf8_to_utf32.htm">utf8_to_utf32</a>).
+        Note: pass strings containing multibyte UTF-8 characters through <a href="utf8_to_utf32.htm">utf8_to_utf32</a>() to improve/simplify 
+        indexing of individual graphemes: indexes on strings work at the byte-level, which is [only] the same for ASCII-only strings.
        <br>
         <a name=empty_seq></a>
        <br>
-        It follows that "" is equivalent to {}. Both represent a sequence of length
-        zero, also known as the <b>empty sequence</b>. 
-        As a matter of programming style, it is natural to use "" to suggest a length
-        zero string, and {} to suggest some other kind of sequence.
+        It follows that "" is equivalent to {}. Both represent a sequence of length zero, also known as the <b>empty sequence</b>. 
+        As a matter of programming style, it is natural to use "" to suggest a length zero string, and {} to suggest some other kind of sequence.
        <br>
        <br>
-        While you can store any string value in a variable declared as a sequence, 
-        the reverse is not true.
+        While you can store any string value in a variable declared as a sequence, the reverse is not true.
        <br>
         <a name=char></a>
        <br>
-        An
-        <b>individual character</b>
-        is an
-        <b><a href="integer.htm">integer</a></b>. It must be entered using single 
+        An <b>individual character</b> is an <b><a href="integer.htm">integer</a></b>. It must be entered using single 
         quotes. There is a difference between an individual character (which is an 
         integer), and a character string of length 1 (which is a sequence), e.g.
 <!--eucode>
@@ -65,13 +59,13 @@
     "B"   -- equivalent to the sequence {66}
 </eucode-->
 <pre>
-<font color="#008000">    'B'  </font><font color="#000080"><i> -- equivalent to the integer 66 - the ASCII code for B</i></font>
+<font color="#008000">    &rsquo;B&rsquo;  </font><font color="#000080"><i> -- equivalent to the integer 66 - the ASCII code for B</i></font>
 <font color="#008000">    "B"  </font><font color="#000080"><i> -- equivalent to the sequence {66}</i></font>
 </pre>
         Again, 'B' is just a notation that is equivalent to typing 66. There isn&rsquo;t really a "character" in phix, except as part of a string, 
         otherwise individual characters are stored as 4 (or 8) byte integers. Note that string characters are unsigned (one of the relatively few
-        times "unsigned" is a thing in Phix, the other main one being <a href="peek.htm">peekNu</a>()), in other words all s[i] of any string 
-        (including so-called binary strings) are strictly 0..255.
+        times "unsigned" is a thing in Phix, the other main one being <a href="peek.htm">peek[1248Nn]u</a>()), in other words all s[i] of any 
+        string (including so-called binary strings, and UTF-8 strings) are strictly 0..255.
        <br>
        <br>
         Tip: ""&ch is just a simple and handy notation for creating a length-1 string from a single character. Obviously it does exactly what it
@@ -230,7 +224,7 @@ x"1 2 34 5678_AbC" -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
 </eucode-->
 <pre>
 <font color="#000000">x</font><font color="#008000">"1 2 34 5678_AbC"</font><font color="#000080"><i> -- same as {0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C}
-                   -- note it displays as {1,2,52'4',86'V',120'x',171,12}
+                   -- note it displays as {1,2,52&rsquo;4&rsquo;,86&rsquo;V&rsquo;,120&rsquo;x&rsquo;,171,12}
                    -- whereas x"414243" displays as "ABC" (as all chars)</i></font>
 </pre>
         A hexadecimal string begins with the pair x&ldquo; (for 1 byte codes, u&ldquo;/U&ldquo; for 2/4 byte codes) and ends with a 
@@ -275,6 +269,8 @@ b"1 10 11_0100 01010110_01111000" == {0x01, 0x02, 0x34, 0x5678}
         or any actual code that actually uses that feature. Also note that since JavaScript does not support such
         hexadecimal strings, in that format, <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> automatically 
         maps them, for example x"123_456" ==> "\x12\x03\x45\x06".
+        As stated/implied at the start, single quotes can only hold single bytes and not multibyte UTF8 characters, for 
+        which double uotes must be used.
        <br>
        <br>
         On a practical note, as long as you have at least 2GB of physical memory, you 

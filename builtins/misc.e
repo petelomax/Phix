@@ -34,99 +34,18 @@ procedure sleep(integer t)
 end procedure
 --*/
 
---global function reverse(sequence s)
----- reverse the top-level elements of a sequence.
----- Thanks to Hawke' for helping to make this run faster.
---integer rlower, n, n2
---sequence t
---
---  n = length(s)
---  n2 = floor(n/2)+1
-----!/**/  t = repeat(iff(string(s)?' ':0),n) --/*
-----/**/ if string(s) then      --   -- Phix
-----/**/     t = repeat(' ',n)
-----/**/ else
-----/**/     t = repeat(0,n)
-----/**/ end if                 --/*
---  t = repeat(0, n)            --*/ -- RDS
---  rlower = 1
---  for rupper=n to n2 by -1 do
---      t[rupper] = s[rlower]
---      t[rlower] = s[rupper]
---      rlower += 1
---  end for
---  return t
---end function
-
---global function reverse_subset(sequence s, integer from_dx = 1, integer to_dx = -1)
---global function reverse(sequence s, integer from_dx = 1, integer to_dx = -1)
-global function reverse(sequence src, sequence from_to = {1,-1})
---  integer {from_dx,to_dx} = from_to, len = length(src)
-    integer from_dx = from_to[1],
-              to_dx = from_to[2],
-            len = length(src)
-
-    if from_dx<0 then from_dx += len+1 end if
-    if   to_dx<0 then   to_dx += len+1 end if
-    if len<2 or from_dx=to_dx then
-        return src
-    end if
-
---  sequence res = src
-    sequence res = repeat(iff(string(src)?' ':0),length(src))
-    integer midpoint = floor((from_dx+to_dx-1)/2),
-            uppr = to_dx
-    res[midpoint+1] = src[midpoint+1]
-    for lowr=from_dx to midpoint do
-        res[uppr] = src[lowr]
-        res[lowr] = src[uppr]
-        uppr -= 1
+global function reverse(sequence s)
+-- reverse the top-level elements of a sequence.
+-- Thanks to Hawke' for helping to make this run faster.
+    integer l = length(s)
+    sequence r = repeat(iff(string(s)?' ':0),l)
+    -- aside: midpoint written twice for odd-length s
+    for i=1 to ceil(l/2) do
+        r[i] = s[-i]
+        r[-i] = s[i]
     end for
-    return res
+    return r
 end function
-
---/* SUG: (or maybe reverse_unicode())
-function unicode_reverse(string utf8)
-    sequence utf32 = utf8_to_utf32(utf8)
-    --
-    -- The assumption is made that <char><comb1><comb2>
-    -- and <char><comb2><comb1> etc would work the same.
-    --
-    -- The following loop converts <char><comb1><comb2>
-    -- to <comb1><comb2><char>, as a pre-reverse() step.
-    --
-    for i=1 to length(utf32) do
-        integer ch = utf32[i]
-        if (ch>=0x300 and ch<=0x36f)
-        or (ch>=0x1dc0 and ch<=0x1dff)
-        or (ch>=0x20d0 and ch<=0x20ff)
-        or (ch>=0xfe20 and ch<=0xfe2f) then
-            utf32[i] = utf32[i-1]
-            utf32[i-1] = ch
-        end if
-    end for
-    utf32 = reverse(utf32)
-    utf8 = utf32_to_utf8(utf32)
-    return utf8
-end function
-
--- and maybe:
-function utf32_length(sequence utf32)
-    integer l = length(utf32)
-    for i=1 to l do
-        integer ch = utf32[i]
-        if (ch>=0x300 and ch<=0x36f)
-        or (ch>=0x1dc0 and ch<=0x1dff)
-        or (ch>=0x20d0 and ch<=0x20ff)
-        or (ch>=0xfe20 and ch<=0xfe2f) then
-            l -= 1
-        elsif ch=0x200D then -- ZERO WIDTH JOINER
-            l -= 2
-        end if
-    end for
-    return l
-end function
---*/
 
 --/* Not required for Phix (defined in psprint.e):
 global

@@ -64,11 +64,27 @@ maxatm 18,446,744,073,709,551,616
         the first/lowest value that if you add 1 to it, you&rsquo;ll get the same value right back - the same thing occurs in C/asm/etc.
         <br>
         <br>
-        Phix does <i><b>not</b></i> entertain the idea of unsigned integers: zero less one is -1, not suddenly +4GB, which is what happens in C-based languages.<br>
-        Sure, there are a few rare cases such as cryptographic and compression stuff, which warrant a bit of inline assembly, wherein you can do whatever
-        you need anyway, but normal hll code should <b>not</b> be making you wary of any such strange side-effects, all day and every day.<br>
-        Likewise storing &gt;=1GB in an integer leads to a clear no-nonsense type check error, telling you the file name and the line number where 
-        it went wrong, and, as long as you use the right editor, jumping there automatically, rather than quietly hiding the error.
+        While technically integers stored in IEEE-754 floats are limited to 53/64 bits of precision, that doesn&rsquo;t mean you cannot (sometimes) hold higher
+        numbers, in particular exact powers of two. Consider (in this case on 32 bit) 9223372036854775808 === #8000000000000000 === power(2,63).  Such numbers can 
+<!-- As of 1.0.5 the tokeniser slips into a special (somewhat slower) mode to minimise precision loss when parsing longer decimals. -->
+        only be held to the nearest multiple of 2048, but since the last 11 bits are zero that does not matter. However the decimal one can cause friction: should 
+        you type that into a source code file, at some point the tokeniser fetches each next digit, multiplies what it already has by ten and adds it on, and alas 
+        that means it succesively stores (or would like to):<br>
+        9223372036854775<br>
+        92233720368547758<br>
+        922337203685477580<br>
+        9223372036854775808<br>
+        but those are individually rounded to the nearest multiple of 4, 32, 256, and 2048 respectively, making them and everything that follows slightly wrong. 
+        In contrast, when parsing #8..00 it only ever drops bits which are all zero anyway, so that ends up spot on. Just something you should bear in mind.
+        <small>(As it happens, I know exactly how to parse decimal as accurately as hex, but someone would actually have to pay me lots to do it.)</small>
+        <br>
+        <br>
+        Phix does <i><b>not</b></i> entertain the idea of unsigned integers: zero less one is -1, not four billion/GB or eight quintillion/PB. You can easily 
+        mimic all that kinda stuff explicitly for cryptography, hashing, compression and the like when needed, but there is no need to be wary of any such 
+        strange side-effects, all day and every day. Exceeding the capacity of an integer leads to a clear no-nonsense type check error, telling you the file 
+        name and line number where it went wrong (with Edita jumping there automatically), rather than quietly hiding the error/overflow and stumbling on in 
+        some kind of forlorn and frankly foolish hope it somehow won&rsquo;t matter. At least when you exceed a float/FPU register it ends up inf, which is 
+        simply never mistaken for anything else, but there&rsquo;s just nothing remotely equivalent for an integer/CPU register.
         <br>
         <br>
         While you can store any integer value in a variable declared as an atom, the reverse is not true.
@@ -101,7 +117,7 @@ maxatm 18,446,744,073,709,551,616
        <br>
        <br>
         <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>: JavaScript is inherently a 32-bit system, and the limits
-        above for 32-bit apply, even in 64-bit browsers (not that I have thoroughly tested or researched that).
+        above for 32-bit (atoms) apply, even in 64-bit browsers (not that I have thoroughly tested or researched that).
        <br>
        <br>
        See also: <a href="numberbases.htm">Number Bases</a>

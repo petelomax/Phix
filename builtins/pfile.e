@@ -13,7 +13,8 @@ include file_utils.e
 atom finit = 0, W, xMoveFile, xDeleteFile, xCopyFile, 
      xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
      xCreateFileA, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
-     xSystemTimeToFileTime, xCloseHandle, xGetLastError
+     xSystemTimeToFileTime, xCloseHandle, xGetLastError,
+     last_file_error -- (debug aid)
 --,x40
 
 --Windows only constants for MoveFileEx:
@@ -327,7 +328,7 @@ end function
 
 --11/9/19:
 --global function copy_file(string src, dest, bool overwrite=false)
-function copy_one_file(string src, dest, bool overwrite=false)
+local function copy_one_file(string src, dest, bool overwrite=false)
     integer success
 --  if not finit then initf() end if
 
@@ -344,6 +345,8 @@ function copy_one_file(string src, dest, bool overwrite=false)
 
     if platform()=WINDOWS then
         success = c_func(xCopyFile, {src, dest, not overwrite})
+--      if success=0 then ?{"copy_one_file",c_func(xGetLastError,{})} end if
+        if success=0 then last_file_error = c_func(xGetLastError,{}) end if
     else
         success = 0
         if file_exists(src) then

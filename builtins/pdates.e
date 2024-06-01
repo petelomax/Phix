@@ -74,6 +74,12 @@ global function day_of_week(object y, integer m=0, d=0, bool bAsText=false)
     if sequence(y) then {y,m,d} = y end if -- (extract DT_YEAR,DT_MONTH,DT_YEAR)
     integer l
     if not dinit then initd() end if
+--23/5/24: (erm, still maybe.. [untested])
+--  if m=13 then y += 1; m = 1 elsif m=0 then y -= 1 m = 12 end if
+--  if d=0 then
+--      if m=1 then y -=1; m = 12 else m -= 1 end if
+--      d = days_in_month(y, m)
+--  end if
     if d<1 or d>31 or m<0 or m>12 or (y!=0 and y<1752) then ?9/0 end if
     if y!=0 or m!=0 or not bAsText or d>7 then
         y -= m<3

@@ -131,7 +131,9 @@ end procedure -- (for Edita/CtrlQ)
         sub eax,1
         jz :opRepsSeqNoClone
         mov [esi-8],eax         -- non-1 so no need to dealloc
-        mov eax,[esp+ecx*4+4]   -- era
+--29/5/24:
+--      mov eax,[esp+ecx*4+4]   -- era
+        mov eax,[esp+ecx*4+12]  -- era
         push ecx                --[2] no of remainding indexes
         push edi                --[3] idx
         mov ecx,edx
@@ -938,7 +940,9 @@ end procedure -- (for Edita/CtrlQ)
         sub rax,1
         jz :opRepsSeqNoClone64
         mov [rsi-16],rax        -- non-1 so no need to dealloc
-        mov rax,[rsp+rcx*8+8]   -- era
+--29/5/24:
+--      mov rax,[rsp+rcx*8+8]   -- era
+        mov rax,[rsp+rcx*8+24]  -- era
         push rcx                --[2] no of remainding indexes
         push rdi                --[3] idx
         mov rcx,rdx

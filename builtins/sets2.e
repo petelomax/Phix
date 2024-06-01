@@ -60,8 +60,9 @@ global procedure add_member(integer sid, object x)
         if k>length(set) then
             set = append(set,x)
         else
-            set = set[1..k-1] & 0 & set[k..$]
-            set[k] = x
+--          set = set[1..k-1] & 0 & set[k..$]
+--          set[k] = x
+            set[k..k-1] = {x}
         end if
         sets[sid] = set
     end if
@@ -77,7 +78,8 @@ global procedure add_members(integer sid, sequence items)
     sets[sid] = 0
 --  if sequence(set) then
     if length(set)=0 then
-        set = unique(deep_copy(items,1))
+--      set = unique(deep_copy(items,1))
+        set = unique(deep_copy(items))
     else
         for i=1 to length(items) do
             object x = items[i]
@@ -225,7 +227,8 @@ global function union(object s1, s2=0, tgt=0)
         if in_situ then
             sets[tgt] = 0
         else
-            s1 = deep_copy(s1,1)
+--          s1 = deep_copy(s1,1)
+            s1 = deep_copy(s1)
         end if
 --          if integer(s1) then
 --              s1 = getd_all_keys(s1)
@@ -368,7 +371,8 @@ global function intersection(object s1, s2=-1, integer tgt=0)
             if in_situ then
                 sets[tgt] = 0
             else
-                s1 = deep_copy(s1,1)
+--              s1 = deep_copy(s1,1)
+                s1 = deep_copy(s1)
             end if
             s2 = sets[s2]
             if string(s1) then res = "" end if
