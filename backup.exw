@@ -1,0 +1,752 @@
+--
+-- backup.exw
+-- ==========
+--
+-- Manage/maintain a backup of important files.
+--
+-- The C:\Users\pete\backup_ctrl.txt file
+-- ======================================
+--
+--  Flat, manually created:
+--      :F:\backups\
+--      +C:\a\b\test.txt
+--
+--  Nested, assisted creation:
+--      :F:\backups\
+--      -C:\
+--      - a\
+--      -  b\
+--      +   text.txt
+--
+--  Both will create F:\backups\C\a\b\test.txt
+--  You can mix and match manual/assisted forms as you see fit.
+--  Should you know exactly which files to backup that's great,
+--  but if not this program is designed to offer assistance and
+--  ensure you find everything and don't miss out some things.
+--  Obviously directories end in \ (or /), files don't, and that
+--  is carefully verified by this program, using get_file_type().
+--  The first character of *every* line must be a control code:
+--
+--      ;comment
+--      :<target_dir> must/multiple can exist
+--      @schedule info and similar
+--
+--    directories:
+--
+--      -<dir> - stashed in roots[leading_spaces+1]
+--      +<dir> - expand, then manually edit and re-run
+--       Note children *must* be in string {dir} {file} order.
+--
+--    files:
+--      -file - skip this/these
+--      +file - save this/these if date/time/size has changed
+--      *file - save this/these irrespective of date/time/size
+--X     ?file - needs a (manual) decision to be made (just make them all -) [DEV]
+--       n leading spaces consults roots[n]
+--       files of *.ext (NN files) permitted/auto-generated
+--X      note that -/* trigger "dir() mode" and that is the 
+--        reason why {file} cannot be followed by any {dir}.
+
+--SUG:
+--constant keep99 = {1,3,6,10,15,21,28,36,45,55,64,72,79,85,90,94,97,99}
+--  d = dir("dir/prefix.*.ext")
+--  if length(d)=99 => 81..99, deleting 80, then store as 80
+--  elsif last is 99 then 99-length(d) should not exist...
+--      if not store as that else warn and store as ??...
+--  else length(d)+1 should not exist
+--      if not store as that else warn and store as ??...
+-- better: (same dir)
+--  if exactly 99 then
+--      delete all even
+--      renumber 97..1 as 98..50, save as 49
+--  elsif 99 exists
+--     or first!=1 or last!=len(d) then
+--      if first is not 99-len(d)[?] then
+--          renumber using d[$..1] (no deletions)
+--      end if
+--      save as 99-len(d)[?]
+--  else
+--      save as len(d)+1
+--  end if
+
+--OLD:
+-- The first step is to decide whih files need to be backed up.
+-- This program is controlled by and helps you setup and maintain 
+-- a plain text file "backup_ctrl.txt" in your home directory.
+-- In the first instance said file is iteratively built, integrated
+-- with xpEditor, and typically starts off with something like:
+--      :<full path to target backup directory>
+--      @manual
+--      -C:\
+--      -E:\
+--      -F:\
+--      -G:\
+--      -H:\
+-- The idea is to manually edit that file and re-run, several times.
+-- As it stands that file backs up nothing, and will error out if the
+-- target directory does not exist/cannot be created. Change some of
+-- those - to + and rerunning backup.exw will expand those directories
+-- by one level. (You wouldn't like it if it started off with a fully
+-- expanded list of every directory on your system!) Each expansion is
+-- indented by one more space, mirroring the directory structure.
+--
+-- backup_ctrl.txt format:
+--      prefix      dir meaning         file meaning
+--        :         target dir          n/a, error
+--        @         ------ n/a, schedule info ------ [optional]
+--        ;         --------- n/a, comment ---------     ""
+--        -         ignored             ignore      (can just be deleted)
+--        +         load, => -          backup this (can be *.ext format)
+--        ?         reload              undecided
+--
+--  On a directory, + and ? do the same thing, pairing off a directory
+--  listing against any relevant lines, but + becomes - whereas ? stays.
+--  The directory listing is always processed as <dirs> then <files>.
+--  Files are auto-grouped into *.ext when 5 or more of such exist.
+--  For finer control than that you'd have to manually enter things.
+--  New directories get a - whereas new files get a ?, and the latter
+--  **MUST** be manually edited to + or - or the line deleted.
+--
+--umm:  
+-- AH: this file should really be part of xpEditor...
+
+include pfile.e -- temp/remove
+
+constant CLI_DEFAULT = false, -- true: cli by default, -cli for gui
+                              -- false: gui by default, -cli for cli
+         CL = command_line(),
+         CLI = (find("-cli",CL)=0)=CLI_DEFAULT,
+         BCDIR = join_path(iff(platform()=WINDOWS?{getenv("HOMEDRIVE"),
+                                                   getenv("HOMEPATH")}
+                                                 :9/0)),
+         BACKUP_CTRL = join_path({BCDIR,"backup_ctrl.txt"})
+
+if CLI then end if  -- DEV not yet used...
+
+sequence star_counts    -- +ve: report if less
+                        -- -ve: report if not == abs()
+
+function not_ext(sequence nx, string ext) return nx[2]!=ext end function
+
+function dfilter(sequence d)
+    -- d is an entry from dir()
+    string dname = d[D_NAME]
+    return not find(dname,{".","..","PerfLogs","DefaultAppPool"})
+       and not find('?',dname)
+       and not find('$',dname)
+       and not begins("hs",d[D_ATTRIBUTES])
+end function
+
+function process_ctrl_file()
+    -- returns {} if BACKUP_CTRL was rewritten / needs review
+    sequence lines,         -- as read/returned
+          outlines = {}     -- as to be written (if changed)
+    bool bTargetOK = false,
+         bChanged = false
+
+    if not file_exists(BACKUP_CTRL)
+    or get_file_size(BACKUP_CTRL)<10 then
+        sequence d = vslice(get_logical_drives(DRIVE_FIXED),1)
+        outlines = {":<backup path>","@unscheduled",join(d,"\n",fmt:="-%s")}
+        bChanged = true
+    else
+        lines = get_text(BACKUP_CTRL,GT_LF_STRIPPED)
+        star_counts = repeat(0,length(lines))
+        sequence roots = {}
+        integer ldx = 1
+        while ldx <= length(lines) do
+            string line = lines[ldx], ns,
+                  dfull = line[2..$],
+                  dname = trim_head(dfull,' ')
+            integer nls = length(dfull)-length(dname),
+                     c1 = line[1]
+--                  , c
+            bool bDir = (dname[$]=='\\')
+            ldx += 1
+            if not find(c1,":@;") then
+--              bool bDir = (dname[$]=='\\')
+                if nls=0 then
+                    assert(bDir)
+                    assert(get_file_type(dname)=FILETYPE_DIRECTORY)
+                    roots = {dname}
+                else
+                    string root = roots[nls]
+                    dfull = join_path({root,dname})
+                    if bDir then
+                        if length(roots)<nls+1 then
+                            roots = append(roots,dfull)
+                        else
+                            roots[nls+1] = dfull
+                            roots = roots[1..nls+1]
+                        end if
+                    end if
+                end if
+--?line
+--?dfull
+                ns = repeat(' ',nls+1)
+            end if
+            switch c1 do
+
+                case ':':   assert(get_file_type(dfull)=FILETYPE_DIRECTORY)
+                            bTargetOK = true
+                            fallthrough
+                case '@',
+                     '-',
+                     ';':   outlines = append(outlines,line)
+                            break
+
+                case '+':   if bDir then
+                                line[1] = '-'
+                                bChanged = true
+                                if get_file_type(dfull)!=FILETYPE_DIRECTORY then
+                                    crash("please edit %s line %d (%s [=>%d])",{BACKUP_CTRL,ldx-1,line,dfull})
+                                end if
+                                outlines = append(outlines,line)
+--                  sequence d = dir(dname), exts = {}, ec = {}, ec1 = {}
+--                              sequence d = dir(dfull), exts = {}, ec = {}, ec1 = {}
+                                sequence d = filter(dir(dfull),dfilter), exts = {}, ec = {}, ec1 = {}
+                                integer dlen = 0
+                                -- step 1: process directories and filter/pack files
+                                for e in d do
+                                    string ename = e[D_NAME]
+--                                         eattr = e[D_ATTRIBUTES]
+--                                  if not find(ename,{".","..","PerfLogs"})
+--                                  and not find('?',ename)
+--                                  and not find('$',ename)
+--                                  and not begins("hs",eattr) then
+--                          if get_file_type(dname)=FILETYPE_DIRECTORY then
+--                          integer eft = get_file_type(ename)
+                                        string efull = join_path({dfull,ename})
+                                        integer eft = get_file_type(efull)
+                                        if eft=FILETYPE_DIRECTORY then
+                                -- pair off?
+--                              line = sprintf("%s%s",{repeat(' ',nls+1),ename})
+                                            line = sprintf(`-%s%s\`,{ns,ename})
+                                            outlines = append(outlines,line)
+--/*
+--?line
+--                              integer c2 = '-'
+--                              while ldx<=length(lines) 
+                                do
+                                    c = iff(ldx>length(lines)?1:compare(lines[ldx][2..$],line))
+                                    if c>0 then
+                                        outlines = append(outlines,'-'&line)
+                                        bChanged = true
+                                        exit
+                                    elsif c=0 then
+?{"process_dir",root,dfull,efull}
+                                        process_dir(efull)
+                                        exit
+                                    end if
+                                    ldx += 1
+--                                  if c=1 then c2 = lines[ldx-1][1]; exit end if
+                                until false
+--                              end while
+--*/                                
+--                          else
+                                        elsif eft=FILETYPE_FILE then
+                                            -- nb "libglfw.so.3.1" yields "so", so that sort
+                                            --    of thing might have to be manually entered. 
+                                            string ext = get_file_extension(ename)
+                                            if length(ext) then
+                                                integer exdx = find(ext,exts)
+                                                if exdx=0 then
+                                                    exts = append(exts,ext)
+                                                    ec &= 1
+                                                    ec1 &= '-'
+                                                else
+                                                    ec[exdx] += 1
+                                                end if
+                                            end if
+                                            dlen += 1
+                                            d[dlen] = {ename,ext} --DEV ++...?
+                                        else
+                                            -- typically resolved by modifying dfilter():
+                                            ?9/0 -- unknown filetype?? 
+                                        end if
+--                                  end if
+                                end for
+--Maybe: copy any too-deep_nested and remaining dirs with a leading '?'
+                                if dlen then
+                                    d = d[1..dlen]
+--/*
+?d
+                        -- first, discard any *.ext from lines[ldx] on:
+                        while ldx<=length(lines)
+                          and trim(lines[ldx][2..nls+2])="*." do
+                            string ext = lines[ldx][nls+3..$]
+                            integer k = find('(',ext)
+                            if k then ext = trim(ext[1..k-1]) end if
+                            k = find(ext,exts)
+                            if k then
+                                ec1[k] = lines[ldx][1]
+                            end if
+?{"discard",lines[ldx]}
+                            ldx += 1
+                        end while
+--*/
+                                    if max(ec)>=5 then
+                                        for i,n in ec do
+                                            if n>=5 then
+                                                string ei = exts[i]
+                                                d = filter(d,not_ext,ei)
+--                                              line = sprintf("%c%s*.%s (%d files)",{ec1[i],ns,ei,n})
+                                                line = sprintf("-%s*.%s (%d files)",{ns,ei,n})
+                                                outlines = append(outlines,line)
+                                            end if
+                                        end for
+                                    end if                          
+--                      if length(d) then
+                                    for di in d do
+--                          line = sprintf("%s%s",{repeat(' ',nls+1),di[1]})
+                                        line = sprintf("-%s%s",{ns,di[1]})
+--/*
+                                        line = sprintf("%s%s",{ns,di[1]})
+                            c1 = '?'
+                            while ldx<=length(lines) do
+                                c = compare(lines[ldx][2..$],line)
+                                if c>0 then exit end if
+                                ldx += 1
+                                if c=0 then c1 = lines[ldx-1][1]; exit end if
+                            end while
+                            outlines = append(outlines,c1&line)
+--*/
+                                        outlines = append(outlines,line)
+                                    end for
+                                end if
+                            else -- not bDir
+                                if dname[1]!='*'
+                                and get_file_type(dfull)!=FILETYPE_FILE then
+                                    crash("please edit %s line %d (%s [=>%d])",{BACKUP_CTRL,ldx-1,line,dfull})
+                                end if
+                                outlines = append(outlines,line)
+                            end if
+                            break
+                default:
+                            ?9/0
+            end switch
+--          if c1!=':' and c1!=';' and not bTargetOK then ?9/0 end if -- (must be first line)
+--          if c1!=';' and not bTargetOK then ?9/0 end if -- (must be first line)
+            assert(bTargetOK or c1=';') -- (must be first line)
+        end while
+
+    end if
+    if bChanged then
+--      if not write_lines(BACKUP_CTRL,outlines)!=+1 then
+?"write?"
+if not find(lower(wait_key()),{#1B,'n','q'}) then
+        if write_lines(BACKUP_CTRL,outlines)!=+1 then
+            crash("error writing %s",{BACKUP_CTRL})
+        end if
+        printf(1,"%s updated, please edit...",{BACKUP_CTRL})
+        wait_key()
+--      abort(0)
+        return {}
+end if
+    end if
+--...
+
+    return lines
+end function
+
+--TEMP, until ends() formally supported (code/docs already updated)
+function my_ends(object sub_text, sequence full_text)
+    integer lf = length(full_text)
+    if lf=0 then return false end if
+    if atom(sub_text) then
+        -- eg ends('t',"cat") -> true.
+        return sub_text==full_text[$]
+    end if
+    integer ls = length(sub_text)
+    return ls<=lf and sub_text==full_text[-ls..-1]
+end function
+
+sequence exset
+function exclude(sequence d, string dname)
+    if dname[1]='*' then
+        exset = {}
+        assert(dname[2]='.')
+        string ext = dname[3..$]
+        integer n = 0, en = 0
+        if my_ends(" files)",ext) then
+--?scanf(ext,"%s (%d files)")
+            {ext,en} = scanf(ext,"%s (%d files)")[1]
+--          ?9/0
+        end if
+        sequence r = {}
+        for i,e in d do
+            if get_file_extension(e[D_NAME])=ext then
+                exset &= i
+--              exset = append(exset(e))
+            else
+                r &= i
+            end if
+        end for
+        integer l = length(exset)
+        if l then
+            exset = extract(d,exset)
+            d = extract(d,r)
+        end if
+        if en!=0 and en!=l then
+--fullpath?
+            printf(1,"Warning: %s got %d\n",{dname,l})
+        end if
+    else
+        for i,e in d do
+            if e[D_NAME]=dname then
+                d[i..i] = {}
+                exit
+            end if
+        end for
+    end if
+--/*
+{"*.php (6 files)",{{"backup","d",0,2022,1,31,20,16,4},{"cpp.php","a",10103,2015,8,16,20,55'7',4},{"d.php","a",11093,2015,8,17,14,38'&',56'8'},{"euphoria.php","a",5161,2015,8,16,20,45'-',29},{"ex.err","a",603,2022,1,31,20,6,42'*'},{"matlab.php","a",11195,2015,8,17,14,46'.',52'4'},{"ocaml.php","a",8413,2015,8,17,14,47'/',11},{"phix.php","a",8405,2022,1,31,20,16,4},{"phix.zip","a",2823,2015,9,15,9,28,52'4'},{"todo.txt","a",2102,2015,8,22,22,21,16}}}
+--*/
+    return d
+end function
+
+integer skipped = 0, copied = 0
+procedure copy_one_file(string inpath, outpath, dname)
+    string infile = join_path({inpath,dname}),
+          outfile = join_path({outpath,dname})
+    bool bChanged = true
+    if file_exists(outfile) then
+        sequence din = dir(infile),
+                 dout = dir(outfile)
+        assert(length(din)=1)       
+        assert(length(dout)=1)
+        assert(din[1][D_NAME]==dout[1][D_NAME])
+        if din[1][D_SIZE]==dout[1][D_SIZE]
+        and din[1][D_YEAR..D_SECOND] <= dout[1][D_YEAR..D_SECOND] then
+            bChanged = false
+        end if
+    end if
+--if bChanged then
+    if not bChanged then
+--  printf(1,"skipping %s\n",{dfull})
+        skipped += 1
+    else
+-- printf(1,"copying %s to %s...",{infile,outfile})
+ printf(1,"copying %s...",{infile})
+        if not copy_file(infile,outfile,true) then
+            crash("error copying %s to %s",{infile,outfile})
+        end if
+ puts(1,"\n")
+        copied += 1
+    end if
+end procedure
+
+procedure save_files(sequence lines)
+--      star_counts = repeat(0,length(lines))
+    sequence roots = {}, d
+    string target, lastout = ""
+--  integer skipped = 0, copied = 0
+    for line in lines do
+--  integer ldx = 1
+--      while ldx <= length(lines) do
+--          string line = lines[ldx],
+            string ns,
+                  dfull = line[2..$],
+                  dname = trim_head(dfull,' ')
+            integer nls = length(dfull)-length(dname),
+                     c1 = line[1]
+--                  , c
+            bool bDir = (dname[$]=='\\')
+--          ldx += 1
+            if not find(c1,":@;") then
+--              bool bDir = (dname[$]=='\\')
+                if nls=0 then
+--                  assert(bDir)
+--                  assert(get_file_type(dname)=FILETYPE_DIRECTORY)
+                    roots = {dname}
+                else
+                    string root = roots[nls]
+                    dfull = join_path({root,dname})
+                    if bDir then
+                        if length(roots)<nls+1 then
+                            roots = append(roots,dfull)
+                        else
+                            roots[nls+1] = dfull
+                            roots = roots[1..nls+1]
+                        end if
+                    end if
+                end if
+--?line
+--?dfull
+                ns = repeat(' ',nls+1)
+            end if
+            switch c1 do
+
+                case ':':   --assert(get_file_type(dfull)=FILETYPE_DIRECTORY)
+--                          bTargetOK = true
+--                          fallthrough
+                            target = dfull
+                case '@',
+--                   '-',
+                     ';':   --outlines = append(outlines,line)
+                            break
+                case '-',
+                     '+':   if bDir then
+                                if c1='+' then ?9/0 end if
+--/*
+                                line[1] = '-'
+                                bChanged = true
+                                if get_file_type(dfull)!=FILETYPE_DIRECTORY then
+                                    crash("please edit %s line %d (%s [=>%d])",{BACKUP_CTRL,ldx-1,line,dfull})
+                                end if
+                                outlines = append(outlines,line)
+                                sequence d = dir(dfull), exts = {}, ec = {}, ec1 = {}
+                                integer dlen = 0
+                                -- step 1: process directories and filter/pack files
+                                for e in d do
+                                    string ename = e[D_NAME],
+                                           eattr = e[D_ATTRIBUTES]
+                                    if not find(ename,{".","..","PerfLogs"})
+                                    and not find('?',ename)
+                                    and not find('$',ename)
+                                    and not begins("hs",eattr) then
+                                        string efull = join_path({dfull,ename})
+--                                      integer eft = get_file_type(efull)
+                                    end if
+                                end for
+                                if dlen then
+                                    d = d[1..dlen]
+                                    if max(ec)>=5 then
+                                        for i,n in ec do
+                                            if n>=5 then
+                                                string ei = exts[i]
+                                                d = filter(d,not_ext,ei)
+                                                line = sprintf("-%s*.%s (%d files)",{ns,ei,n})
+                                                outlines = append(outlines,line)
+                                            end if
+                                        end for
+                                    end if                          
+                                    for di in d do
+                                        line = sprintf("-%s%s",{ns,di[1]})
+                                        outlines = append(outlines,line)
+                                    end for
+                                end if
+--*/
+                            else -- not bDir
+--?dfull
+--?split_path(dfull)
+                                sequence sp = split_path(dfull)
+                                string inpath = join_path(sp[1..$-1])
+                                if platform()=WINDOWS then
+                                    assert(length(sp[1])=2 and sp[1][2]=':')
+                                    sp[1] = sp[1][1..1]
+                                end if
+                                dname = sp[$]
+                                string outpath = join_path({target}&sp[1..$-1])
+--                                       dname = sp[$],
+--                                     outfile = join_path({outpath,dname})
+                                if get_file_type(outpath)!=FILETYPE_DIRECTORY then
+                                    if not create_directory(outpath) then
+                                        crash("error creating "&outpath)
+                                    end if
+                                end if
+                                if lastout!=outpath then
+                                    lastout = outpath
+                                    d = filter(dir(get_proper_dir(dfull)),dfilter)
+                                end if
+                                if c1='-' then
+                                    d = exclude(d,dname)
+                                    break
+                                end if
+--                              string outfile = join_path({target}&sp)
+--                              copy_file
+                                if dname[1]!='*' then
+--?9/0
+--check date??
+                                    copy_one_file(inpath,outpath,dname)
+                                else
+--  zz                              ?{"*.ext not yet implemented",dname}
+                                    d = exclude(d,dname)
+                                    for de in exset do
+                                        copy_one_file(inpath,outpath,de[D_NAME])
+                                    end for
+                                end if
+--                              and get_file_type(dfull)!=FILETYPE_FILE then
+--                                  crash("please edit %s line %d (%s [=>%d])",{BACKUP_CTRL,ldx-1,line,dfull})
+--                              end if
+--                              outlines = append(outlines,line)
+                            end if
+                            break
+                default:
+                            ?9/0
+            end switch
+--          if c1!=':' and c1!=';' and not bTargetOK then ?9/0 end if -- (must be first line)
+--          if c1!=';' and not bTargetOK then ?9/0 end if -- (must be first line)
+--          assert(bTargetOK or c1=';') -- (must be first line)
+--      end while
+if get_key()=#1B then
+    ?"backup aborted"
+    exit
+end if
+    end for
+--?target
+    printf(1,"%d files skipped, %d copied\n",{skipped,copied})
+end procedure
+
+sequence lines = process_ctrl_file()
+if length(lines) then
+    save_files(lines)
+end if
+
+?"done"
+wait_key()
+abort(0)
+
+
+--procedure process_files(integer nls, sequence d)
+--  --
+--  -- Process lines[ldx] and all lines following it with
+--  -- the same/specified number of leading spaces. 
+--  -- Only called when a directory has been (re-)loaded 
+--  -- (and pre-filtered in d). Note that if lines[ldx]
+--  -- does not have nls spaces, it just copies out d,
+--  -- with the same sorting, but without "pairing off".
+--  --
+--  ?"process files"
+--  ?d
+--  ?nls
+--  -- count/sort extensions...
+--end procedure
+
+--procedure process_dir(string root="")
+--?{"process_dir",root}
+    --
+    -- Process lines[ldx] and all lines following it with
+    -- more leading spaces. Errors if not a valid directory.
+    -- Calls itself recursively to deal with lines[] entries,
+    -- but may also just add any extras found to outlines.
+    -- Note there is a "fast path" for - lines, ie we rebuild
+    -- outlines, fairly pointlessly, then do the actual backup
+    -- as long as everything is valid and nothing has changed.
+    --
+--while true do
+--?{root,dname,dfull}
+--  switch c1 do
+--      case ':':   assert(get_file_type(dfull)=FILETYPE_DIRECTORY)
+--                  bTargetOK = true
+--                  fallthrough
+--      case '@',
+--           '-',
+--           ';':   outlines = append(outlines,line)
+--                  break
+--      case '-':   outlines = append(outlines,line)
+--                  if ldx<=length(lines)
+--                  and lines[ldx][2..nls+3]=repeat(' ',nls+2) then
+--                      string mfull = join_path({dfull,line[nls+3..$]})
+----                    if get_file_type(mfull)=FILETYPE_DIRECTORY then
+--                      process_dir(mfull)
+--                  end if
+--                  break
+--                          line = sprintf("%c%s*.%s (%d files)",{ec1[i],repoeat(' ',nls),exts[i],n})
+--                  outlines = append(outlines,l)
+--      default:
+--                  ?9/0
+--  end switch
+--until ldx>length(lines) or lines[ldx][2..nls+2]!=repeat(' ',nls+1)
+--  if c1=':' or c1='@' then exit end if
+--  if ldx>length(lines) then exit end if
+--  line = lines[ldx]
+--  if line[2..nls+2]!=ns then exit end if
+--  ldx += 1
+--  c1 = line[1]
+--end while
+--until ldx>length(lines) or lines[ldx][2..nls+2]!=ns
+--end procedure
+
+--sequence d
+--  ?lines
+--  ?outlines
+--  {sequence lines, bool bChanged} = process({},read_lines(BACKUP_CTRL),1)
+--/*
+--?lines
+--  bool bChanged = false
+    for l in lines do
+        if length(l) then
+--      integer c = l[1]
+--      l
+            switch l[1] do
+                case ':':   assert(get_file_type(l[2..$])=FILETYPE_DIRECTORY)
+                            fallthrough
+                case '@':
+                            outlines = append(outlines,l)
+                case '>':   d = dir(l[2..$])
+?d
+{{"apache-ant-1.8.4","d",0,2012,9,18,19,58':',38'&'},
+ {"byethost","d",0,2017,12,13,15,14,53'5'},
+ {"bytehost","d",0,2017,12,14,17,10,39'''},
+ {"Convert.txt","a",93']',2012,7,15,2,19,8},
+ {"Copy.txt","a",93']',2012,7,15,2,19,8},
+ {"CXPL","d",0,2019,1,1,15,28,18},
+ {"cygwin64","d",0,2020,3,26,15,57'9',50'2'},
+ {"Downloads","d",0,2024,4,27,7,59';',33'!'},
+ {"edita015","d",0,2016,6,18,19,41')',51'3'},
+ {"euphoria","d",0,2018,10,6,10,18,26},
+ {"Euphoria-devel","d",0,2024,4,6,11,33'!',32' '},
+ {"EXPL32","d",0,2020,12,5,1,56'8',37'%'},
+ {"FPC","d",0,2019,6,28,20,3,47'/'},
+ {"Go-old","d",0,2019,7,17,9,43'+',5},
+ {"grldr","a",217769,2014,9,14,2,38'&',11},
+ {"grldr.mbr","a",9216,2014,9,14,2,38'&',31},
+ {"GTK","d",0,2018,10,27,16,28,9},
+ {"gtk-build","d",0,2023,6,6,19,12,18},
+ {"gtkX","d",0,2023,3,5,11,34'"',4},
+ {"inetpub","d",0,2024,4,30,23,26,34'"'},
+ {"Intel","d",0,2012,6,20,10,31,26},
+ {"ldc","d",0,2019,1,23,3,1,39'''},
+ {"menu.lst","a",271,2014,9,14,2,38'&',43'+'},
+ {"Microsoft","d",0,2014,1,17,13,7,34'"'},
+ {"MinGW","d",0,2021,3,21,21,22,7},
+ {"MinGW-w64","d",0,2019,7,17,11,20,36'$'},
+ {"msys64","d",0,2019,6,12,13,23,24},
+ {"mw","d",0,2020,6,19,2,31,40'('},
+ {"OneDriveTemp","hd",0,2019,5,22,17,39''',29},
+ {"PerfLogs","d",0,2024,6,3,12,31,27},
+ {"Phix","d",0,2018,4,9,14,42'*',41')'},
+ {"Phix-NOT","d",0,2020,9,16,12,56'8',53'5'},
+ {"Program Files","rd",0,2024,6,4,10,26,46'.'},
+ {"Program Files (x86)","rd",0,2024,5,1,11,41')',54'6'},
+ {"ProgramData","hd",0,2024,5,31,17,28,9},
+ {"Python27","da",0,2019,6,15,23,6,51'3'},
+ {"Python311","d",0,2024,1,30,18,52'4',20},
+ {"Python312","d",0,2024,5,9,13,36'$',50'2'},
+ {"rakudo","d",0,2018,11,9,6,20,19},
+ {"raylib","d",0,2019,7,5,1,6,55'7'},
+ {"RHDSetup.log","a",2142,2012,6,20,10,30,13},
+ {"Ruby22","d",0,2017,5,19,4,19,37'%'},
+ {"Ruby26-x64","d",0,2019,9,17,10,32' ',26},
+ {"Strawberry","d",0,2020,2,2,9,10,33'!'},
+ {"TDM-GCC-64","da",0,2016,2,26,11,30,35'#'},
+ {"tecgraf","d",0,2016,2,22,5,20,38'&'},
+ {"tools","d",0,2023,6,6,18,38'&',38'&'},
+ {"Users","rd",0,2024,5,1,11,42'*',4},
+ {"Windows","d",0,2024,6,4,10,10,58':'},
+ {"XEdita","d",0,2014,1,2,17,3,29}}
+
+C:\Program Files (x86)\Phix\backup.exw:70
+attempt to divide by 0
+
+Global & Local Variables
+
+--> see C:\Program Files (x86)\Phix\ex.err
+Press Enter...
+fallthrough
+                default: ?9/0
+            end switch
+        end if
+    end for
+--*/
+--?CL
+--?CLI
+--?BACKUP_CTRL
+--?get_logical_drives(DRIVE_FIXED)
+--/*
+`C:\Users\Pete\backup_ctrl.txt`
+{{`C:\`,3},{`E:\`,3},{`F:\`,3},{`G:\`,3},{`H:\`,3}}
+--*/
+wait_key()
+--if CLI then wait_key() end if

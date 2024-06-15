@@ -362,7 +362,7 @@ integer vmin, vmax
     end if
     return 0
 end type
---with trace
+with trace
 
 global function timedelta(atom weeks=0, atom days=0, atom hours=0, atom minutes=0, atom seconds=0, atom milliseconds=0, atom microseconds=0)
 --
@@ -767,7 +767,9 @@ integer days, minutes, hours, milliseconds
     minutes = floor(seconds/60)
     seconds -= minutes*60
 
-    milliseconds = floor((seconds-floor(seconds))*1000)
+--15/6/24
+--  milliseconds = floor((seconds-floor(seconds))*1000)
+    milliseconds = round((seconds-floor(seconds))*1000)
     seconds = floor(seconds)
 
     return julian_day_to_timedate(days, hours, minutes, seconds, milliseconds)
@@ -776,6 +778,11 @@ end function
 
 global function adjust_timedate(sequence td, atom delta)
     integer {y,m,d} = td, dsrule, tz, stz
+--15/6/24:
+    bool y0m0 = y=0 and m=0
+    td = deep_copy(td)
+    if y0m0 then td[1..3] = {2024,1,1}; {y,m,d} = td end if
+    assert(y>=1752,"date prior to introduction of Gregorian calendar")
     if m<1 then
         do
             m += 12
@@ -801,7 +808,7 @@ global function adjust_timedate(sequence td, atom delta)
     integer ltd = length(td)
     if ltd>=7 then
     --p2js
-        td = deep_copy(td)
+--      td = deep_copy(td)
         td[1..7] = seconds_to_timedate(secs)
     else
         td = seconds_to_timedate(secs)
@@ -846,6 +853,9 @@ global function adjust_timedate(sequence td, atom delta)
     if delta!=0 then
         td[1..7] = seconds_to_timedate(timedate_to_seconds(td)+delta)
     end if
+    if y0m0 then
+        td[1..3] = {0,0,0}
+    else
 --4/3/18 don't clobber DT_MSECS!
 --  if length(td)>=DT_DOW then
 --      td[DT_DOW] = day_of_week(td)
@@ -856,7 +866,7 @@ global function adjust_timedate(sequence td, atom delta)
 --          td[DT_DOY] = day_of_year(td)
             td[DT_DOY] = day_of_year(y,m,d)
         end if
---  end if
+    end if
 --1/5/24:
     if ltd<9 and ltd<length(td) then td = td[1..ltd] end if
     return td
