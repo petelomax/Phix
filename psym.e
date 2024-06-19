@@ -2668,6 +2668,7 @@ end if
     initialAutoEntry("bankers_rounding",        S_Func,"FNI",   "pmaths.e",0,E_none,1)
 --  initialAutoEntry("begins",                  S_Func,"FOP",   "pvlookup.e",0,E_none)
     initialAutoEntry("begins",                  S_Func,"FOP",   "match.e",0,E_none)
+    initialAutoEntry("ends",                    S_Func,"FOP",   "match.e",0,E_none)
 --9/4/22:
 --  initialAutoEntry("binary_search",           S_Func,"FOP",   "bsearch.e",0,E_none)
     initialAutoEntry("binary_search",           S_Func,"FOPIII","bsearch.e",0,E_none,2)
@@ -2985,7 +2986,7 @@ end if
     initialAutoEntry("flatten",                     S_Func,"FPP",   "pflatten.e",0,E_none,1)
     initialAutoEntry("get_file_path_and_name",      S_Func,"FSI",   "file_utils.e",0,E_none,1)
     initialAutoEntry("get_file_name_and_path",      S_Func,"FSI",   "file_utils.e",0,E_none,1)
-    initialAutoEntry("get_logical_drives",          S_Func,"FP",    "pfile.e",   0,E_none)
+    initialAutoEntry("get_logical_drives",          S_Func,"FPI",   "pfile.e",   0,E_none,0)
     initialAutoEntry("get_primes",                  S_Func,"FI",    "primes.e",  0,E_none,0)
     initialAutoEntry("get_primes_le",               S_Func,"FII",   "primes.e",  0,E_none,1)
     initialAutoEntry("get_routine_info",            S_Func,"FII",   "get_routine_info.e",0,E_none,1)

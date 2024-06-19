@@ -8541,32 +8541,14 @@ global function cdRGB2Map(atom w, atom h, sequence rgb, integer pal_size)
 end function
 --*/
 
------------------------------------------------------------------------------------------
---
 --  world coordinates
---
------------------------------------------------------------------------------------------
-
------------------------------------------------------------------------------------------
-----
-----    coordinate transformation
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasWindow             = define_c_proc(hCd, "wdCanvasWindow", {P,D,D,D,D}),
---  xwdCanvasGetWindow          = define_c_proc(hCd, "wdCanvasGetWindow", {P,P,P,P,P}),
---  xwdCanvasViewport           = define_c_proc(hCd, "wdCanvasViewport", {P,I,I,I,I}),
---  xwdCanvasGetViewport        = define_c_proc(hCd, "wdCanvasGetViewport", {P,P,P,P,P}),
---  xwdCanvasWorld2Canvas       = define_c_proc(hCd, "wdCanvasWorld2Canvas", {P,D,D,P,P}),
---  xwdCanvasWorld2CanvasSize   = define_c_proc(hCd, "wdCanvasWorld2CanvasSize", {P,D,D,P,P}),
---  xwdCanvasCanvas2World       = define_c_proc(hCd, "wdCanvasCanvas2World", {P,I,I,D,D})
+--  coordinate transformation
 
 global procedure wdCanvasWindow(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasWindow, {canvas, xmin, xmax, ymin, ymax})
 end procedure
 
 global function wdCanvasGetWindow(cdCanvas canvas)
---DEV machine_bits?
     atom pXmin = allocate(4*8),
          pXmax = pXmin+8,
          pYmin = pXmax+8,
@@ -8592,33 +8574,24 @@ global function wdCanvasGetViewport(cdCanvas canvas)
     return wdViewport
 end function
 
---global function wd_canvas_world2_canvas(cdCanvas canvas, atom xw, atom yw)
 global function wdCanvasWorld2Canvas(cdCanvas canvas, atom xw, yw)
---DEV machine_bits?
     atom pX = allocate(2*4),
          pY = pX+4
     c_proc(xwdCanvasWorld2Canvas, {canvas, xw, yw, pX, pY})
---  integer {x,y} = peek4s({pX,2})
     sequence xy = peek4s({pX,2})
     free(pX)
---  return {x,y}
     return xy   -- integer {x,y}
 end function
 
---global function wd_canvas_world2_canvas_size(cdCanvas canvas, atom ww, atom hw)
 global function wdCanvasWorld2CanvasSize(cdCanvas canvas, atom ww, hw)
---DEV machine_bits?
     atom pW = allocate(8),
          pH = pW+4
     c_proc(xwdCanvasWorld2CanvasSize, {canvas, ww, hw, pW, pH})
---  integer {w,h} = peek4s({pW, 2})
     sequence wh = peek4s({pW, 2})
     free(pW)
---  return {w,h}
     return wh -- integer {w,h}
 end function
 
---global function wd_canvas_canvas2_world(cdCanvas canvas, atom xv, atom yv)
 global function wdCanvasCanvas2World(cdCanvas canvas, atom xv, yv)
 --DEV machine_bits?
     atom pWx = allocate(2*8),
@@ -8629,25 +8602,12 @@ global function wdCanvasCanvas2World(cdCanvas canvas, atom xv, yv)
     return {x,y}
 end function
 
------------------------------------------------------------------------------------------
-----
----- clipping region
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasClipArea           = define_c_proc(hCd, "wdCanvasClipArea", {P,D,D,D,D}),
---  xwdCanvasGetClipArea        = define_c_func(hCd, "wdCanvasGetClipArea", {P,P,P,P,P},I),
---  xwdCanvasIsPointInRegion    = define_c_func(hCd, "wdCanvasIsPointInRegion", {P,D,D},I),
---  xwdCanvasOffsetRegion       = define_c_proc(hCd, "wdCanvasOffsetRegion", {P,D,D}),
---  xwdCanvasGetRegionBox       = define_c_proc(hCd, "wdCanvasGetRegionBox", {P,P,P,P,P}),
---  xwdCanvasHardcopy           = define_c_proc(hCd, "wdCanvasHardcopy", {P,P,P,P})
+-- clipping region
 
---global procedure wd_canvas_clip_area(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
 global procedure wdCanvasClipArea(cdCanvas canvas, atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasClipArea, {canvas, xmin, xmax, ymin, ymax})
 end procedure
 
---global function wd_canvas_get_clip_area(cdCanvas canvas)
 global function wdCanvasGetClipArea(cdCanvas canvas)
     atom pXmin = allocate(32),
          pXmax = pXmin+8,
@@ -8659,17 +8619,14 @@ global function wdCanvasGetClipArea(cdCanvas canvas)
     return clipping_status & area
 end function
 
---global function wd_canvas_is_point_in_region(cdCanvas canvas, atom x, atom y)
 global function wdCanvasIsPointInRegion(cdCanvas canvas, atom x, y)
     return c_func(xwdCanvasIsPointInRegion, {canvas, x, y})
 end function
 
---global procedure wd_canvas_offset_region(cdCanvas canvas, atom x, atom y)
 global procedure wdCanvasOffsetRegion(cdCanvas canvas, atom x, y)
     c_proc(xwdCanvasOffsetRegion, {canvas, x, y})
 end procedure
 
---global function wd_canvas_get_region_box(cdCanvas canvas)
 global function wdCanvasGetRegionBox(cdCanvas canvas)
     atom pXmin = allocate(32),
          pXmax = pXmin+8,
@@ -8681,99 +8638,61 @@ global function wdCanvasGetRegionBox(cdCanvas canvas)
     return box
 end function
 
---global procedure wd_canvas_hardcopy(cdCanvas canvas, atom hCdContext, atom pData, atom cbFct)
 global procedure wdCanvasHardcopy(cdCanvas canvas, atom hCdContext, pData, cbFct)
     c_proc(xwdCanvasHardcopy, {canvas, hCdContext, pData, cbFct})
 end procedure
 
------------------------------------------------------------------------------------------
-----
-----    world draw primitives
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasPixel  = define_c_proc(hCd, "wdCanvasPixel", {P,D,D,L}),
---  xwdCanvasMark   = define_c_proc(hCd, "wdCanvasMark", {P,D,D}),
---  xwdCanvasLine   = define_c_proc(hCd, "wdCanvasLine", {P,D,D,D,D}),
---  xwdCanvasVertex = define_c_proc(hCd, "wdCanvasVertex", {P,D,D}),
---  xwdCanvasRect   = define_c_proc(hCd, "wdCanvasRect", {P,D,D,D,D}),
---  xwdCanvasBox    = define_c_proc(hCd, "wdCanvasBox", {P,D,D,D,D}),
---  xwdCanvasArc    = define_c_proc(hCd, "wdCanvasArc", {P,D,D,D,D,D,D}),
---  xwdCanvasSector = define_c_proc(hCd, "wdCanvasSector", {P,D,D,D,D,D,D}),
---  xwdCanvasChord  = define_c_proc(hCd, "wdCanvasChord", {P,D,D,D,D,D,D}),
---  xwdCanvasText   = define_c_proc(hCd, "wdCanvasText", {P,D,D,P})
+--  world draw primitives
 
---global procedure wd_canvas_pixel(cdCanvas canvas, atom x, atom y)
 global procedure wdCanvasPixel(cdCanvas canvas, atom x, y, colour)
     c_proc(xwdCanvasPixel, {canvas, x, y, colour})
 end procedure
 
---global procedure wd_canvas_mark(cdCanvas canvas, atom x, atom y)
 global procedure wdCanvasMark(cdCanvas canvas, atom x, y)
     c_proc(xwdCanvasMark, {canvas, x, y})
 end procedure
 
---global procedure wd_canvas_line(cdCanvas canvas, atom minX, minY, maxX, maxY)
 global procedure wdCanvasLine(cdCanvas canvas, atom minX, minY, maxX, maxY)
     c_proc(xwdCanvasLine, {canvas, minX, minY, maxX, maxY})
 end procedure
 
---global procedure wd_canvas_vertex(cdCanvas canvas, atom x, atom y)
 global procedure wdCanvasVertex(cdCanvas canvas, atom x, y)
     c_proc(xwdCanvasVertex, {canvas, x, y})
 end procedure
 
---global procedure wd_canvas_rect(cdCanvas canvas, atom minX, atom minY, atom maxX, atom maxY)
 global procedure wdCanvasRect(cdCanvas canvas, atom minX, minY, maxX, maxY)
     c_proc(xwdCanvasRect, {canvas, minX, minY, maxX, maxY})
 end procedure
 
---global procedure wd_canvas_box(cdCanvas canvas, atom minX, atom minY, atom maxX, atom maxY)
 global procedure wdCanvasBox(cdCanvas canvas, atom minX, minY, maxX, maxY)
     c_proc(xwdCanvasBox, {canvas, minX, minY, maxX, maxY})
 end procedure
 
---global procedure wd_canvas_arc(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
 global procedure wdCanvasArc(cdCanvas canvas, atom xc, yc, w, h, a1, a2)
     c_proc(xwdCanvasArc, {canvas, xc, yc, w, h, a1, a2})
 end procedure
 
---global procedure wd_canvas_sector(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
 global procedure wdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, a1, a2)
     c_proc(xwdCanvasSector, {canvas, xc, yc, w, h, a1, a2})
 end procedure
 
---global procedure wd_canvas_chord(cdCanvas canvas, atom xc, atom yc, atom w, atom h, atom a1, atom a2)
 global procedure wdCanvasChord(cdCanvas canvas, atom xc, yc, w, h, a1, a2)
     c_proc(xwdCanvasChord, {canvas, xc, yc, w, h, a1, a2})
 end procedure
 
---global procedure wd_canvas_text(cdCanvas canvas, atom x, atom y, string text)
 global procedure wdCanvasText(cdCanvas canvas, atom x, y, string text)
     c_proc(xwdCanvasText, {canvas, x, y, text})
 end procedure
 
------------------------------------------------------------------------------------------
-----
----- world draw images
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasPutImageRect       = define_c_proc(hCd, "wdCanvasPutImageRect", {P,P,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectRGB    = define_c_proc(hCd, "wdCanvasPutImageRectRGB", {P,I,I,P,P,P,D,D,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectRGBA   = define_c_proc(hCd, "wdCanvasPutImageRectRGBA", {P,I,I,P,P,P,P,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutImageRectMap    = define_c_proc(hCd, "wdCanvasPutImageRectMap", {P,I,I,P,P,D,D,D,D,D,D,D,D}),
---  xwdCanvasPutBitmap          = define_c_proc(hCd, "wdCanvasPutBitmap", {P,P,D,D,D,D})
+-- world draw images
 
 --/* [DEV] as per cdCanvasPutImageRect...
---global procedure wd_canvas_put_image_rect(cdCanvas canvas, atom hCdImage, atom x, atom y,
 global procedure wdCanvasPutImageRect(cdCanvas canvas, atom hCdImage, atom x, atom y,
                                       atom xmin, atom xmax, atom ymin, atom ymax)
     c_proc(xwdCanvasPutImageRect, {canvas, hCdImage, x, y, xmin, xmax, ymin, ymax})
 end procedure
 --*/
 
---global procedure wd_canvas_put_image_rect_rgb(cdCanvas canvas, atom iw, atom ih,
 global procedure wdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence rgb, 
                                          atom x, y, w, h, xmin, xmax, ymin, ymax)
     integer l = length(rgb[1])
@@ -8787,7 +8706,6 @@ global procedure wdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence 
     free({pR,pG,pB})
 end procedure
 
---global procedure wd_canvas_put_image_rect_rgba(cdCanvas canvas, atom iw, atom ih,
 global procedure wdCanvasPutImageRectRGBA(cdCanvas canvas, atom iw, ih, sequence rgba, 
                                           atom x, y, w, h, xmin, xmax, ymin, ymax)
     integer l = length(rgba[1])
@@ -8803,7 +8721,6 @@ global procedure wdCanvasPutImageRectRGBA(cdCanvas canvas, atom iw, ih, sequence
     free({pR,pG,pB,pA})
 end procedure
 
---global procedure wd_canvas_put_image_rect_map(cdCanvas canvas, atom iw, atom ih,
 global procedure wdCanvasPutImageRectMap(cdCanvas canvas, atom iw, ih, sequence index, colors,
                                          atom x, y, w, h, xmin, xmax, ymin, ymax)
     atom pColors = allocate(4*256+length(index)),
@@ -8815,33 +8732,12 @@ global procedure wdCanvasPutImageRectMap(cdCanvas canvas, atom iw, ih, sequence 
 end procedure
 
 --/* as per cdCanvasPutBitmap
---global procedure wd_canvas_put_bitmap(cdCanvas canvas, atom hCdBitmap, atom x, atom y, atom w, atom h)
 global procedure wdCanvasPutBitmap(cdCanvas canvas, atom hCdBitmap, atom x, y, w, h)
     c_proc(xwdCanvasPutBitmap, {canvas, hCdBitmap, x, y, w, h})
 end procedure
 --*/
 
------------------------------------------------------------------------------------------
-----
----- world draw attributes
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasLineWidth      = define_c_func(hCd, "wdCanvasLineWidth", {P,D},D),
---  xwdCanvasFont           = define_c_proc(hCd, "wdCanvasFont", {P,P,I,D}),
---  xwdCanvasGetFont        = define_c_proc(hCd, "wdCanvasGetFont", {P,P,P,P}),
---  xwdCanvasGetFontDim     = define_c_proc(hCd, "wdCanvasGetFontDim", {P,P,P,P,P}),
---  xwdCanvasMarkSize       = define_c_func(hCd, "wdCanvasMarkSize", {P,D},D),
---  xwdCanvasGetTextSize    = define_c_proc(hCd, "wdCanvasGetTextSize", {P,P,P,P}),
---  xwdCanvasGetTextBox     = define_c_proc(hCd, "wdCanvasGetTextBox", {P,D,D,P,P,P,P,P}),
---  xwdCanvasGetTextBounds  = define_c_proc(hCd, "wdCanvasGetTextBounds", {P,D,D,P,P}),
---  xwdCanvasStipple        = define_c_proc(hCd, "wdCanvasStipple", {P,I,I,P,D,D}),
---  xwdCanvasPattern        = define_c_proc(hCd, "wdCanvasPattern", {P,I,I,P,D,D})
-
---global function wd_canvas_line_width(cdCanvas canvas, atom width)
---global function wdCanvasLineWidth(cdCanvas canvas, atom width)
---  return c_func(xwdCanvasLineWidth, {canvas, width})
---end function
+-- world draw attributes
 
 global procedure wdCanvasSetLineWidth(cdCanvas canvas, atom width)
     width = c_func(xwdCanvasLineWidth, {canvas, width})
@@ -8855,7 +8751,6 @@ global procedure wdCanvasFont(cdCanvas canvas, nullable_string font, integer sty
     c_proc(xwdCanvasFont, {canvas, font, style, size})
 end procedure
 
---global function wd_canvas_get_font(cdCanvas canvas)
 global function wdCanvasGetFont(cdCanvas canvas)
     atom pStyle = allocate(1024),
          pSize = pStyle+4,
@@ -8877,7 +8772,6 @@ global function wdCanvasGetFontDim(cdCanvas canvas)
     return font_metrics -- {width, height, ascent, descent}
 end function
 
---global function wd_canvas_mark_size(cdCanvas canvas, atom msize)
 global function wdCanvasMarkSize(cdCanvas canvas, atom msize)
     return c_func(xwdCanvasMarkSize, {canvas, msize})
 end function
@@ -8910,7 +8804,6 @@ global function wdCanvasGetTextBounds(cdCanvas canvas, atom x, y, string text)
     return bounds
 end function
 
---global procedure wd_canvas_stipple(cdCanvas canvas, atom width, atom height, sequence stipple)
 global procedure wdCanvasSetStipple(cdCanvas canvas, atom width, height, sequence stipple,
                                                      atom width_mm, height_mm)
     atom pStipple = allocate(length(stipple))
@@ -8919,7 +8812,6 @@ global procedure wdCanvasSetStipple(cdCanvas canvas, atom width, height, sequenc
     free(pStipple)
 end procedure
 
---global procedure wd_canvas_pattern(cdCanvas canvas, atom width, atom height, sequence pattern, atom width_mm, atom height_mm)
 global procedure wdCanvasSetPattern(cdCanvas canvas, atom width, height, sequence pattern, atom width_mm, height_mm)
     atom pPattern = allocate(4*length(pattern))
     poke4(pPattern, pattern)
@@ -8927,36 +8819,20 @@ global procedure wdCanvasSetPattern(cdCanvas canvas, atom width, height, sequenc
     free(pPattern)
 end procedure
 
------------------------------------------------------------------------------------------
-----
----- world draw vector text
-----
--------------------------------------------------------------------------------------------
---constant
---  xwdCanvasVectorTextDirection    = define_c_proc(hCd, "wdCanvasVectorTextDirection", {P,D,D,D,D}),
---  xwdCanvasVectorTextSize         = define_c_proc(hCd, "wdCanvasVectorTextSize", {P,D,D,P}),
---  xwdCanvasGetVectorTextSize      = define_c_proc(hCd, "wdCanvasGetVectorTextSize", {P,P,P,P}),
---  xwdCanvasVectorCharSize         = define_c_func(hCd, "wdCanvasVectorCharSize", {P,D},D),
---  xwdCanvasVectorText             = define_c_proc(hCd, "wdCanvasVectorText", {P,D,D,P}),
---  xwdCanvasMultiLineVectorText    = define_c_proc(hCd, "wdCanvasMultiLineVectorText", {P,D,D,P}),
---  xwdCanvasGetVectorTextBounds    = define_c_proc(hCd, "wdCanvasGetVectorTextBounds", {P,P,D,D,P})
+-- world draw vector text
 
---global procedure wd_canvas_vector_text_direction(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
 global procedure wdCanvasVectorTextDirection(cdCanvas canvas, atom x1, atom y1, atom x2, atom y2)
     c_proc(xwdCanvasVectorTextDirection, {canvas, x1, y1, x2, y2})
 end procedure
 
---global procedure wd_canvas_vector_text_size(cdCanvas canvas, atom w, atom h, string text)
 global procedure wdCanvasVectorTextSize(cdCanvas canvas, atom w, atom h, string text)
     c_proc(xwdCanvasVectorTextSize, {canvas, w, h, text})
 end procedure
 
---global function wd_canvas_vector_char_size(cdCanvas canvas, atom size)
 global function wdCanvasVectorCharSize(cdCanvas canvas, atom size)
     return c_func(xwdCanvasVectorCharSize, {canvas, size})
 end function
 
---global function wd_canvas_get_vector_text_size(cdCanvas canvas, string text)
 global function wdCanvasGetVectorTextSize(cdCanvas canvas, string text)
     atom pX = allocate(16),
          pY = pX+8
@@ -8974,12 +8850,10 @@ global function wdCanvasGetVectorTextBounds(cdCanvas canvas, string text, atom p
     return rect
 end function
 
---global procedure wd_canvas_vector_text(cdCanvas canvas, atom x, atom y, string text)
 global procedure wdCanvasVectorText(cdCanvas canvas, atom x, atom y, string text)
     c_proc(xwdCanvasVectorText, {canvas, x, y, text})
 end procedure
 
---global procedure wd_canvas_multi_line_vector_text(cdCanvas canvas, atom x, atom y, string text)
 global procedure wdCanvasMultiLineVectorText(cdCanvas canvas, atom x, atom y, string text)
     c_proc(xwdCanvasMultiLineVectorText, {canvas, x, y, text})
 end procedure
@@ -9219,7 +9093,6 @@ global procedure IupPlotInsertStr(Ihandle ih, integer index, integer sample_inde
     c_proc(xIupPlotInsertStr, {ih, index, sample_index, x, y})
 end procedure
 
---void IupPlotInsertSamples(Ihandle *ih, int ds_index, int sample_index, double* x, double* y, int count); 
 global procedure IupPlotInsertSamples(Ihandle ih, integer index, integer sample_index, sequence x, sequence y, integer count)
     atom pX = allocate(count*8),
          pY = allocate(count*8)
@@ -9262,7 +9135,6 @@ global procedure IupPlotAddStrSamples(Ihandle ih, integer index, sequence xstrin
     free(pY)
 end procedure
 
---void IupPlotGetSample(Ihandle *ih, int ds_index, int sample_index, double *x, double *y);
 global function IupPlotGetSample(Ihandle ih, integer ds_index, integer sample_index)
     atom pXY = allocate(8*2)
     c_proc(xIupPlotGetSample, {ih, ds_index, sample_index, pXY, pXY+8})
@@ -9271,7 +9143,6 @@ global function IupPlotGetSample(Ihandle ih, integer ds_index, integer sample_in
     return res
 end function
 
---void IupPlotGetSampleStr(Ihandle *ih, int ds_index, int sample_index, const char* *x, double *y);
 global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, sample_index)
     atom pX = allocate(8*2),
          pY = allocate(8)
@@ -9282,7 +9153,6 @@ global function IupPlotGetSampleStr(Ihandle ih, integer ds_index, sample_index)
     return res
 end function
 
---int IupPlotGetSampleSelection(Ihandle *ih, int ds_index, int sample_index);
 global function IupPlotGetSampleSelection(Ihandle ih, integer ds_index, sample_index)
 -- returns -1 if an error occurs (hence a bool res rather than boolean)
     bool selected = c_func(xIupPlotGetSampleSelection, {ih, ds_index, sample_index})
@@ -9294,17 +9164,14 @@ global function IupPlotGetSampleExtra(Ihandle ih, integer ds_index, sample_index
     return v
 end function
 
---void IupPlotSetSample(Ihandle *ih, int ds_index, int sample_index, double x, double y);
 global procedure IupPlotSetSample(Ihandle ih, integer ds_index, integer sample_index, atom x, atom y)
     c_proc(xIupPlotSetSample, {ih, ds_index, sample_index, x, y})
 end procedure
 
---void IupPlotSetSampleStr(Ihandle *ih, int ds_index, int sample_index, const char* x, double y);
 global procedure IupPlotSetSampleStr(Ihandle ih, integer ds_index, integer sample_index, string x, atom y)
     c_proc(xIupPlotSetSampleStr, {ih, ds_index, sample_index, x, y})
 end procedure
 
---void IupPlotSetSampleSelection(Ihandle *ih, int ds_index, int sample_index, int selected);
 global procedure IupPlotSetSampleSelection(Ihandle ih, integer ds_index, integer sample_index, boolean selected)
     c_proc(xIupPlotSetSampleSelection, {ih, ds_index, sample_index, selected})
 end procedure
@@ -9313,7 +9180,6 @@ global procedure IupPlotSetSampleExtra(Ihandle ih, integer ds_index, integer sam
     c_proc(xIupPlotSetSampleExtra, {ih, ds_index, sample_index, extra})
 end procedure
 
---void IupPlotTransform(Ihandle* ih, double x, double y, double *cnv_x, double *cnv_y); 
 global function IupPlotTransform(Ihandle ih, atom x, atom y)
     atom pXY = allocate(8*2)
     c_proc(xIupPlotTransform, {ih, x, y, pXY, pXY+8})
@@ -9322,7 +9188,6 @@ global function IupPlotTransform(Ihandle ih, atom x, atom y)
     return {x,y}
 end function
 
---void IupPlotTransformTo(Ihandle* ih, double cnv_x, double cnv_y, double *x, double *y); 
 global function IupPlotTransformTo(Ihandle ih, atom x, atom y)
     atom pXY = allocate(8*2)
     c_proc(xIupPlotTransformTo, {ih, x, y, pXY, pXY+8})
@@ -9331,7 +9196,6 @@ global function IupPlotTransformTo(Ihandle ih, atom x, atom y)
     return {x,y}
 end function
 
---int IupPlotFindSample(Ihandle* ih, double cnv_x, double cnv_y, int *ds_index, int *sample_index);
 global function IupPlotFindSample(Ihandle ih, atom x, atom y)
     atom p_ds_index = allocate(W),
          p_sample_index = allocate(W)
@@ -9355,12 +9219,10 @@ global function IupPlotFindSegment(Ihandle ih, atom x, atom y)
     return {ds_index, sample_index1, sample_index2}
 end function
 
---void IupPlotPaintTo(Ihandle ih, cdCanvas cnv); 
 global procedure IupPlotPaintTo(Ihandle ih, cdCanvas cnv)
     c_proc(xIupPlotPaintTo, {ih, cnv})
 end procedure
 
---void IupPlotSetFormula(Ihandle* ih, int sample_count, const char* formula, const char* init); 
 --global procedure IupPlotSetFormula(Ihandle ih, integer sample_count, string formula, nullable_string init)
 --  c_proc(xIupPlotSetFormula, {ih, sample_count, formula, init})
 --end procedure
@@ -9799,7 +9661,6 @@ procedure ole_open()
 end procedure
 
 --DEV doc (done to here)
---global function control(string prog_id="", string attributes="", sequence args={})
 global function IupOleControl(string prog_id="", string attributes="", sequence args={})
     if not did_ole_open then
         ole_open()
@@ -9873,476 +9734,6 @@ global function allocate_image(sequence data, integer cleanup=0)
 end function
 --*/
 
---public include iupkey.e
-/* from 32 to 126, all character sets are equal, the key code is the same as the ASCii character code. */
---/*
-global constant K_sHOME = iup_XkeyShift(K_HOME )
-global constant K_sUP = iup_XkeyShift(K_UP )
-global constant K_sPGUP = iup_XkeyShift(K_PGUP )
-global constant K_sLEFT = iup_XkeyShift(K_LEFT )
-global constant K_sMIDDLE = iup_XkeyShift(K_MIDDLE )
-global constant K_sRIGHT = iup_XkeyShift(K_RIGHT )
-global constant K_sEND = iup_XkeyShift(K_END )
-global constant K_sDOWN = iup_XkeyShift(K_DOWN )
-global constant K_sPGDN = iup_XkeyShift(K_PGDN )
-global constant K_sINS = iup_XkeyShift(K_INS )
-global constant K_sDEL = iup_XkeyShift(K_DEL )
-global constant K_sSP = iup_XkeyShift(' ')
-global constant K_sTAB = iup_XkeyShift(K_TAB )
-global constant K_sCR = iup_XkeyShift(K_CR )
-global constant K_sBS = iup_XkeyShift(K_BS )
-global constant K_sPAUSE = iup_XkeyShift(K_PAUSE )
-global constant K_sESC = iup_XkeyShift(K_ESC )
-global constant K_sF1 = iup_XkeyShift(K_F1 )
-global constant K_sF2 = iup_XkeyShift(K_F2 )
-global constant K_sF3 = iup_XkeyShift(K_F3 )
-global constant K_sF4 = iup_XkeyShift(K_F4 )
-global constant K_sF5 = iup_XkeyShift(K_F5 )
-global constant K_sF6 = iup_XkeyShift(K_F6 )
-global constant K_sF7 = iup_XkeyShift(K_F7 )
-global constant K_sF8 = iup_XkeyShift(K_F8 )
-global constant K_sF9 = iup_XkeyShift(K_F9 )
-global constant K_sF10 = iup_XkeyShift(K_F10 )
-global constant K_sF11 = iup_XkeyShift(K_F11 )
-global constant K_sF12 = iup_XkeyShift(K_F12 )
-global constant K_sPrint = iup_XkeyShift(K_Print )
-global constant K_sMenu = iup_XkeyShift(K_Menu )
-global constant K_cHOME = iup_XkeyCtrl(K_HOME )
-global constant K_cUP = iup_XkeyCtrl(K_UP )
-global constant K_cPGUP = iup_XkeyCtrl(K_PGUP )
-global constant K_cLEFT = iup_XkeyCtrl(K_LEFT )
-global constant K_cMIDDLE = iup_XkeyCtrl(K_MIDDLE )
-global constant K_cRIGHT = iup_XkeyCtrl(K_RIGHT )
-global constant K_cEND = iup_XkeyCtrl(K_END )
-global constant K_cDOWN = iup_XkeyCtrl(K_DOWN )
-global constant K_cPGDN = iup_XkeyCtrl(K_PGDN )
-global constant K_cINS = iup_XkeyCtrl(K_INS )
-global constant K_cDEL = iup_XkeyCtrl(K_DEL )
-global constant K_cSP = iup_XkeyCtrl(' ')
-global constant K_cTAB = iup_XkeyCtrl(K_TAB )
-global constant K_cCR = iup_XkeyCtrl(K_CR )
-global constant K_cBS = iup_XkeyCtrl(K_BS )
-global constant K_cPAUSE = iup_XkeyCtrl(K_PAUSE )
-global constant K_cESC = iup_XkeyCtrl(K_ESC )
-global constant K_cCcedilla = iup_XkeyCtrl(K_Ccedilla)
-global constant K_cF1 = iup_XkeyCtrl(K_F1 )
-global constant K_cF2 = iup_XkeyCtrl(K_F2 )
-global constant K_cF3 = iup_XkeyCtrl(K_F3 )
-global constant K_cF4 = iup_XkeyCtrl(K_F4 )
-global constant K_cF5 = iup_XkeyCtrl(K_F5 )
-global constant K_cF6 = iup_XkeyCtrl(K_F6 )
-global constant K_cF7 = iup_XkeyCtrl(K_F7 )
-global constant K_cF8 = iup_XkeyCtrl(K_F8 )
-global constant K_cF9 = iup_XkeyCtrl(K_F9 )
-global constant K_cF10 = iup_XkeyCtrl(K_F10 )
-global constant K_cF11 = iup_XkeyCtrl(K_F11 )
-global constant K_cF12 = iup_XkeyCtrl(K_F12 )
-global constant K_cPrint = iup_XkeyCtrl(K_Print )
-global constant K_cMenu = iup_XkeyCtrl(K_Menu )
-global constant K_mHOME = iup_XkeyAlt(K_HOME )
-global constant K_mUP = iup_XkeyAlt(K_UP )
-global constant K_mPGUP = iup_XkeyAlt(K_PGUP )
-global constant K_mLEFT = iup_XkeyAlt(K_LEFT )
-global constant K_mMIDDLE = iup_XkeyAlt(K_MIDDLE )
-global constant K_mRIGHT = iup_XkeyAlt(K_RIGHT )
-global constant K_mEND = iup_XkeyAlt(K_END )
-global constant K_mDOWN = iup_XkeyAlt(K_DOWN )
-global constant K_mPGDN = iup_XkeyAlt(K_PGDN )
-global constant K_mINS = iup_XkeyAlt(K_INS )
-global constant K_mDEL = iup_XkeyAlt(K_DEL )
-global constant K_mSP = iup_XkeyAlt(' ')
-global constant K_mTAB = iup_XkeyAlt(K_TAB )
-global constant K_mCR = iup_XkeyAlt(K_CR )
-global constant K_mBS = iup_XkeyAlt(K_BS )
-global constant K_mPAUSE = iup_XkeyAlt(K_PAUSE )
-global constant K_mESC = iup_XkeyAlt(K_ESC )
-global constant K_mCcedilla = iup_XkeyAlt(K_Ccedilla)
-global constant K_mF1 = iup_XkeyAlt(K_F1 )
-global constant K_mF2 = iup_XkeyAlt(K_F2 )
-global constant K_mF3 = iup_XkeyAlt(K_F3 )
-global constant K_mF4 = iup_XkeyAlt(K_F4 )
-global constant K_mF5 = iup_XkeyAlt(K_F5 )
-global constant K_mF6 = iup_XkeyAlt(K_F6 )
-global constant K_mF7 = iup_XkeyAlt(K_F7 )
-global constant K_mF8 = iup_XkeyAlt(K_F8 )
-global constant K_mF9 = iup_XkeyAlt(K_F9 )
-global constant K_mF10 = iup_XkeyAlt(K_F10 )
-global constant K_mF11 = iup_XkeyAlt(K_F11 )
-global constant K_mF12 = iup_XkeyAlt(K_F12 )
-global constant K_mPrint = iup_XkeyAlt(K_Print )
-global constant K_mMenu = iup_XkeyAlt(K_Menu )
-global constant K_yHOME = iup_XkeySys(K_HOME )
-global constant K_yUP = iup_XkeySys(K_UP )
-global constant K_yPGUP = iup_XkeySys(K_PGUP )
-global constant K_yLEFT = iup_XkeySys(K_LEFT )
-global constant K_yMIDDLE = iup_XkeySys(K_MIDDLE )
-global constant K_yRIGHT = iup_XkeySys(K_RIGHT )
-global constant K_yEND = iup_XkeySys(K_END )
-global constant K_yDOWN = iup_XkeySys(K_DOWN )
-global constant K_yPGDN = iup_XkeySys(K_PGDN )
-global constant K_yINS = iup_XkeySys(K_INS )
-global constant K_yDEL = iup_XkeySys(K_DEL )
-global constant K_ySP = iup_XkeySys(' ')
-global constant K_yTAB = iup_XkeySys(K_TAB )
-global constant K_yCR = iup_XkeySys(K_CR )
-global constant K_yBS = iup_XkeySys(K_BS )
-global constant K_yPAUSE = iup_XkeySys(K_PAUSE )
-global constant K_yESC = iup_XkeySys(K_ESC )
-global constant K_yCcedilla = iup_XkeySys(K_Ccedilla)
-global constant K_yF1 = iup_XkeySys(K_F1 )
-global constant K_yF2 = iup_XkeySys(K_F2 )
-global constant K_yF3 = iup_XkeySys(K_F3 )
-global constant K_yF4 = iup_XkeySys(K_F4 )
-global constant K_yF5 = iup_XkeySys(K_F5 )
-global constant K_yF6 = iup_XkeySys(K_F6 )
-global constant K_yF7 = iup_XkeySys(K_F7 )
-global constant K_yF8 = iup_XkeySys(K_F8 )
-global constant K_yF9 = iup_XkeySys(K_F9 )
-global constant K_yF10 = iup_XkeySys(K_F10 )
-global constant K_yF11 = iup_XkeySys(K_F11 )
-global constant K_yF12 = iup_XkeySys(K_F12 )
-global constant K_yPrint = iup_XkeySys(K_Print )
-global constant K_yMenu = iup_XkeySys(K_Menu )
-global constant K_sPlus = iup_XkeyShift(K_plus )
-global constant K_sComma = iup_XkeyShift(K_comma )
-global constant K_sMinus = iup_XkeyShift(K_minus )
-global constant K_sPeriod = iup_XkeyShift(K_period )
-global constant K_sSlash = iup_XkeyShift(K_slash )
-global constant K_sAsterisk = iup_XkeyShift(K_asterisk)
-global constant K_cA = iup_XkeyCtrl(K_A)
-global constant K_cB = iup_XkeyCtrl(K_B)
-global constant K_cC = iup_XkeyCtrl(K_C)
-global constant K_cD = iup_XkeyCtrl(K_D)
-global constant K_cE = iup_XkeyCtrl(K_E)
-global constant K_cF = iup_XkeyCtrl(K_F)
-global constant K_cG = iup_XkeyCtrl(K_G)
-global constant K_cH = iup_XkeyCtrl(K_H)
-global constant K_cI = iup_XkeyCtrl(K_I)
-global constant K_cJ = iup_XkeyCtrl(K_J)
-global constant K_cK = iup_XkeyCtrl(K_K)
-global constant K_cL = iup_XkeyCtrl(K_L)
-global constant K_cM = iup_XkeyCtrl(K_M)
-global constant K_cN = iup_XkeyCtrl(K_N)
-global constant K_cO = iup_XkeyCtrl(K_O)
-global constant K_cP = iup_XkeyCtrl(K_P)
-global constant K_cQ = iup_XkeyCtrl(K_Q)
-global constant K_cR = iup_XkeyCtrl(K_R)
-global constant K_cS = iup_XkeyCtrl(K_S)
-global constant K_cT = iup_XkeyCtrl(K_T)
-global constant K_cU = iup_XkeyCtrl(K_U)
-global constant K_cV = iup_XkeyCtrl(K_V)
-global constant K_cW = iup_XkeyCtrl(K_W)
-global constant K_cX = iup_XkeyCtrl(K_X)
-global constant K_cY = iup_XkeyCtrl(K_Y)
-global constant K_cZ = iup_XkeyCtrl(K_Z)
-global constant K_c1 = iup_XkeyCtrl(K_1)
-global constant K_c2 = iup_XkeyCtrl(K_2)
-global constant K_c3 = iup_XkeyCtrl(K_3)
-global constant K_c4 = iup_XkeyCtrl(K_4)
-global constant K_c5 = iup_XkeyCtrl(K_5)
-global constant K_c6 = iup_XkeyCtrl(K_6)
-global constant K_c7 = iup_XkeyCtrl(K_7)
-global constant K_c8 = iup_XkeyCtrl(K_8)
-global constant K_c9 = iup_XkeyCtrl(K_9)
-global constant K_c0 = iup_XkeyCtrl(K_0)
-global constant K_cPlus = iup_XkeyCtrl(K_plus )
-global constant K_cComma = iup_XkeyCtrl(K_comma )
-global constant K_cMinus = iup_XkeyCtrl(K_minus )
-global constant K_cPeriod = iup_XkeyCtrl(K_period )
-global constant K_cSlash = iup_XkeyCtrl(K_slash )
-global constant K_cSemicolon = iup_XkeyCtrl(K_semicolon )
-global constant K_cEqual = iup_XkeyCtrl(K_equal )
-global constant K_cBracketleft = iup_XkeyCtrl(K_bracketleft )
-global constant K_cBracketright = iup_XkeyCtrl(K_bracketright)
-global constant K_cBackslash = iup_XkeyCtrl(K_backslash )
-global constant K_cAsterisk = iup_XkeyCtrl(K_asterisk )
-global constant K_mA = iup_XkeyAlt(K_A)
-global constant K_mB = iup_XkeyAlt(K_B)
-global constant K_mC = iup_XkeyAlt(K_C)
-global constant K_mD = iup_XkeyAlt(K_D)
-global constant K_mE = iup_XkeyAlt(K_E)
-global constant K_mF = iup_XkeyAlt(K_F)
-global constant K_mG = iup_XkeyAlt(K_G)
-global constant K_mH = iup_XkeyAlt(K_H)
-global constant K_mI = iup_XkeyAlt(K_I)
-global constant K_mJ = iup_XkeyAlt(K_J)
-global constant K_mK = iup_XkeyAlt(K_K)
-global constant K_mL = iup_XkeyAlt(K_L)
-global constant K_mM = iup_XkeyAlt(K_M)
-global constant K_mN = iup_XkeyAlt(K_N)
-global constant K_mO = iup_XkeyAlt(K_O)
-global constant K_mP = iup_XkeyAlt(K_P)
-global constant K_mQ = iup_XkeyAlt(K_Q)
-global constant K_mR = iup_XkeyAlt(K_R)
-global constant K_mS = iup_XkeyAlt(K_S)
-global constant K_mT = iup_XkeyAlt(K_T)
-global constant K_mU = iup_XkeyAlt(K_U)
-global constant K_mV = iup_XkeyAlt(K_V)
-global constant K_mW = iup_XkeyAlt(K_W)
-global constant K_mX = iup_XkeyAlt(K_X)
-global constant K_mY = iup_XkeyAlt(K_Y)
-global constant K_mZ = iup_XkeyAlt(K_Z)
-global constant K_m1 = iup_XkeyAlt(K_1)
-global constant K_m2 = iup_XkeyAlt(K_2)
-global constant K_m3 = iup_XkeyAlt(K_3)
-global constant K_m4 = iup_XkeyAlt(K_4)
-global constant K_m5 = iup_XkeyAlt(K_5)
-global constant K_m6 = iup_XkeyAlt(K_6)
-global constant K_m7 = iup_XkeyAlt(K_7)
-global constant K_m8 = iup_XkeyAlt(K_8)
-global constant K_m9 = iup_XkeyAlt(K_9)
-global constant K_m0 = iup_XkeyAlt(K_0)
-global constant K_mPlus = iup_XkeyAlt(K_plus )
-global constant K_mComma = iup_XkeyAlt(K_comma )
-global constant K_mMinus = iup_XkeyAlt(K_minus )
-global constant K_mPeriod = iup_XkeyAlt(K_period )
-global constant K_mSlash = iup_XkeyAlt(K_slash )
-global constant K_mSemicolon = iup_XkeyAlt(K_semicolon )
-global constant K_mEqual = iup_XkeyAlt(K_equal )
-global constant K_mBracketleft = iup_XkeyAlt(K_bracketleft )
-global constant K_mBracketright = iup_XkeyAlt(K_bracketright)
-global constant K_mBackslash = iup_XkeyAlt(K_backslash )
-global constant K_mAsterisk = iup_XkeyAlt(K_asterisk )
-global constant K_yA = iup_XkeySys(K_A)
-global constant K_yB = iup_XkeySys(K_B)
-global constant K_yC = iup_XkeySys(K_C)
-global constant K_yD = iup_XkeySys(K_D)
-global constant K_yE = iup_XkeySys(K_E)
-global constant K_yF = iup_XkeySys(K_F)
-global constant K_yG = iup_XkeySys(K_G)
-global constant K_yH = iup_XkeySys(K_H)
-global constant K_yI = iup_XkeySys(K_I)
-global constant K_yJ = iup_XkeySys(K_J)
-global constant K_yK = iup_XkeySys(K_K)
-global constant K_yL = iup_XkeySys(K_L)
-global constant K_yM = iup_XkeySys(K_M)
-global constant K_yN = iup_XkeySys(K_N)
-global constant K_yO = iup_XkeySys(K_O)
-global constant K_yP = iup_XkeySys(K_P)
-global constant K_yQ = iup_XkeySys(K_Q)
-global constant K_yR = iup_XkeySys(K_R)
-global constant K_yS = iup_XkeySys(K_S)
-global constant K_yT = iup_XkeySys(K_T)
-global constant K_yU = iup_XkeySys(K_U)
-global constant K_yV = iup_XkeySys(K_V)
-global constant K_yW = iup_XkeySys(K_W)
-global constant K_yX = iup_XkeySys(K_X)
-global constant K_yY = iup_XkeySys(K_Y)
-global constant K_yZ = iup_XkeySys(K_Z)
-global constant K_y1 = iup_XkeySys(K_1)
-global constant K_y2 = iup_XkeySys(K_2)
-global constant K_y3 = iup_XkeySys(K_3)
-global constant K_y4 = iup_XkeySys(K_4)
-global constant K_y5 = iup_XkeySys(K_5)
-global constant K_y6 = iup_XkeySys(K_6)
-global constant K_y7 = iup_XkeySys(K_7)
-global constant K_y8 = iup_XkeySys(K_8)
-global constant K_y9 = iup_XkeySys(K_9)
-global constant K_y0 = iup_XkeySys(K_0)
-global constant K_yPlus = iup_XkeySys(K_plus )
-global constant K_yComma = iup_XkeySys(K_comma )
-global constant K_yMinus = iup_XkeySys(K_minus )
-global constant K_yPeriod = iup_XkeySys(K_period )
-global constant K_ySlash = iup_XkeySys(K_slash )
-global constant K_ySemicolon = iup_XkeySys(K_semicolon )
-global constant K_yEqual = iup_XkeySys(K_equal )
-global constant K_yBracketleft = iup_XkeySys(K_bracketleft )
-global constant K_yBracketright = iup_XkeySys(K_bracketright)
-global constant K_yBackslash = iup_XkeySys(K_backslash )
-global constant K_yAsterisk = iup_XkeySys(K_asterisk )
---*/
-
---global constant -- function delcarations
---      xIupOpen                          = define_c_func(iup, "+IupOpen", {P,P}, I),
---      xIupClose                         = define_c_proc(iup, "+IupClose", {}),
---      xIupImageLibOpen                  = define_c_proc(iupimglib, "+IupImageLibOpen", {}),
---      xIupMainLoop                      = define_c_func(iup, "+IupMainLoop", {}, I),
---      xIupLoopStep                      = define_c_func(iup, "+IupLoopStep", {}, I),
---      xIupLoopStepWait                  = define_c_func(iup, "+IupLoopStepWait", {}, I),
---      xIupMainLoopLevel                 = define_c_func(iup, "+IupMainLoopLevel", {}, I),
---      xIupFlush                         = define_c_proc(iup, "+IupFlush", {}),
---      xIupExitLoop                      = define_c_proc(iup, "+IupExitLoop", {}),
---      xIupRecordInput                   = define_c_func(iup, "+IupRecordInput", {P,I}, I),
---      xIupPlayInput                     = define_c_func(iup, "+IupPlayInput", {P}, I),
---      xIupUpdate                        = define_c_proc(iup, "+IupUpdate", {P}),
---      xIupUpdateChildren                = define_c_proc(iup, "+IupUpdateChildren", {P}),
---      xIupRedraw                        = define_c_proc(iup, "+IupRedraw", {P,I}),
---      xIupRefresh                       = define_c_proc(iup, "+IupRefresh", {P}),
---      xIupRefreshChildren               = define_c_proc(iup, "+IupRefreshChildren", {P}),
---      xIupHelp                          = define_c_func(iup, "+IupHelp", {P}, I),
---      xIupVersion                       = define_c_func(iup, "+IupVersion", {}, P),
---      xIupVersionDate                   = define_c_func(iup, "+IupVersionDate", {}, P),
---      xIupVersionNumber                 = define_c_func(iup, "+IupVersionNumber", {}, I),
---      xIupSetLanguage                   = define_c_proc(iup, "+IupSetLanguage", {P}),
---      xIupGetLanguage                   = define_c_func(iup, "+IupGetLanguage", {}, P),
---      xIupSetLanguageString             = define_c_proc(iup, "+IupSetLanguageString", {P,P}),
---      xIupStoreLanguageString           = define_c_proc(iup, "+IupStoreLanguageString", {P,P}),
---      xIupGetLanguageString             = define_c_func(iup, "+IupGetLanguageString", {P}, P),
---      xIupSetLanguagePack               = define_c_proc(iup, "+IupSetLanguagePack", {P}),
---      xIupDestroy                       = define_c_proc(iup, "+IupDestroy", {P}),
---      xIupDetach                        = define_c_proc(iup, "+IupDetach", {P}),
---      xIupAppend                        = define_c_func(iup, "+IupAppend", {P,P}, P),
---      xIupInsert                        = define_c_func(iup, "+IupInsert", {P,P,P}, P),
---      xIupGetChild                      = define_c_func(iup, "+IupGetChild", {P,I}, P),
---      xIupGetChildPos                   = define_c_func(iup, "+IupGetChildPos", {P,P}, I),
---      xIupGetChildCount                 = define_c_func(iup, "+IupGetChildCount", {P}, I),
---      xIupGetNextChild                  = define_c_func(iup, "+IupGetNextChild", {P,P}, P),
---      xIupGetBrother                    = define_c_func(iup, "+IupGetBrother", {P}, P),
---      xIupGetParent                     = define_c_func(iup, "+IupGetParent", {P}, P),
---      xIupGetDialog                     = define_c_func(iup, "+IupGetDialog", {P}, P),
---      xIupGetDialogChild                = define_c_func(iup, "+IupGetDialogChild", {P,P}, P),
---      xIupReparent                      = define_c_func(iup, "+IupReparent", {P,P,P}, I),
---      xIupPopup                         = define_c_func(iup, "+IupPopup", {P,I,I}, I),
---      xIupShow                          = define_c_func(iup, "+IupShow", {P}, I),
---      xIupShowXY                        = define_c_func(iup, "+IupShowXY", {P,I,I}, I),
---      xIupHide                          = define_c_func(iup, "+IupHide", {P}, I),
---      xIupMap                           = define_c_func(iup, "+IupMap", {P}, I),
---      xIupUnmap                         = define_c_proc(iup, "+IupUnmap", {P}),
---      xIupResetAttribute                = define_c_proc(iup, "+IupResetAttribute", {P,P}),
---      xIupGetAllAttributes              = define_c_func(iup, "+IupGetAllAttributes", {P,P,I}, I),
---      xIupSetAttributes                 = define_c_func(iup, "+IupSetAttributes", {P,P}, P),
---      xIupGetAttributes                 = define_c_func(iup, "+IupGetAttributes", {P}, P),
---      xIupSetAttribute                  = define_c_proc(iup, "+IupSetAttribute", {P,P,P}),
---      xIupSetStrAttribute               = define_c_proc(iup, "+IupSetStrAttribute", {P,P,P}),
---      xIupSetInt                        = define_c_proc(iup, "+IupSetInt", {P,P,I}),
---      xIupSetFloat                      = define_c_proc(iup, "+IupSetFloat", {P,P,F}),
---      xIupSetDouble                     = define_c_proc(iup, "+IupSetDouble", {P,P,D}),
---      xIupSetRGB                        = define_c_proc(iup, "+IupSetRGB", {P,P,UC,UC,UC}),
---      xIupGetAttribute                  = define_c_func(iup, "+IupGetAttribute", {P,P}, P),
---      xIupGetInt                        = define_c_func(iup, "+IupGetInt", {P,P}, I),
---      xIupGetInt2                       = define_c_func(iup, "+IupGetInt2", {P,P}, I),
---      xIupGetIntInt                     = define_c_func(iup, "+IupGetIntInt", {P,P,P,P}, I),
---      xIupGetFloat                      = define_c_func(iup, "+IupGetFloat", {P,P}, F),
---      xIupGetDouble                     = define_c_func(iup, "+IupGetDouble", {P,P}, D),
---      xIupGetRGB                        = define_c_proc(iup, "+IupGetRGB", {P,P,P,P,P}),
---      xIupSetAttributeId                = define_c_proc(iup, "+IupSetAttributeId", {P,P,I,P}),
---      xIupSetStrAttributeId             = define_c_proc(iup, "+IupSetStrAttributeId", {P,P,I,P}),
---      xIupSetIntId                      = define_c_proc(iup, "+IupSetIntId", {P,P,I,I}),
---      xIupSetFloatId                    = define_c_proc(iup, "+IupSetFloatId", {P,P,I,F}),
---      xIupSetDoubleId                   = define_c_proc(iup, "+IupSetDoubleId", {P,P,I,D}),
---      xIupSetRGBId                      = define_c_proc(iup, "+IupSetRGBId", {P,P,I,UC,UC,UC}),
---      xIupGetAttributeId                = define_c_func(iup, "+IupGetAttributeId", {P,P,I}, P),
---      xIupGetIntId                      = define_c_func(iup, "+IupGetIntId", {P,P,I}, I),
---      xIupGetFloatId                    = define_c_func(iup, "+IupGetFloatId", {P,P,I}, F),
---      xIupGetDoubleId                   = define_c_func(iup, "+IupGetDoubleId", {P,P,I}, D),
---      xIupGetRGBId                      = define_c_proc(iup, "+IupGetRGBId", {P,P,I,P,P,P}),
---      xIupSetAttributeId2               = define_c_proc(iup, "+IupSetAttributeId2", {P,P,I,I,P}),
---      xIupSetStrAttributeId2            = define_c_proc(iup, "+IupSetStrAttributeId2", {P,P,I,I,P}),
---      xIupSetIntId2                     = define_c_proc(iup, "+IupSetIntId2", {P,P,I,I,I}),
---      xIupSetFloatId2                   = define_c_proc(iup, "+IupSetFloatId2", {P,P,I,I,F}),
---      xIupSetDoubleId2                  = define_c_proc(iup, "+IupSetDoubleId2", {P,P,I,I,D}),
---      xIupSetRGBId2                     = define_c_proc(iup, "+IupSetRGBId2", {P,P,I,I,UC,UC,UC}),
---      xIupGetAttributeId2               = define_c_func(iup, "+IupGetAttributeId2", {P,P,I,I}, P),
---      xIupGetIntId2                     = define_c_func(iup, "+IupGetIntId2", {P,P,I,I}, I),
---      xIupGetFloatId2                   = define_c_func(iup, "+IupGetFloatId2", {P,P,I,I}, F),
---      xIupGetDoubleId2                  = define_c_func(iup, "+IupGetDoubleId2", {P,P,I,I}, D),
---      xIupGetRGBId2                     = define_c_proc(iup, "+IupGetRGBId2", {P,P,I,I,P,P,P}),
---      xIupSetGlobal                     = define_c_proc(iup, "+IupSetGlobal", {P,P}),
---      xIupSetStrGlobal                  = define_c_proc(iup, "+IupSetStrGlobal", {P,P}),
---      xIupGetGlobal                     = define_c_func(iup, "+IupGetGlobal", {P}, P),
---      xIupSetFocus                      = define_c_func(iup, "+IupSetFocus", {P}, P),
---      xIupGetFocus                      = define_c_func(iup, "+IupGetFocus", {}, P),
---      xIupPreviousField                 = define_c_func(iup, "+IupPreviousField", {P}, P),
---      xIupNextField                     = define_c_func(iup, "+IupNextField", {P}, P),
---      xIupGetCallback                   = define_c_func(iup, "+IupGetCallback", {P,P}, P),
---      xIupSetCallback                   = define_c_func(iup, "+IupSetCallback", {P,P,P}, P),
---      xIupGetFunction                   = define_c_func(iup, "+IupGetFunction", {P}, P),
---      xIupSetFunction                   = define_c_func(iup, "+IupSetFunction", {P,P}, P),
---      xIupGetHandle                     = define_c_func(iup, "+IupGetHandle", {P}, P),
---      xIupSetHandle                     = define_c_proc(iup, "+IupSetHandle", {P,P}),
---      xIupGetAllNames                   = define_c_func(iup, "+IupGetAllNames", {P,I}, I),
---      xIupGetAllDialogs                 = define_c_func(iup, "+IupGetAllDialogs", {P,I}, I),
---      xIupGetName                       = define_c_func(iup, "+IupGetName", {P}, P),
---      xIupSetAttributeHandle            = define_c_proc(iup, "+IupSetAttributeHandle", {P,P,P}),
---      xIupGetAttributeHandle            = define_c_func(iup, "+IupGetAttributeHandle", {P,P}, P),
---      xIupGetClassName                  = define_c_func(iup, "+IupGetClassName", {P}, P),
---      xIupGetClassType                  = define_c_func(iup, "+IupGetClassType", {P}, P),
---      xIupGetAllClasses                 = define_c_func(iup, "+IupGetAllClasses", {P,I}, I),
---      xIupGetClassAttributes            = define_c_func(iup, "+IupGetClassAttributes", {P,P,I}, I),
---      xIupGetClassCallbacks             = define_c_func(iup, "+IupGetClassCallbacks", {P,P,I}, I),
---      xIupSaveClassAttributes           = define_c_proc(iup, "+IupSaveClassAttributes", {P}),
---      xIupCopyClassAttributes           = define_c_proc(iup, "+IupCopyClassAttributes", {P,P}),
---      xIupSetClassDfltAttribute         = define_c_proc(iup, "+IupSetClassDefaultAttribute", {P,P,P}),
---      xIupClassMatch                    = define_c_func(iup, "+IupClassMatch", {P,P}, I),
---      xIupCreate                        = define_c_func(iup, "+IupCreatev", {P,P}, P),
---      xIupFill                          = define_c_func(iup, "+IupFill", {}, P),
---      xIupRadio                         = define_c_func(iup, "+IupRadio", {P}, P),
---      xIupVbox                          = define_c_func(iup, "+IupVboxv", {P}, P),
---      xIupZbox                          = define_c_func(iup, "+IupZboxv", {P}, P),
---      xIupHbox                          = define_c_func(iup, "+IupHboxv", {P}, P),
---      xIupNormalizer                    = define_c_func(iup, "+IupNormalizerv", {P}, P),
---      xIupCboxv                         = define_c_func(iup, "+IupCboxv", {P}, P),
---      xIupSbox                          = define_c_func(iup, "+IupSbox", {P}, P),
---      xIupSplit                         = define_c_func(iup, "+IupSplit", {P,P}, P),
---      xIupScrollBox                     = define_c_func(iup, "+IupScrollBox", {P}, P),
---      xIupGridBox                       = define_c_func(iup, "+IupGridBoxv", {P}, P),
---      xIupExpander                      = define_c_func(iup, "+IupExpander", {P}, P),
---      xIupDetachBox                     = define_c_func(iup, "+IupDetachBox", {P}, P),
---      xIupBackgroundBox                 = define_c_func(iup, "+IupBackgroundBox", {P}, P),
---X     xIupFrame                         = define_c_func(iup, "+IupFrame", {P}, P),
---      xIupImage                         = define_c_func(iup, "+IupImage", {I,I,P}, P),
---      xIupImageRGB                      = define_c_func(iup, "+IupImageRGB", {I,I,P}, P),
---      xIupImageRGBA                     = define_c_func(iup, "+IupImageRGBA", {I,I,P}, P),
---      xIupItem                          = define_c_func(iup, "+IupItem", {P,P}, P),
---      xIupSubmenu                       = define_c_func(iup, "+IupSubmenu", {P,P}, P),
---      xIupSeparator                     = define_c_func(iup, "+IupSeparator", {}, P),
---      xIupMenu                          = define_c_func(iup, "+IupMenuv", {P}, P),
---      xIupButton                        = define_c_func(iup, "+IupButton", {P,P}, P),
---      xIupCanvas                        = define_c_func(iup, "+IupCanvas", {P}, P),
---      xIupDialog                        = define_c_func(iup, "+IupDialog", {P}, P),
---      xIupUser                          = define_c_func(iup, "+IupUser", {}, P),
---      xIupLabel                         = define_c_func(iup, "+IupLabel", {P}, P),
---      xIupList                          = define_c_func(iup, "+IupList", {P}, P),
---      xIupText                          = define_c_func(iup, "+IupText", {P}, P),
---      xIupMultiLine                     = define_c_func(iup, "+IupMultiLine", {P}, P),
---      xIupToggle                        = define_c_func(iup, "+IupToggle", {P,P}, P),
---      xIupTimer                         = define_c_func(iup, "+IupTimer", {}, P),
---      xIupClipboard                     = define_c_func(iup, "+IupClipboard", {}, P),
---      xIupProgressBar                   = define_c_func(iup, "+IupProgressBar", {}, P),
---      xIupVal                           = define_c_func(iup, "+IupVal", {P}, P),
---      xIupTabs                          = define_c_func(iup, "+IupTabsv", {P}, P),
---      xIupTree                          = define_c_func(iup, "+IupTree", {}, P),
---      xIupLink                          = define_c_func(iup, "+IupLink", {P,P}, P),
---x     xIupFlatButton                    = define_c_func(iup, "+IupFlatButton", {P}, P),
---x     xIupSpin                          = define_c_func(iup, "+IupSpin", {}, P),
---      xIupSpinbox                       = define_c_func(iup, "+IupSpinbox", {P}, P),
---      xIupSaveImageAsText               = define_c_func(iup, "+IupSaveImageAsText", {P,P,P,P}, I),
---      xIupTextConvertLinColToPos        = define_c_proc(iup, "+IupTextConvertLinColToPos", {P,I,I,P}),
---      xIupTextConvertPosToLinCol        = define_c_proc(iup, "+IupTextConvertPosToLinCol", {P,I,P,P}),
---      xIupConvertXYToPos                = define_c_func(iup, "+IupConvertXYToPos", {P,I,I}, I),
---      xIupStoreGlobal                   = define_c_proc(iup, "+IupStoreGlobal", {P,P}),
---      xIupStoreAttribute                = define_c_proc(iup, "+IupStoreAttribute", {P,P,P}),
---      xIupStoreAttributeId              = define_c_proc(iup, "+IupStoreAttributeId", {P,P,I,P}),
---      xIupStoreAttributeId2             = define_c_proc(iup, "+IupStoreAttributeId2", {P,P,I,I,P}),
---      xIupTreeSetUserId                 = define_c_func(iup, "+IupTreeSetUserId", {P,I,P}, I),
---      xIupTreeGetUserId                 = define_c_func(iup, "+IupTreeGetUserId", {P,I}, P),
---      xIupTreeGetId                     = define_c_func(iup, "+IupTreeGetId", {P,P}, I),
---      xIupTreeSetAttributeHandle        = define_c_proc(iup, "+IupTreeSetAttributeHandle", {P,P,I,P}),
---      xIupTreeSetAttribute              = define_c_proc(iup, "+IupTreeSetAttribute", {P,P,I,P}),
---      xIupTreeStoreAttribute            = define_c_proc(iup, "+IupTreeStoreAttribute", {P,P,I,P}),
---      xIupTreeGetAttribute              = define_c_func(iup, "+IupTreeGetAttribute", {P,P,I}, P),
---      xIupTreeGetInt                    = define_c_func(iup, "+IupTreeGetInt", {P,P,I}, I),
---      xIupTreeGetFloat                  = define_c_func(iup, "+IupTreeGetFloat", {P,P,I}, F),
---      xIupGetActionName                 = define_c_func(iup, "+IupGetActionName", {}, P),
---      xIupMapFont                       = define_c_func(iup, "+IupMapFont", {P}, P),
---      xIupUnMapFont                     = define_c_func(iup, "+IupUnMapFont", {P}, P),
---      xIupFileDlg                       = define_c_func(iup, "+IupFileDlg", {}, P),
---      xIupMessageDlg                    = define_c_func(iup, "+IupMessageDlg", {}, P),
---      xIupFontDlg                       = define_c_func(iup, "+IupFontDlg", {}, P),
---      xIupGetFile                       = define_c_func(iup, "+IupGetFile", {P}, I),
---      xIupMessage                       = define_c_proc(iup, "+IupMessage", {P,P}),
---      xIupAlarm                         = define_c_func(iup, "+IupAlarm", {P,P,P,P,P}, I),
---      xIupListDialog                    = define_c_func(iup, "+IupListDialog", {I,P,I,P,I,I,I,P}, I),
---      xIupGetText                       = define_c_func(iup, "+IupGetText", {P,P}, I),
---      xIupGetColor                      = define_c_func(iup, "+IupGetColor", {I,I,P,P,P}, I),
---      xIupGetParam                      = define_c_func(iup, "+IupGetParamv", {P,P,P,P,I,I,P}, I),
---      xIupParamf                        = define_c_func(iup, "+IupParamf", {P}, P),
---      xIupParamBox                      = define_c_func(iup, "+IupParamBox", {P,P,I}, P),
---      xIupLayoutDialog                  = define_c_func(iup, "+IupLayoutDialog", {P}, P),
---$
-
---if xIupSetCallback=0 then ?9/0 end if
-
 global constant IUP_NAME = "IUP - Portable User Interface"
 global constant IUP_DESCRIPTION = "Multi-platform Toolkit for Building Graphical User Interfaces"
 global constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
@@ -10351,17 +9742,14 @@ global constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
 --global constant IUP_VERSION_NUMBER = 316000
 --global constant IUP_VERSION_DATE = "2015/09/15" /* does not include bug fix releases */
 
-----void IupSetLanguageString(const char* name, const char* str);
 --global procedure IupSetLanguageString(string name, string str)
 --  c_proc(xIupSetLanguageString, {name,str})
 --end procedure
 --
-----void IupStoreLanguageString(const char* name, const char* str);
 --global procedure IupStoreLanguageString(string name, string str)
 --  c_proc(xIupStoreLanguageString, {name,str})
 --end procedure
 --
-----char* IupGetLanguageString(const char* name);
 --global function IupGetLanguageString(string name)
 --  atom ptr = c_func(xIupGetLanguageString, {name})
 --  sequence str = ""
@@ -10369,24 +9757,17 @@ global constant IUP_COPYRIGHT = "Copyright (C) 1994-2015 Tecgraf/PUC-Rio"
 --  return str
 --end function
 --
-----void IupSetLanguagePack(Ihandle* ih);
 --global procedure IupSetLanguagePack(atom ih)
 --  c_proc(xIupSetLanguagePack, {ih})
 --end procedure
 
-----Icallback IupGetFunction(const char *name);
---global function IupGetFunction(string name)
 global function IupGetGlobalFunction(string name)
     cbfunc result = c_func(xIupGetFunction, {name})
     return result
 end function
 --
-----Icallback IupSetFunction(const char *name, Icallback func);
---global function IupSetGlobalFunction(string name, cbfunc func)
 global procedure IupSetGlobalFunction(string name, cbfunc func)
     cbfunc prev = c_func(xIupSetFunction, {name,func})
---  return prev
---end function
 end procedure
 
 global function IupClassMatch(Ihandle ih, string classname)
@@ -10703,53 +10084,44 @@ end function
 /*                      Utilities                                       */
 /************************************************************************/
 
---void IupStoreAttributeId(Ihandle *ih, const char* name, int id, const char *v);
 global procedure IupStoreAttributeId(Ihandle ih, string name, integer id, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId, {ih,name,id,v})
 end procedure
 
---void IupStoreAttributeId2(Ihandle* ih, const char* name, int lin, int col, const char* v);
 global procedure IupStoreAttributeId2(Ihandle ih, string name, atom lin, atom col, nullable_string v=NULL)
     c_proc(xIupStoreAttributeId2, {ih,name,lin,col,v})
 end procedure
 
 /* IupTree utilities */
---int IupTreeSetUserId(Ihandle* ih, int id, void* userid);
 global procedure IupTreeSetUserId(Ihandle ih, integer id, atom userid)
     atom result = c_func(xIupTreeSetUserId, {ih,id,userid})
 --  if result=0 then ?9/0 end if
     if result=0 then ?"9/0 pGUI.e line 8322" end if
 end procedure
 
---void* IupTreeGetUserId(Ihandle* ih, int id);
 global function IupTreeGetUserId(Ihandle ih, integer id)
 atom result = c_func(xIupTreeGetUserId, {ih,id})
     return result
 end function
 
---int IupTreeGetId(Ihandle* ih, void *userid);
 global function IupTreeGetId(Ihandle ih, atom userid)
 atom result = c_func(xIupTreeGetId, {ih,userid})
     return result
 end function
 
---void IupTreeSetAttributeHandle(Ihandle* ih, const char* name, int id, Ihandle* ih_named);
 --global procedure IupTreeSetAttributeHandle(Ihandle ih, string name, integer id, Ihandle ih_named)
 --  c_proc(xIupTreeSetAttributeHandle, {ih,name,id,ih_named})
 --end procedure
 
 /* DEPRECATED IupTree utilities, use Iup*AttributeId functions. It will be removed in a future version.  */
---void IupTreeSetAttribute(Ihandle* ih, const char* name, int id, const char* v);
 --global procedure IupTreeSetAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
 --  c_proc(xIupTreeSetAttribute, {ih,name,id,v})
 --end procedure
 
---void IupTreeStoreAttribute(Ihandle* ih, const char* name, int id, const char* v);
 --global procedure IupTreeStoreAttribute(Ihandle ih, string name, integer id, nullable_string v=NULL)
 --  c_proc(xIupTreeStoreAttribute, {ih,name,id,v})
 --end procedure
 
---char* IupTreeGetAttribute(Ihandle* ih, const char* name, int id);
 --global function IupTreeGetAttribute(Ihandle ih, string name, integer id)
 --  atom ptr = c_func(xIupTreeGetAttribute, {ih,name,id})
 --  string str = ""
@@ -10757,13 +10129,11 @@ end function
 --  return str
 --end function
 
---int IupTreeGetInt(Ihandle* ih, const char* name, int id);
 --global function IupTreeGetInt(Ihandle ih, string name, integer id)
 --  atom result = c_func(xIupTreeGetInt, {ih,name,id})
 --  return result
 --end function
 
---float IupTreeGetFloat(Ihandle* ih, const char* name, int id);
 --global function IupTreeGetFloat(Ihandle ih, string name, integer id)
 --  atom result = c_func(xIupTreeGetFloat, {ih,name,id})
 --  return result
@@ -10863,27 +10233,9 @@ end function
 --  -- use in place of IupDestroy() to ensure proper cleanup....
 
 
-/* DEPRECATED font names. It will be removed in a future version.  */
---char* IupMapFont(const char *iupfont);
---global function IupMapFont(nullable_string iupfont=NULL)
---  atom ptr = c_func(xIupMapFont, {iupfont})
---  string str = ""
---  if ptr!=NULL then str = peek_string(ptr) end if
---  return str
---end function
-
---char* IupUnMapFont(const char *driverfont);
---global function IupUnMapFont(nullable_string driverfont=NULL)
---  atom ptr = c_func(xIupUnMapFont, {driverfont})
---  string str = ""
---  if ptr!=NULL then str = peek_string(ptr) end if
---  return str
---end function
-
 /************************************************************************/
 /*                      Pre-defined dialogs                           */
 /************************************************************************/
---Ihandle* IupProgressDlg(void);
 -- Creates a progress dialog element. It is a predefined dialog for displaying
 -- the progress of an operation.
 -- The dialog is meant to be shown with the show functions IupShow or IupShowXY.
@@ -10894,13 +10246,11 @@ global function IupProgressDlg()
     return ih
 end function
 
---Ihandle* IupParamf(const char* format);
 --global function IupParamf(nullable_string fmt=NULL)
 --  Ihandle ih = c_func(xIupParamf, {fmt})
 --  return ih
 --end function
 
---Ihandle* IupParamBox(Ihandle* parent, Ihandle** params, int count);
 --global function IupParamBox(Ihandle parent, atom params, integer count)
 --  Ihandle ih = c_func(xIupParamBox, {parent,params,count})
 --  return ih
@@ -11203,1453 +10553,5 @@ end function
 
 --*/
 
---(delete this lot (or move to another file) whenever you like)
-
- -- iup.dll, according to dependency walker:
---------------------------------------------
---/*
---IupAlarm
-IupAnimatedLabel
-IupAppend
-iupArrayAdd
-iupArrayCount
-iupArrayCreate
-iupArrayDestroy
-iupArrayGetData
-iupArrayInc
-iupArrayInsert
-iupArrayRemove
-iupAssert
-iupAttribGet
-iupAttribGetBoolean
-iupAttribGetBooleanId
-iupAttribGetBooleanId2
-iupAttribGetClassObject
-iupAttribGetClassObjectId
-iupAttribGetClassObjectId2
-iupAttribGetDouble
-iupAttribGetDoubleId
-iupAttribGetDoubleId2
-iupAttribGetFloat
-iupAttribGetFloatId
-iupAttribGetFloatId2
-iupAttribGetHandleName
-iupAttribGetId
-iupAttribGetId2
-iupAttribGetInherit
-iupAttribGetInheritNativeParent
-iupAttribGetInt
-iupAttribGetIntId
-iupAttribGetIntId2
-iupAttribGetLocal
-iupAttribGetStr
-iupAttribIsIhandle
-iupAttribIsNotString
-iupAttribSet
-iupAttribSetClassObject
-iupAttribSetClassObjectId
-iupAttribSetClassObjectId2
-iupAttribSetDouble
-iupAttribSetDoubleId
-iupAttribSetDoubleId2
-iupAttribSetFloat
-iupAttribSetFloatId
-iupAttribSetFloatId2
-iupAttribSetHandleName
-iupAttribSetId
-iupAttribSetId2
-iupAttribSetInt
-iupAttribSetIntId
-iupAttribSetIntId2
-iupAttribSetStr
-iupAttribSetStrf
-iupAttribSetStrId
-iupAttribSetStrId2
-IupBackgroundBox
-iupBaseCallValueChangedCb
-iupBaseComputeNaturalSize
-iupBaseContainerGetExpandAttrib
-iupBaseContainerUpdateExpand
-iupBaseGetActiveAttrib
-iupBaseGetClientOffsetAttrib
-iupBaseGetRasterSizeAttrib
-iupBaseGetScrollbar
-iupBaseGetSizeAttrib
-iupBaseGetVisibleAttrib
-iupBaseGetWidAttrib
-iupBaseRegisterCommonAttrib
-iupBaseRegisterCommonCallbacks
-iupBaseRegisterVisualAttrib
-iupBaseSetActiveAttrib
-iupBaseSetCurrentSize
-iupBaseSetPosition
-iupBaseSetRasterSizeAttrib
-iupBaseSetSizeAttrib
-iupBaseSetVisibleAttrib
-iupBaseTypeVoidMapMethod
-IupButton
-IupCalendar
-iupCallGetFocusCb
-iupCallKillFocusCb
-IupCanvas
-IupCbox
-IupCboxv
-iupChildTreeAppend
-iupChildTreeGetNativeParent
-iupChildTreeGetNativeParentHandle
-iupClassCallbackGetFormat
-IupClassMatch
-iupClassMatch
-iupClassNew
-iupClassObjectAttribIsNotString
-iupClassObjectChildAdded
-iupClassObjectChildRemoved
-iupClassObjectComputeNaturalSize
-iupClassObjectCreate
-iupClassObjectDestroy
-iupClassObjectDlgPopup
-iupClassObjectGetAttribute
-iupClassObjectGetAttributeInfo
-iupClassObjectGetInnerContainer
-iupClassObjectLayoutUpdate
-iupClassObjectMap
-iupClassObjectSetAttribute
-iupClassObjectSetChildrenCurrentSize
-iupClassObjectSetChildrenPosition
-iupClassObjectUnMap
-iupClassRegisterAttribute
-iupClassRegisterAttributeId
-iupClassRegisterAttributeId2
-iupClassRegisterCallback
-iupClassRegisterGetAttribute
-iupClassRegisterReplaceAttribDef
-iupClassRegisterReplaceAttribFlags
-iupClassRegisterReplaceAttribFunc
-iupClassRelease
-IupClipboard
-IupClose
-IupColorDlg
-IupConfig
-IupConfigDialogClosed
-IupConfigDialogShow
-IupConfigGetVariableDouble
-IupConfigGetVariableDoubleDef
-IupConfigGetVariableDoubleId
-IupConfigGetVariableDoubleIdDef
-IupConfigGetVariableInt
-IupConfigGetVariableIntDef
-IupConfigGetVariableIntId
-IupConfigGetVariableIntIdDef
-IupConfigGetVariableStr
-IupConfigGetVariableStrDef
-IupConfigGetVariableStrId
-IupConfigGetVariableStrIdDef
-IupConfigLoad
-IupConfigRecentInit
-IupConfigRecentUpdate
-IupConfigSave
-IupConfigSetVariableDouble
-IupConfigSetVariableDoubleId
-IupConfigSetVariableInt
-IupConfigSetVariableIntId
-IupConfigSetVariableStr
-IupConfigSetVariableStrId
-IupConvertXYToPos
-IupCopyClassAttributes
-IupCreate
-IupCreatep
-IupCreatev
-iupDataEntry
-IupDatePick
-IupDestroy
-IupDetach
-IupDetachBox
-IupDialog
-iupDlgListAdd
-iupDlgListCount
-iupDlgListFirst
-iupDlgListNext
-iupDlgListRemove
-iupDlgListVisibleCount
-iupDlgListVisibleDec
-iupDlgListVisibleInc
-iupDrawArc
-iupDrawCreateCanvas
-iupDrawFlush
-iupDrawFocusRect
-iupDrawGetSize
-iupDrawImage
-iupDrawKillCanvas
-iupDrawLine
-iupDrawParentBackground
-iupDrawPolygon
-iupDrawRectangle
-iupDrawResetClip
-iupDrawSelectRect
-iupDrawSetClipRect
-iupDrawText
-iupDrawUpdateSize
-iupdrvActivate
-iupdrvAddScreenOffset
-iupdrvBaseLayoutUpdateMethod
-iupdrvBaseSetCursorAttrib
-iupdrvBaseSetTipAttrib
-iupdrvBaseSetTipVisibleAttrib
-iupdrvBaseSetZorderAttrib
-iupdrvBaseUnMapMethod
-iupdrvClientToScreen
-iupdrvDrawFocusRect
-iupdrvFontGetCharSize
-iupdrvFontGetMultiLineStringSize
-iupdrvFontGetStringWidth
-iupdrvGetComputerName
-iupdrvGetCursorPos
-iupdrvGetDisplay
-iupdrvGetFullSize
-iupdrvGetKeyState
-iupdrvGetScreenDepth
-iupdrvGetScreenDpi
-iupdrvGetScreenSize
-iupdrvGetScrollbarSize
-iupdrvGetSystemFont
-iupdrvGetSystemName
-iupdrvGetSystemVersion
-iupdrvGetUserName
-iupdrvImageCreateImageRaw
-iupdrvImageDestroy
-iupdrvImageGetRawData
-iupdrvImageGetRawInfo
-iupdrvIsActive
-iupdrvIsVisible
-iupdrvKeyEncode
-iupdrvLocaleInfo
-iupdrvPostRedraw
-iupdrvRedrawNow
-iupdrvRegisterDragDropAttrib
-iupdrvReparent
-iupdrvScreenToClient
-iupdrvSendKey
-iupdrvSendMouse
-iupdrvSetActive
-iupdrvSetStandardFontAttrib
-iupdrvSetVisible
-iupdrvWarpPointer
-IupElementPropertiesDialog
-iupError
-IupExecute
-IupExitLoop
-IupExpander
-IupFileDlg
-IupFill
-IupFlatButton
-IupFlush
-iupFocusCanAccept
-IupFontDlg
-iupFontParsePango
-iupFontParseWin
-iupFontParseX
-IupFrame
-IupGetActionName    -- gone!
-IupGetAllAttributes
-IupGetAllClasses
-IupGetAllDialogs
-IupGetAllNames
-IupGetAttribute
-IupGetAttributeHandle
-IupGetAttributeId
-IupGetAttributeId2
-IupGetAttributes
-IupGetBrother
-IupGetCallback
-IupGetChild
-IupGetChildCount
-IupGetChildPos
-IupGetClassAttributes
-IupGetClassCallbacks
-IupGetClassName
-IupGetClassType
-IupGetColor
-IupGetDialog
-IupGetDialogChild
-IupGetDouble
-IupGetDoubleId
-IupGetDoubleId2
-IupGetFile
-IupGetFloat
-IupGetFloatId
-IupGetFloatId2
-IupGetFocus
-iupGetFontAttrib
-iupGetFontFaceAttrib
-iupGetFontInfo
-iupGetFontSizeAttrib
-iupGetFontStyleAttrib
-IupGetFunction
-IupGetGlobal
-IupGetHandle
-IupGetInt
-IupGetInt2
-IupGetIntId
-IupGetIntId2
-IupGetIntInt
-IupGetLanguage
-IupGetLanguageString
-IupGetName
-IupGetNextChild
-IupGetParam
-iupGetParamCount
-iupGetParamType
-IupGetParamv
-IupGetParent
-IupGetRGB
-IupGetRGBId
-IupGetRGBId2
-IupGetText
-iupGlobalIsPointer
-IupGridBox
-IupGridBoxv
-IupHbox
-IupHboxv
-IupHelp
-IupHide
-IupImage
-iupImageColorMakeInactive
-iupImageInitColorTable
-IupImageRGB
-IupImageRGBA
-iupImageStockLoadAll
-iupImageStockSet
-IupInsert
-IupItem
-iupKeyCallKeyCb
-iupKeyCallKeyPressCb
-iupKeyCodeToName
-iupKeyForEach
-iupKeyProcessMnemonic
-iupKeyProcessNavigation
-iupKeySetMnemonic
-IupLabel
-iupLayoutApplyMinMaxSize
-IupLayoutDialog
-iupLayoutUpdate
-iupLineFileClose
-iupLineFileEOF
-iupLineFileGetBuffer
-iupLineFileOpen
-iupLineFileReadLine
-IupLink
-IupList
-IupListDialog
---IupLoad
---IupLoadBuffer
-IupLoopStep
-IupLoopStepWait
-IupMainLoop
-IupMainLoopLevel
-IupMap
---IupMapFont    -- gone
-iupMaskCheck
-iupMaskCreate
-iupMaskCreateFloat
-iupMaskCreateInt
-iupMaskCreateReal
-iupMaskDestroy
-iupMaskGetStr
-IupMenu
-IupMenuv
-IupMessage
-IupMessageDlg
-IupMessagef
-IupMultiLine
-IupNextField
-IupNormalizer
-IupNormalizerv
-iupObjectCheck
-iupObjectGetParamList
-IupOpen
---IupParamBox -- deliberately removed.... (unused/untested/undocumented)
---IupParamf -- gone (or rather IupParm now, but...)
-IupPlayInput
-IupPopup
-IupPreviousField
-IupProgressBar
-IupProgressDlg
-IupRadio
-iupRadioFindToggleParent
-IupRecordInput
-IupRedraw
-IupRefresh
-IupRefreshChildren
-iupRegisterClass
-iupRegisterFindClass
-IupReparent
-IupResetAttribute
-iupRound
-IupSaveClassAttributes
-IupSaveImageAsText
-iupSaveImageAsText
-IupSbox
-IupScanf
---IupScrollBox
-IupSeparator
-IupSetAtt
-IupSetAttribute
-IupSetAttributeHandle
-IupSetAttributeId
-IupSetAttributeId2
-IupSetAttributes
-IupSetCallback
-IupSetCallbacks
-IupSetClassDefaultAttribute
-IupSetDouble
-IupSetDoubleId
-IupSetDoubleId2
-IupSetfAttribute
-IupSetfAttributeId
-IupSetfAttributeId2
-IupSetFloat
-IupSetFloatId
-IupSetFloatId2
-IupSetFocus
-iupSetFontAttrib
-iupSetFontFaceAttrib
-iupSetFontSizeAttrib
-iupSetFontStyleAttrib
-IupSetFunction
-IupSetGlobal
-IupSetHandle
-IupSetInt
-IupSetIntId
-IupSetIntId2
-IupSetLanguage
-IupSetLanguagePack
-IupSetLanguageString
-IupSetRGB
-IupSetRGBId
-IupSetRGBId2
-IupSetStrAttribute
-IupSetStrAttributeId
-IupSetStrAttributeId2
-IupSetStrf
-IupSetStrfId
-IupSetStrfId2
-IupSetStrGlobal
-IupShow
-iupShowError
-iupShowVersion
-IupShowXY
-IupSpin
-IupSpinbox
-IupSplit
-IupStoreAttribute
-IupStoreAttributeId
-IupStoreAttributeId2
-IupStoreGlobal
-IupStoreLanguageString
-iupStrBoolean
-iupStrCompare
-iupStrCompareEqual
-iupStrCompareFind
-iupStrCopyN
-iupStrCountChar
-iupStrDup
-iupStrDupUntil
-iupStrEqual
-iupStrEqualNoCase
-iupStrEqualNoCaseNoSpace
-iupStrEqualNoCasePartial
-iupStrEqualPartial
-iupStrFalse
-iupStrFileGetExt
-iupStrFileGetPath
-iupStrFileGetTitle
-iupStrFileMakeFileName
-iupStrFindMnemonic
-iupStrGetFormatPrecision
-iupStrGetLargeMem
-iupStrGetMemory
-iupStrHasSpace
-IupStringCompare
-iupStrInsert
-iupStrIsAscii
-iupStrLineCount
-iupStrLower
-iupStrNextLine
-iupStrNextValue
-iupStrPrintfDoubleLocale
-iupStrProcessMnemonic
-iupStrRemove
-iupStrReplace
-iupStrReturnBoolean
-iupStrReturnChecked
-iupStrReturnDouble
-iupStrReturnFloat
-iupStrReturnInt
-iupStrReturnIntInt
-iupStrReturnRGB
-iupStrReturnRGBA
-iupStrReturnStr
-iupStrReturnStrf
-iupStrReturnStrStr
-iupStrToDos
-iupStrToDouble
-iupStrToDoubleDef
-iupStrToDoubleDouble
-iupStrToDoubleLocale
-iupStrToFloat
-iupStrToFloatDef
-iupStrToFloatFloat
-iupStrToInt
-iupStrToIntInt
-iupStrToMac
-iupStrToRGB
-iupStrToRGBA
-iupStrToStrStr
-iupStrToUnix
-iupStrUpper
-IupSubmenu
-iupTableClear
-iupTableCount
-iupTableCreate
-iupTableCreateSized
-iupTableDestroy
-iupTableFirst
-iupTableGet
-iupTableGetCurr
-iupTableGetCurrType
-iupTableGetFunc
-iupTableGetTyped
-iupTableNext
-iupTableRemove
-iupTableRemoveCurr
-iupTableSet
-iupTableSetCurr
-iupTableSetFunc
-IupTabs
-IupTabsv
-IupText
-IupTextConvertLinColToPos
-IupTextConvertPosToLinCol
-IupTimer
-IupToggle
-IupTree
---IupTreeGetAttribute   -- gone
---IupTreeGetFloat   -- gone
-IupTreeGetId
---IupTreeGetInt -- gone
-IupTreeGetUserId
---IupTreeSetAttribute   -- gone
---IupTreeSetAttributeHandle -- gone
-IupTreeSetfAttribute
-IupTreeSetUserId
---IupTreeStoreAttribute -- gone
-IupUnmap
---IupUnMapFont -- gone
-IupUpdate
-IupUpdateChildren
-IupUser
-IupVal
-IupVbox
-IupVboxv
-IupVersion
-IupVersionDate
-IupVersionNumber
-iupwinBaseMsgProc
-iupwinButtonDown
-iupwinButtonUp
-iupwinCreateWindow
-iupwinMouseMove
-iupwinStrChar2Wide
-iupwinStrFromSystem
-iupwinStrToSystem
-iupwinStrToSystemLen
-iupwinStrWide2Char
-IupZbox
-IupZboxv
---*/
-
- -- cd.dll, according to dependency walker:
--------------------------------------------
---/*
-cdActivate
---cdActiveCanvas
-cdAlphaImage
-cdArc
---cdBackground
-cdBackOpacity
-cdBaseDriver
-cdBegin
-cdBitmapGetData
-cdBitmapRGB2Map
-cdBitmapSetRect
-cdBlueImage
-cdBox
-cdCanvasActivate
-cdCanvasArc
-cdCanvasBackground
-cdCanvasBackOpacity
-cdCanvasBegin
-cdCanvasBox
-cdCanvasChord
-cdCanvasClear
-cdCanvasClip
---cdCanvasClipArea
-cdCanvasCreateImage
-cdCanvasDeactivate
-cdCanvasEnd
-cdCanvasFillMode
-cdCanvasFlush
-cdCanvasFont
-cdCanvasForeground
-cdCanvasGetAttribute
-cdCanvasGetBitmap
-cdCanvasGetClipArea
-cdCanvasGetColorPlanes
-cdCanvasGetContext
-cdCanvasGetFont
-cdCanvasGetFontDim
-cdCanvasGetImage
-cdCanvasGetImageRGB
-cdCanvasGetOrigin
-cdCanvasGetPattern
-cdCanvasGetRegionBox
-cdCanvasGetSize
-cdCanvasGetStipple
-cdCanvasGetTextBounds
-cdCanvasGetTextBox
-cdCanvasGetTextSize
-cdCanvasGetTransform
-cdCanvasGetVectorFontSize
-cdCanvasGetVectorTextBounds
-cdCanvasGetVectorTextBox
-cdCanvasGetVectorTextSize
-cdCanvasHatch
-cdCanvasInteriorStyle
-cdCanvasInvertYAxis
-cdCanvasIsPointInRegion
-cdCanvasLine
-cdCanvasLineCap
-cdCanvasLineJoin
-cdCanvasLineStyle
-cdCanvasLineStyleDashes
-cdCanvasLineWidth
-cdCanvasMark
-cdCanvasMarkSize
-cdCanvasMarkType
-cdCanvasMM2Pixel
-cdCanvasMultiLineVectorText
-cdCanvasNativeFont
-cdCanvasOffsetRegion
-cdCanvasOrigin
-cdCanvasPalette
-cdCanvasPathSet
-cdCanvasPattern
-cdCanvasPixel
-cdCanvasPixel2MM
-cdCanvasPlay
-cdCanvasPutBitmap
-cdCanvasPutImageRect
-cdCanvasPutImageRectMap
-cdCanvasPutImageRectRGB
-cdCanvasPutImageRectRGBA
-cdCanvasRect
-cdCanvasRegionCombineMode
-cdCanvasRestoreState
-cdCanvasSaveState
-cdCanvasScrollArea
-cdCanvasSector
-cdCanvasSetAttribute
-cdCanvasSetBackground
-cdCanvasSetfAttribute
-cdCanvasSetForeground
-cdCanvasSimulate
-cdCanvasStipple
-cdCanvasText
---cdCanvasTextAlignment
-cdCanvasTextOrientation
-cdCanvasTransform
-cdCanvasTransformMultiply
-cdCanvasTransformPoint
-cdCanvasTransformRotate
-cdCanvasTransformScale
-cdCanvasTransformTranslate
-cdCanvasUpdateYAxis
-cdCanvasVectorCharSize
-cdCanvasVectorFont
-cdCanvasVectorFontSize
-cdCanvasVectorText
-cdCanvasVectorTextDirection
-cdCanvasVectorTextSize
-cdCanvasVectorTextTransform
-cdCanvasVertex
-cdCanvasWriteMode
-cdCanvasYAxisMode
-cdChord
-cdClear
-cdClip
-cdClipArea
-cdContextCaps
---cdContextCGM
---cdContextClipboard
-cdContextDBuffer
-cdContextDBufferRGB
---cdContextDebug
---cdContextDGN
---cdContextDXF
---cdContextEMF
-cdContextImage
-cdContextImageRGB
-cdContextIsPlus
---cdContextMetafile
-cdContextNativeWindow
-cdContextPicture
-cdContextPrinter
-cdContextPS
-cdContextRegisterCallback
-cdContextSVG
-cdContextType
---cdContextWMF
-cdCreateBitmap
-cdCreateCanvas
-cdCreateCanvasf
-cdcreatecanvasMF
-cdCreateImage
-cdDecodeAlpha
-cdDecodeColor
-cdDecodeColorAlpha
-cdEncodeAlpha
-cdEncodeColor
-cdEncodeColorAlpha
-cdEnd
-cdfCanvasArc
-cdfCanvasBox
-cdfCanvasChord
-cdfCanvasClipArea
-cdfCanvasGetClipArea
-cdfCanvasGetOrigin
-cdfCanvasGetTextBounds
-cdfCanvasGetTextBox
-cdfCanvasGetVectorTextBounds
-cdfCanvasGetVectorTextBox
-cdfCanvasGetVectorTextSize
-cdfCanvasInvertYAxis
-cdfCanvasLine
-cdfCanvasMark
-cdfCanvasMM2Pixel
-cdfCanvasMultiLineVectorText
-cdfCanvasOrigin
-cdfCanvasPixel
-cdfCanvasPixel2MM
-cdfCanvasPutImageRectMap
-cdfCanvasPutImageRectRGB
-cdfCanvasPutImageRectRGBA
-cdfCanvasRect
-cdfCanvasSector
-cdfCanvasText
-cdfCanvasTransformPoint
-cdfCanvasUpdateYAxis
-cdfCanvasVectorCharSize
-cdfCanvasVectorText
-cdfCanvasVectorTextDirection
-cdfCanvasVectorTextSize
-cdfCanvasVertex
-cdfGetArcPath
-cdfGetArcStartEnd
-cdFillMode
-cdFlush
-cdFont
-cdFontDim
---cdForeground
-cdfRotatePoint
-cdfRotatePointY
-cdfSimArc
-cdfSimBox
-cdfSimChord
-cdfSimPolyPath
-cdfSimSector
-cdfTextTranslatePoint
-cdGetArcBox
-cdGetArcPath
-cdGetArcPathF
-cdGetArcStartEnd
-cdGetAttribute
-cdGetBitmap
-cdGetCanvasSize
-cdGetClipArea
-cdGetClipPoly
-cdGetColorPlanes
-cdGetContext
-cdGetContextPlus
-cdGetFileName
-cdGetFont
-cdGetFontFileName
-cdGetFontFileNameDefault
-cdGetFontFileNameSystem
-cdGetFontSizePixels
-cdGetFontSizePoints
-cdGetImage
-cdGetImageRGB
-cdGetPattern
-cdGetScreenColorPlanes
-cdGetScreenSize
-cdGetStipple
-cdGetVectorTextBounds
-cdGetVectorTextSize
-cdGreenImage
-cdHatch
-cdInitBitmap
-cdInitContextPlusList
-cdinittableMF
-cdInteriorStyle
-cdKillBitmap
-cdKillCanvas
-cdkillcanvasMF
-cdKillImage
-cdLine
-cdLineCap
-cdLineJoin
-cdLineStyle
-cdLineStyleDashes
-cdLineWidth
-cdMark
-cdMarkSize
-cdMarkType
-cdMM2Pixel
-cdMultiLineVectorText
---cdNativeFont
-cdOffsetRegion
-cdOrigin
-cdPalette
-cdParseIupWinFont
-cdParsePangoFont
-cdParseXWinFont
-cdPattern
-cdPixel
-cdPixel2MM
-cdPlay
-cdPointInRegion
-cdPutBitmap
-cdPutImageRect
-cdPutImageRectMap
-cdPutImageRectRGB
-cdPutImageRectRGBA
-cdRect
-cdRedImage
-cdRegionBox
-cdRegionCombineMode
-cdRegisterAttribute
-cdRegisterCallback
-cdReleaseState
-cdRestoreState
-cdRGB2Map
-cdRotatePointY
-cdRound
-cdSaveState
-cdScrollArea
-cdSector
-cdSetAttribute
-cdSetfAttribute
-cdSetPaperSize
-cdSimArc
-cdSimBox
-cdSimChord
-cdSimPolyPath
-cdSimSector
-cdSimulate
-cdStipple
-cdStrDup
-cdStrEqualNoCase
-cdStrEqualNoCasePartial
-cdStrIsAscii
-cdStrTmpFileName
-cdText
---cdTextAlignment
-cdTextBounds
-cdTextBox
-cdTextOrientation
-cdTextSize
-cdTextTranslatePoint
-cdUpdateAttributes
-cdUpdateYAxis
-cdUseContextPlus
-cdVectorCharSize
-cdVectorFont
-cdVectorText
-cdVectorTextDirection
-cdVectorTextSize
-cdVectorTextTransform
-cdVersion
-cdVersionDate
-cdVersionNumber
-cdVertex
-cdwCreateCanvas
-cdwInitTable
-cdwKillCanvas
-cdwRestoreDC
-cdWriteMode
-wdArc
-wdBox
-wdCanvas2World
-wdCanvasArc
-wdCanvasBox
-wdCanvasCanvas2World
-wdCanvasChord
-wdCanvasClipArea
-wdCanvasFont
-wdCanvasGetClipArea
-wdCanvasGetFont
-wdCanvasGetFontDim
-wdCanvasGetImageRGB
-wdCanvasGetRegionBox
-wdCanvasGetTextBounds
-wdCanvasGetTextBox
-wdCanvasGetTextSize
-wdCanvasGetTransform
-wdCanvasGetVectorTextBounds
-wdCanvasGetVectorTextBox
-wdCanvasGetVectorTextSize
-wdCanvasGetViewport
-wdCanvasGetWindow
-wdCanvasHardcopy
-wdCanvasIsPointInRegion
-wdCanvasLine
-wdCanvasLineWidth
-wdCanvasMark
-wdCanvasMarkSize
-wdCanvasMultiLineVectorText
-wdCanvasOffsetRegion
-wdCanvasPattern
-wdCanvasPixel
-wdCanvasPlay
-wdCanvasPutBitmap
-wdCanvasPutImageRect
-wdCanvasPutImageRectMap
-wdCanvasPutImageRectRGB
-wdCanvasPutImageRectRGBA
-wdCanvasRect
-wdCanvasScale
-wdCanvasSector
-wdCanvasSetTransform
-wdCanvasStipple
-wdCanvasText
-wdCanvasTranslate
-wdCanvasVectorCharSize
-wdCanvasVectorText
-wdCanvasVectorTextDirection
-wdCanvasVectorTextSize
-wdCanvasVertex
-wdCanvasViewport
-wdCanvasWindow
-wdCanvasWorld2Canvas
-wdCanvasWorld2CanvasSize
-wdChord
-wdClipArea
-wdFont
-wdFontDim
-wdGetClipArea
-wdGetClipPoly
-wdGetFont
-wdGetVectorTextBounds
-wdGetVectorTextSize
-wdGetViewport
-wdGetWindow
-wdHardcopy
-wdLine
-wdLineWidth
-wdMark
-wdMarkSize
-wdMultiLineVectorText
-wdOffsetRegion
-wdPattern
-wdPixel
-wdPointInRegion
-wdPutBitmap
-wdPutImageRect
-wdPutImageRectMap
-wdPutImageRectRGB
-wdPutImageRectRGBA
-wdRect
-wdRegionBox
-wdSector
-wdStipple
-wdText
-wdTextBounds
-wdTextBox
-wdTextSize
-wdVectorCharSize
-wdVectorText
-wdVectorTextDirection
-wdVectorTextSize
-wdVertex
-wdViewport
-wdWindow
-wdWorld2Canvas
-wdWorld2CanvasSize
---*/
-
- -- cdim.dll, according to dependency walker:
--------------------------------------------
---/*
-cdCanvasGetImImage
-cdCanvasPatternImImage
-cdCanvasPutImImage
-cdCanvasStippleImImage
-cdContextImImage
-cdfCanvasPutImImage
-wdCanvasGetImImage
-wdCanvasPutImImage
---*/
-
- -- im.dll, according to dependency walker:
--------------------------------------------
---/*
-imAttribArrayCopyFrom
-imAttribArrayCreate
-imAttribArrayGet
-imAttribArraySet
-imAttribTableCopyFrom
-imAttribTableCount
-imAttribTableCreate
-imAttribTableDestroy
-imAttribTableForEach
-imAttribTableGet
-imAttribTableGetInteger
-imAttribTableGetReal
-imAttribTableGetString
-imAttribTableRemoveAll
-imAttribTableSet
-imAttribTableSetInteger
-imAttribTableSetReal
-imAttribTableSetString
-imAttribTableUnSet
-imBinCPUByteOrder
-imBinFileByteOrder
-imBinFileClose
-imBinFileEndOfFile
-imBinFileError
-imBinFileNew
-imBinFileOpen
-imBinFilePrintf
-imBinFileRead
-imBinFileReadInteger
-imBinFileReadLine
-imBinFileReadReal
-imBinFileRegisterModule
-imBinFileSeekFrom
-imBinFileSeekOffset
-imBinFileSeekTo
-imBinFileSetCurrentModule
-imBinFileSize
-imBinFileSkipLine
-imBinFileTell
-imBinFileWrite
-imBinMemoryRelease
-imBinSwapBytes2
-imBinSwapBytes4
-imBinSwapBytes8
-imColorDecode
-imColorEncode
-imColorHSI2RGB
-imColorHSI2RGBbyte
-imColorHSI_ImaxS
-imColorModeDepth
-imColorModeIsBitmap
-imColorModeSpaceName
-imColorModeToBitmap
-imColorRGB2HSI
-imColorRGB2HSIbyte
-imCompressDataLZF
-imCompressDataUnLZF
-imCompressDataUnZ
-imCompressDataZ
-imConvertColorSpace
-imConvertDataType
-imConvertMapToRGB
-imConvertPacking
-imConvertRGB2Map
-imConvertToBitmap
-imCounterBegin
-imCounterEnd
-imCounterGetUserData
-imCounterHasCallback
-imCounterInc
-imCounterIncTo
-imCounterSetCallback
-imCounterSetUserData
-imCounterTotal
-imDataTypeIntMax
-imDataTypeIntMin
-imDataTypeName
-imDataTypeSize
-imDecodeColor
-imDibCaptureScreen
-imDibCopyClipboard
-imDibCreate
-imDibCreateCopy
-imDibCreateReference
-imDibCreateSection
-imDibDecodeToBitmap
-imDibDecodeToMap
-imDibDecodeToRGBA
-imDibDestroy
-imDibEncodeFromBitmap
-imDibEncodeFromMap
-imDibEncodeFromRGBA
-imDibFromHBitmap
-imDibFromImage
-imDibIsClipboardAvailable
-imDibLineGetPixelFunc
-imDibLineSetPixelFunc
-imDibLoadFile
-imDibLogicalPalette
-imDibPasteClipboard
-imDibSaveFile
-imDibToHBitmap
-imDibToImage
-imEncodeColor
-imFileClose
-imFileFormat
-imFileGetAttribInteger
-imFileGetAttribReal
-imFileGetAttribString
-imFileGetAttribute
-imFileGetAttributeList
-imFileGetInfo
-imFileGetPalette
-imFileHandle
-imFileImageLoad
-imFileImageLoadBitmap
-imFileImageLoadRegion
-imFileImageSave
-imFileLineBufferCount
-imFileLineBufferInc
-imFileLineBufferRead
-imFileLineBufferWrite
-imFileLineSizeAligned
-imFileLoadBitmap
-imFileLoadBitmapFrame
-imFileLoadImage
-imFileLoadImageFrame
-imFileLoadImageRegion
-imFileNew
-imFileNewRaw
-imFileOpen
-imFileOpenAs
-imFileOpenRaw
-imFileReadImageData
-imFileReadImageInfo
-imFileSaveImage
-imFileSetAttribInteger
-imFileSetAttribReal
-imFileSetAttribString
-imFileSetAttribute
-imFileSetBaseAttributes
-imFileSetInfo
-imFileSetPalette
-imFileWriteImageData
-imFileWriteImageInfo
-imFormatCanWriteImage
-imFormatCompressions
-imFormatInfo
-imFormatInfoExtra
-imFormatList
-imFormatRegister
-imFormatRegisterInternal
-imFormatRemoveAll
-imImageAddAlpha
-imImageCheckFormat
-imImageClear
-imImageClone
-imImageCopy
-imImageCopyAttributes
-imImageCopyData
-imImageCopyPlane
-imImageCreate
-imImageCreateBased
-imImageCreateFromOpenGLData
-imImageDataSize
-imImageDestroy
-imImageDuplicate
-imImageGetAttribInteger
-imImageGetAttribReal
-imImageGetAttribString
-imImageGetAttribute
-imImageGetAttributeList
-imImageGetOpenGLData
-imImageInfo
-imImageInit
-imImageIsBitmap
-imImageLineCount
-imImageLineSize
-imImageLoadFromResource
-imImageMakeBinary
-imImageMakeGray
-imImageMatch
-imImageMatchColor
-imImageMatchColorSpace
-imImageMatchDataType
-imImageMatchSize
-imImageMergeAttributes
-imImageRemoveAlpha
-imImageReshape
-imImageSetAlpha
-imImageSetAttribInteger
-imImageSetAttribReal
-imImageSetAttribString
-imImageSetAttribute
-imImageSetBinary
-imImageSetGray
-imImageSetMap
-imImageSetPalette
-imLoadMap
-imLoadRGB
-imMap2Gray
-imMap2RGB
-imPaletteBlackBody
-imPaletteBlue
-imPaletteBlueIce
-imPaletteCian
-imPaletteDuplicate
-imPaletteFindColor
-imPaletteFindNearest
-imPaletteGray
-imPaletteGreen
-imPaletteHighContrast
-imPaletteHotIron
-imPaletteHues
-imPaletteLinear
-imPaletteMagenta
-imPaletteNew
-imPaletteRainbow
-imPaletteRed
-imPaletteRelease
-imPaletteUniform
-imPaletteUniformIndex
-imPaletteUniformIndexHalftoned
-imPaletteYellow
-imRegisterCallback
-imResize
-imRGB2Gray
-imRGB2Map
-imSaveMap
-imSaveRGB
-imStrCheck
-imStrEqual
-imStretch
-imStrNLen
-imVersion
-imVersionDate
-imVersionNumber
---*/
-
- -- iupgl.dll, according to dependency walker:
--------------------------------------------
---/*
-IupGLCanvas
-IupGLCanvasOpen
-IupGLIsCurrent
-IupGLMakeCurrent
-IupGLPalette
-IupGLSwapBuffers
-IupGLUseFont
-IupGLWait
---*/
-
- -- im_process.dll, according to dependency walker:
---------------------------------------------------
---/*
-imAnalyzeFindRegions
-imAnalyzeMeasureArea
-imAnalyzeMeasureCentroid
-imAnalyzeMeasureHoles
-imAnalyzeMeasurePerimArea
-imAnalyzeMeasurePerimeter
-imAnalyzeMeasurePrincipalAxis
-imCalcByteHistogram
-imCalcCountColors
-imCalcGrayHistogram
-imCalcHistogram
-imCalcHistogramStatistics
-imCalcHistoImageStatistics
-imCalcImageStatistics
-imCalcPercentMinMax
-imCalcRMSError
-imCalcShortHistogram
-imCalcSNR
-imCalcUShortHistogram
-imGaussianKernelSize2StdDev
-imGaussianStdDev2KernelSize
-imHistogramNew
-imHistogramRelease
-imHistogramShift
-imKernelBarlett5x5
-imKernelCircularMean5x5
-imKernelCircularMean7x7
-imKernelEnhance
-imKernelGaussian3x3
-imKernelGaussian5x5
-imKernelGradian3x3
-imKernelGradian7x7
-imKernelKirsh
-imKernelLaplacian4
-imKernelLaplacian5x5
-imKernelLaplacian7x7
-imKernelLaplacian8
-imKernelMean3x3
-imKernelMean5x5
-imKernelMean7x7
-imKernelPrewitt
-imKernelSculpt
-imKernelSobel
-imKernelTopHat5x5
-imKernelTopHat7x7
-imProcessAbnormalHyperionCorrection
-imProcessAddMargins
-imProcessArithmeticConstOp
-imProcessArithmeticOp
-imProcessAutoCovariance
-imProcessBarlettConvolve
-imProcessBinMorphClose
-imProcessBinMorphConvolve
-imProcessBinMorphDilate
-imProcessBinMorphErode
-imProcessBinMorphOpen
-imProcessBinMorphOutline
-imProcessBinMorphThin
-imProcessBitMask
-imProcessBitPlane
-imProcessBitwiseNot
-imProcessBitwiseOp
-imProcessBlend
-imProcessBlendConst
-imProcessCalcAutoGamma
-imProcessCalcRotateSize
-imProcessCanny
-imProcessCompassConvolve
-imProcessCompose
-imProcessConvertColorSpace
-imProcessConvertDataType
-imProcessConvertToBitmap
-imProcessConvolve
-imProcessConvolveDual
-imProcessConvolveRep
-imProcessConvolveSep
-imProcessCrop
-imProcessDiffOfGaussianConvolve
-imProcessDifusionErrThreshold
-imProcessDirectConv
-imProcessDistanceTransform
-imProcessEqualizeHistogram
-imProcessExpandHistogram
-imProcessFillHoles
-imProcessFlip
-imProcessGaussianConvolve
-imProcessGrayMorphClose
-imProcessGrayMorphConvolve
-imProcessGrayMorphDilate
-imProcessGrayMorphErode
-imProcessGrayMorphGradient
-imProcessGrayMorphOpen
-imProcessGrayMorphTopHat
-imProcessGrayMorphWell
-imProcessHoughLines
-imProcessHoughLinesDraw
-imProcessHysteresisThresEstimate
-imProcessHysteresisThreshold
-imProcessInsert
-imProcessInterlaceSplit
-imProcessLapOfGaussianConvolve
-imProcessLocalMaxThresEstimate
-imProcessLocalMaxThreshold
-imProcessMeanConvolve
-imProcessMedianConvolve
-imProcessMergeComplex
-imProcessMergeComponents
-imProcessMergeHSI
-imProcessMinMaxThreshold
-imProcessMirror
-imProcessMultipleMean
-imProcessMultipleMedian
-imProcessMultipleStdDev
-imProcessMultiplyConj
-imProcessMultiPointColorOp
-imProcessMultiPointOp
-imProcessNegative
-imProcessNormalizeComponents
-imProcessNormDiffRatio
-imProcessOpenMPSetMinCount
-imProcessOpenMPSetNumThreads
-imProcessOtsuThreshold
-imProcessPercentThreshold
-imProcessPerimeterLine
-imProcessPixelate
-imProcessPosterize
-imProcessPrewittConvolve
-imProcessQuantizeGrayUniform
-imProcessQuantizeRGBUniform
-imProcessRadial
-imProcessRangeContrastThreshold
-imProcessRangeConvolve
-imProcessRankClosestConvolve
-imProcessRankMaxConvolve
-imProcessRankMinConvolve
-imProcessReduce
-imProcessReduceBy4
-imProcessRegionalMaximum
-imProcessRemoveByArea
-imProcessRenderAddGaussianNoise
-imProcessRenderAddSpeckleNoise
-imProcessRenderAddUniformNoise
-imProcessRenderBox
-imProcessRenderChessboard
-imProcessRenderCondOp
-imProcessRenderCone
-imProcessRenderConstant
-imProcessRenderCosine
-imProcessRenderFloodFill
-imProcessRenderGaussian
-imProcessRenderGrid
-imProcessRenderLapOfGaussian
-imProcessRenderOp
-imProcessRenderRamp
-imProcessRenderRandomNoise
-imProcessRenderSinc
-imProcessRenderTent
-imProcessRenderWheel
-imProcessReplaceColor
-imProcessResize
-imProcessRotate
-imProcessRotate180
-imProcessRotate90
-imProcessRotateKernel
-imProcessRotateRef
-imProcessSetAlphaColor
-imProcessSharp
-imProcessSharpKernel
-imProcessShiftHSI
-imProcessSliceThreshold
-imProcessSobelConvolve
-imProcessSplineEdgeConvolve
-imProcessSplitComplex
-imProcessSplitComponents
-imProcessSplitHSI
-imProcessSplitYChroma
-imProcessSwirl
-imProcessThreshold
-imProcessThresholdByDiff
-imProcessToneGamut
-imProcessUnArithmeticOp
-imProcessUnaryPointColorOp
-imProcessUnaryPointOp
-imProcessUniformErrThreshold
-imProcessUnNormalize
-imProcessUnsharp
-imProcessZeroCrossing
---*/
-
- -- x.dll, according to dependency walker:
--------------------------------------------
---/*
---*/
 --28/3/21
 include IupFileList.e

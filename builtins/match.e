@@ -152,3 +152,15 @@ global function begins(object sub_text, sequence full_text)
     integer ls = length(sub_text)
     return ls<=lf and sub_text==full_text[1..ls]
 end function
+
+global function ends(object sub_text, sequence full_text)
+    integer lf = length(full_text)
+    if lf=0 then return false end if
+    if atom(sub_text) then
+        -- eg ends('t',"cat") -> true.
+        return sub_text==full_text[$]
+    end if
+    integer ls = length(sub_text)
+    return ls<=lf and sub_text==full_text[-ls..-1]
+end function
+

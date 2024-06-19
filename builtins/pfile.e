@@ -128,7 +128,9 @@ global function get_file_type(string filename)
         -- level directories, which have neither "." nor "..",
         -- at least on windows, that is.
         --
-        if find('d', d[1][2])
+--10/6/24 (dir entries not in order...)
+--      if find('d', d[1][2])
+        if length(d)>1
         or (length(filename)=3 and filename[2]=':') then
             return FILETYPE_DIRECTORY
         else
@@ -260,7 +262,7 @@ global constant DRIVE_UNKNOWN       = 0,    -- The drive type cannot be determin
                 DRIVE_RAMDISK       = 6     -- The drive is a RAM disk.
 --*/ 
 
-global function get_logical_drives()
+global function get_logical_drives(integer drive_type=-1)
 --(suggestions for enhancements to this routine are welcome)
     sequence res
     if platform()=WINDOWS then
@@ -274,7 +276,9 @@ global function get_logical_drives()
             buflen = length(onedrive)
             if buflen=0 then exit end if
             integer drivetype = c_func(xGetDriveType,{onedrive})
-            res = append(res,{onedrive,drivetype})
+            if drive_type=-1 or drivetype=drive_type then
+                res = append(res,{onedrive,drivetype})
+            end if
             pbuf += buflen+1  -- skip trailing/separating nulls
         end while
         free(buffer)

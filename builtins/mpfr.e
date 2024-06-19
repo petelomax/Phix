@@ -1472,7 +1472,6 @@ end function
 
 integer x_mpz_fib_ui = NULL
 
---global procedure mpz_fib_ui(mpz fn, integer n)
 global procedure mpz_fib_ui(mpz fn, atom n)
 --Set fn to the n'th Fibonacci number.
     if fn=NULL then ?9/0 end if
@@ -7843,110 +7842,6 @@ decimal. For big numbers there's usually nothing of particular interest to be se
 in the digits, so the base doesn't matter much.
 Maybe we can hope octal will one day become the normal base for everyday use, as
 proposed by King Charles XII of Sweden and later reformers.
-3.12 Debugging
-Stack Overflow
-Depending on the system, a segmentation violation or bus error might be the only
-indication of stack overflow. See '--enable-alloca' choices in Section 2.1 [Build
-Options], page 3, for how to address this.
-In new enough versions of GCC, '-fstack-check' may be able to ensure
-an overflow is recognised by the system before too much damage is done, or
-24 MPIR 2.7.2
-'-fstack-limit-symbol' or '-fstack-limit-register' may be able to add
-checking if the system itself doesn't do any (see Section "Options for Code
-Generation" in Using the GNU Compiler Collection (GCC)). These options must
-be added to the 'CFLAGS' used in the MPIR build (see Section 2.1 [Build Options],
-page 3), adding them just to an application will have no effect. Note also they're a
-slowdown, adding overhead to each function call and each stack allocation.
-Heap Problems
-The most likely cause of application problems with MPIR is heap corruption. Failing
-to init MPIR variables will have unpredictable effects, and corruption arising
-elsewhere in a program may well affect MPIR. Initializing MPIR variables more
-than once or failing to clear them will cause memory leaks.
-In all such cases a malloc debugger is recommended. On a GNU or BSD system
-the standard C library malloc has some diagnostic facilities, see Section "Allocation
-Debugging" in The GNU C Library Reference Manual, or 'man 3 malloc'. Other
-possibilities, in no particular order, include
-http://dmalloc.com/
-http://www.perens.com/FreeSoftware/ (electric fence)
-http://www.gnupdate.org/components/leakbug/
-http://wwww.gnome.org/projects/memprof
-The MPIR default allocation routines in memory.c also have a simple sentinel scheme
-which can be enabled with #define DEBUG in that file. This is mainly designed for
-detecting buffer overruns during MPIR development, but might find other uses.
-Stack Backtraces
-On some systems the compiler options MPIR uses by default can interfere with
-debugging. In particular on x86 and 68k systems '-fomit-frame-pointer' is used
-and this generally inhibits stack backtracing. Recompiling without such options
-may help while debugging, though the usual caveats about it potentially moving a
-memory problem or hiding a compiler bug will apply.
-GDB, the GNU Debugger
-A sample .gdbinit is included in the distribution, showing how to call some undocumented
-dump functions to print MPIR variables from within GDB. Note that these
-functions shouldn't be used in final application code since they're undocumented
-and may be subject to incompatible changes in future versions of MPIR.
-Source File Paths
-MPIR has multiple source files with the same name, in different directories. For
-example mpz, mpq and mpf each have an init.c. If the debugger can't already
-determine the right one it may help to build with absolute paths on each C file.
-One way to do that is to use a separate object directory with an absolute path to
-the source directory.
-cd /my/build/dir
-/my/source/dir/gmp-2.7.2/configure
-This works via VPATH, and might require GNU make. Alternately it might be possible
-to change the .c.lo rules appropriately.
-Assertion Checking
-The build option --enable-assert is available to add some consistency checks to
-the library (see Section 2.1 [Build Options], page 3). These are likely to be of limited
-value to most applications. Assertion failures are just as likely to indicate memory
-corruption as a library or compiler bug.
-Applications using the low-level mpn functions, however, will benefit from --enableassert
-since it adds checks on the parameters of most such functions, many of which
-Chapter 3: MPIR Basics 25
-have subtle restrictions on their usage. Note however that only the generic C code
-has checks, not the assembler code, so CPU 'none' should be used for maximum
-checking.
-Temporary Memory Checking
---The build option --enable-alloca=debug arranges that each block of temporary
---memory in MPIR is allocated with a separate call to malloc (or the allocation
---function set with mp_set_memory_functions).
-This can help a malloc debugger detect accesses outside the intended bounds, or
-detect memory not released. In a normal build, on the other hand, temporary
-memory is allocated in blocks which MPIR divides up for its own use, or may be
-allocated with a compiler builtin alloca which will go nowhere near any malloc
-debugger hooks.
-3.13 Profiling
-Running a program under a profiler is a good way to find where it's spending most time and
-where improvements can be best sought. The profiling choices for a MPIR build are as follows.
-'--disable-profiling'
-The default is to add nothing special for profiling.
-It should be possible to just compile the mainline of a program with -p and use prof
-to get a profile consisting of timer-based sampling of the program counter. Most of
-the MPIR assembler code has the necessary symbol information.
-This approach has the advantage of minimizing interference with normal program
-operation, but on most systems the resolution of the sampling is quite low (10
-milliseconds for instance), requiring long runs to get accurate information.
-26 MPIR 2.7.2
-'--enable-profiling=prof'
-Build with support for the system prof, which means '-p' added to the 'CFLAGS'.
-This provides call counting in addition to program counter sampling, which allows
-the most frequently called routines to be identified, and an average time spent in
-each routine to be determined.
-The x86 assembler code has support for this option, but on other processors the
-assembler routines will be as if compiled without '-p' and therefore won't appear in
-the call counts.
-On some systems, such as GNU/Linux, '-p' in fact means '-pg' and in this case
-'--enable-profiling=gprof' described below should be used instead.
-'--enable-profiling=gprof'
-
-3.15 Emacs
-C-h C-i (info-lookup-symbol) is a good way to find documentation on C functions while
-editing (see Section "Info Documentation Lookup" in The Emacs Editor).
-The MPIR manual can be included in such lookups by putting the following in your .emacs,
-(eval-after-load "info-look"
-'(let ((mode-value (assoc 'c-mode (assoc 'symbol info-lookup-alist))))
-(setcar (nthcdr 3 mode-value)
-(cons '("(gmp)Function Index" nil "^ -.* " "\\>")
-(nth 3 mode-value)))))
 
 5 Integer Functions
 This chapter describes the MPIR functions for performing integer arithmetic. These functions
@@ -8044,17 +7939,12 @@ The GNU C Library Reference Manual).
 
 5.5 Arithmetic Functions
 --void mpz_ui_sub (mpz_t rop, mpir_ui op1, mpz_t op2) 
---Set rop to op1 - op2.
 --void mpz_addmul (mpz_t rop, mpz_t op1, mpz_t op2) 
 --void mpz_addmul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
-Set rop to rop + op1 * op2.
 --void mpz_submul (mpz_t rop, mpz_t op1, mpz_t op2) 
 --void mpz_submul_ui (mpz_t rop, mpz_t op1, mpir_ui op2) 
-Set rop to rop - op1 * op2.
 --void mpz_neg (mpz_t rop, mpz_t op) 
---Set rop to -op.
 --void mpz_abs (mpz_t rop, mpz_t op) 
---Set rop to the absolute value of op.
 5.6 Division Functions
 --void mpz_cdiv_q (mpz_t q, mpz_t n, mpz_t d) 
 void mpz_cdiv_r (mpz_t r, mpz_t n, mpz_t d) 
@@ -9142,69 +9032,6 @@ which might have looser rules about what constitutes a valid input.
 Note that gmp_sscanf is the same as gmp_fscanf and only does one character of lookahead
 when parsing. Although clearly it could look at its entire input, it is deliberately made identical
 to gmp_fscanf, the same way C99 sscanf is the same as fscanf.
-
-13 Custom Allocation
-By default MPIR uses malloc, realloc and free for memory allocation, and if they fail MPIR
-prints a message to the standard error output and terminates the program.
-Alternate functions can be specified, to allocate memory in a different way or to have a different
-error action on running out of memory.
-void mp_set_memory_functions(void *(*alloc_func_ptr) (size t),
-                             void *(*realloc_func_ptr) (void *, size t, size t),
-                             void (*free_func_ptr) (void *, size t))
-Replace the current allocation functions from the arguments. If an argument is NULL, the
-corresponding default function is used.
-These functions will be used for all memory allocation done by MPIR, apart from temporary
-space from alloca if that function is available and MPIR is configured to use it (see
-Section 2.1 [Build Options], page 3).
-Be sure to call mp_set_memory_functions only when there are no active MPIR objects
-allocated using the previous memory functions! Usually that means calling it before any
-other MPIR function.
-The functions supplied should fit the following declarations:
-void * allocate_function (size t alloc_size) 
-Return a pointer to newly allocated space with at least alloc size bytes.
-void * reallocate_function (void *ptr, size t old_size, size t new_size)
-Resize a previously allocated block ptr of old size bytes to be new size bytes.
-The block may be moved if necessary or if desired, and in that case the smaller of old size
-and new size bytes must be copied to the new location. The return value is a pointer to the
-resized block, that being the new location if moved or just ptr if not.
-ptr is never NULL, it's always a previously allocated block. new size may be bigger or smaller
-than old size.
-void free_function (void *ptr, size t size) 
-De-allocate the space pointed to by ptr.
-ptr is never NULL, it's always a previously allocated block of size bytes.
-A byte here means the unit used by the sizeof operator.
-The old size parameters to reallocate function and free function are passed for convenience,
-but of course can be ignored if not needed. The default functions using malloc and friends for
-instance don't use them.
-No error return is allowed from any of these functions, if they return then they must have performed
-the specified operation. In particular note that allocate function or reallocate function
-mustn't return NULL.
-Chapter 13: Custom Allocation 87
-Getting a different fatal error action is a good use for custom allocation functions, for example
-giving a graphical dialog rather than the default print to stderr. How much is possible when
-genuinely out of memory is another question though.
-There's currently no defined way for the allocation functions to recover from an error such as out
-of memory, they must terminate program execution. A longjmp or throwing a C++ exception
-will have undefined results. This may change in the future.
-MPIR may use allocated blocks to hold pointers to other allocated blocks. This will limit the
-assumptions a conservative garbage collection scheme can make.
-Any custom allocation functions must align pointers to limb boundaries. Thus if a limb is eight
-bytes (e.g. on x86 64), then all blocks must be aligned to eight byte boundaries. Check the
-configuration options for the custom allocation library in use. It is not necessary to align blocks
-to SSE boundaries even when SSE code is used. All MPIR assembly routines assume limb
-boundary alignment only (which is the default for most standard memory managers).
-Since the default MPIR allocation uses malloc and friends, those functions will be linked in
-even if the first thing a program does is an mp_set_memory_functions. It's necessary to change
-the MPIR sources if this is a problem.
-void mp_get_memory_functions(void *(**alloc_func_ptr) (size t),
-                             void *(**realloc_func_ptr) (void *, size t, size t),
-                             void (**free_func_ptr) (void *, size t))
-Get the current allocation functions, storing function pointers to the locations given by the
-arguments. If an argument is NULL, that function pointer is not stored.
-For example, to get just the current free function,
-void (*freefunc) (void *, size_t);
-mp_get_memory_functions (NULL, NULL, &freefunc);
-
 
 Agent ransack(C:\MinGW, *gmp*.dll)
 C:\MinGW\bin\libgmp-10.dll 669.00 KB 22/08/2013 12:45:58

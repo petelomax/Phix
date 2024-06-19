@@ -3,7 +3,7 @@
 
 -- Sort the elements of a sequence into ascending order, using "Shell" sort.
 
-without debug
+--without debug
 --DEV wrong one for newEmit
 --!/**/include builtins\pcfunc.e
 
