@@ -4,7 +4,9 @@
 // Sorting
 
 // Sort the elements of a sequence into ascending order, using "Shell" sort.
-/*without debug*/ //DEV wrong one for newEmit
+
+//without debug
+//DEV wrong one for newEmit
 //!/**/include builtins\pcfunc.e
 
 //defined in psym.e:

@@ -25,7 +25,8 @@ end function
     let /*integer*/ current_sub = 0, 
                     substitutes = 
                                   ((atom(error_control)) ? -!error_control : length(error_control));
-    let /*sequence*/ res = "";
+//  sequence res = ""
+    let /*sequence*/ res = ((string(source)) ? "" : ["sequence"]);
     if (integer(column)) {
         if (compare(column,1)<0) { crash("vslice(%d)",column); }
         for (let i=1, i$lim=length(source); i<=i$lim; i+=1) {

@@ -360,11 +360,10 @@ integer cs = 0
 end function
 
 global procedure suspend_thread(atom hThread)
-atom dwError
     if not init then t_init() end if
     if platform()=WINDOWS then
         if c_func(xSuspendThread,{hThread})=-1 then
-            dwError = c_func(xGetLastError,{})
+            atom dwError = c_func(xGetLastError,{})
             ?9/0
         end if
     else -- LINUX
@@ -373,11 +372,10 @@ atom dwError
 end procedure
 
 global procedure resume_thread(atom hThread)
-atom dwError
     if not init then t_init() end if
     if platform()=WINDOWS then
         if c_func(xResumeThread,{hThread})=-1 then
-            dwError = c_func(xGetLastError,{})
+            atom dwError = c_func(xGetLastError,{})
             ?9/0
         end if
     else
@@ -392,7 +390,6 @@ atom dwError
 end procedure
 
 global procedure wait_thread(object hThread)
-atom dwError
     if sequence(hThread) then
         for i=1 to length(hThread) do
             wait_thread(hThread[i])
@@ -400,7 +397,7 @@ atom dwError
     else
         if not init then t_init() end if
         if platform()=WINDOWS then
-            dwError = c_func(xWaitForSingleObject,{hThread,INFINITE})
+            atom dwError = c_func(xWaitForSingleObject,{hThread,INFINITE})
             if dwError!=WAIT_OBJECT_0 then  -- [WAIT_FAILED?]
                 dwError = c_func(xGetLastError,{})
                 ?9/0

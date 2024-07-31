@@ -125,6 +125,10 @@ function $show_module() {
     $prev_module = 0;
 }
 
+/*global*/ function $get_tests_failed() {
+    return $tests_failed;
+}
+
 /*global*/ function set_test_module(/*string*/ name) {
 //
 //  The $module name is simply a hint to the programmer about where to go to 

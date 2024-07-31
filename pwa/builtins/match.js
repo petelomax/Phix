@@ -143,3 +143,14 @@
     let /*integer*/ ls = length(sub_text);
     return ls<=lf && (equal(sub_text,$subss(full_text,1,ls)));
 }
+
+/*global*/ function $ends(/*object*/ sub_text, /*sequence*/ full_text) {
+    let /*integer*/ lf = length(full_text);
+    if (lf===0) { return false; }
+    if (atom(sub_text)) {
+        // eg $ends('t',"cat") -> true.
+        return equal(sub_text,$subse(full_text,-1));
+    }
+    let /*integer*/ ls = length(sub_text);
+    return ls<=lf && (equal(sub_text,$subss(full_text,-ls,-1)));
+}

@@ -328,8 +328,7 @@ $validtd = $repe($validtd,$DT_DSTZ,["sequence",0,length($timezones)]);
     }
     return 0;
 }
-//with trace
-
+/*with trace*/
 /*global*/ function timedelta(/*atom*/ weeks=0, /*atom*/ days=0, /*atom*/ hours=0, /*atom*/ minutes=0, /*atom*/ seconds=0, /*atom*/ milliseconds=0, /*atom*/ microseconds=0) {
 //
 // The parameters are expected to be named: while 7 hours and 30 minutes could legally be defined using timedelta(0,0,7,30),
@@ -706,13 +705,21 @@ function $seconds_to_timedate(/*atom*/ seconds) {
     seconds -= hours*3600;
     minutes = floor(seconds/60);
     seconds -= minutes*60;
-    milliseconds = floor((seconds-floor(seconds))*1000);
+//15/6/24
+//  milliseconds = floor((seconds-floor(seconds))*1000)
+    milliseconds = round((seconds-floor(seconds))*1000);
     seconds = floor(seconds);
     return $julian_day_to_timedate(days,hours,minutes,seconds,milliseconds);
 }
 
 /*global*/ function adjust_timedate(/*sequence*/ td, /*atom*/ delta) {
     let /*integer*/ [,y,m,d] = td, dsrule, tz, stz;
+//15/6/24:
+    let /*bool*/ y0m0 = (y===0) && (m===0);
+    td = deep_copy(td);
+    if (y0m0) {
+        td = $repss(td,1,3,["sequence",2024,1,1]); [,y,m,d] = td; }
+    assert(y>=1752,"date prior to introduction of Gregorian calendar");
     if (m<1) {
         while (true) {
             m += 12;
@@ -744,7 +751,7 @@ function $seconds_to_timedate(/*atom*/ seconds) {
     let /*integer*/ ltd = length(td);
     if (ltd>=7) {
     //p2js
-        td = deep_copy(td);
+//      td = deep_copy(td)
         td = $repss(td,1,7,$seconds_to_timedate(secs));
     } else {
         td = $seconds_to_timedate(secs);
@@ -789,17 +796,20 @@ function $seconds_to_timedate(/*atom*/ seconds) {
     if (delta!==0) {
         td = $repss(td,1,7,$seconds_to_timedate($timedate_to_seconds(td)+delta));
     }
+    if (y0m0) {
+        td = $repss(td,1,3,["sequence",0,0,0]);
+    } else {
 //4/3/18 don't clobber DT_MSECS!
 //  if length(td)>=DT_DOW then
 //      td[DT_DOW] = day_of_week(td)
 //      {y,m,d} = td
 //      td[DT_DOW] = day_of_week(y,m,d)
-    if (compare(length(td),DT_DOY)>=0) {
-        [,y,m,d] = td;
+        if (compare(length(td),DT_DOY)>=0) {
+            [,y,m,d] = td;
 //          td[DT_DOY] = day_of_year(td)
-        td = $repe(td,DT_DOY,day_of_year(y,m,d));
+            td = $repe(td,DT_DOY,day_of_year(y,m,d));
+        }
     }
-//  end if
 //1/5/24:
     if (ltd<9 && compare(ltd,length(td))<0) { td = $subss(td,1,ltd); }
     return td;

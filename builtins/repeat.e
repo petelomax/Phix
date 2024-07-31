@@ -94,7 +94,8 @@ global function deep_copy(object o)
     -- Also note that JavaScript does not have a reference count, so obviously
     -- bIfNeeded cannot be implemented there, and will just be quietly ignored.
     --
-    assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
+--  assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
+    assert(not still_has_delete_routine(o),"deep_copy(delete_routine)")
     if sequence(o) and not string(o) then
 --      assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
 --/*

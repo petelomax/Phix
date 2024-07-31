@@ -4,18 +4,19 @@
 // builtins\pextract.e
 //
 
-/*global*/ function extract(/*sequence*/ source, indexes, /*bool*/ invert=false) {
+/*global*/ function extract(/*sequence*/ source, indexes, /*integer*/ invert=false) {
     let /*integer*/ l = length(indexes), ii;
 //  sequence res = repeat(0,l)
-    let /*sequence*/ res = repeat(((string(source)) ? 0X20 : 0),l);
-    if (invert) {
-        let /*sequence*/ inverse = repeat(0,l);
+    if (odd(invert)) {
+        let /*sequence*/ inverse = repeat(0,l); // (or tagset??)
         for (let i=1, i$lim=l; i<=i$lim; i+=1) {
             ii = $subse(indexes,i);
             inverse = $repe(inverse,ii,i);
         }
         indexes = inverse;
+        invert -= 1;
     }
+    let /*sequence*/ res = repeat((((invert===0) && string(source)) ? 0X20 : 0),l);
     for (let i=1, i$lim=l; i<=i$lim; i+=1) {
         ii = $subse(indexes,i);
         res = $repe(res,i,$subse(source,ii));
