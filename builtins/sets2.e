@@ -19,13 +19,18 @@
 
 bool s_init = false
 sequence sets
+integer free_sets = 0
 
 procedure init_s()
     s_init = true
     sets = {}
 end procedure
 
-global function is_member(integer sid, object x)
+type set(integer sid)
+    return s_init and sid>0 and sid<=length(sets) and not integer(sets[sid])
+end type
+
+global function is_member(set sid, object x)
     --
     -- Returns true if x is a member of set.
     -- Symbolically represented with an E shape.    
@@ -40,16 +45,31 @@ global function is_member(integer sid, object x)
     return res
 end function
 
-global function get_members(integer sid)
+global function set_size(set sid)
+    return length(sets[sid])
+end function
+
+global function is_empty(set sid)
+    return length(sets[sid])=0
+end function
+
+
+global function get_members(set sid, bool bDestroy=true)
 --  object set = sets[sid]
 --  if integer(set) then
 --      set = getd_all_keys(set)
 --  end if
 --  return set
-    return sets[sid]
+--  return sets[sid]
+    sequence res = sets[sid]
+    if bDestroy then
+        sets[sid] = free_sets
+        free_sets = sid
+    end if
+    return res
 end function
 
-global procedure add_member(integer sid, object x)
+global procedure add_member(set sid, object x)
 --  object set = sets[sid]
     sequence set = sets[sid]
 --  if sequence(set) then
@@ -71,13 +91,14 @@ global procedure add_member(integer sid, object x)
 --  end if
 end procedure
 
-global procedure add_members(integer sid, sequence items)
+global procedure add_members(set sid, sequence items)
 --  object set = sets[sid]
     sequence set = sets[sid]
     integer l = length(set)
     sets[sid] = 0
 --  if sequence(set) then
-    if length(set)=0 then
+--  if length(set)=0 then
+    if l=0 then
 --      set = unique(deep_copy(items,1))
         set = unique(deep_copy(items))
     else
@@ -107,24 +128,26 @@ global procedure add_members(integer sid, sequence items)
 end procedure
 
 --DEV what about dicts??
-function set_default(sequence s1, object s2=-1)
-    -- return {} or "" as the new set default
-    bool bAllString = true
---???
---  bool bAllString = string(s1)
-    if s2!=-1 then
-        bAllString = string(s1) and string(s2)
-    elsif not string(s1) then
---what about s2??
-        for i=1 to length(s1) do
-            if not string(s1[i]) then
-                bAllString = false
-                exit
-            end if
-        end for
-    end if
-    return iff(bAllString?"":{})
-end function
+--/*
+--  function set_default(sequence s1, object s2=-1)
+--      -- return {} or "" as the new set default
+--      bool bAllString = true
+--  --???
+--  --  bool bAllString = string(s1)
+--      if s2!=-1 then
+--          bAllString = string(s1) and string(s2)
+--      elsif not string(s1) then
+--  --what about s2??
+--          for i=1 to length(s1) do
+--              if not string(s1[i]) then
+--                  bAllString = false
+--                  exit
+--              end if
+--          end for
+--      end if
+--      return iff(bAllString?"":{})
+--  end function
+--*/
 
 --DEV to psym.e
 --global constant SET_TYPE_DICT=0, SET_TYPE_SEQ=1
@@ -142,10 +165,19 @@ global function new_set(object items={})
 --  sets = append(sets,iff(set_type=SET_TYPE_DICT?new_dict()
 --                                               :set_default(items)))
 --  sets = append(sets,set_default(items))
-    sets = append(sets,items)
+    set sid
+--  integer sid
+    if free_sets then
+        integer res = free_sets
+        free_sets = sets[free_sets]
+        sets[res] = items
+        sid = res
+    else    
+        sets = append(sets,items)
 --  sets = append(sets,iff(set_type=SET_TYPE_DICT?new_dict():
 --                     iff(set_type=SET_TYPE_SORTED?items:{})))
-    integer sid = length(sets)
+        sid = length(sets)
+    end if
 --  if length(items) then
 ----    if set_type!=SET_TYPE_SORTED and length(items) then
 --      add_members(sid,items)
@@ -153,7 +185,7 @@ global function new_set(object items={})
     return sid
 end function
 
-global procedure remove_member(integer sid, object x)
+global procedure remove_member(set sid, object x)
 --  object set = sets[sid]
     sequence set = sets[sid]
 --  if sequence(set) then
@@ -170,9 +202,11 @@ global procedure remove_member(integer sid, object x)
 --  end if
 end procedure
 
-global procedure remove_members(integer sid, sequence s)
-    for i=1 to length(s) do
-        remove_member(sid,s[i])
+global procedure remove_members(set sid, sequence s)
+--  for i=1 to length(s) do
+    for si in s do
+--      remove_member(sid,s[i])
+        remove_member(sid,si)
     end for
 end procedure
 
@@ -307,7 +341,8 @@ global function union(object s1, s2=0, tgt=0)
     return s1
 end function
 
-global function intersection(object s1, s2=-1, integer tgt=0)
+--global function intersection(object s1, s2=-1, integer tgt=0)
+global function intersection(object s1, s2=-1, integer return_set=0)
     --
     -- Returns anything that occurs in every set.
     -- Symbolically represented as upsidedown U
@@ -334,9 +369,11 @@ global function intersection(object s1, s2=-1, integer tgt=0)
     -- Note: you cannot mix sids and strings, or use
     -- literal sequences except via new_set().
     --
-    bool in_situ = tgt==s1
+--  bool in_situ = tgt==s1
+    bool in_situ = return_set==s1
     if string(s1) then
-        assert(tgt=0)
+--      assert(tgt=0)
+        assert(return_set=false)
         string res = ""
         s1 = unique(s1)
 --      if not string(s2) then
@@ -367,19 +404,29 @@ global function intersection(object s1, s2=-1, integer tgt=0)
         sequence res = {}
         if s2!=-1 then
             -- assume intersection(s1,s2) style invocation
-            s1 = sets[s1]
+--          if integer(s1) then
+--              s1 = sets[s1]
+--          end if
             if in_situ then
-                sets[tgt] = 0
+--              sets[tgt] = 0
+                s1 = sets[s1]
+                sets[return_set] = 0
+            elsif integer(s1) then
+                s1 = deep_copy(sets[s1])
             else
 --              s1 = deep_copy(s1,1)
+--?? maybe, maybe not...
                 s1 = deep_copy(s1)
             end if
-            s2 = sets[s2]
+            if integer(s2) then
+                s2 = sets[s2]
+            end if
             if string(s1) then res = "" end if
 --          wsequence res = iff(string(s1):"":{})
 --      if not set_type(s2) then ?9/0 end if
             for i=1 to length(s1) do
                 object si = s1[i]
+--binary_search?
                 if find(si,s2) then
                     res = append(res,si)
                 end if
@@ -402,6 +449,8 @@ global function intersection(object s1, s2=-1, integer tgt=0)
                 end for
             end if
         end if
+--temp:
+integer tgt = return_set
         if tgt!=0 then
             if tgt=-1 then
                 tgt = new_set(res)
@@ -556,8 +605,12 @@ global function difference(object s1, s2=-1, integer tgt=0, bool symmetric=true)
                     if not find(si,res) then
                         for j=1 to length(s1) do
                             if j!=h then
-                                sid = s1[j] -- (assertion point)
-                                sequence sj = sets[sid]
+--                              sid = s1[j] -- (assertion point)
+                                object sj = s1[j]
+                                if integer(sj) then
+                                    sj = sets[sj]
+                                end if
+--                              sequence sj = sets[sid]
                                 if not find(si,sj) then
                                     res = append(res,si)
                                     exit 
