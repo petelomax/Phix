@@ -54,7 +54,9 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
                 or length(userdata)!=2 then
                     crash("userdata must be a sequence of length 2 for in/out handling")
                 end if
-                object {lo,hi} = userdata
+--              object {lo,hi} = userdata
+                object lo = userdata[1],
+                       hi = userdata[2]
 --              for i=1 to length(s) do
 --                  si = s[i]
                 for si in s do
@@ -111,7 +113,8 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
     else
         -- user-defined function handling
         if rangetype!="" then crash("invalid rangetype") end if
-        integer fn = rs,
+        bool bTrue = rs>0
+        integer fn = abs(rs),
                 {maxp,minp} = get_routine_info(fn)
         if maxp<1 or minp>3 then
             crash("filter routine must accept 1..3 parameters")
@@ -120,7 +123,7 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
         end if
         for i=1 to length(s) do
             si = s[i]
-            bool bAdd
+            integer bAdd
             if userdata={} then
                 if (maxp=1 or minp<=1) then
                     bAdd = fn(si)
@@ -134,7 +137,7 @@ global function filter(sequence s, rid_string rs, object userdata = {}, string r
             else
                 bAdd = fn(si,userdata)
             end if
-            if bAdd then
+            if (bAdd!=0)==bTrue then
                 if bCount then
                     ires += 1
                 else

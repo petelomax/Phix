@@ -39,7 +39,7 @@ global function decode_flags(sequence FlagSet, atom v, string sep="+")
         string desc = FlagSet[i][2]
         atom flag = FlagSet[i][1]
         if flag=0 then
-            if i!=1 then ?9/0 end if -- sanity check
+--          if i!=1 then ?9/0 end if -- sanity check
             -- (I suspect ^ means there is some logic error setting up FlagSet,
             -- (else I suppose you could just ignore entries>1 with a flag of 0.)
             if v=0 then

@@ -46,7 +46,7 @@ include builtins\VM\pHeap.e
 --Also note that heap() is /not/ an autoinclude, you need to include pAlloc.e   [testme]
 --unless, as is quite likely, it happens to have been dragged in already.
 --Also note that the status of heap_ptr() can change "under your feet", such that
---heap_ptr a = allocate(16); free(a) does /not/ trigger a type check even though
+--heap_ptr a = allocate(16); free(a) does /not/ trigger a typecheck even though
 --heap_ptr(a) would now yield false, and further heap_ptr b = a is likely to have
 --the normal typecheck you would expect on b optimised away; you may need to get
 --the value from a into and back out of an atom, to ensure it actually checks.
@@ -119,6 +119,8 @@ global procedure free(object addr)
                         shl rcx,32+24   -- (56, aka 64-8)
                         mov [rbx+rdx*4-8],rcx -- (zeroise delete_rtn on data)
                         mov [rid],rax
+--                  [ARM]
+--                      int3
                   }
             -- Invoking free() on a value with delete_routine() in force just
             -- maps the call to delete(). It is assumed that will re-invoke 

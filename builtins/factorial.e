@@ -1,10 +1,10 @@
 --
 -- factorial.e (an autoinclude)
 --
-integer finit = 0
+integer finit = 0 -- (aka flim)
 sequence fcache
 
-global function gamma(atom z)
+local function gamma(atom z)
 
     sequence p = { 676.5203681218851,   
                  -1259.1392167224028, 
@@ -46,8 +46,9 @@ global function factorial(atom n)
     if n>0 then
         if not finit then
             fcache = {1}
-            finit = 1
+            finit = iff(machine_bits()=32?171:1755)
         end if
+        if n>finit then n = finit end if -- (res==inf)
         for i=length(fcache)+1 to n do
             fcache &= fcache[$]*i
         end for
@@ -75,11 +76,14 @@ global function choose(integer n, k)
 --24/10/22 (from below)
 --  if k>n-k then k = n-k end if
 --  k = min(k,n-k)
-    atom res = 1
---  for i=1 to k do
-    for i=1 to min(k,n-k) do
-        res = (res*(n-i+1))/i
-    end for
+--  if k>n then return 0 end if
+--  atom res = 1
+    atom res = k<=n
+    if res then
+        for i=1 to min(k,n-k) do
+            res = (res*(n-i+1))/i
+        end for
+    end if
     return res
 end function
 

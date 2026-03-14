@@ -272,6 +272,8 @@ global function combination(integer k, n, sequence set)
 --
 -- return the kth combination of length n items from the given set.
 -- k should be an integer in the range 1 to power(length(set),n)
+--                                              ^^ shd that just be length(set)*n?
+--                                              -- duh, more likely choose(n,l)...
 --
     integer l = length(set)
     if k<1 or k>power(l,n) then ?9/0 end if

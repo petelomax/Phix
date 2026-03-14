@@ -12,7 +12,7 @@ global function or_all(object s)
         result = or_bits(result, s) -- (force 32bit)
     else
         for i=1 to length(s) do
-            atom si = s[i] -- (type check is deliberate)
+            atom si = s[i] -- (typecheck is deliberate)
             result = or_bits(result, si)
         end for
     end if
@@ -26,7 +26,7 @@ global function or_allu(object s)
         result = or_bitsu(result, s) -- (unsign if rqd)
     else
         for i=1 to length(s) do
-            atom si = s[i] -- (type check is deliberate)
+            atom si = s[i] -- (typecheck is deliberate)
             result = or_bitsu(result, si)
         end for
     end if

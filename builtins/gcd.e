@@ -157,3 +157,67 @@ end function
 --      return tot
 --  end function
 
+--From https://rosettacode.org/wiki/Totient_function#alternate%2C_much_faster but made extensible:
+-- Use of get_phi(i) instead of s_phi[i] means this is about 3* slower than that, but still 17*
+-- faster than the (current) builtin... However, the 3* means I can't/don't want to use it on rc, 
+-- and I cannot think of anywhere else... Otherwise this should be good to go.
+-- UPDATE: (spotted in passing) "i<=lpc" now looks deeply suspect, without lpc being updated...
+--         Then again it might be correct, since it's all about how we blat the new tagstart().
+--         A note about -pci being the resume point for the while j<=nl loop seems to be missing,
+--         along with -ve entries("") being prime and hence they need returning as [n-1].
+--         Might also be a reasonable candidate to implement in #ilASM{}, to see how close we can
+--         get the v2 generated code to that in terms of performance (esp subscripting).
+
+--/*
+local function nextlen(integer n)
+    --
+    -- based on pHeap.e (optimally filled sequence lengths)
+    -- returns 5,17,41,89,185,377,... on 32-bit,
+    --         4,15,37,81,169,345,... on 64-bit
+    -- ie the smallest of those which is >= n
+    -- (if we are going to use a cache, we may as well at
+    --  least try and waste least amount of spare space.)
+    -- (note I have no proof this saves any time at all.)
+    --
+    integer mw = machine_word(), dw = 2*mw, h = 5*mw,
+            d = iff(machine_bits()=32?16:28), 
+            i = 2, r = -1
+    while r<n do
+        integer w = (d+dw)*2
+        d = w-dw        
+        r = floor((d-h)/mw)
+    end while
+    return r
+end function
+
+integer lpc = 0
+sequence phi_cache = {}
+
+function get_phi(integer n)
+    if n>lpc then
+        integer nl = nextlen(n)
+        phi_cache &= tagstart(lpc+1,nl-lpc)
+        for i=2 to nl do
+--bool primei = is_prime(i)
+            integer pci = phi_cache[i]
+            if iff(i<=lpc?pci<0:pci=i) then
+//? assert(is_prime(i)) ?? -- test me (or: ensure all prime i get here)
+--assert(primei); primei = false
+                integer j = iff(i<=lpc?-pci:i)
+                while j<=nl do
+                    phi_cache[j] -= phi_cache[j] / i;
+                    j += i
+                end while
+                phi_cache[i] = -j
+            end if
+--assert(not primei)
+        end for
+        lpc = nl
+    end if
+    integer res = phi_cache[n]
+    if res<0 then res = n-1 end if
+    return res
+end function
+--*/
+
+

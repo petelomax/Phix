@@ -152,3 +152,11 @@ end function
 -- [What I should really do is test NOLT impact on interpretation performance,
 --  and if neglible then ditch it... And at the time time I should re-evaluate 
 --  the "no gvar scan when interpreted" thing, ditto.]
+
+-- See also (the output of) https://rosettacode.org/wiki/Idiomatically_determine_all_the_lowercase_and_uppercase_letters#Crystal
+--                          https://rosettacode.org/wiki/Idiomatically_determine_all_the_lowercase_and_uppercase_letters#Go
+--                          https://rosettacode.org/wiki/Idiomatically_determine_all_the_lowercase_and_uppercase_letters#Haskell
+
+--C:\Program Files (x86)\Phix>julia E:\downloads\misc\wren\julia-1.8.2-win64\julia-1.8.2\test.jl
+--There are 294579 valid Chars or which 2569 are lowercase and 1978 are uppercase...
+

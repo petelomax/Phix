@@ -9,9 +9,9 @@ without debug -- keep ex.err clean (overshadowed by same in pdiag.e)
 integer caseinit = 0
 string toUpper, toLower
 sequence str_methods
-enum LOWER = 1, UPPER = 2, CAPITALISE = 3, SENTENCE = 4, INVERT = 5
+local enum LOWER = 1, UPPER = 2, CAPITALISE = 3, SENTENCE = 4, INVERT = 5
 
-procedure initcase()
+local procedure initcase()
     str_methods = {"LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"}
     integer i32
     toUpper = repeat(255,255)
@@ -26,23 +26,25 @@ procedure initcase()
         toUpper[i32] = i
     end for
     for i=#C0 to #D6 do -- see pcase8.e
+--  for i=192 to 214 do -- see pcase8.e
         i32 = i+32
         toLower[i] = i32
         toUpper[i32] = i
     end for
     for i=#D8 to #DE do -- see pcase8.e
+--  for i=216 to 222 do -- see pcase8.e
         i32 = i+32
         toLower[i] = i32
         toUpper[i32] = i
     end for
 
     -- several odd-balls, see pcase8.e
-    toLower[#8A] = #9A
-    toLower[#8C] = #9C
-    toLower[#9F] = #FF
-    toUpper[#9A] = #8A
-    toUpper[#9C] = #8C
-    toUpper[#FF] = #9F
+--  toLower[#8A] = #9A
+--  toLower[#8C] = #9C
+--  toLower[#9F] = #FF
+--  toUpper[#9A] = #8A
+--  toUpper[#9C] = #8C
+--  toUpper[#FF] = #9F
     caseinit = 1
 end procedure
 
@@ -215,76 +217,83 @@ end function
 --end function
 --*/
 
-global function proper(string s, method="CAPITALISE")
---
--- LOWER:       "this is England. so there" -> "this is england. so there"
--- UPPER:       "this is England. so there" -> "THIS IS ENGLAND. SO THERE"
--- CAPITALISE:  "this is England. so there" -> "This Is England. So There"
--- SENTENCE:    "this is England. so there" -> "This is england. So there"
--- INVERT:      "this is England. so there" -> "THIS IS eNGLAND. SO THERE"
---
--- Obviously LOWER/UPPER overlap functionally with lower()/upper(), but it 
---  might one day be useful to dynamically specify such options at runtime.
--- SENTENCE is far from perfect, INVERT has (potential) use in Edita/Edix,
--- to correct something just typed in with the wrong caps lock setting.
---
-integer mi = find(upper(method),str_methods), -- must be one of those!
-        ch,             -- a character
-        pc = ' '        -- previous character
-bool eos = true,        -- end of sentence flag
-     inQuote = false,   -- within double quotes flag
-     islow = false,     -- ch is lowercase
-     ishigh = false,    -- ch is uppercase
-     lowit = false,     -- change it?
-     highit = false     -- change it?
+sequence proper_nouns -- (re-usable via a method of {})
 
+global function proper(string s, sequence method="CAPITALISE")
     if not caseinit then initcase() end if
+    bool eos = true,        -- end of sentence flag
+         inQuote = false,   -- within double quotes flag
+         islo = false,      -- ch is lowercase
+         ishi = false,      -- ch is uppercase
+         lowit = false,     -- change it?
+         highit = false,    -- change it?
+         bProperNouns = not string(method)
+    if bProperNouns then
+        if length(method) then
+            -- (ie {} re-uses one set up earlier, w/o re-lowercasing it)
+            proper_nouns = apply(method,lower)
+        end if
+        method = "SENTENCE"
+    end if
+    integer mi = find(upper(method),str_methods), -- must be one of those!
+            pc = ' ',       -- previous character
+            l = length(s),
+            word_start = 0
     if mi=0 then crash("proper(s,\"%s\"): invalid method parameter",{method}) end if
-    for i=1 to length(s) do
-        ch := s[i]
---      islow := (ch>='a' and ch<='z')  lowit = false
---      ishigh := (ch>='A' and ch<='Z') highit = false
-        islow := (ch>0 and ch<=255 and ch!=toUpper[ch])     lowit = false
-        ishigh := (ch>0 and ch<=255 and ch!=toLower[ch])    highit = false
+    for i,ch in s do
+--      islo := (ch>='a' and ch<='z')   lowit = false
+--      ishi := (ch>='A' and ch<='Z') highit = false
+--      islo := (ch>0 and ch<=255 and ch!=toUpper[ch])  lowit = false
+--      ishi := (ch>0 and ch<=255 and ch!=toLower[ch])  highit = false
+        islo := (ch!=toUpper[ch])   lowit = false
+        ishi := (ch!=toLower[ch])   highit = false
         switch mi do
-            case LOWER then lowit := ishigh
-            case UPPER then highit := islow
-            case INVERT then lowit := ishigh
-                            highit := islow
+            case LOWER then lowit := ishi
+            case UPPER then highit := islo
+            case INVERT then lowit := ishi
+                            highit := islo
             case CAPITALISE then
---                      if find(pc," \t\r\n\"\'`") then
-                        if find(pc," \r\n\"\'`"&9) then
-                            highit := islow
+                        if find(pc," \t\r\n\"\'`") then
+--                      if find(pc," \r\n\"\'`"&9) then
+                            highit := islo
                         else
-                            lowit := ishigh
+                            lowit := ishi
                         end if  
             case SENTENCE then
---                  if find(pc," \t\r\n") then
-                    if find(pc," \r\n"&9) then
+                    if find(pc," \t\r\n") then
+--                  if find(pc," \r\n"&9) then
                         if eos then
-                            highit := islow
-                            eos := False
+                            highit := islo
+                            eos := false
                         else
-                            lowit := ishigh
+                            lowit := ishi
                         end if
+                        word_start = i
                     else
-                        lowit := ishigh
+                        lowit := ishi
                     end if
                     if find(ch,".!?") then
-                        eos := True
---                  elsif not find(ch," \t\r\n") then
-                    elsif not find(ch," \r\n"&9) then
-                        eos := False
+                        eos := true
+                    elsif not find(ch," \t\r\n") then
+--                  elsif not find(ch," \r\n"&9) then
+                        eos := false
                     end if
                     if ch='\"' then
                         ch := ' '
                         inQuote := not inQuote
-                        eos := inQuote
+--                      eos := inQuote
+                        eos := inQuote and i<l and s[i+1]!=toLower[s[i+1]]
                     end if
         end switch
         pc := ch
         if     lowit then ch += 32 s[i] := ch
         elsif highit then ch -= 32 s[i] := ch end if
+        if bProperNouns and word_start and (i=l or not (islo or ishi)) then
+            if find(lower(s[word_start..i-(i!=l)]),proper_nouns) then
+                s[word_start] = upper(s[word_start])
+            end if
+            word_start = 0
+        end if
     end for
     return s
 end function

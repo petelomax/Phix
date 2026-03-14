@@ -14,13 +14,14 @@ procedure initd()
     dot = {0,31,59,90,120,151,181,212,243,273,304,334}
     dim = {31,28,31,30,31,30,31,31,30,31,30,31}
     t = {-1, 2, 1, 4,-1, 2, 4, 0, 3, 5, 1, 3 }
-    days = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
+    days = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Anyday"}
     dinit = 1
 end procedure
 
 global function is_leap_year(object y)
     if sequence(y) then y = y[DT_YEAR] end if
-    return remainder(y,4)=0 and (remainder(y,100)!=0 or remainder(y,400)=0)
+    return remainder(y,4)=0
+      and (remainder(y,100)!=0 or remainder(y,400)=0)
 end function
 
 global function day_of_year(object y, integer m=0, d=0)
@@ -80,8 +81,9 @@ global function day_of_week(object y, integer m=0, d=0, bool bAsText=false)
 --      if m=1 then y -=1; m = 12 else m -= 1 end if
 --      d = days_in_month(y, m)
 --  end if
-    if d<1 or d>31 or m<0 or m>12 or (y!=0 and y<1752) then ?9/0 end if
-    if y!=0 or m!=0 or not bAsText or d>7 then
+    if d<1 or d>31 or m<0 or m>12 or (y!=0 and y<1752) then
+        d = 8
+    elsif y!=0 or m!=0 or not bAsText or d>7 then
         y -= m<3
         l = floor(y/4)-floor(y/100)+floor(y/400)
         d += y+l+t[m]

@@ -35,7 +35,7 @@ end function
 
 global function elapsed(atom s, min_s=0, string fmt="")
 -- convert s (in seconds) into an elapsed time string suitable for display.
--- limits: a type check error occurs if s exceeds approx 100 billion years.
+-- limits: a typecheck error occurs if s exceeds approx 100 billion years.
 atom m,h,d
 string res = ""
     if min_s=0 or s>=min_s then

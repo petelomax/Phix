@@ -151,7 +151,8 @@ end function
 --*/
 
 function enquote(string filepath)
-    if find(' ',filepath) then
+    if find(' ',filepath)
+    and filepath[1]!='-' then
         filepath = '"'&filepath&'"'
     end if
     return filepath
@@ -313,15 +314,24 @@ global procedure requires(object x, bool bQuiet=false)
     elsif x=machine_bits() then
         xmb = x
     else
-        integer m = abs(x)
         sequence cl = command_line()
+        if sequence(x) then
+            string new_options = x[2]
+            while begins("-",cl[$]) do cl = cl[1..$-1] end while
+            if length(new_options) then
+                cl = append(cl,new_options)
+            end if
+            x = x[1]
+        end if
+        integer m = abs(x)
         string {c1,c2} = cl, cmd, msg
         bool precompiled = (c1==c2),
              bOptional = and_bits(bQuiet,0b100)!=0
         if not precompiled then
 --          if bPrefW=-1 then bPrefW = find('w',get_file_base(c1))!=0 end if
 --          bool bPrefW = find('w',get_file_base(c1))!=0
-            bool bPrefW = iff(and_bits(bQuiet,0b10)?false:-1)
+            bool bPrefW = iff(and_bits(bQuiet,0b10)?false:-1),
+                 bWait = and_bits(bQuiet,0b1000)=0
             bQuiet = and_bits(bQuiet,0b01)
             assert(not bQuiet or xmb=0,"would go bananas") -- (as per docs)
             string p = get_interpreter(false,{m},platform(),bPrefW)
@@ -330,7 +340,16 @@ global procedure requires(object x, bool bQuiet=false)
                 cl[1] = p
                 cmd = join(apply(cl,enquote))
                 if bQuiet then
-                    {} = system_exec(cmd)
+                    if bWait then
+                        {} = system_exec(cmd)
+                    else
+--?cmd
+--sleep(5)
+--                      system(cmd)
+                        {} = system_exec(cmd,8)
+--?"<<<"
+--sleep(5)
+                    end if
                 else
                     msg = iff(m==x?sprintf("%d bit",m):"restart")
                     printf(1,"requires %s: %s\n",{msg,cmd})

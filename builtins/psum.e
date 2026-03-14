@@ -77,3 +77,45 @@ global function average(object a, zlr=0)
     return res
 end function
 
+-- see also demo\rosetta\Standard_deviation.exw
+-- no attempt is made to apply Bessel's correction.
+global function std_dev(object a, zlr=0)
+    atom res
+    if atom(a) then
+        res = a
+    else
+        integer l = length(a)
+        if l=0 then
+            res = zl(zlr)
+        else
+            atom mean = 0
+            res = 0
+            for x in a do
+                if not atom(x) then x = average(x,zlr) end if
+                mean += x
+                res += x*x
+            end for
+--          mean /= l
+--          res -= mean*mean*l
+            res -= mean*mean/l
+            res /= l
+            res = sqrt(res)
+        end if
+    end if
+    return res
+end function
+
+--/*
+function digital_root(integer n)
+    assert(n>=0)
+    while n>9 do
+        integer tot = 0
+        while n>0 do
+            tot += remainder(n,10)
+            n = floor(n/10)
+        end while
+        n = tot
+    end while
+    return n
+end function
+--*/

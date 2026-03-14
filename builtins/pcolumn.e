@@ -22,7 +22,7 @@ global function columnize(sequence source, object columns={}, defval=0)
 --  (Specifying a default value of <SPACE> on the last example causes it to
 --   return a sequence of strings, rather than dword-sequences, which might
 --   display as {{97,100,103},{98,101,104},{99,102,105}}, or cause unwanted
---   type checks if the result is later processed using a string variable.)
+--   typechecks if the result is later processed using a string variable.)
 --
 sequence result
 integer ncolumns, col

@@ -1,4 +1,3 @@
-
 --
 -- builtins\pflatten.e
 -- ===================
@@ -22,19 +21,16 @@ global function flatten(sequence s, res="")
     return res
 end function
 
-global function join(sequence s, object delim=" ", lastdelim="", string fmt="")
+global function join(sequence s, object delim=' ', lastdelim=delim, string fmt="")
     sequence res = ""
-    integer l = length(s)
-    if length(fmt) then s = apply(true,sprintf,{{fmt},s}) end if
-    for i=1 to l do
+    integer ls = length(s), lf = length(fmt)
+    for i,si in s do
         if i!=1 then
-            if i=l and length(lastdelim) then
-                res &= lastdelim
-            else
-                res &= delim
-            end if
+            if i=ls then delim = lastdelim end if
+            res &= delim
         end if
-        res &= s[i]
+        if lf then si = sprintf(fmt,si) end if
+        res &= si
     end for
     return res
 end function

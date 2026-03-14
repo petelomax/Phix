@@ -1,7 +1,7 @@
 --
 -- builtins\ptypes.e
 --
---  NB not an autoinclude, but used/included by [x]pGUI.e, mpfr.e, pFilter.e, and structs.e.
+--  NB not an autoinclude, but used/included by theGUI.e, mpfr.e, pFilter.e, and structs.e.
 --
 
 -- used by IupSetAttribute, IupSetGlobal, cdCreateCanvas, mpz_import:
@@ -13,7 +13,7 @@ end type
 
 global type rid_string(object o)
     return string(o) 
-        or (integer(o) and o>15)
+        or (integer(o) and abs(o)>15) -- (note hll_integer etc /are/ > 15)
 end type
 
 global type nullable_string(object o)
@@ -25,7 +25,7 @@ global type boolean(object o)
     return integer(o) and (o=true or o=false)
 end type
 
---DEV/erm, see if we can get by (in xpGUI.e) without this...
+--DEV/erm, see if we can get by (in theGUI.e) without this... [update: we can]
 --global function get_raw_string_ptr(string s)
 ----
 ---- Returns a raw string pointer for s, somewhat like allocate_string(s), but using the existing memory.

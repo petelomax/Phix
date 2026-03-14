@@ -2,8 +2,12 @@
 -- builtins\fileopenN.ew
 -- =====================
 --
+-- Note: Not documented anywhere other than in this file, quite deliberately.
+--       You should instead be using gGetOpenFileName(), which is a thin wrapper
+--       to this, alongside some other suitable GTK/JS compatible alternative code.
+--
 -- Replacement for getOpenFileName and getSaveFileName, using the Vista+ COM approach.
---  newGetOpenFileName() and newGetSaveFileName()
+--  newGetOpenFileName() and newGetSaveFileName() [ written around 2015, I'd guess ]
 --  Should still work on windows XP [DEV testme] but not tested on anything earlier.
 --
 -- Adds a custom dropdown for ANSI/UTF8/UTF16LE/UTF16BE, as per Notepad, and likewise
@@ -13,40 +17,12 @@
 --  documented library written expressly for inclusion of this into Edita.
 --
 
---DEV not documented
-
 --with trace
-include builtins\pComN.ew
+include builtins\pComN.ew -- (likwise not documented, and not used anywhere else)
 
---!/*
---DEV finit:
-constant 
-    shell32  = open_dll("shell32.dll"),
-    ole32    = open_dll("ole32.dll"),
-
-    xCoInitialize = define_c_func(ole32,"CoInitialize",
-        {C_PTR},    --  VOID* pvReserved // must be NULL
-        C_UINT),    -- HRESULT
-
-    xCoCreateInstance = define_c_func(ole32,"CoCreateInstance",
-        {C_PTR,     --  REFCLSID rclsid, // Class Id to create an instance of.
-         C_PTR,     --  IUnknown* pUnkOuter, // Optional outer unknown to allow aggregation with another object.
-         C_LONG,    --  DWORD dwClsContext, // Flags to restrict the location of the created instance.
-         C_PTR,     --  REFIID riid, // The Id of the interface of the instance to return.
-         C_PTR},    --  LPVOID* ppv // On return, contains a pointer to the specified interface of the instance.
-        C_UINT),    -- HRESULT
-
-    xSHCreateItemFromParsingName = define_c_func(shell32,"SHCreateItemFromParsingName",
-        {C_PTR,     --  PCWSTR pszPath, // A pointer to a display name
-         C_PTR,     --  IBindCtx* pbc, // bind context (use NULL)
-         C_PTR,     --  REFIID riid, // typically IID_ShellItem
-         C_PTR},    --  void** ppv // returned interface pointer, typically IShellItem.
-        C_UINT),    -- HRESULT
-
-    xCoTaskMemFree = define_c_proc(ole32,"CoTaskMemFree",
-        {C_PTR}),   --  VOID* pv
-    $
---!*/
+integer f_init = false
+atom xCoInitialize, xCoCreateInstance, xSHCreateItemFromParsingName, xCoTaskMemFree,
+     pIFileDialogEvents, pFileDialogCustomize
 
 global constant ENC_NONE    = 0,
                 ENC_ANSI    = 1,
@@ -54,21 +30,19 @@ global constant ENC_NONE    = 0,
                 ENC_UTF16LE = 3,
                 ENC_UTF16BE = 4     -- (rare case)
 
-global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
+--global constant Encodings = {"ANSI","UTF8","UTF16LE","UTF16BE"}
 
 --constant atom pFileDialogCustomize = allocate(4)  -- (set/retrieved in filedialog())
-constant atom pFileDialogCustomize = allocate(machine_word())   -- (set/retrieved in filedialog())
+--constant atom pFileDialogCustomize = allocate(machine_word()) -- (set/retrieved in filedialog())
 
 string encfilename
 
 function getEncoding(string filename)
-integer encoding = 0
-integer fn
-object line
-    fn = open(filename,"rb")
+    integer fn = open(filename,"rb"),
+      encoding = 0
     if fn!=-1 then
         encfilename = filename
-        line = gets(fn)
+        object line = gets(fn)
         close(fn)
         encoding = ENC_ANSI
         if not atom(line) then
@@ -92,13 +66,11 @@ end function
 --         set the custom encoding drop down added below (same as the one in Notepad).
 --
 function fn_IFileDialogEvents_OnSelectionChange(atom /*this*/, atom pFileDialog)
---atom psiCurrent = allocate(4)
-atom psiCurrent = allocate(machine_word())
-atom pName = NULL
---atom ppName = allocate(4)
-atom ppName = allocate(machine_word())
-string sres
-integer encoding
+    atom psiCurrent = allocate(machine_word()),
+              pName = NULL,
+             ppName = allocate(machine_word())
+    string sres
+    integer encoding
 
 --  if this then end if     -- suppress warnings
     -- (note: the next call will fail when there is no current selection, which will always
@@ -123,8 +95,6 @@ integer encoding
     end if
     return S_OK
 end function
---DEV finit*6:
-constant cb_IFileDialogEvents_OnSelectionChange = call_back(routine_id("fn_IFileDialogEvents_OnSelectionChange"))
 
 -- Dummy routines to complete the interface:
 --  (I left the complete skeleton intact in case anyone wants to revive or extend it)
@@ -139,7 +109,6 @@ function fn_IFileDialogEvents_QueryInterface(atom /*this*/, atom /*riid*/, atom 
     pokeN(ppv,NULL,machine_word())
     return E_NOINTERFACE
 end function
-constant cb_IFileDialogEvents_QueryInterface = call_back(routine_id("fn_IFileDialogEvents_QueryInterface"))
 
 -- As our IFileDialogeEvents is statically allocated, we don't need refcounting, so use a dummy routine for both AddRef and Release
 --function fn_IFileDialogEvents_AddRef(atom this)
@@ -151,7 +120,6 @@ function fn_IFileDialogEvents_DummyRef(atom /*this*/)
 --  return res
     return 1
 end function
-constant cb_IFileDialogEvents_DummyRef = call_back(routine_id("fn_IFileDialogEvents_DummyRef"))
 
 --function fn_IFileDialogEvents_Release(atom this)
 --without warning
@@ -168,7 +136,6 @@ function fn_IFileDialogEvents_Dummy1(atom /*this*/, atom /*pFileDialog*/)
 --without warning
     return S_OK
 end function
-constant cb_IFileDialogEvents_Dummy1 = call_back(routine_id("fn_IFileDialogEvents_Dummy1"))
 
 --function fn_IFileDialogEvents_OnFolderChanging(atom this, atom pFileDialog, atom pShellItem)
 function fn_IFileDialogEvents_Dummy2(atom /*this*/, atom /*pFileDialog*/, atom /*pShellItem*/)
@@ -176,7 +143,6 @@ function fn_IFileDialogEvents_Dummy2(atom /*this*/, atom /*pFileDialog*/, atom /
 --without warning
     return S_OK -- (E_NOTIMPL would be the same)
 end function
-constant cb_IFileDialogEvents_Dummy2 = call_back(routine_id("fn_IFileDialogEvents_Dummy2"))
 
 --function fn_IFileDialogEvents_OnFolderChange(atom this, atom pFileDialog)
 --without warning
@@ -190,7 +156,6 @@ function fn_IFileDialogEvents_Dummy3(atom /*this*/, atom /*pFileDialog*/, atom /
 --without warning
     return E_NOTIMPL
 end function
-constant cb_IFileDialogEvents_Dummy3 = call_back(routine_id("fn_IFileDialogEvents_Dummy3"))
 
 --function fn_IFileDialogEvents_OnTypeChange(atom this, atom pFileDialog)
 --without warning
@@ -203,23 +168,6 @@ constant cb_IFileDialogEvents_Dummy3 = call_back(routine_id("fn_IFileDialogEvent
 --  return E_NOTIMPL
 --end function
 --constant cb_IFileDialogEvents_OnOverwrite = call_back(routine_id("fn_IFileDialogEvents_OnOverwrite"))
-
--- Our statically allocated IFileDialogEvents. 
---  We are only interested in intercepting the selection change,
---  so most of these methods (including QueryInterface) are dummy.
---DEV finit:
-constant atom pIFileDialogEvents = create_com_object({cb_IFileDialogEvents_QueryInterface,
-                                                      cb_IFileDialogEvents_DummyRef,            -- AddRef
-                                                      cb_IFileDialogEvents_DummyRef,            -- Release
-                                                      cb_IFileDialogEvents_Dummy1,              -- OnFileOk
-                                                      cb_IFileDialogEvents_Dummy2,              -- OnFolderChanging
-                                                      cb_IFileDialogEvents_Dummy1,              -- OnFolderChange
-                                                      cb_IFileDialogEvents_OnSelectionChange,
-                                                      cb_IFileDialogEvents_Dummy3,              -- OnShareViolation
-                                                      cb_IFileDialogEvents_Dummy1,              -- OnTypeChange
-                                                      cb_IFileDialogEvents_Dummy3               -- OnOverwrite
-                                                    })
-
 
 --
 -- Part 2 (of 2). Add this drop-down to the dialog:
@@ -245,14 +193,11 @@ function set_Filters(atom pFileDialog, object filters, object extension)
 --  present) will automatically override this. The third "flags" part, if
 --  present, allows additional options such as FOS_ALLOWMULTISELECT.
 --
-bool res = true
-atom pFilters
-atom pExtension
-integer d_idx = 1
-atom pFlags
+    bool res = true
 
     if filters!=NULL then
-        pFilters = COMDLG_FILTERSPEC(filters)
+        atom pFilters = COMDLG_FILTERSPEC(filters)
+        integer d_idx = 1
         if extension!=NULL then
             d_idx = extension[1]
         end if
@@ -264,8 +209,7 @@ atom pFlags
     end if
     flags = FOS_FORCEFILESYSTEM
     if extension!=NULL then
---      pFlags = allocate(4)
-        pFlags = allocate(machine_word())
+        atom pFlags = allocate(machine_word())
         if length(extension)>=3 then
             flags = or_bits(flags,extension[3])
         end if
@@ -279,7 +223,7 @@ atom pFlags
         extension = extension[2]
     end if
     if extension!=NULL then
-        pExtension = unicode_string(extension)
+        atom pExtension = unicode_string(extension)
         if cominvk(pFileDialog,IFileDialog_SetDefaultExtension,{pExtension})!=S_OK then
             res = false
         end if
@@ -290,7 +234,7 @@ end function
 
 function add_encoding_dropdown(integer encoding)
 -- Helper routine, factored out of filedialog()
-bool res = true
+    bool res = true
     if encoding!=0 then
         if Encoding=0 then
             Encoding = unicode_string("Encoding:")
@@ -313,26 +257,82 @@ bool res = true
     return res
 end function
 
-constant OPEN=1, SAVE=2,
-         clsids = {CLSID_FileOpenDialog,CLSID_FileSaveDialog},
-         iids   = { IID_IFileOpenDialog, IID_IFileSaveDialog}
+constant OPEN=1, SAVE=2
+--       clsids = {CLSID_FileOpenDialog,CLSID_FileSaveDialog},
+--       iids   = { IID_IFileOpenDialog, IID_IFileSaveDialog}
 
-function filedialog(integer fmode, integer hWnd, object filters, object extension, object default_folder, integer encoding)
+local type nullorstring(object s) return s=NULL or string(s) end type
+
+--function filedialog(integer fmode, hWnd, nullable_string title, object filters, extension, default_folder, integer encoding)
+function filedialog(integer fmode, hWnd, nullorstring title, object filters, extension, default_folder, integer encoding)
 --
 -- Based on the msdn Common Item Dialog sample, see
 --  http://msdn.microsoft.com/en-us/library/windows/desktop/bb776913
 --
-object res = 0
---atom pFileDialog = allocate(4)
-atom pFileDialog = allocate(machine_word())
-integer I_SetFolder = IFileDialog_SetDefaultFolder
-atom pDefaultFolder, pShellItem = NULL
-atom dwCookie, psiResult, pEnc, ppName, pName
-atom pShellItemArray, pShellItemArrayCount
+    if not f_init then
+        atom shell32 = open_dll("shell32.dll"),
+               ole32 = open_dll("ole32.dll")
+
+        xCoInitialize = define_c_func(ole32,"CoInitialize",
+            {C_PTR},    --  VOID* pvReserved // must be NULL
+            C_UINT)     -- HRESULT
+
+        xCoCreateInstance = define_c_func(ole32,"CoCreateInstance",
+            {C_PTR,     --  REFCLSID rclsid, // Class Id to create an instance of.
+             C_PTR,     --  IUnknown* pUnkOuter, // Optional outer unknown to allow aggregation with another object.
+             C_LONG,    --  DWORD dwClsContext, // Flags to restrict the location of the created instance.
+             C_PTR,     --  REFIID riid, // The Id of the interface of the instance to return.
+             C_PTR},    --  LPVOID* ppv // On return, contains a pointer to the specified interface of the instance.
+            C_UINT)     -- HRESULT
+
+        xSHCreateItemFromParsingName = define_c_func(shell32,"SHCreateItemFromParsingName",
+            {C_PTR,     --  PCWSTR pszPath, // A pointer to a display name
+             C_PTR,     --  IBindCtx* pbc, // bind context (use NULL)
+             C_PTR,     --  REFIID riid, // typically IID_ShellItem
+             C_PTR},    --  void** ppv // returned interface pointer, typically IShellItem.
+            C_UINT)     -- HRESULT
+
+        xCoTaskMemFree = define_c_proc(ole32,"CoTaskMemFree",
+            {C_PTR})    --  VOID* pv
+
+        -- Our statically allocated IFileDialogEvents. 
+        --  We are only interested in intercepting the selection change,
+        --  so most of these methods (including QueryInterface) are dummy.
+        atom cb_IFileDialogEvents_DummyRef = call_back(fn_IFileDialogEvents_DummyRef),
+             cb_IFileDialogEvents_Dummy1 = call_back(fn_IFileDialogEvents_Dummy1),
+             cb_IFileDialogEvents_Dummy2 = call_back(fn_IFileDialogEvents_Dummy2),
+             cb_IFileDialogEvents_Dummy3 = call_back(fn_IFileDialogEvents_Dummy3) 
+        pIFileDialogEvents = create_com_object({call_back(fn_IFileDialogEvents_QueryInterface),
+                                                cb_IFileDialogEvents_DummyRef,                      -- AddRef
+                                                cb_IFileDialogEvents_DummyRef,                      -- Release
+                                                cb_IFileDialogEvents_Dummy1,                        -- OnFileOk
+                                                cb_IFileDialogEvents_Dummy2,                        -- OnFolderChanging
+                                                cb_IFileDialogEvents_Dummy1,                        -- OnFolderChange
+                                                call_back(fn_IFileDialogEvents_OnSelectionChange),
+                                                cb_IFileDialogEvents_Dummy3,                        -- OnShareViolation
+                                                cb_IFileDialogEvents_Dummy1,                        -- OnTypeChange
+                                                cb_IFileDialogEvents_Dummy3})                       -- OnOverwrite
+        pFileDialogCustomize = allocate(machine_word()) -- (set/retrieved in filedialog())
+        f_init = true
+    end if
+    object res = 0
+    atom pFileDialog = allocate(machine_word()),
+         pDefaultFolder, pShellItem = NULL,
+         dwCookie, psiResult, pEnc, ppName, pName,
+         pShellItemArray, pShellItemArrayCount,
+         clsid = iff(fmode=OPEN?CLSID_FileOpenDialog:CLSID_FileSaveDialog),
+         iid = iff(fmode=OPEN?IID_IFileOpenDialog:IID_IFileSaveDialog)
+    integer I_SetFolder = IFileDialog_SetDefaultFolder
 
     encfilename = ""
     {} = c_func(xCoInitialize,{NULL})
-    if c_func(xCoCreateInstance,{clsids[fmode],NULL,CLSCTX_INPROC_SERVER,iids[fmode],pFileDialog})=S_OK then
+--  if c_func(xCoCreateInstance,{clsids[fmode],NULL,CLSCTX_INPROC_SERVER,iids[fmode],pFileDialog})=S_OK then
+    if c_func(xCoCreateInstance,{clsid,NULL,CLSCTX_INPROC_SERVER,iid,pFileDialog})=S_OK then
+        if string(title) and length(title) then
+            pName = unicode_string(title)
+            {} = cominvk(pFileDialog,IFileDialog_SetTitle,{pName})
+            free(pName)
+        end if
         if default_folder!=NULL then
             if find(length(default_folder),{1,2})
             and sequence(default_folder[1]) then
@@ -481,7 +481,8 @@ end if
     return res
 end function
 
-global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object extension=NULL, object default_folder=NULL, integer encoding=1)
+--global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, extension=NULL, default_folder=NULL, integer encoding=1, nullable_string title="")
+global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, extension=NULL, default_folder=NULL, integer encoding=1, nullorstring title="")
 --
 -- hWnd is, obviously enough, the [optional] handle of a window you would like to act as the parent of the open/save dialog.
 -- filters can be NULL or something like { {"Text Document (*.txt)", "*.txt"}, 
@@ -510,22 +511,24 @@ global function newGetOpenFileName(atom hWnd=NULL, object filters=NULL, object e
 --          "name"                   - if (not cancelled and not FOS_ALLOWMULTISELECT and) encoding is set to 0
 --          {encoding(=1..4),"name"} - if none of the above are true
 --
-    return filedialog(OPEN,hWnd,filters,extension,default_folder,encoding)
+    return filedialog(OPEN,hWnd,title,filters,extension,default_folder,encoding)
 end function
 
-global function newGetSaveFileName(atom hWnd=NULL, object filters=NULL, object extension=NULL, object default_folder=NULL, integer encoding=1)
+--global function newGetSaveFileName(atom hWnd=NULL, object filters=NULL, extension=NULL, default_folder=NULL, integer encoding=1, nullable_string title="")
+global function newGetSaveFileName(atom hWnd=NULL, object filters=NULL, extension=NULL, default_folder=NULL, integer encoding=1, nullorstring title="")
 -- for parameter details see newGetOpenFileName
-    return filedialog(SAVE,hWnd,filters,extension,default_folder,encoding)
+    return filedialog(SAVE,hWnd,title,filters,extension,default_folder,encoding)
 end function
 
 global procedure fileopenFree()
-    if platform()=WINDOWS then
+    if platform()=WINDOWS and f_init then
         if Encoding!=0 then
             free(Encoding)
             free(Ansi)
             free(Utf8)
             free(Utf16le)
             free(Utf16be)
+            Encoding = 0
         end if
         free(pFileDialogCustomize)
         freeGUIDS()

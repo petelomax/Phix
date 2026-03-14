@@ -671,17 +671,22 @@ global function get_text(object file, integer options=GT_WHOLE_FILE)
 --  integer fn = iff(string(file)?open(file,"rb"):file)
 --27/12/20: (GT_BINARY option)
 --  integer fn = iff(string(file)?open(file,"r"):file)
-    string mode = iff(and_bits(options,GT_BINARY)?"rb":"r")
+--  string mode = iff(and_bits(options,GT_BINARY)?"rb":"r")
+    string mode = iff(and_bits(options,0b0111)=0?"rb":"r")
     options = and_bits(options,#0F) -- (kill any GT_BINARY flag, string file or otherwise)
     integer fn = iff(string(file)?open(file,mode):file)
     if fn=-1 then return -1 end if
 --(may not need to do this...)
 --  bool keep_bom = false
+    bool kill_bom = and_bits(options,GT_KEEP_BOM)=0
 --  if options>6 then
 --  if and_bits(options,GT_KEEP_BOM) then
 --      keep_bom = true
---      options -= GT_KEEP_BOM
---  end if
+    if not kill_bom then
+--?{"options",options}
+        options -= GT_KEEP_BOM
+--?{"options",options}
+    end if
 --  sequence res = get_text(fn,options)
 --  sequence res = get_text(fn,and_bits(options,0b111))
 --  sequence res = get_textn(fn,options)
@@ -690,13 +695,15 @@ global function get_text(object file, integer options=GT_WHOLE_FILE)
     --      aka anything and everything concerning GT_LF_LEFT vs. GT_LF_LAST, plus
     --      GT_WHOLE_FILE handling when the file arg was pre-opened in text mode.
     --
-    sequence res = get_textn(fn,options+10) -- (temp)
+--  sequence res = get_textn(fn,options+10) -- (temp)
+    sequence res = get_textn(fn,options)
 --  sequence res = get_text(fn,options+10)  -- (temp)
     if string(file) then close(fn) end if
 --... [DEV] and move what we can from pfileioN.e to here...
-    if options<8    -- ie not +GT_KEEP_BOM
---  if not keep_bom
---  if not and_bits(options,GT_KEEP_BOM)
+--  if options<8    -- ie not +GT_KEEP_BOM
+    if kill_bom
+--  if and_bits(options,GT_KEEP_BOM) then
+--      options -= GT_KEEP_BOM
     and length(res)>=3
     and res[1..3] = x"EFBBBF" then
         res = res[4..$]

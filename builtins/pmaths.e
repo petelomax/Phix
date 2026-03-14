@@ -1,5 +1,5 @@
 --
--- pmaths.e
+-- builtins\pmaths.e
 --
 --  Phix implementation of abs(), round(), ceil(), sign(), min(), max()
 --
@@ -35,6 +35,7 @@ global function sign(atom a)
 end function
 
 --now mapped to opAndBits in pmain.e:
+-- (with said mapped to inline assembly when a is known to be an integer)
 --global function even(atom a)
 --  return and_bits(a,1)=0
 --end function
@@ -82,6 +83,7 @@ global function round(atom a, inverted_precision=1)
 end function
 
 global function bankers_rounding(atom pence, integer precision=1)
+--?{"bankers_rounding","pence",pence,"precision",precision}
     integer pennies, -- (or nearest 100, etc, but never nearest < 1 )
             s = sign(pence), whole
     pence = abs(pence)/precision
@@ -93,6 +95,7 @@ global function bankers_rounding(atom pence, integer precision=1)
         pennies = floor(0.5+pence)
     end if
     pennies *= s*precision
+--?{"pennies",pennies}
     return pennies
 end function
 
@@ -105,14 +108,16 @@ global function min(object a, b)
     if a<b then return a else return b end if
 end function
 
-global function minsq(sequence s, bool return_index=false)
+global function minsq(sequence s, bool return_index=false, integer exclude=0)
     -- (aliased to smallest)
-    object res = s[1]
-    integer rdx = 1
+    if return_index and length(s)<=(exclude==1) then return 0 end if
+    integer rdx = 1+(exclude==1)
+    object res = s[rdx]
 --  for i=2 to length(s) do
-    for i,si in s from 2 do
+    for i,si in s from rdx+1 do
 --      if s[i]<res then
-        if si<res then
+--      if si<res then
+        if (exclude=0 or (i!=exclude)) and si<res then
 --          res = s[i]
             res = si
             rdx = i
@@ -125,14 +130,16 @@ global function max(object a, b)
     if a>b then return a else return b end if
 end function
 
-global function maxsq(sequence s, bool return_index=false)
+global function maxsq(sequence s, bool return_index=false, integer exclude=0)
     -- (aliased to largest)
-    object res = s[1]
-    integer rdx = 1
+    if return_index and length(s)<=(exclude==1) then return 0 end if
+    integer rdx = 1+(exclude==1)
+    object res = s[rdx]
 --  for i=2 to length(s) do
-    for i,si in s from 2 do
+    for i,si in s from rdx+1 do
 --      if s[i]>res then
-        if si>res then
+--      if si>res then
+        if (exclude=0 or (i!=exclude)) and si>res then
 --          res = s[i]
             res = si
             rdx = i

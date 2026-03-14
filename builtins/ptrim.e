@@ -46,6 +46,8 @@ global function trim(object source, object what=" \t\r\n", bool return_index=fal
            or rpos!=length(source) then
             source = source[lpos..rpos]
         end if
+    elsif return_index then
+        return 0
     end if
     return source
 end function
@@ -62,6 +64,8 @@ global function trim_head(object source, object what=" \t\r\n", bool return_inde
             source = source[lpos..$]
 
         end if
+    elsif return_index then
+        return 0
     end if
     return source
 end function
@@ -81,6 +85,8 @@ global function trim_tail(object source, object what=" \t\r\n", bool return_inde
             source = source[1..rpos]
 
         end if
+    elsif return_index then
+        return 0
     end if
     return source
 end function

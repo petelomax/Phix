@@ -30,8 +30,7 @@
 -- See Also:
 --     [[:series]]
 
---global 
-function binop_ok(object a, object b)
+local function binop_ok(object a, object b)
     if atom(a) or atom(b) then
         return 1
     end if

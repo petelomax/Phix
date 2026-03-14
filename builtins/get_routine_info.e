@@ -3,6 +3,7 @@
 -- ===========================
 --
 without debug
+--with debug
 include builtins\VM\pStack.e    -- :%opGetST
 
 -- These must match pglobals.e:
@@ -58,11 +59,16 @@ global function get_routine_info(integer rid, bool bName=true)
                 cmp ecx,0
                 je @f
                   ::ploop
+                    cmp eax,0
+                    jz :eaxzero
                     mov eax,[eax+20]    -- prev_ebp
                     add ecx,1
                     jne :ploop
               @@:   
+                cmp eax,0
+                jz :eaxzero
                 mov eax,[eax+8]         -- rtn_id
+              ::eaxzero
                 mov [rid],eax
             [64]
                 mov rcx,[rid]
@@ -70,13 +76,21 @@ global function get_routine_info(integer rid, bool bName=true)
                 cmp rcx,0
                 je @f
                   ::ploop
+                    cmp rax,0
+                    jz :raxzero
                     mov rax,[rax+40]    -- prev_rbp
                     add rcx,1
                     jne :ploop
               @@:
+                cmp rax,0
+                jz :raxzero
                 mov rax,[rax+16]        -- rtn_id
+              ::raxzero
                 mov [rid],rax
+--          [ARM]
+--              int3
               }
+        assert(rid!=0,"invalid routine_id/insufficient stack")
     end if
     object symtab
     enter_cs()
@@ -85,10 +99,13 @@ global function get_routine_info(integer rid, bool bName=true)
             lea edi,[symtab]
         [64]
             lea rdi,[symtab]
+--      [ARM]
+--          int3
         []
             call :%opGetST      -- [e/rdi]=symtab (ie our local:=the real symtab)
           }
     object sr = symtab[rid]
+    assert(sequence(sr) and length(sr)>=S_ParmN and integer(sr[S_NTyp]),"invalid routine id (%d:%v)",{rid,sr})
 --  string name = sr[S_Name]
     object name = sr[S_Name]    -- 22/12/20 class methods have a [symtab] name of -1, on purpose
                                 --          (their proper names are kept in builtins\structs.e,
@@ -97,7 +114,9 @@ global function get_routine_info(integer rid, bool bName=true)
                                 --           or ever allow a "do()" that should be an "s.do()".)
     integer ntype = sr[S_NTyp],
             minp = sr[S_ParmN]
-    if ntype<S_Type or ntype>S_Proc then ?9/0 end if
+--DEV gives pDiag some grief when triggered, corrupt type byte...
+--  relieved by "sequence lc = lower(command_line(true))" instead of inline in find() in pDiag [??!!]
+    assert(ntype>=S_Type and ntype<=S_Proc,"invalid routine id/symtab entry type (%d:%v)",{rid,sr})
     sr = sr[S_sig]
     integer sigl = length(sr),
             maxp = sigl-1
@@ -152,6 +171,8 @@ global function get_possible_constant_names(object v, object fdx=0, bool bGlobal
             lea edi,[symtab]
         [64]
             lea rdi,[symtab]
+--      [ARM]
+--          int3
         []
             call :%opGetST      -- [e/rdi]=symtab (ie our local:=the real symtab)
           }

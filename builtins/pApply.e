@@ -6,12 +6,11 @@
 --with debug
 include builtins\get_routine_info.e
 
-enum APPLY_PROC, APPLY_FUNC
-
 function apply_(object s, integer fn, pf, object userdata = {})
-    -- apply fn as APPLY_PROC or APPLY_FUNC to all elements of sequence s
-    integer {maxp,minp} = get_routine_info(fn)
-    sequence res = {}
+    -- apply fn as 'P'roc or 'F'unc to all elements of sequence s
+    sequence res = {}, rtninfo = get_routine_info(fn), sig = rtninfo[3]
+    assert(sig[1]=pf and length(sig)>1,"invalid func/proc")
+    integer {maxp,minp} = rtninfo, fnat = sig[2]
     if atom(s) then
         integer l = length(userdata),
 --              n = (l>0)
@@ -49,21 +48,21 @@ function apply_(object s, integer fn, pf, object userdata = {})
                 end if
             end if
 
-            if pf=APPLY_FUNC then res = repeat(0,n) end if
+            if pf='F' then res = repeat(0,n) end if
             for i=1 to n do
                 for j=1 to l do
                     if multi[j] then
                         args[j] = userdata[j][i]
                     end if
                 end for
-                if pf=APPLY_PROC then
+                if pf='P' then
                     call_proc(fn,args)
                 else
                     res[i] = call_func(fn,args)
                 end if
             end for
         elsif s=false then
-            if pf=APPLY_FUNC then res = repeat(0,l) end if
+            if pf='F' then res = repeat(0,l) end if
             for i=1 to l do
                 object ui = userdata[i]
                 if atom(ui) 
@@ -76,7 +75,7 @@ function apply_(object s, integer fn, pf, object userdata = {})
                     crash("supplied function must accept 1..%d parameters",{lui})
                 end if
 
-                if pf=APPLY_PROC then
+                if pf='P' then
                     call_proc(fn,ui)
                 else
                     res[i] = call_func(fn,ui)
@@ -88,13 +87,17 @@ function apply_(object s, integer fn, pf, object userdata = {})
     else
         -- s is a list of single args
         integer ls = length(s)
-        if pf=APPLY_FUNC then res = repeat(0,ls) end if
-        if userdata={} and (maxp=1 or minp<=1) then
+        if pf='F' then res = repeat(0,ls) end if
+        if ls and (fnat='I' or fnat='N') and sequence(s[1]) then
+            for i=1 to ls do
+                res[i] = apply_(s[i],fn,pf,userdata)
+            end for
+        elsif userdata={} and (maxp=1 or minp<=1) then
             if maxp=0 or minp>1 then
                 crash("supplied function must accept 1 parameter")
             end if
             for i=1 to ls do
-                if pf=APPLY_PROC then
+                if pf='P' then
                     fn(s[i])
                 else
 --no help:
@@ -107,7 +110,7 @@ function apply_(object s, integer fn, pf, object userdata = {})
                 crash("supplied function must accept 1..2 parameters")
             end if
             for i=1 to ls do
-                if pf=APPLY_PROC then
+                if pf='P' then
                     fn(s[i],userdata)
                 else
                     res[i] = fn(s[i],userdata)
@@ -119,13 +122,13 @@ function apply_(object s, integer fn, pf, object userdata = {})
 end function
 
 global function apply(object s, integer fn, object userdata = {})
---  return apply_(s,fn,APPLY_FUNC,userdata)
-    s = apply_(s,fn,APPLY_FUNC,userdata)
+--  return apply_(s,fn,'F',userdata)
+    s = apply_(s,fn,'F',userdata)
     return s
 end function
 
 global procedure papply(object s, integer fn, object userdata = {})
---  {} = apply_(s,fn,APPLY_PROC,userdata)
-    s = apply_(s,fn,APPLY_PROC,userdata)
+--  {} = apply_(s,fn,'P',userdata)
+    s = apply_(s,fn,'P',userdata)
 end procedure
 

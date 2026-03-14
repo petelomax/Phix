@@ -84,7 +84,11 @@ global function include_path(sequence d = "builtins")
 -- when d is "" (or {}) it returns the "root directory"
     string res = ""
     sequence s = include_paths()
-    if string(d) then d = split_path(d) end if
+--  if string(d) then d = split_path(d) end if
+    if string(d) then
+        if begins("xpGUI",d) then d = "the"&d[3..$] end if
+        d = split_path(d)
+    end if
     integer ld = length(d)
     if ld=0 then
 --      res = s[3]
