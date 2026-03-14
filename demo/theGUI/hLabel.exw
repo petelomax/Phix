@@ -1,0 +1,93 @@
+--
+-- demo\theGUI\gLabel.exw
+-- ======================
+-- 
+--  The canvas-based implementation of gLabel.
+-- 
+--requires(64,true)
+puts(1,"")
+with javascript_semantics
+--with trace
+--include theGUI.e
+include hGUI.e
+gSetGlobal("DIAGNOSTICS",true)
+--gUseGTK()
+--win32/64: 77x15
+--gtk32/64: 71x14
+
+--/*
+-- ctrl_xtra[CX_GTL_ATTRS] for gLabel():
+local constant lbl_attrs = {{      CXLBL_TITLE:=$,'S',`TITLE`       }}, -- title
+                   CXLBL_LEN = length(lbl_attrs),
+--*/
+
+sequence ctrl_xtra = {} -- hCheckbox-specific
+enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
+enum CXLBL_TITLE,
+     CXLBL_LEN = $
+
+procedure tg_lbl_redraw(gdx lbl, integer w, h)
+--  string title = gGetAttribute(id,`TITLE`)
+    string title = ctrl_xtra[lbl][CX_GTL_ATTRS][CXLBL_TITLE]
+    bool bActive = gGetAttribute(lbl,`ACTIVE`)
+    atom fgclr = gGetAttribute(lbl,`FGCLR`)
+    if not bActive then fgclr = gGreyscale(fgclr,true) end if
+    gDrawText(lbl,0,0,title,{},TG_SE,colour:=fgclr)
+end procedure   
+
+--function hLabel(nullable_string title=NULL, string attributes="", dword_seq args={})
+function hLabel(nullable_string title=NULL, string attributes="", sequence args={})
+--  {title,attributes,args} = paranormalise_taa(title,attributes,args)
+--  if not bInit then tg_Init() end if
+    gdx lbl = gCanvas(tg_lbl_redraw)
+    gSetAttribute(lbl,"EXPAND",false) -- (or maybe horiz?) [nah, docs say default is NONE]
+    if platform()!=JS then
+        ctrl_xtra &= repeat(0,lbl-length(ctrl_xtra))
+    end if
+    ctrl_xtra[lbl] = repeat(0,CX_GTL_ATTRS)
+    object lbl_attr = repeat(0,CXLBL_LEN)
+    lbl_attr[CXLBL_TITLE] = title
+    ctrl_xtra[lbl][CX_GTL_ATTRS] = lbl_attr
+    lbl_attr = 0
+    if length(attributes) then
+        gSetAttributes(lbl,attributes,args)
+    end if
+--  tg_set_mnemonic(gGetAttribute(lbl,`TITLE`),lbl)
+    return lbl
+end function
+
+-- real one does a full traversal with this for any labels:
+local procedure set_lbl_sizes(sequence lbls)
+    for lbl in lbls do
+--      string title = gGetAttribute(id,`TITLE`)
+        string title = ctrl_xtra[lbl][CX_GTL_ATTRS][CXLBL_TITLE]
+        integer {tw,th} = gGetTextExtent(title,lbl)
+        gSetAttribute(lbl,`SIZE`,{tw+4,th})
+    end for
+end procedure
+
+--gdx box = gHbox({gLabel(`World`)},`SPACE=AROUND`),
+--gdx lbl = hLabel(`This is a label`,`FONT="Arial,Italic 9"`),
+gdx lbl = hLabel(`This is a label`),
+--  box = gHbox({lbl},`MARGIN=14x14`),
+--  lbls = {lbl}, -- (as used below)
+    -- aside: a gVbox works equally well here
+    hbx = gHbox({lbl},"SPACE=AROUND"),
+--  hbx = gHbox({lbl},`MARGIN=14`),
+--  hbx = gHbox({lbl},`SPACE=AROUND`),
+    dlg = gDialog(hbx,`gLabel`,`SIZE=240x80`)
+--gSetAttribute(lbl,`ACTIVE`,false)
+--gSetAttribute(lbl,`VISIBLE`,false)
+--gSetAttribute(hbx,`VISIBLE`,false)
+--gSetAttribute(lbl,`FGCLR`,TG_BLUE)
+--gSetAttribute(lbl,`FGCLR`,TG_MAGENTA)
+--gSetAttribute(lbl,`BGCLR`,TG_RED)
+--if gVersion(-1)=TG_WINAPI then
+--  gSetAttribute(hbx,`BGCLR`,TG_RED)
+--  gSetAttribute(lbl,`BGCLR`,TG_RED)
+--gShow(dlg)
+--gSetAttribute(hbx,`VISIBLE`,false)
+set_lbl_sizes({lbl})
+gMainLoop(dlg)
+
+

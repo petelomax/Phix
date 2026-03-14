@@ -13,9 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> res = binary_search(<a href="object.htm">object</a> needle, 
-                                                                <a href="sequence.htm">sequence</a> haystack,
-                                                                <a href="integer.htm">integer</a> lo=1, hi=<a ref="length.htm">length</a>(haystack), fn=0)
+          <a href>integer</a> res = binary_search(<a href>object</a> needle, 
+                                                                <a href>sequence</a> haystack,
+                                                                <a href>integer</a> lo=1, hi=<a ref="length.htm">length</a>(haystack), fn=0)<br>
+          <small>&nbsp;&nbsp;&nbsp;<i>-- or --</i></small><br>
+          <a href>integer</a> res = binary_index(<i>&lt;ditto&gt;</i>)
          </td>
         </tr>
         <tr>
@@ -26,14 +28,15 @@
             Finds a needle in an ordered haystack.
             <br>
             <br>
-            needle: an <a href="object.htm">object</a> to look for<br>
-            haystack: an ordered <a href="sequence.htm">sequence</a> to be searched<br>
-            lo, hi: allow the limiting of processing to a specific range of haystack<br>
-            fn: a partition function, see below.
+            needle: an <a href>object</a> to look for<br>
+            haystack: an ordered <a href>sequence</a> to be searched<br>
+            lo, hi: (optional) allow the limiting of processing to a specific range of haystack <small>[+ve subscripts only]</small><br>
+            fn: (optional) a partition function, see below.
             <br>
             <br>
             Returns either a positive integer index, which means haystack[res]==needle, otherwise the negative index 
-            of where it would go were it inserted now.
+            of where it would go were it inserted now. binary_index() simply returns abs(binary_search()), yielding an
+            always positive integer 1..length(haystack)+1, and hence not distinguishing exists/insert.
          </td>
         </tr>
         <tr>
@@ -49,21 +52,28 @@
           <b>Notes:</b>
          </td>
          <td>
-            Results are undefined if haystack is not in ascending order or contains duplicates. In the latter case (ie 
-            ascending order with duplicates, which needle matches) it is guaranteed to locate one of the duplicates, but 
-            it could be the first, last, or anything inbetween. In some cases it may still be useful to get the "any", and
-            then explicitly/manually step backward/forward to some edge of the consecutive-duplicates-slice.
+            Performs ~log2(hi-lo) operations, which may be a significant improvement over lo..hi by +1.
+            <br>
+            <br>
+            Results are undefined if haystack is not in ascending order or contains duplicates. In the latter case (ie ascending order with 
+            duplicates) it is guaranteed to locate one of the duplicates, but it could be the first, last, or anything inbetween. 
+            In some cases it may still be useful to get the "any", and then explicitly/manually step backward/forward to some edge of the 
+            consecutive-duplicates-slice, or perhaps just not really care about splitting that slice.
             <br>
             <br>
             A partition function fn(object needle, haystacki) can be provided which causes binary_search() to yield an always negative index 
-            such that haystack[lo..(-res)-1] <i>(should)</i> all yield true from fn(needle,haystack[i]), and haystack[-res..hi] all false. <br>
+            such that haystack[lo..(-res)-1] <i>(should)</i> all yield true from fn(needle,haystack[i]), and haystack[-res..hi] all false, or
+            of course when binary_index() is used, always positive and without needing to negate res. <br>
             If the specified range of haystack does not yield <i>&lt;all true&gt;&lt;all false&gt;</i> from fn() the results are undefined.<br>
             The value passed in needle is forwarded to fn() but otherwise unused, and can therefore contain anything needed.<br>
-            Obviously this performs some log2(hi-lo) operations, which may be a significant improvement over hi-lo aka lo += 1.
+            The example below does not really showcase why you might use a partition function, but you could use say 
+            <a href>mpz_cmp</a>()<small>[except we need true/false rather than -1|0|+1]</small> or similar on [subcripts of] 
+            the two elements it has been given to compare, or to be more precise <i>&lt;user_data&gt;</i> and one element it has been asked to 
+            make a decision about.
             <br>
             <br>
-            Take care not to use a negative result as a negative index, for instance in the following example 0 ==&gt; -1 means
-            "before s[1]" which is nowhere near s[-1] aka s[$].
+            Take care not to use a negative result as a negative index, for instance in the following example 0 &rArr; -1 means
+            "before s[1]" which is obviously nowhere near s[-1] aka s[$].
          </td>
         </tr>
         <tr>
@@ -130,11 +140,11 @@ function partfun(integer needle, haystacki) return haystacki<needle end function
           <b>See Also:</b>
          </td>
          <td>
-          <a href="find.htm">find</a>
+          <a href>find</a>
          </td>
         </tr>
        </table>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

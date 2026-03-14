@@ -1,0 +1,102 @@
+--
+-- demo\theGUI\hFrame.exw
+-- ======================
+-- 
+-- Trivial demo, for drawing/size only, contents fudged as a simple canvas, with (full, unlike `edge`) box/cross.
+--
+puts(1,"")
+--requires(64,true)
+with javascript_semantics
+include hGUI.e
+--gSetGlobal("DIAGNOSTICS",true)
+gSetGlobal("DIAGNOSTICS","MARGINS")
+--gUseGTK()
+
+bool draw_fake_contents = false
+--bool draw_fake_contents = true
+
+procedure tg_frame_draw(gdx frame, integer w,h)
+----?{"edge",w,h}
+----?9/0
+    nullable_string title = "gFrame"
+--  nullable_string title = NULL
+    integer tw = 0, th = 1
+    atom bgclr = gGetAttribute(frame,`BGCLR`)
+    if title=NULL then
+        gDrawRect(frame,0,0,w-1,h-1,colour:=#DCDCDC)
+    else
+        {tw,th} = gGetTextExtent(title,frame)
+        gDrawRect(frame,0,th/2,w-1,h-1,colour:=#DCDCDC)
+--      gDrawRect(frame,0,th/2,w-1,h-1,colour:=TG_GREEN)
+        gDrawRect(frame,7,1,tw+10,th,true,colour:=bgclr)
+--      gDrawRect(frame,7,1,tw+11,th,true,colour:=TG_RED)
+        gDrawText(frame,8,0,title,{},TG_SE)
+    end if
+    if draw_fake_contents then
+        -- (the real thing will need to take margins into account)
+        w -= 2
+        h -= th+1
+        gDrawRect(frame,1,th,w,th+h-1,true,colour:=TG_BLUE) -- fudge, obviously, for visualisation
+--      integer {mt,mr,mb,ml} = {0,0,0,0}
+        integer {mt,mr,mb,ml} = {5,5,5,5}
+        w -= mr+ml
+        h -= mt+mb
+        gDrawRect(frame,1+ml,th+mt,ml+w,th+mt+h-1,true,colour:=bgclr) -- (needed if bgclr not the same)
+        gDrawRect(frame,1+ml,th+mt,ml+w,th+mt+h-1)
+        gDrawLine(frame,1+ml,th+mt,ml+w,th+mt+h-1)
+        gDrawLine(frame,ml+w,th+mt,1+ml,th+mt+h-1)
+        integer l = length(sprintf("%d",max(w,h)))
+        string fmt = sprintf("%%%dd x %%%dd",{l,-l})
+        gDrawText(frame,1+ml+w/2,th+mt+h/2,fmt,{w,h},TG_C,style:="Monospace,8")
+    end if
+end procedure
+
+--function hFrame(rtn redraw, nullable_string title, string attributes="")
+function hFrame(rtn redraw, string attributes="")
+    gdx frame = gCanvas(redraw,attributes)
+--  gSetAttribute(frame,`TTTLE`,title)
+    return frame
+end function
+
+--gdx cnv = gCanvas(edge), 
+-- Aside: these canvas|dialog sizing tests are now part of tg_unit_tests()
+--gdx frame = hFrame(tg_frame_draw), 
+--DEV MARGIN does nothing... correction: wonkifies things/too big/slides offscreen when in box... [FIXED]
+gdx frame = hFrame(tg_frame_draw,"MARGIN=5"), 
+--gdx frame = hFrame(`SIZE = 300x300`), 
+--  box = gHbox({frame}),
+--  box = gHbox({frame},`MARGIN=5`),
+--  dlg = gDialog(box,`gFrame`,`SIZE=240x80`)
+    dlg = gDialog(frame,`hFrame`,`SIZE=240x80`)
+--excellent!
+--gSetAttribute(frame,"BGCLR","PARCHMENT")
+--gSetAttribute(dlg,"BGCLR","PARCHMENT")
+--gSetAttribute(dlg,"BGCLR",TG_BLUE)
+--gSetAttribute(box,"BGCLR",TG_BLUE)
+--gSetAttribute(box,"BGCLR","PARCHMENT")
+gMainLoop(dlg)
+
+--/*
+with MARGIN=5 on the canvas:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   margins [28269, gShow]
+ 1 gCanvas      0   0 238  48  11  15   0   0  2  0          5
+ 2 gDialog    840 500 240  80 213  57 240  80  0  {1}        0
+perfect:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   margins [28269, gShow]
+ 1 gCanvas      5   5 228  38  11  15   0   0  2  0          5
+ 2 gHbox        0   0 238  48  21  25   0   0  3  {1}        0
+ 3 gDialog    840 500 240  80 213  57 240  80  0  {2}        0
+w/o:
+perfect
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   margins [28269, gShow]
+ 1 gCanvas      0   0 238  48  11  15   0   0  2  0          0
+ 2 gDialog    840 500 240  80 213  47 240  80  0  {1}        0
+perfect
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   margins [28269, gShow]
+ 1 gCanvas      0   0 238  48  11  15   0   0  2  0          0
+ 2 gHbox        0   0 238  48  11  15   0   0  3  {1}        0
+ 3 gDialog    840 500 240  80 213  47 240  80  0  {2}        0
+with MARGIN=5 on the box:
+
+--*/
+

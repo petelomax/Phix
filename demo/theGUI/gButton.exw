@@ -1,0 +1,228 @@
+﻿--
+-- demo\theGUI\gButton.exw
+-- =======================
+-- 
+--  DEV initial focus... 
+--      initial size... [seems OK now]
+--
+-- SUG: `p gButton.exw -test 32 false`
+--      `p gButton.exw -test 32 true`
+--      `p gButton.exw -test 64 false`
+--      `p gButton.exw -test 64 true`
+--  OR: (use get_interpreter() and)
+--      `p gButton.exw -test GTK`
+--      `p gButton.exw -test WinAPI`
+-- and in either case include the xpgui_unit_test.e etc below.
+--
+-- GTK2 makes the button {-6,0} smaller than winAPI, GTK3 {16,8} bigger. (NMP)
+--
+puts(1,"")
+--with trace
+with javascript_semantics
+requires(64,true) 
+include theGUI.e
+--include hGUI.e    -- hButton first! (also gClipboard)
+gUseGTK()
+--include backup\theGUI.5182.e -- OK
+--include backup\theGUI.5185.e -- BAD
+--include backup\theGUI.5188.e -- BAD
+--include theGUI3.e
+--include theGUI2.e
+--include backup\theGUI.0003.e  -- ok -- (max)
+--include backup\theGUI.0424.e  -- ok -- (max)
+--include backup\theGUI.0430.e  -- ok
+--include backup\theGUI.0438.e  -- ok
+--include backup\theGUI.0440.e  -- ok
+--include backup\theGUI.0441.e  -- partially ok (red herring)
+--include backup\theGUI.0443.e  -- partially ok
+--include backup\theGUI.0444.e  -- ok
+--include backup\theGUI.0445.e  -- ok
+--include backup\theGUI.0448.e  -- BAD
+--include backup\theGUI.4098.e  -- ok
+--include backup\theGUI.2344.e  -- ok
+--include backup\theGUI.2355.e  -- ok
+--include backup.0002\theGUI.2357.e -- ok
+--include backup\theGUI.2366.e  -- bad
+--include backup\theGUI.2367.e  -- bad
+--include backup.0002\theGUI.2380.e -- bad
+--include backup\theGUI.0003.e -- (no gQuit)
+--include backup\theGUI.0220.e -- GOOD
+--include backup\theGUI.0801.e -- GOOD
+--include backup\theGUI.0826.e -- GOOD
+--include backup\theGUI.1502.e -- X
+--include backup\theGUI.1507.e -- GOOD
+--include backup\theGUI.1530.e -- GOOD
+--include backup\theGUI.1532.e -- GOOD (right size)
+--include backup\theGUI.1533.e -- BAD
+--include backup\theGUI.1535.e -- BAD
+--include backup\theGUI.1542.e -- BAD (big)
+--include backup\theGUI.1545.e -- X
+--include backup\theGUI.1572.e -- BAD (small) [FIXED]
+--include backup\theGUI.0030.e -- v
+--include backup\theGUI.0348.e -- v
+--include backup\theGUI.0532.e -- v
+--include backup\theGUI.0700.e -- v
+--include backup\theGUI.0921.e -- no image under 64-bit GTK... [FIXED?]
+--17/6/25:
+--include backup\theGUI.0002.e -- GTK2 BAD
+--include backup\theGUI.1520.e -- GTK2 BAD
+--/* 921:
+{4,"SIZE",240,80'P'}
+tg_WinAPI_replace_bgclr(1,FDFDFD)
+{4,"SIZE",240,80'P'}
+{"gShow",4,240,2,80'P',32' ',{238,48'0'}}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Clipboard    0   0   0   0   0   0   0   0  0  0          CF_MAPPED
+ 2 Button      11  11 117  26 117  26   0   0  3  0          CF_MAPPED
+ 3 Hbox         0   0 216  26   0   0   0   0  4  {2}        CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 4 Dialog     840 500 240  80   0   0 240  80  0  {3}        CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+curr:
+117-96 = 21...
+set(ctrl_sizeNAT[3737],{2,96,26})
+{"cxid",{"gImage",{-1274733036.0,24,20,16777215},1}}
+{"gShow",4,240,2,80'P',32' ',{238,48'0'}}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Clipboard    0   0   0   0   0   0   0   0  0  0          CF_MAPPED
+ 2 Button      11  11  96  26  96  26   0   0  3  0          CF_MAPPED
+ 3 Hbox         0   0 216  26   0   0   0   0  4  {2}        CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 4 Dialog     840 500 240  80   0   0 240  80  0  {3}        CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_MODAL+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+--*/
+
+--gUseGTK()
+--win32/64: 99x24 +{2,2} - yep, 101x26.
+--gtk32: 95x26
+--gtk64: 117x34 -- (got 1x1 belatedly) -- 119x34 belatedly -- now 117x34 (yeah!)
+
+-- aside: this code will hopefully be gone by 2025:
+-- (`click me` -> `clicked %d times`, I expect)
+include builtins\theGUI_from_pGUI.e
+gdx clipboard = gClipboard()
+function mini_porting_helper(bool bJustCheck)
+    object text = gGetAttribute(clipboard,`TEXT`,``)
+    if not string(text) then return false end if
+    if not bJustCheck then
+        text = theGUI_from_pGUI(text)
+        gSetAttribute(clipboard,`TEXT`,text)
+    end if
+    return match(`include pGUI.e`,text)
+    --     aside: ^mangled by theGUI_from_pGUI()
+end function
+
+--function action(gdx btn)
+--function action()
+procedure action(gdx btn)
+--?{`action!`,gGetAttribute(btn,`TITLE`)}
+--procedure action()
+--?`action!`
+    gSetAttribute(btn,`ACTIVE`,mini_porting_helper(false))
+    gSetAttribute(btn,`TITLE`,`ported`)
+--  return TG_DEFAULT
+--end function
+end procedure
+
+--function key_handler(gdx id, integer c, bool ctrl, shift, alt) 
+--  ?{`key_handler`,id,c,ctrl,shift,alt}
+--  return TG_DEFAULT
+--end function
+--/!*
+constant cut_xpm_txt = `
+24 20 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+`
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt,`BUTTON`)
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt)
+
+--*!/
+
+constant margin = iff(gVersion(-1)!=TG_GTK?`11x11`: // WINDOWS
+                  iff(gVersion(-2)=2?`9x9`:`7x7`))      // GTK2, 3
+
+--gdx btn = gButton(`port from pGUI`,action),        -- nb fills the window
+--gdx btn = gHbox({gButton(`port from pGUI`,action)}), -- WinAPI ok, GTK not
+gdx btn = gButton(`&port from pGUI`,action),
+--gdx btn = gButton(`&port from pGUI`,action,`==`,{{`IMAGE`,cut_xpm},
+--                                      {`TIP`,`This is a button`}}),
+--gdx btn = gButton(`&port from pGUI`,action,`MARGIN=11x11`),
+--gdx btn = gButton(`&port from pGUI`,action,`FLAT=YES`),
+--gdx btn = gButton(`port from pGUI`,action,`PADDING=10`),
+--  hbx = gVbox({gHbox({btn})}),
+--  hbx = gVbox({btn}),
+--  hbx = gHbox({btn},`PADDING=11x11`),
+--  hbx = gHbox({btn},`MARGIN=11x11`),
+--  hbx = gHbox({btn},`MARGIN=11x11,SPACE=AROUND`),
+    hbx = gHbox({btn},`MARGIN=%s,SPACE={RIGHT,AROUND}`,{margin}),
+--  hbx = gHbox({btn},`MARGIN=11x11,SPACE=BLEFT`), --DEV
+--  hbx = btn,
+--  dlg = gDialog(hbx,`gButton`,`SIZE=240x80`)
+--DEV no effect...[FIXED on WinAPI... for GTK see gtk_fixed.exw... maybe...]
+    dlg = gDialog(hbx,`gButton`,`SIZE=240x80, MINSIZE=212x25`)
+--  dlg = gDialog(hbx,`gButton`)
+--  dlg = gDialog(hbx,`gButton`,`SIZE=226x73`)
+--DEV 236x68...
+--  dlg = gDialog(hbx,`TITLE=`gButton`,SIZE=226x73,RESIZE=NO`)
+--gSetHandler(dlg,`KEY`,key_handler)
+--gSetAttribute(btn,`ACTIVE`,mini_porting_helper(true))
+--gSetAttribute(btn,`TIP`,`This is a button`)
+--gSetAttribute(btn,`ACTIVE`,true)
+--gSetAttribute(btn,`IMAGE`,cut_xpm)
+--gSetAttribute(btn,`IMAGE`,cut_xpm_txt)
+gSetAttributes(btn,`==`,{{`IMAGE`,cut_xpm_txt},
+                         {`TIP`,`This is a button`}})
+--gSetBodge(btn,{11,11,101,26}) -- bad idea...
+--gSetAttribute(btn,`VISIBLE`,false)
+--?""
+gShow(dlg)
+--gSetAttribute(btn,`ACTIVE`,false)
+--gSetAttribute(dlg,`ACTIVE`,false)
+--?gGetAttribute(btn,`ACTIVE`)
+--?gGetAttribute(btn,`IMAGE`)
+--gSetAttribute(btn,`MARGIN`,{10,20})
+--?gGetAttribute(btn,`MARGIN`)
+--{`gImage`,{-1660591307.0,24,20,16645629},1}
+--{`gImage`,{-1660591307.0,24,20,#FDFDFD},1}
+
+
+--?gGetAttribute(btn,`TITLE`)
+--rtn q = gGetHandler(btn,`CLICK`)
+----integer q = gGetHandler(btn,`CLICK`)
+--?q(btn) -- (-2)
+gMainLoop()
+--assert(true,`OK`)
+--SUG: instead of gMainLoop() [eg]:
+--Xglobal constant XPGT = {{btn,{0,0,0,0}},}
+--include xpgui_unit_tests.e
+--if TG_TESTING then
+-- (CLIENTPOS, CLIENTSIZE, CLIENTAREA)
+--  tg_unit_test(`btn`,gGetAttribute(btn,`CLIENTAREA`),{0,0,0,0})
+--  tg_unit_test(`dlg (init)`,gGetAttribute(dlg,`SIZE`),{240,80})
+--  gSetAttribute(dlg,`SIZE`,{300,100})
+--  tg_unit_test(`dlg (resized)`,gGetAttribute(dlg,`SIZE`),{300,100})
+--assert
+--  sleep(1)
+-- else
+--  gMainLoop()_
+-- end if
+--and an xpgui_unit_tests.exw driver:
+
+

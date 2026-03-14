@@ -1,0 +1,1665 @@
+﻿-- 
+-- demo\theGUI\hBox.exw
+-- ====================
+--
+puts(1,"this may be/is probably dead in the water...\n")
+--  Experimental, investigating possible ways to replace gH/Vbox.
+--  This shows a single canvas, with a [nested] selection of fake controls.
+--
+--  NOTE: unlike hBox.exw .. hTree.exw, it is probably going to be better
+--        and much easier to morph this into "theGUI.e" version 2, rather
+--        than trying to paste updates back from whence they came.
+--
+--NAH?:
+--  The nested hierarchy is emulated via a string such as "[C{BB}]", where
+--  {} indicate a horizonal box (aka gHbox)
+--  [] indicate a vertical box (aka gVbox)
+--  B is a button (image-less here)
+--  C is a canvas (plain parchment with X)
+--X <> indicate a concrete box (aka "gCbox"/maybe)
+--X L is a label (Label or Label1 Label2 if 2 exist)
+--X T is a text input (may look alot like a button!)
+--  There may also be extra settings such as "size C2:100x150,...",
+--  for size/active/focus/text/gap/margin/space/resize/expand/bgclr....
+--  If the char after any of "{[BCLT" is 1..9, it's an id, else implied.
+--  Demos cycle as per gDrawPolygon, but with no real-time editing.
+--  
+--  1) knock up strings->ctrls[] etc arrays as per theGUI.e
+--  2) get reasonable default sizes, based on [n]gGetTextExtent().
+--  3) main canvas redraw to first invoke our resize handler
+--  4) draw controls and emulate simple focus handling [[shift]tab key]
+--  5) make sure, esp for a canvas, that gDrawXxxx() clips properly.
+--  6) check different font (etc) settings are honored/preserved/inherited.
+--  7) iff it proves easy enough, implement right-click options-tweaking.
+--
+--  Make things display on the actual canvas, add pcxo=0,pcyo=0 to the hXxx demos.
+--  Make a gCanvas that is not the sole child of a dialog get a gImage to draw on.
+--  Add a private IMAGE on a gCanvas, draw on that(/resize) when non-NULL...
+--X  Add BGCLR back onto a gImage for that purpose. X (as next)
+--X  Ensure SCROLLSIZE/SCROLLPORT work on a "". X (goes out the window with the IMAGE idea)
+--X  CLICK, KEY, MOUSEMOVE, MOUSELEAVE, MOUSEWHEEL...X (ditto, we got them covered)
+--  however, we need the basic hit-test and call forwarding...
+--  hButton (basic), hCanvas (maybe), hH/Vbox, hFrame, ...
+--  BGCLR, CANFOCUS, EXPAND, FONT, MARGIN, MIN/MAXSIZE, TITLE, VISIBLE...
+-- changing FONT/TITLE recalculates the natural size (also [now] set on creation).
+--  (a dialog should also have a natural size, but that's not tested here) - nah, just recalc as needed! ditto gFrame
+--  ACTIVE?, FGCLR?
+-- Stop trying to make a decision re canvas(cliprect) vs image, for now...
+--  GAH: it /has/ to be an image if non-sole-child with its own font!!!  DOH!
+--
+--/*
+
+-- ctrl_xtra for gCanvas()
+local enum CX_CANVAS_TYPE,      -- CANVAS/GRAPH/LIST/TABLE/TABS... [BUTTON/TEXT/TREE]
+           CX_CANVAS_FLAGS,     -- CXCF_SCROLL (etc, see below)
+           CX_CANVAS_HDC,       -- TG_WINAPI:hDC, TG_GTK:{cairo,layout}
+           CX_PENSTYLE,         -- eg/default TG_CONTINUOUS
+           CX_PENWIDTH,         -- default 1
+--         CX_IMAGE_LEN=$,
+           CX_TXTANGLE,         -- default 0 (degrees, not radians)
+           CX_GTL_ATTRS,        -- gGraph/gList/gTable/Tabs, see GX/LX/CXxxx
+           CX_SBINFO,           -- scrollbar info, NULL or see SB_XXX below 
+           CX_TRACKLEAVE,       -- track mouse leave events (and redraw)
+           CX_WU_BLEND,         -- WU_BLEND alpha/background blending flag
+           CX_CANVAS_LEN = $    -- (init ctrl_xtra[id] this size)
+--*/
+
+puts(1,"")
+--requires(64,true)
+with javascript_semantics
+include theGUI.e -- [DEAD]
+--include hGUI.e -- (abandoned see/use gBox.exw instead)
+gUseGTK()
+
+local constant control_set = {{    DIALOG:=$,`gDialog`   }, -- 1
+                              {       BOX:=$,`gBox`      }, -- 2
+                              {    BUTTON:=$,`gButton`   }, -- 3
+                              {    CANVAS:=$,`gCanvas`   }, -- 4 (also gGraph/gList/gTable/gSplit[2])
+                              {     FRAME:=$,`gFrame`    }}, -- 9
+                ctrl_names = vslice(control_set,2), -- (for error messages only)
+                  cf_glags = {{     CF_EXPANDB:=0x00000001, `CF_EXPANDB`     }, -- both
+                              {     CF_EXPANDH:=0x00000002, `CF_EXPANDH`     }, -- horizontal only
+                              {     CF_EXPANDV:=0x00000004, `CF_EXPANDV`     }, -- vertical only
+                              {    CF_CANFOCUS:=0x00000010, `CF_CANFOCUS`    }, -- (only meaningful on some controls*)
+                              {   CF_CONTAINER:=0x00000100, `CF_CONTAINER`   }, -- (gBox/Dialog/Frame only)
+                              {   CF_DECORATED:=0x00000200, `CF_DECORATED`   }, -- (only Dialog/Frame)
+                              {    CF_VERTICAL:=0x00000400, `CF_VERTICAL`    }, -- (only meaningful on some controls*)
+                              {      CF_RESIZE:=0x00000800, `CF_RESIZE`      }, -- (only meaningful on gDialog ctrls)
+                              {       CF_MODAL:=0x00001000, `CF_MODAL`       }, -- (only meaningful on gDialog ctrls)
+                              {      CF_SHRINK:=0x00002000, `CF_SHRINK`      },
+                              {       CF_SPLIT:=0x00004000, `CF_SPLIT`       }, -- (the gH/Vbox|canvas of a gSplit control)
+                              {      CF_NORMAL:=0x00010000, `CF_NORMAL`      }, -- ctrl is part of a normaliser group
+                              {       CF_RADIO:=0x00020000, `CF_RADIO`       }, -- ctrl is part of a radio group
+                              {   CF_INVISIBLE:=0x00080000, `CF_INVISIBLE`   }, -- ctrl is not visible??
+                              {    CF_INACTIVE:=0x00100000, `CF_INACTIVE`    },
+--                            { CF_NEVER_SHOWN:=0x00200000, `CF_NEVER_SHOWN` }, -- (only meaningful on dialogs)
+                              { CF_NEVER_SHOWN:=0x00000000, `CF_NEVER_SHOWN` }, -- (only meaningful on dialogs)
+                              {CF_CLOSE_ON_ESC:=0x00400000, `CF_CLOSE_ON_ESC`}, -- (only meaningful on dialogs)
+                              {  CF_IGNORESIZE:=0x00800000, `CF_IGNORESIZE`  }, -- (ignore [recursive] resize events)
+                              {      CF_MAPPED:=0x01000000, `CF_MAPPED`      }, -- (re-used for `Active` on timers)
+--                            {      CF_MAPPED:=0x00000000, `CF_MAPPED`      }, -- (re-used for `Active` on timers)
+                              {   CF_UNMAPATTR:=0x02000000, `CF_UNMAPATTR`   }}, -- (these can get attributes unmapped)
+                 CF_EXPAND = CF_EXPANDV+CF_EXPANDH+CF_EXPANDB,                   -- 0b111 mask, with 0/1/2/4 for N/B/H/V
+                CF_HEXPAND = CF_EXPANDH+CF_EXPANDB,                              -- 0b011 mask (expands horizontally)
+                CF_VEXPAND = CF_EXPANDV+CF_EXPANDB                               -- 0b101 mask (expands vertically)
+
+local constant UNDEFINED = 0 -- (==NULL)
+
+--ctrl_xtra for gDialog()
+local enum CX_LAST_FOCUS,
+--         CX_DEF_ENTER,
+--         CX_DEF_ESCAPE,
+--         CX_ACCELKEYS,
+--         CX_ACCELIDS,
+--         CX_FULLSCREEN,
+--         CX_WAS_MAXIMISED,
+--         CX_GTK_STATE, -- (GDK_WINDOW_STATE_MAXIMIZED/ICONIFIED/FULLSCREEN etc)
+           CX_NOTITLE,
+           CX_IMAGE,
+           CX_DLG_LEN = $
+
+-- ctrl_xtra for gCanvas()
+local enum CX_CANVAS_TYPE,      -- CANVAS/GRAPH/LIST/TABLE/TABS... [BUTTON/TEXT/TREE]
+--         CX_CANVAS_FLAGS,     -- CXCF_SCROLL (etc, see below)
+--         CX_CANVAS_HDC,       -- TG_WINAPI:hDC, TG_GTK:{cairo,layout}
+--         CX_PENSTYLE,         -- eg/default TG_CONTINUOUS
+--         CX_PENWIDTH,         -- default 1
+--?        CX_IMAGE_LEN=$,
+--         CX_TXTANGLE,         -- default 0 (degrees, not radians)
+--         CX_GTL_ATTRS,        -- gGraph/gList/gTable/Tabs, see GX/LX/CXxxx
+--         CX_SBINFO,           -- scrollbar info, NULL or see SB_XXX below 
+--         CX_TRACKLEAVE,       -- track mouse leave events (and redraw)
+--         CX_WU_BLEND,         -- WU_BLEND alpha/background blending flag
+           CX_REDRAW,           -- instead of a proper gSetHandler
+           CX_CANVAS_LEN = $    -- (init ctrl_xtra[id] this size)
+
+-- ctrl_xtra for gBox()
+local enum CX_BOX_GAP,
+           CX_BOX_SPACE_H,
+           CX_BOX_SPACE_V
+
+-- ctrl_size[] contents:
+local enum SZ_W,            -- actual/final
+           SZ_H,
+           SZ_NORMAL_W,     -- layout manager works from these
+           SZ_NORMAL_H,
+           SZ_NATURAL_W,    -- initial
+           SZ_NATURAL_H,
+           SZ_USER_W,       -- explicit (initial) overrides
+           SZ_USER_H,
+           SZ_MIN_W,
+           SZ_MIN_H,
+           SZ_MAX_W,
+           SZ_MAX_H,
+           SZ_MARGIN,   -- (see MP_TRBL below)
+--         SZ_PADDING,  -- "", BUTTON/DATEPICK/DROPDOWN/TEXT only
+           SZ_X,
+           SZ_Y,
+           SZ_LENGTH = $
+
+--MP_TRBL:
+local enum MP_TOP,
+           MP_RGT,
+           MP_BTM,
+           MP_LFT
+
+local sequence ctrl_handles = {},   -- (native handles)
+                 ctrl_types = {},   -- (also ctrl_free_list)
+                 ctrl_flags = {},   -- (CF_XXX settings, see above)
+                 parent_ids = {},   -- (as gdx, nb see tg_get_parent_handle)
+               children_ids = {},   -- (as gdx) (also cairo context?)
+                  ctrl_size = {},   -- (see SZ_XXX below)
+----                  ctrl_font = {},   -- (UNDEFINED or index to fontcache)
+--               ctrl_fonts = {},   -- (NULL or string)
+----                 ctrl_fontd = {},   -- (NULL?, pango fontdesc, WinAPI hFont atom)
+--X               can_focus = {},
+----DEV and label and canvas...
+                    ctrl_bg = {},   -- (-1 or background colour [text only for now])
+                    ctrl_fg = {},   -- (-1 or foreground colour [text only for now])
+                ctrl_titles = {},   -- (selected controls only)
+                  ctrl_xtra = {},   -- (control-specific, see CX_XXX below)
+$
+
+local sequence norm_groups = {},    -- gNormalise() groups
+              radio_groups = {}     -- gRadio() groups
+
+local procedure reset_controls()
+    ctrl_handles = {}
+    ctrl_types = {}
+    ctrl_flags = {}
+    parent_ids = {}
+    children_ids = {}
+    ctrl_size = {}
+    ctrl_bg = {}
+    ctrl_fg = {}
+    ctrl_titles = {}
+    ctrl_xtra = {}
+    norm_groups = {}
+    radio_groups = {}
+end procedure
+
+local function tg_add_control(integer ctrl_type, parent_id=0, flags=0)--, bool bHasChildren=false)
+--
+--  returns: a gdx
+--  control_type: DIALOG, TREEVIEW, etc, stored in ctrl_types[id]
+--  parent_id: a gdx and not a native handle, stored in parent_ids[id] (can be NULL)
+--  handle: a native handle for the new control, stored in ctrl_handles[id]
+--  bEsc: true/false (meaningful only on dialogs)
+--
+    integer id
+    ctrl_handles &= NULL
+    ctrl_types &= ctrl_type
+    ctrl_flags &= flags
+    parent_ids &= parent_id
+    children_ids &= UNDEFINED
+    ctrl_size &= UNDEFINED
+--  ctrl_font &= UNDEFINED
+--  ctrl_fonts &= UNDEFINED
+--  ctrl_fontd &= UNDEFINED
+--  can_focus &= -1
+    ctrl_bg &= -1
+    ctrl_fg &= -1
+    ctrl_titles &= UNDEFINED
+    ctrl_xtra &= UNDEFINED
+--  ctrl_cursors &= NULL
+--  user_data &= UNDEFINED
+--  wnd_proc_addr &= UNDEFINED
+--  deferred_attr &= {{}}
+--  def_menu_attr &= UNDEFINED
+    id = length(ctrl_handles)
+    ctrl_size[id] = repeat(0,SZ_LENGTH)
+--DEV possibly insufficient: gDialog has 1, gSplit 2, g(H|V|Multi)Box|gRadio|gTabs have many (-1?).
+--  if bHasChildren then
+--?9/0
+--      children_ids[id] = {}
+--  end if
+    return id
+end function
+
+integer mnemonics = new_dict()
+
+local function gt_get_mnemonic(string title)
+    bool nxt = false
+    for c in title do
+        if nxt then
+            c = upper(c)
+            if c>='A' and c<='Z' then return c end if
+            nxt = false
+        else
+            nxt = c='&'
+        end if
+    end for
+    return null
+end function
+
+--global function gGetDialog(gdx id)
+local function hGetDialog(integer id)
+----    if id>1 and ctrl_types[id]=TEXT and ctrl_types[id-1]=SPIN then id -= 1 end if
+    while id and ctrl_types[id]!=DIALOG do
+        id = parent_ids[id]
+    end while
+    return id
+--  return 1
+end function
+
+--global function gGetBrother(gdx id, bool bPrev = false)
+local function hGetBrother(integer id, bool bPrev = false)
+    integer pid = parent_ids[id]
+--DEV (sip)
+--  sequence children = children_ids[pid]
+    object children = children_ids[pid]
+    if sequence(children) then
+        integer k = find(id,children)
+        assert(k!=0)
+        return iff(bPrev?iff(k=1?NULL:children[k-1])
+                        :iff(k=length(children)?NULL:children[k+1]))
+    end if
+    return NULL 
+end function
+
+-- copied verbatim from theGUI.e:
+local procedure tg_set_ctrl_flag(gdx id, integer cf_flag, bool v=true)
+    -- (if v is false then clear the flag instead of setting it)
+    integer f = ctrl_flags[id]
+    if v then
+        f = or_bits(f,cf_flag)
+    else
+        f -= and_bits(f,cf_flag)
+    end if
+    ctrl_flags[id] = f
+end procedure
+
+local procedure hSetAttribute(integer id, string name, object v)
+    integer ct = ctrl_types[id]
+    if name=`TITLE` then
+        -- dialog/frame/button/checkbox/label,
+        -- not box/split/canvas/image/picbuf/datepick/calendar/dropdown/
+        --     graph/list/menu/progress?/slider?/spin/table/tabs/text/tree.
+        assert(find(ct,{DIALOG,FRAME,BUTTON/*,CHECKBOX,LABEL*/}))
+        assert(string(v))
+        integer c = gt_get_mnemonic(v),
+                p = getd(id,mnemonics),
+              dlg = hGetDialog(id)
+--      gdx dlg = hGetDialog(id)
+        assert(c=NULL or ct!=DIALOG)
+        if p!=c then deld({dlg,p},mnemonics) end if
+        if c then setd({dlg,c},id,mnemonics) end if
+        setd(id,c,mnemonics)
+        ctrl_titles[id] = v
+    elsif name=`BGCLR` then
+        assert(ct=CANVAS)
+        assert(integer(v)) -- (NB no text->integer conversion here)
+        ctrl_bg[id] = v
+    elsif name=`FGCLR` then
+        assert(ct=CANVAS)
+        assert(integer(v)) -- (NB no text->integer conversion here)
+        ctrl_fg[id] = v
+    elsif name=`CANFOCUS` then
+--      assert(not find(ct,{DIALOG,BOX,CLIPBOARD,FRAME,TIMER}))
+        tg_set_ctrl_flag(id,CF_CANFOCUS,v)
+    elsif name=`SIZE` then
+        integer {w,h} = v
+        ctrl_size[id][SZ_USER_W] = w
+        ctrl_size[id][SZ_USER_H] = h
+    else
+        crash("hSetAttribute(%s,%s)",{ctrl_names[ct],name})
+    end if
+end procedure
+
+local integer tg_parse_attr = gGetGlobal(`tg_parse_attr`) -- (undocumented)
+
+local procedure hSetAttributes(integer id, string name, object args={})
+    if name!=`==` then
+        args = tg_parse_attr(name,args)
+    end if
+    for a in args do
+        {string an, object av} = a
+        hSetAttribute(id,an,av)
+    end for
+end procedure
+
+local function hGetAttribute(integer id, string name, object dflt=UNDEFINED)
+    integer ct = ctrl_types[id]
+    if name=`BGCLR` then
+        assert(ct=CANVAS)
+        return ctrl_bg[id]
+    elsif name=`FGCLR` then
+        assert(ct=CANVAS)
+        return ctrl_fg[id]
+    elsif name=`CANFOCUS` then
+--      assert(not find(ct,{DIALOG,BOX,CLIPBOARD,FRAME,TIMER}))
+        return and_bits(ctrl_flags[id],CF_CANFOCUS)!=0
+    elsif name=`TITLE` then
+        object res = ctrl_titles[id]
+        if res=UNDEFINED then res=dflt end if
+        return res
+    end if
+    crash("hGetAttribute(%s,%s)",{id,name})
+end function
+
+local procedure hSetHandler(integer id, string name, rtn rid)
+    integer ct = ctrl_types[id]
+    if name=`REDRAW` then
+        assert(ct=CANVAS)
+        ctrl_xtra[id][CX_REDRAW] = rid
+    else
+        crash("hSetHandler(%s,%s)",{id,name})
+    end if
+end procedure
+
+local function hGetHandler(integer id, string name)
+    integer ct = ctrl_types[id]
+    if name=`REDRAW` then
+        assert(ct=CANVAS)
+        return ctrl_xtra[id][CX_REDRAW]
+    end if
+    crash("hGetHandler(%s,%s)",{id,name})
+end function
+
+--NB not meant to cope with [multiple] dialog [losing] focus...
+--global procedure gSetFocus(gdx id)
+local procedure hSetFocus(integer id)
+    if id=NULL then return end if   -- quietly ignore
+    integer ct = ctrl_types[id],
+            cf = ctrl_flags[id]
+    if not and_bits(cf,CF_INACTIVE) then
+        integer dlg = hGetDialog(id)
+        ctrl_xtra[dlg][CX_LAST_FOCUS] = id
+    end if
+--  elsif backend=TG_WINAPI then
+--      if ct=DIALOG then
+--          -- Attempts to programmatically set the focus onto a window
+--          -- (like Edita does with main) must get rid of any auto-focus info.
+--          ctrl_xtra[id][CX_LAST_FOCUS] = UNDEFINED
+end procedure
+
+--gdx gtk_focusid = NULL
+
+--global function gGetFocus()
+local function hGetFocus()
+    integer dlg = find(DIALOG,ctrl_types) -- fudge!
+    return ctrl_xtra[dlg][CX_LAST_FOCUS]
+end function
+
+-- local function hDialog()
+local function hDialog(integer child, parent=NULL, string title=``, attributes=``, sequence args={}, bool bEsc=true)
+--  {parent,title,attributes,args,bEsc} = paranormalise_ptaab(parent,title,attributes,args,bEsc)
+--  if not bInit then tg_Init() end if
+--  assert(parent=NULL or ctrl_types[parent]=DIALOG)
+--  assert(child=NULL or ctrl_types[child]!=DIALOG)
+--  integer flags = iff(bEsc?CF_CLOSE_ON_ESC:0)+CF_NEVER_SHOWN+CF_RESIZE+CF_UNMAPATTR+CF_CONTAINER+CF_DECORATED+CF_MODAL,
+    integer flags = iff(bEsc?CF_CLOSE_ON_ESC:0)+CF_MAPPED+CF_RESIZE+CF_UNMAPATTR+CF_CONTAINER+CF_DECORATED+CF_MODAL,
+--             id = tg_add_control(DIALOG,parent,flags,bHasChildren:=true)
+               id = tg_add_control(DIALOG,parent,flags)
+    if child then parent_ids[child] = id end if
+    children_ids[id] = iff(child?{child}:{})
+--/*
+    tg_register_handler(DIALOG,`CLOSE`,{`FO`,`F`,`PO`,`P`})
+--  tg_register_handler(DIALOG,`RESIZE`,{{3,3,`FOII`}})
+    tg_set_ctrl_msg(DIALOG,tg_Dialog,tg_set_dialog_attribute,
+                                     tg_get_dialog_attribute)
+--*/
+    object cxi = repeat(0,CX_DLG_LEN)
+    cxi[CX_LAST_FOCUS] = UNDEFINED
+--  cxi[CX_ACCELKEYS] = {}
+--  cxi[CX_ACCELIDS] = {}
+    ctrl_xtra[id] = cxi
+--/*
+    gSetAttribute(id,`FONT`,TG_STD_FONT)
+--*/
+    if length(title) then
+        hSetAttribute(id,`TITLE`,title)
+    end if
+    if length(attributes) then
+        hSetAttributes(id,attributes,args)--,nFrames:=2)
+    end if
+    return id
+end function
+
+--local function hCanvas(object redraw=NULL, sequence attributes=``, args={})
+local function hCanvas(rtn redraw=NULL, string attributes=``, sequence args={})
+--  {redraw,attributes,args} = paranormalise_raa(redraw,attributes,args)
+--  if not bInit then tg_Init() end if
+--  integer id = tg_add_control(CANVAS,flags:=CF_UNMAPATTR+CF_EXPANDB)
+    integer id = tg_add_control(CANVAS,flags:=CF_MAPPED+CF_UNMAPATTR+CF_EXPANDB)
+    object cxi = repeat(0,CX_CANVAS_LEN)
+    cxi[CX_CANVAS_TYPE] = CANVAS
+--  cxi[CX_PENSTYLE] = TG_CONTINUOUS
+--  cxi[CX_PENWIDTH] = 1
+--  cxi[CX_WU_BLEND] = true
+--  cxi[CX_REDRAW] = redraw
+    ctrl_xtra[id] = cxi
+    cxi = 0 -- (kill refcount)
+    ctrl_fg[id] = TG_BLACK
+--  ctrl_bg[id] = TG_WHITE
+    integer {w,h} = gGetTextExtent(`W`)
+    ctrl_size[id][SZ_NATURAL_W] = w
+    ctrl_size[id][SZ_NATURAL_H] = h
+    ctrl_size[id][SZ_NORMAL_W] = w
+    ctrl_size[id][SZ_NORMAL_H] = h
+
+    if redraw!=NULL then
+        hSetHandler(id,`REDRAW`,redraw)
+    end if
+    if length(attributes) then
+        hSetAttributes(id,attributes,args)
+    end if
+    return id
+end function 
+
+procedure fake_button_redraw(integer btn, integer w, h)
+-- draw a basic button with focus rect, but no image, hover, etc.
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--  string btn_txt = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_TITLE]
+    string btn_txt = ctrl_titles[btn]
+    gdm img = ctrl_xtra[btn][CX_IMAGE]
+    gDrawRect(img,0,0,w-1,h-1,true,colour:=#FDFDFD)
+    gDrawRect(img,0,0,w-1,h-1,colour:=#F0F0F0)
+    gDrawText(img,cx,cy,btn_txt,{},TG_C)
+    if hGetFocus()==btn then
+        gDrawRect(img,2,2,w-3,h-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
+    end if
+end procedure   
+
+--global function gButton(object title=NULL, action=NULL, sequence attributes=``, args={})
+local function hButton(string title, string attributes=``, args={})
+--  {title,action,attributes,args} = paranormalise_traa(title,action,attributes,args)
+--  if not bInit then tg_Init() end if
+--  integer id = tg_add_control(BUTTON)
+    integer id = hCanvas(fake_button_redraw)
+    ctrl_xtra[id][CX_CANVAS_TYPE] = BUTTON
+--/*
+    tg_register_handler(BUTTON,`ACTION`,{`FO`,`F`,`PO`,`P`})
+    tg_set_ctrl_msg(BUTTON,tg_Button,tg_set_button_attribute,
+                                     tg_get_button_attribute)
+    -- aside: ctrl_xtra on a button is UNDEFINED/NULL or a gImage
+    if title!=NULL then gSetAttribute(id,`TITLE`,title) end if
+--DEV tg_WinAPI_set_accelerator(), when a canvas... and a fake equivalent for GTK...
+    if action!=NULL then gSetHandler(id,`ACTION`,action) end if
+--*/
+    if length(attributes) then hSetAttributes(id,attributes,args) end if
+    ctrl_titles[id] = title
+--DEV set size?
+    return id
+end function 
+
+local function gBox(integer hv, sequence children, string attributes, sequence args)--, integer nFrames = 1)
+--  if not bInit then tg_Init() end if
+    integer id = tg_add_control(BOX,flags:=CF_CONTAINER+CF_EXPANDB+iff(hv='V'?CF_VERTICAL:0))
+--  tg_set_ctrl_msg(BOX,tg_Box,tg_set_box_attribute,
+--                             tg_get_box_attribute)
+    ctrl_xtra[id] = {0,             -- CX_BOX_GAP,
+                     TG_SPACE_NONE, -- CX_BOX_SPACE_H,
+                     TG_SPACE_NONE} -- CX_BOX_SPACE_V
+    children_ids[id] = children
+    for child in children do
+        parent_ids[child] = id
+    end for
+    if length(attributes) then
+        hSetAttributes(id,attributes,args)--,nFrames)
+    end if
+    return id
+end function 
+
+--global function gHbox(sequence children={}, string attributes=``, sequence args={})
+local function hHbox(sequence children={}, string attributes=``, sequence args={})
+    return gBox('H',children,attributes,args)--,nFrames:=3)
+end function
+
+--global function gVbox(sequence children={}, string attributes=``, sequence args={})
+local function hVbox(sequence children={}, string attributes=``, sequence args={})
+    return gBox('V',children,attributes,args)--,nFrames:=3)
+end function
+
+--global function gFrame(gdx child, object title=NULL, sequence attributes=``, args={})
+local function hFrame(integer child, string title, sequence attributes=``, args={})
+--  {title,attributes,args} = paranormalise_taa(title,attributes,args)
+--  if not bInit then tg_Init() end if
+    integer id = tg_add_control(FRAME,flags:=CF_CONTAINER+CF_DECORATED+CF_EXPANDB)--,bHasChildren:=true)
+--  if child then
+        parent_ids[child] = id
+        children_ids[id] = {child}
+--  end if
+--  tg_set_ctrl_msg(FRAME,tg_Frame,tg_set_frame_attribute,
+--                                 tg_get_frame_attribute)
+--  if title!=NULL then
+--      gSetAttribute(id,`TITLE`,title,nFrames:=2)
+--  end if
+    ctrl_titles[id] = title
+    if length(attributes) then
+        hSetAttributes(id,attributes,args)--,nFrames:=3)
+    end if
+    return id
+end function 
+
+local procedure hNormalise(gdx ids, atom_string hvb=`BOTH`)
+    integer ihvb = iff(string(hvb)?find(hvb,iff(length(hvb)==1?{`H`,`V`,`B`}
+                                           :{`HORIZONTAL`,`VERTICAL`,`BOTH`}))
+                     :iff(hvb>0b11?find(hvb,"HVB"):hvb))
+    assert(ihvb!=0) -- ihvb is now a bitfield, 0b01/0b10/0b11
+    assert(and_bits(ihvb,0b11)==ihvb)
+--  tg_check_unmapped(ids,CF_NORMAL)
+--local procedure tg_check_unmapped(gdx ids, integer flag, rdx=0)
+--  -- used by gRadio() and gNormalise()
+    atom ctnr = and_bits(ctrl_flags[ids[1]],CF_CONTAINER)
+    for id in ids do
+        integer cfi = ctrl_flags[id]
+--              cti = ctrl_types[id]
+--      bool bMapped = and_bits(cfi,CF_MAPPED)!=0
+--      bool bMapped = tg_mapped(id)
+--      assert(not bMapped)
+--      if flag=CF_RADIO then
+--          assert(cti=CHECKBOX)
+--          -- (>1 normaliser group ok, but radios 1 only)
+--          assert(and_bits(cfi,CF_RADIO)=0)
+----DEV erm, >1 group??
+--          ctrl_xtra[id] = rdx
+--      elsif flag=CF_NORMAL then
+            -- ensure there are no kids on normalised items
+            -- (or maybe check that no parent of id is also
+            --  a member of ids, would need order tweakage)
+--          assert(ctrl_kids[cti]=0)
+--          assert(and_bits(ctrl_flags[id],CF_CONTAINER)==0)
+        assert(and_bits(cfi,CF_CONTAINER)==ctnr)
+--      else
+--          ?9/0 -- unknown flag?
+--      end if
+--      cfi = or_bits(cfi,flag)
+        cfi = or_bits(cfi,CF_NORMAL)
+        ctrl_flags[id] = cfi
+    end for
+--end procedure
+
+    norm_groups = append(norm_groups,{ihvb,ids})
+end procedure
+global constant integer hNormalize = hNormalise;
+
+local function tg_lm_gather_normal_groups(sequence ngused, gdx id)
+    -- (determine which if any of the norm_groups actually apply)
+    integer cfi = ctrl_flags[id]
+--  assert(and_bits(cfi,CF_MAPPED)!=0)
+--  assert(tg_mapped(id))
+    object children = children_ids[id]
+    if sequence(children) then
+        for i,child in children do
+            ngused = tg_lm_gather_normal_groups(ngused,child)
+--          integer cw = ctrl_size[child][SZ_NATURAL_W],
+--                  ch = ctrl_size[child][SZ_NATURAL_H]
+        end for
+    elsif and_bits(cfi,CF_NORMAL) then
+        for i=1 to length(ngused) do
+            if not ngused[i]
+            and find(id,norm_groups[i][2]) then
+                ngused[i] = true
+            end if
+        end for
+    end if  
+    -- copy now for all non-normalised elements:
+--if ctrl_kids[ctrl_types[id]]=0 then
+if and_bits(ctrl_flags[id],CF_CONTAINER)==0 then
+--  integer cw = ctrl_size[id][SZ_NATURAL_W],
+--          ch = ctrl_size[id][SZ_NATURAL_H]
+    integer cw = max(ctrl_size[id][SZ_NATURAL_W],ctrl_size[id][SZ_USER_W]),
+            ch = max(ctrl_size[id][SZ_NATURAL_H],ctrl_size[id][SZ_USER_H])
+--?{`gng`,id,cw,ch}
+--  g_log(`set`,`ctrl_sizeNORM`,source_line(),{id,cw,ch})
+    ctrl_size[id][SZ_NORMAL_W] = cw
+    ctrl_size[id][SZ_NORMAL_H] = ch
+end if
+    return ngused
+end function
+
+local procedure tg_lm_normalise_sizes(gdx id)
+    --
+    -- set [SZ_NORMAL_W/H] from max([SZ_USER_W/H],[SZ_NATURAL_W/H]), and then
+    --  normalise, ie set all rqd w/h in each group to max w/h in each group.
+    --
+--DEV can we reorder this such that when we normalise any containers, all child elements have already been done??
+--perhaps we start with crtl_done = repeat(false,length(ctrl_handles)) or
+--                      crtl_done = apply(tagset(length(ctrl_handles)),is_leaf) or
+--                      crtl_done = sq_and_bits(ctrl_flags,CF_LEAF) or
+--  sequence crtl_done = extract(ctrl_kids,ctrl_types)
+--  ^^ gone with "no containers" instead, at least for now...
+--  ?{`tg_lm_normalise_sizes`,id}
+--SUG:
+    integer l = length(norm_groups)
+    sequence ngused = repeat(false,l),
+           max_natw = repeat(0,l),
+           max_nath = repeat(0,l),
+         child_sets = {},
+       child_groups = {}
+    --
+    -- First, traverse the dialog hierarcy collecting used normaliser groups,
+    -- and while you're doing that set sensible defaults for non-"" elements:
+    --
+    ngused = tg_lm_gather_normal_groups(ngused,id)
+    --
+    -- Second, collect the max sizes for all used groups, and 
+    --  generate all the lists of groups used by each child
+    --
+    for ngdx=1 to l do
+        if ngused[ngdx] then
+            integer mw = 0, mh = 0
+            for c in norm_groups[ngdx][2] do
+                mw = max(mw,ctrl_size[c][SZ_NATURAL_W])
+                mh = max(mh,ctrl_size[c][SZ_NATURAL_H])
+                integer k = find(c,child_sets)
+                if k then
+                    child_groups[k] &= ngdx
+                else
+                    child_sets &= c
+                    child_groups &= {{ngdx}}
+                end if
+            end for
+            max_natw[ngdx] = mw
+            max_nath[ngdx] = mh
+        end if
+    end for
+    --
+    -- Third/lastly, copy max(group_max) onto each element
+    --
+    for i,c in child_sets do
+        integer cw = ctrl_size[c][SZ_NORMAL_W],
+                ch = ctrl_size[c][SZ_NORMAL_H]
+--      integer cw = ctrl_size[c][SZ_NATURAL_W],
+--              ch = ctrl_size[c][SZ_NATURAL_H]
+        for ngdx in child_groups[i] do
+            {integer ngf, sequence ngc} = norm_groups[ngdx]
+            if and_bits(ngf,0b01) then -- HORIZONTAL
+                cw = max(cw,max_natw[ngdx])
+            end if
+            if and_bits(ngf,0b10) then -- VERTICAL
+                ch = max(ch,max_nath[ngdx])
+            end if
+        end for
+--      g_log(`set`,`ctrl_sizeNORM`,source_line(),{id,cw,ch})
+        ctrl_size[c][SZ_NORMAL_W] = cw
+        ctrl_size[c][SZ_NORMAL_H] = ch
+    end for
+--DOCS:
+--Normalisation applies to the natural sizes only, and ignores any user sizes.
+--Note that gNormalise() is only formally supported on non-container elements.
+--Should you try normalising, say, gHbox that further contain normalised labels,
+--it is formally undefined as to which normalisation occurs first. Likewise if
+--you tried to normalise a gHbox with an element it contains, it would be quite
+--right for it to go absolutely bonkers. All that said, however, there is no 
+--deliberate bar, and if it works, it works, but if not you&rsquo;ll have to 
+--set up a resize handler and set the user sizes explicitly yourself, ditto 
+--should you seek normalisation that takes your user sizes into account.
+--Lastly note that you cannot later change your mind about normalisation: once
+--set the groups persist until program termination, and should not be recreated.
+
+--....  
+------ should, I think, do natural+user(percolating up) -> normal...
+----        integer dw = max(ctrl_size[id][SZ_USER_W],ctrl_size[id][SZ_NATURAL_W]),
+----                dh = max(ctrl_size[id][SZ_USER_H],ctrl_size[id][SZ_NATURAL_H])
+----
+end procedure
+
+
+--local function tg_get_first_tabable(gdx id, bool shift)
+local function tg_get_first_tabable(integer id, bool shift)
+    integer cf = ctrl_flags[id]
+    if not and_bits(cf,CF_INACTIVE) then
+        object children = children_ids[id]
+        if sequence(children) then
+            if length(children) then
+                if shift then children = reverse(children) end if
+                for child in children do
+                    integer res = tg_get_first_tabable(res,shift)
+                    if res!=NULL then return res end if
+                end for
+            end if
+        elsif hGetAttribute(id,`CANFOCUS`) then
+            return id
+        end if
+    end if
+    return NULL 
+end function
+
+--local function tg_get_next_tabable(gdx id, bool bPrev=false)
+local function tg_get_next_tabable(integer id, bool bPrev=false)
+    integer res = hGetBrother(id, bPrev)
+    if res=NULL then
+        integer pid = parent_ids[id],
+                 ct = ctrl_types[pid]
+        if ct!=DIALOG then
+            sequence children = children_ids[pid]
+            if bPrev then children = reverse(children) end if
+            for child in children from find(id,children)+1 do
+                res = tg_get_first_tabable(child,bPrev)
+                if res!=NULL then return res end if
+            end for
+        end if
+        res = tg_get_first_tabable(pid,bPrev)
+    end if
+    return res
+end function
+
+local function tg_get_margin(gdx id, integer mpx)
+    -- get the margin
+    -- mpx should be MP_TOP, MP_RGT, MP_BTM, or MP_LFT
+    object cmi = ctrl_size[id][SZ_MARGIN]
+    if atom(cmi) then return cmi end if
+    -- short sequences => margins spell trouble...
+    sequence mpdx = {{1,1,1,1},
+                     {1,2,1,2},
+                     {1,2,3,2},
+                     {1,2,3,4}}[length(cmi)]
+    integer mpdxi = mpdx[mpx]
+    return cmi[mpdxi]
+end function
+
+--local procedure tg_lm_accumulate_sizes(gdx id)
+local procedure tg_lm_accumulate_natural_sizes(integer id)
+--?`tg_lm_accumulate_sizes`
+    --
+    -- sum [SZ_NORMAL_W/H] with margins etc.
+    --
+    integer ct = ctrl_types[id]
+    object children = children_ids[id]
+    if sequence(children) then
+        integer nw = 0, nh = 0, gap = 0
+        bool bVert = and_bits(ctrl_flags[id],CF_VERTICAL)!=0
+        for i,child in children do
+            if gGetAttribute(child,`VISIBLE`) then
+--              tg_lm_accumulate_sizes(child)
+                tg_lm_accumulate_natural_sizes(child)
+                integer cw = ctrl_size[child][SZ_NORMAL_W],
+                        ch = ctrl_size[child][SZ_NORMAL_H],
+                        mt = tg_get_margin(child,MP_TOP),
+                        ml = tg_get_margin(child,MP_LFT),
+                        mb = tg_get_margin(child,MP_BTM),
+                        mr = tg_get_margin(child,MP_RGT)
+                cw = ml+cw+mr
+                ch = mt+ch+mb
+                -- aside: for a single child this is of course
+                --        equivalent to nw:=cw and nh:=ch.
+                nw = iff(bVert?max(nw,cw):nw+gap+cw)
+                nh = iff(bVert?nh+gap+ch:max(nh,ch))
+                if i=1 and ct=BOX then gap = ctrl_xtra[id][CX_BOX_GAP] end if
+            end if
+        end for
+        if ct=FRAME then
+--/*
+            if backend=TG_GTK then
+                if bGTK3 then
+                    nw += 2
+                    nh += 2
+                else
+                    nw += 4
+                    nh += 4
+                end if
+            elsif backend=TG_WINAPI then
+                nw += 2
+--              nh += 1
+            else
+                ?9/0
+            end if
+--*/
+            string title = hGetAttribute(id,`TITLE`,``)
+            if length(title) then
+--              integer {tw,th} = XgGetTextExtent(id,title)
+--              integer {tw,th} = gGetTextExtent(title,id)
+                -- DEV using TG_STD_FONT:
+                integer {tw,th} = gGetTextExtent(title)
+                nh += th -- (height)
+                --DEV/SUG minwidth from tw??
+--          elsif backend=TG_WINAPI then
+--              nh += 9
+            end if
+        elsif ct=DIALOG then
+--          integer {dw,dh} = tg_lm_get_dialog_decoration_size(id)
+--          integer {dw,dh} = {2,32}
+--          nw += dw
+--          nh += dh
+            nw += 2
+            nh += iff(ctrl_xtra[id][CX_NOTITLE]?2:32)
+        end if
+--      g_log(`set`,`ctrl_sizeNORM`,source_line(),{id,nw,nh})
+--?{`tg_lm_accumulate_natural_sizes`,id,nw,nh}
+        ctrl_size[id][SZ_NORMAL_W] = nw
+        ctrl_size[id][SZ_NORMAL_H] = nh
+    end if
+end procedure
+
+local function tg_lm_apply_space(integer id, sequence bexpand, crossax, primary)
+--local function tg_lm_apply_space(integer id, cw, ch, sequence bexpand, crossax, primary)
+--?{`tg_lm_apply_space`,id, cw, ch, bexpand, crossax, primary}
+--  assert(ctrl_types[parent_ids[id]]==BOX)
+    assert(ctrl_types[id]==BOX)
+--  integer s1 = 0 -- balancing act (dropped for now)
+    integer {idx,flag,slack} = crossax, 
+            s1 = 0, l = length(bexpand)
+--DEV not working on GTK... (see gDatePick.exw)
+,balance = 0
+,crossflag = flag
+assert(flag!=TG_SPACE_MATCH)
+    if flag!=TG_SPACE_NONE
+    and flag!=TG_SPACE_RIGHT    -- (===TG_SPACE_BOTTOM)
+    and slack!=0 then
+        -- note: slack is full in cross orientation, excess in primary
+--      bexpand = tg_lm_apply_space(bexpand,idx,flag,slack)
+        for i=1 to l do
+            integer space = slack-bexpand[i][idx-2]
+            if space then
+                if flag=TG_SPACE_LEFT then -- (===TG_SPACE_TOP)
+                    bexpand[i][idx] += space
+                else -- assume TG_SPACE_BETWEEN / TG_SPACE_AROUND / TG_SPACE_CENTRE
+if i=1 then balance = floor(space/2) end if
+                    bexpand[i][idx] += floor(space/2)
+                end if
+--              ?9/0 -- placeholder
+--?{`tg_lm_apply_space(cross)!!`,flag,space,gGetAttribute(id,`SPACE`)}
+            end if
+        end for
+--      s1 = ??
+    end if
+    {idx,flag,slack} = primary
+--  if flag=TG_SPACE_MATCH then ?9/0 end if
+--  if slack then
+    if flag!=TG_SPACE_NONE
+    and flag!=TG_SPACE_RIGHT    -- (===TG_SPACE_BOTTOM)
+    and slack!=0 then
+--      if and_bits(flag,TG_SPACE_BALANCE) then -- use s1
+--      if flag=TG_SPACE_RIGHT then
+--          -- do nothing
+--      elsif flag=TG_SPACE_LEFT then
+        if flag=TG_SPACE_LEFT then -- (===TG_SPACE_TOP)
+            for i=1 to l do
+                bexpand[i][idx] += slack
+            end for
+        elsif flag=TG_SPACE_BETWEEN
+           or flag=TG_SPACE_AROUND then 
+            integer tadj = 0, f = and_bits(flag,1)
+            for i=2-f to l do
+                integer adj = round(slack/(l-i+1+f))
+if i=1 then balance = adj end if
+--?{`slack`,slack,`i`,i,`/`,l-i+1+f,`adj`,adj}
+                slack -= adj
+                tadj += adj
+                bexpand[i][idx] += tadj
+            end for
+--          assert(slack = 0)
+        elsif flag=TG_SPACE_CENTRE then
+            integer adj = floor(slack/2)
+            for i=1 to l do
+                bexpand[i][idx] += adj
+            end for
+        elsif flag=TG_SPACE_MATCH then
+            assert(crossflag=TG_SPACE_CENTRE or crossflag=TG_SPACE_AROUND)
+            for i=1 to l do
+                bexpand[i][idx] += balance
+            end for
+        else
+--      elsif flag then
+            ?9/0    -- placeholder?
+--?{`tg_lm_apply_space!!`,flag}
+        end if
+    end if
+    return bexpand
+end function
+
+--/!*
+--DEV: this is not taking margins etc into account....
+--SUG: TG_SPACE_BALANCE on its own could mean there is a length(children) sequence of weights somewhere...
+--with trace
+-- tg_lm_apply_spacing? tg_lm_expand_to_fit?
+--local procedure tg_lm_disperse_user_sizes(gdx id, integer pw=0, ph=0)
+local procedure tg_lm_disperse_user_sizes(gdx id, integer cw, ch, x=0, y=0)
+--?{`tg_lm_disperse_user_sizes`,id, cw, ch, x, y}
+    --
+    -- Since GTK insists on being such an absolute dick about such matters,
+    -- cw,ch are/must be the **client** size, not the window size.
+    -- Mind you, WinAPI is not much better, with its "invisible margins".
+    --
+    -- Also calculates offsets...
+    --
+    integer w = max(ctrl_size[id][SZ_NORMAL_W],ctrl_size[id][SZ_USER_W]),
+            h = max(ctrl_size[id][SZ_NORMAL_H],ctrl_size[id][SZ_USER_H]),
+           ct = ctrl_types[id], fha
+--?{`tg_lm_disperse_user_sizes`,id,w,h}
+--if ct=DIALOG then ch=88 end if -- DEV temp! [NO... right dialog size, wrong canvas, unlike the 120 below]
+    if ct!=DIALOG then
+--      g_log(`set`,`ctrl_sizeXY`,source_line(),{id,x,y})
+        ctrl_size[id][SZ_X] = x
+        ctrl_size[id][SZ_Y] = y
+--if ct=SPIN then
+--      g_log(`set`,`ctrl_sizeXY`,source_line(),{id+1,x,y})
+--      ctrl_size[id+1][SZ_X] = x
+--      ctrl_size[id+1][SZ_Y] = y
+----erm... (experimental)
+--      ctrl_size[id+1][SZ_W] = ctrl_size[id][SZ_W]
+--      ctrl_size[id+1][SZ_H] = ctrl_size[id][SZ_H]
+--end if
+--5/10/24: (does NOT fix the jump problem in aaline.exw ...)
+-- "" (cw/ch): (DOES fix the jump problem in aaline.exw ... buggers up gButton.exw ...)
+--/*
+    else
+--      w -= 2
+--      h -= 32
+        cw -= 2
+        ch -= 32
+--*/
+--  else -- DIALOG
+--      if backend=TG_WINAPI then
+--?{`ct!3rl_xtra[id][CX_NOTITLE]`,ctrl_xtra[id][CX_NOTITLE],id}
+--          if ctrl_xtra[id][CX_NOTITLE] then
+--?`+32`
+--              ch += 32
+--          end if
+--      end if          
+    end if
+    object children = children_ids[id]
+--?{"children",children}
+    if sequence(children) then
+--      assert(find(ct,{DIALOG,BOX,FRAME,TABS})) -- sanity check
+        assert(find(ct,{DIALOG,BOX,FRAME})) -- sanity check
+        integer cfi = ctrl_flags[id],
+                pmt = tg_get_margin(id,MP_TOP),
+                pml = tg_get_margin(id,MP_LFT),
+                gap = iff(ct=BOX?gGetAttribute(id,`GAP`,0):0),
+--              wspace = wslack,
+                wspace = cw,
+--              hspace = hslack
+                hspace = ch
+--?{`wspace`,wspace,`hspace`,hspace}
+-- no effect:
+--if backend=TG_WINAPI and ct=DIALOG and ctrl_xtra[id][CX_NOTITLE] then
+--?{`hspace+=32`,hspace,hspace+32}
+--  hspace += 32
+--end if
+
+--DEV/SUG: (need to get expand working first...)
+--         spacing = ctrl_xtra[id][CX_BOX_SPACE_(H|V)],
+--              sl = and_bits(spacing,0b100)!=0,
+--              sc = and_bits(spacing,0b010)!=0,
+--              sr = and_bits(spacing,0b001)!=0
+--      if ctrl_handles[id]=NULL then -- WinAPI virtual h/vbox
+            x += pml
+            y += pmt
+--      else
+--          x = pml
+--          y = pmt
+--      end if
+--/*
+        if ct=FRAME then
+--12/1/24:
+            cw -= 2
+            if backend=TG_WINAPI then
+                x += 1
+                string title = gGetAttribute(id,`TITLE`,``)
+                if length(title) then
+--                  integer {tw,th} = XgGetTextExtent(id,title)
+                    integer {tw,th} = gGetTextExtent(title,id)
+--?{`th`,th}
+                    y += th-1
+--?{`hspace -= `,th+3}
+--                  hspace -= th+3
+                    fha = th+1
+                else
+                    y += 8
+?`hspace? (on a title-less frame)`
+                    fha = 0
+                end if
+            elsif backend=TG_GTK then
+--?`frame spacing(GTK)...?`             
+                cw += 7
+                fha = -5
+--              cw -= 17
+--              fha = 28
+            else
+                ?9/0
+            end if
+--?{`ch=`,ch,`-=`,fha}
+            ch -= fha
+--/* (maybe...)
+--      elsif ct=TABS then
+--          x += 2
+--          y += 2+XgGetTextExtent(id,`X`)[2]
+--          y += 2+gGetTextExtent(`X`,id)[2]
+--*/
+--5/10/24: 
+--/*
+        elsif ct=DIALOG then
+--  (nope from gButton)
+--          cw -= 2
+--          ch -= 32
+--  (does not fix jump problem)
+            wspace -= 2
+            hspace -= 32
+--*/
+        end if
+--*/
+        bool bVert = and_bits(cfi,CF_VERTICAL)!=0,
+             bBoth = ct!=BOX,
+            bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0
+--          bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0 and 
+--                   ctrl_xtra[children[2]][CX_GTL_ATTRS][CXSPLT_FRAC]!=-1
+--DEV flags are 0bVHB, ie 4: vertical, 2: horiontal, 1:both, 0:none
+--      -- aside: Technically, 6===1, however I wanted EXPAND=TRUE
+        --               to behave exactly the same as EXPAND=BOTH.
+        --        Slightly more confusing, but same # of and_bits().
+--               CF_EXPAND = CF_EXPANDV+CF_EXPANDH+CF_EXPANDB,                      -- 0b111 mask, with 0/1/2/4 for N/B/H/V
+--              CF_HEXPAND = CF_EXPANDH+CF_EXPANDB,                                 -- 0b011 mask (expands horizontally)
+--              CF_VEXPAND = CF_EXPANDV+CF_EXPANDB                                  -- 0b101 mask (expands vertically)
+--      integer flag = iff(bVert?0b011:0b101)
+--      integer flag = iff(bVert?0b101:0b011)
+--      integer flag = iff(bVert?CF_HEXPAND:CF_VEXPAND)
+        integer flag = iff(bVert?CF_VEXPAND:CF_HEXPAND)
+        sequence bexpand = repeat(false,length(children))
+--?{"bVert",bVert}
+        atom aw = 0, ah = 0,    -- all width/height
+             ew = 0, eh = 0     -- expandable ""
+
+--if id=29 then trace(1) end if
+        -- collect children which expand in the primary direction:
+        for i,child in children do
+            integer cflags = ctrl_flags[child],
+                    ccw = ctrl_size[child][SZ_NORMAL_W],
+                    cch = ctrl_size[child][SZ_NORMAL_H]
+--?{child,`ccwh`,ccw,cch}
+-- no help 12/1/24:
+--                  ccw = max(ctrl_size[child][SZ_NORMAL_W],ctrl_size[child][SZ_USER_W]),
+--                  cch = max(ctrl_size[child][SZ_NORMAL_H],ctrl_size[child][SZ_USER_H])
+--                  mt = tg_get_mp(child,SZ_MARGIN,MP_TOP),
+--                  ml = tg_get_mp(child,SZ_MARGIN,MP_LFT),
+--                  mb = tg_get_mp(child,SZ_MARGIN,MP_BTM),
+--                  mr = tg_get_mp(child,SZ_MARGIN,MP_RGT)
+--                       tg_get_margin
+            if gGetAttribute(child,`VISIBLE`) then
+--              aw += ccw-(ml+mr)
+--              ah += cch-(mt+mb)
+                aw += ccw
+                ah += cch
+                if bBoth or and_bits(cflags,flag)!=0 then
+                    bexpand[i] = true
+                    ew += ccw
+                    eh += cch
+                end if
+            end if
+        end for
+--?{"bexpand",bexpand}
+        if bSplit then
+?9/0
+--          assert(bexpand=={true,false,true})
+            if bexpand!={true,false,true} then
+--[DEV] or CXSPLT_FIX!=0?
+--              ?{`bexpand`,id,bexpand}
+                bSplit = false
+-- and/or CXSPLT_FIX sets bexpand[1/3] to false?
+--          else
+--              integer f = gGetAttribute(id,`FIX`)
+--              if f then
+--                  bexpand[2*f-1] = false
+----                    bSplit = false
+--              end if
+            end if
+        end if
+        integer wslack = max(0,cw-aw),
+                hslack = max(0,ch-ah)
+--?{"wslack",wslack,"hslack",hslack}
+--?{"eh",eh,"ew",ew}
+--/*
+--5/10/24: 
+        if ct=DIALOG then
+--  (does not fix jump problem)
+            wslack -= 2
+            hslack -= 32
+        end if
+--*/
+-- no effect!!
+--if backend=TG_WINAPI and ct=DIALOG and ctrl_xtra[id][CX_NOTITLE] then
+--?{`hslack+=22`,hslack,hslack+32,bexpand}
+--  hslack += 22
+----ch+=32
+--end if
+
+        for i,child in children do
+            integer cflags = ctrl_flags[child],
+                    ecw = ctrl_size[child][SZ_NORMAL_W],
+                    ech = ctrl_size[child][SZ_NORMAL_H],
+                    mt = tg_get_margin(child,MP_TOP),
+                    ml = tg_get_margin(child,MP_LFT),
+                    mb = tg_get_margin(child,MP_BTM),
+                    mr = tg_get_margin(child,MP_RGT),
+--                  xw = iff(bVert and and_bits(cflags,0b101)>0?cw-ecw:0),
+--                  xw = iff(bVert and and_bits(cflags,CF_VEXPAND)>0?cw-ecw:0),
+--                  xw = iff(bVert and and_bits(cflags,0b011)>0?cw-ecw:0),
+--                  xw = iff(bVert and and_bits(cflags,CF_HEXPAND)>0?cw-ecw:0),
+--                  xw = iff(bVert and and_bits(cflags,CF_HEXPAND)=0?0:cw-ecw),
+                    xw = iff(and_bits(cflags,CF_HEXPAND)=0?0:cw-ecw),
+--                  xh = iff(bVert  or and_bits(cflags,0b011)=0?0:ch-ech)
+--                  xh = iff(bVert  or and_bits(cflags,CF_HEXPAND)=0?0:ch-ech)
+--                  xh = iff(bVert  or and_bits(cflags,0b101)=0?0:ch-ech)
+--                  xh = iff(bVert  or and_bits(cflags,CF_VEXPAND)=0?0:ch-ech)
+                    xh = iff(and_bits(cflags,CF_VEXPAND)=0?0:ch-ech)
+--?{"xw",xw,"cw",cw,"ecw",ecw}
+--?{"xh",xh,"ch",ch,"ech",ech}
+--              CF_HEXPAND = CF_EXPANDH+CF_EXPANDB,                                 -- 0b011 mask (expands horizontally)
+--              CF_VEXPAND = CF_EXPANDV+CF_EXPANDB                                  -- 0b101 mask (expands vertically)
+--?{`trbl`,mt,ml,mb,mr}
+            if bexpand[i] then
+--          if false then
+--- 14/6/25 bVert/else put back in for gSplit.exw... (now if only I could remember why I took them out..)
+                if bVert then
+--                  if (bBoth or and_bits(cflags,0b011)) and eh!=0 then
+--                  if (bBoth or and_bits(cflags,0b101)) and eh!=0 then
+--                  if (bBoth or and_bits(cflags,CF_VEXPAND)) and eh!=0 then
+                    if (bBoth or and_bits(cflags,flag)) and eh!=0 then
+                        xh = round((ech/eh)*hslack)
+--?{child,`h-=`,xh}
+                        hslack -= xh
+                        eh -= ech
+                    end if
+                else -- bHoriz
+--                  if (bBoth or and_bits(cflags,0b101)) and ew!=0 then
+--                  if (bBoth or and_bits(cflags,0b011)) and ew!=0 then
+--                  if (bBoth or and_bits(cflags,CF_HEXPAND)) and ew!=0 then
+                    if (bBoth or and_bits(cflags,flag)) and ew!=0 then
+                        xw = round((ecw/ew)*wslack)
+--?{child,`w-=`,xw}
+                        wslack -= xw
+                        ew -= ecw
+                    end if
+                end if
+            end if
+            if bSplit then
+?9/0
+--          if false then
+--DEV/SUG assert no margins/gap on a gSplit??
+                bexpand[i] = {ecw+xw,ech+xh} -- (for futher processing below)
+            else
+--SUG:
+                integer nw = ecw+xw-(ml+mr),
+                        nh = ech+xh-(mt+mb)
+--?{"nw",nw,"ecw",ecw,"xw",xw,"ml",ml,"mr",mr}
+--?{"nh",nh,"ech",ech,"xh",xh,"mt",mt,"mb",mb}
+--DEV 18/9/24: can go as far as gMenu is concerned...
+--/*
+--              g_log(`set`,`ctrl_sizeWH`,source_line(),{id,nw,nh})
+                ctrl_size[id][SZ_W] = nw
+                ctrl_size[id][SZ_H] = nh
+--*/
+                bexpand[i] = {nw,nh,x,y}
+--*!/
+--              tg_lm_disperse_user_sizes(child,nw,nh,x,y)
+                if bVert then
+--                  y += ctrl_size[child][SZ_H]+gap
+--?{child,`y+=`,nh,gap}
+                    y += nh+gap
+--?{child,`hspace`,hspace,`-=`,nh-(mt+mb)}
+--                  hspace -= nh
+                    hspace -= nh-(mt+mb)
+                else
+--                  x += ctrl_size[child][SZ_W]+gap
+--?{child,`x+=`,nw,gap}
+                    x += nw+gap
+--?{child,`wspace`,wspace,`-=`,nw-(ml+mr)}
+                    wspace -= nw-(ml+mr)
+--if child=6 and (nw-(ml+mr))=205 then trace(1) end if
+                end if
+            end if
+        end for
+        if bSplit then
+?9/0
+            gdx {c1,splitter,c2} = children
+--          atom f = ctrl_xtra[splitter][CX_GTL_ATTRS][CXSPLT_FRAC]
+            atom f = 9/0
+            if f!=-1 then
+                integer bdx = 1+bVert,
+                        s1 = bexpand[1][bdx],
+                        s2 = bexpand[3][bdx],
+                       s12 = s1+s2
+                -- modify s1,s2 to match f as closely as possible...
+                -- s1+s2 should not change, keep both within MIN/MAX. [DEV]
+--              ?{`bSplit`,bexpand,f,bdx,s1,s2,s1/s12}
+                s1 = max(round(f*s12),1)
+                s2 = max(s12-s1,1)
+                s1 = s12-s2
+--              ?{`bSplit`,bexpand,f,bdx,s1,s2,s1/s12}
+                bexpand[1][bdx] = s1
+                bexpand[3][bdx] = s2
+            end if
+            for i=1 to 3 do
+                integer {sw,sh} = bexpand[i]
+                tg_lm_disperse_user_sizes(children[i],sw,sh,x,y)
+                if bVert then
+                    y += sh
+                else
+                    x += sw
+                end if
+            end for
+--SUG (problems resizing gHbx.exw... ???) [FIXED by using nw/nh above]
+--/!*
+        else
+--?{`bexpand`,bexpand}
+            -- adjust x,y by SPACE
+--          if ct==BOX then
+--          if ct==BOX and (wslack or hslack) then
+            if ct==BOX and (wspace or hspace) then
+--          if (wspace or hspace) then
+                -- set things up for a gHbox...
+--              sequence crossax = {4,ctrl_xtra[id][CX_BOX_SPACE_V],hslack},
+                sequence crossax = {4,ctrl_xtra[id][CX_BOX_SPACE_V],hspace},
+--                       primary = {3,ctrl_xtra[id][CX_BOX_SPACE_H],wslack}
+                         primary = {3,ctrl_xtra[id][CX_BOX_SPACE_H],wspace}
+--              if not bVert then {crossax,primary} = {primary,crossax} end if
+                -- ... and flip when a gVbox:
+                if bVert then {crossax,primary} = {primary,crossax} end if
+                bexpand = tg_lm_apply_space(id,bexpand,crossax,primary)
+--?{id,`wslack`,wslack,`hslack`,hslack}
+--?hv
+--              ?9/0
+            end if
+--if ct=FRAME then ?{`frame bexpand`,bexpand} end if
+--?{`bexpand`,bexpand}
+            for i,bi in bexpand do
+                {w,h,x,y} = bi
+                tg_lm_disperse_user_sizes(children[i],w,h,x,y)
+            end for
+--*!/
+        end if
+    end if
+    -- totally messes up resize in gCanvas.exw under GTK: [FIXED]
+    if ct=DIALOG then
+-- removed 5/10/24 (jump in aaline and 15puz)
+-- put back: solves that jump problem, but fouls up sizing (esp/eg gButton.exw)
+--/!*
+--?{`fullscreen`,ctrl_xtra[id][CX_FULLSCREEN]}
+--if not ctrl_xtra[id][CX_FULLSCREEN] then
+--if backend=TG_WINAPI and ctrl_xtra[id][CX_NOTITLE] then
+--  ch -= 32
+--els
+--if backend=TG_WINAPI or not ctrl_xtra[id][CX_FULLSCREEN] then
+        cw += 2
+        ch += 32
+--end if
+--*!/
+--DEV/temp gMenu:
+--ch += 18
+--MENU
+--/*
+        if backend=TG_WINAPI
+        and tg_WinAPI_has_menu(id) then
+            ch += 20
+--      elsif backend=TG_GTK
+--      and not bGTK3 then
+--          cw += 26
+--          ch += 30
+        end if
+--*/
+--ch += 22
+--12/1/24:
+--  elsif ct=FRAME and backend=TG_WINAPI then
+    elsif ct=FRAME then
+?9/0
+        cw += 2
+        ch += fha
+    end if
+-- messed up gCheckbox.exw
+-- ...but this has now messed up gSplit.exw
+-- ... and 5/2/24 needed for gFrame.exw...
+--if backend=TG_GTK then
+--if backend=TG_GTK and not find(ct,{CANVAS}) then
+----for 15puzzle_game: (no help)
+----if backend=TG_GTK and not find(ct,{CANVAS,DIALOG}) then
+----?{id,ctrl_names[ct],w,h,cw,ch}
+----if false then -- oops, bad idea!
+----hmm, no help:
+----        if ct=DIALOG and not bGTK3 then
+----            w += 26
+------          w += 26+26
+------          h += 30
+----        end if
+--w = min(w,500) -- 7/10/25
+--w = max(w,0) -- 7/10/25
+--h = max(h,0) -- 7/10/25
+----    g_log(`set`,`ctrl_sizeWH`,source_line(),{id,w,h})
+--  ctrl_size[id][SZ_W] = w
+--  ctrl_size[id][SZ_H] = h
+--else
+----if ct=DIALOG then ch=120 end if -- DEV temp! [fixed via tg_WinAPI_has_menu() just above instead]
+--  g_log(`set`,`ctrl_sizeWH`,source_line(),{id,cw,ch})
+    ctrl_size[id][SZ_W] = cw
+    ctrl_size[id][SZ_H] = ch
+--end if
+end procedure
+
+
+-- local procedure tg_lm_disperse_space()
+-- local procedure tg_lm_display()
+
+local function compact_string(object c)
+    if not sequence(c) then return sprintf(`%v`,c) end if
+    integer l = length(c)
+    string res = `{`
+    while l do
+        integer prev = c[1]
+        for i=2 to l+1 do
+            if i>l or c[i]!=prev+1 then
+                if i=2 then
+                    res &= sprintf(`%d`,prev)
+                elsif i=3 then
+                    res &= sprintf(`%d,%d`,c[1..2])
+                else
+                    res &= sprintf(`%d..%d`,{c[1],c[i-1]})
+                end if
+                c = c[i..$]
+                if i>l then exit end if
+                res &= `,`
+                exit
+            end if
+            prev += 1
+        end for
+        l = length(c)
+    end while
+    res &=`}`
+    return res
+end function
+
+local procedure tg_lm_dump_ctrls()
+    printf(1,"id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags (fake)\n")
+    for id=1 to length(ctrl_types) do
+        integer ct = ctrl_types[id],
+                 x = ctrl_size[id][SZ_X],
+                 y = ctrl_size[id][SZ_Y],
+                 w = ctrl_size[id][SZ_W],
+                 h = ctrl_size[id][SZ_H],
+                nw = ctrl_size[id][SZ_NATURAL_W],
+                nh = ctrl_size[id][SZ_NATURAL_H],
+--              nw = ctrl_size[id][SZ_NORMAL_W],
+--              nh = ctrl_size[id][SZ_NORMAL_H],
+                uw = ctrl_size[id][SZ_USER_W],
+                uh = ctrl_size[id][SZ_USER_H],
+                 p = parent_ids[id]
+        if ct=CANVAS then ct = ctrl_xtra[id][CX_CANVAS_TYPE] end if
+        string idt = ctrl_names[ct],
+                 c = compact_string(children_ids[id])
+        atom flags = ctrl_flags[id]
+--      bool bMapped = and_bits(flags,CF_MAPPED)!=0
+--      bool bMapped = tg_mapped(id)
+        bool bMapped = true
+        if not bMapped then
+            printf(1,"%2d %-10s %57s\n",{id,idt,`Not mapped`})
+        else
+            if ct=BOX then
+                integer v = and_bits(flags,CF_VERTICAL)
+                idt := iff(v?`Vbox`:`Hbox`)
+                flags -= v
+            end if
+--          integer e = and_bits(flags,CF_EXPAND)
+--          flags -= e
+            string f = decode_flags(cf_glags,flags)
+            f = substitute(f,`+CF_`,`+`)
+            f = substitute(f,`CONTAINER`,`CTNR`)
+            f = substitute(f,`DECORATED`,`DECOR`)
+            f = substitute(f,`CLOSE_ON_ESC`,`CLESC`)
+--          if e then
+--              f &= `,CF_EXPAND`&(`BHHV`[e])
+--          end if
+--          if not find(ct,{BOX,MENU,TIMER,CLIPBOARD}) then
+--              f = sprintf(`%v`,{tg_get_window_rect(id)})
+--          end if
+            printf(1,"%2d %-10s %3d %3d %3d %3d %3d %3d %3d %3d %2d  %-10s %s\n",
+                     { id,  idt,  x,  y,  w,  h, nw, nh, uw, uh,  p,     c, f})
+        end if
+    end for
+end procedure
+
+--procedure fake_canvas_redraw(gdx canvas, integer w, h)
+--procedure fake_canvas_redraw(gdc canvas, integer w, h)
+--procedure fake_canvas_redraw(integer canvas, integer w, h)
+procedure fake_canvas_redraw(gdm image, integer w, h)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE"),
+--?{w,h}
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--DEV it is this routine's job to draw on the (provided) image, and tg_dialog_redraw()'s job to gDrawImage that.
+--?9/0
+--  gdm image = ctrl_xtra[canvas][CX_IMAGE]
+    gSetAttribute(image,"FGCLR",TG_GREEN)
+    gDrawLine(image,0,0,w-1,h-1)
+    gDrawLine(image,0,h-1,w-1,0)
+    gDrawText(image,cx,cy,"Canvas",{},TG_C,0,TG_GREY)
+end procedure
+
+integer test_control_set = 1
+constant max_test_control_set = 1
+local procedure make_test_controls()
+    reset_controls()
+    switch test_control_set do
+        case 1: -- emulate the single X canvas case
+                    integer canvas = hCanvas(fake_canvas_redraw),
+                            dialog = hDialog(canvas,NULL,`hCanvas`)
+                    hSetAttribute(canvas,`BGCLR`,TG_PARCHMENT)
+--                  hSetAttribute(dialog,`SIZE`,{400,400})
+                    hSetAttribute(canvas,`SIZE`,{400,400})
+        default:    ?9/0
+    end switch
+end procedure
+make_test_controls()
+
+local procedure gThroggleInt(gdx dlg, string name)
+    integer p = gGetInt(dlg,name),
+--          n = {0,1,-1}[p+2]
+            n = not p
+?{dlg,name,p,"==>",n}
+    gSetInt(dlg,name,n)
+end procedure
+
+function tg_dialog_key_handler(gdx dlg, integer c, bool ctrl, shift, alt) 
+--?{`key_handler`,dlg,c,gGetKeyName(c),ctrl,shift,alt}
+    c = upper(c)
+    if alt then
+        if c>='A' and c<='Z' then
+            gdx tgt = getd({dlg,c},mnemonics)
+            if tgt then
+--              if not gGetAttribute(tgt,`CANFOCUS`) then
+                if not hGetAttribute(tgt,`CANFOCUS`) then
+--                  tgt = gGetBrother(tgt)
+                    tgt = hGetBrother(tgt)
+                end if
+--?{"focus",tgt}
+--              gSetFocus(tgt)
+                hSetFocus(tgt)
+            end if
+        end if
+        gRedraw(dlg)
+    elsif c=VK_TAB then
+--      gdx cur = gGetFocus(),
+        integer cur = hGetFocus(),
+            tgt = tg_get_next_tabable(cur,shift)
+        if tgt=NULL then -- last -> first
+            tgt = tg_get_first_tabable(dlg,shift)
+        end if
+--      gSetFocus(tgt)
+        hSetFocus(tgt)
+        gRedraw(dlg)
+    elsif c=VK_PGDN then
+        if test_control_set<max_test_control_set then
+            test_control_set += 1
+            make_test_controls()
+            gRedraw(dlg)
+        end if
+    elsif c=VK_PGUP then
+        if test_control_set>1 then
+            test_control_set -= 1
+            make_test_controls()
+            gRedraw(dlg)
+        end if
+--DEV
+    elsif c='H' then
+        -- toggle header
+--/*
+--borken... HDR instead?
+        gSetAttribute(dlg,`TITLE`,iff(gGetAttribute(dlg,`TITLE`)=NULL?`hBox`:NULL))
+--      gRedraw(dlg)
+        integer fake_dlg = find(DIALOG,ctrl_types) -- fudge!
+        ctrl_xtra[fake_dlg][CX_NOTITLE] = not ctrl_xtra[fake_dlg][CX_NOTITLE]
+--*/
+        gThroggleInt(dlg,`HDR`)
+    elsif c='M' then
+--style = GetWindowLong(hwnd, GWL_STYLE)
+--SetWindowLong(hwnd, GWL_STYLE, style & ~WS_MINIMIZEBOX); 
+
+        -- toggle min
+--      gToggleInt(dlg,`MIN`)
+--      gToggleInt(dlg,`MNZ`)
+        gThroggleInt(dlg,`MNZ`)
+    elsif c='R' then
+        -- toggle restore
+--      gToggleInt(dlg,`MAX`)
+--      gToggleInt(dlg,`RST`)
+        gThroggleInt(dlg,`RST`)
+    elsif c='X' then
+        -- toggle close
+--      gToggleInt(dlg,`CLOSE`)
+--      gToggleInt(dlg,`CLX`)
+        gThroggleInt(dlg,`CLX`)
+--      integer cls = gGetInt(dlg,`CLS`) -- -1/0/+1 aka disable/hide/enable
+--      cls = {0,+1,-1}[cls+2]
+--      gSetInt(dlg,`CLS`,cls)
+--Docs:
+-- In HTML/JS we are lord and master, and draw the thing ourselves, so we can do exactly what we want,
+--  however on desktop/Phix we are limited by what GTK/WinAPI permit:
+--
+--  MNZ RST CLS   GTK      JS    WinAPI
+--   0   0  -1   _ [] ?  _ [] ?  _ [] ?
+--           0   _ [] ?  _ [] ?  _ [] ?
+--          +1   _ [] ?  _ [] ?  _ [] ?
+--       1  -1   _ [] ?  _ [] ?  _ [] ?
+--           0   _ [] ?  _ [] ?  _ [] ?
+--          +1   _ [] ?    [] X    [] X
+--   1  -1  -1   _ || x     _ x
+--           0   _ || x       _  
+--          +1   _ || X     _ X  _ || X (|| is greyed, titlebar height drops from 32 to 25 on GTK)
+--       0  -1   _ || x     _ x
+--           0   _ || x       _  
+--          +1   _ || X     _ X  _ || X (|| is greyed, titlebar height drops from 32 to 25 on GTK)
+--       1  -1   _ [] x  _ [] x  
+--           0   _ [] x    _ []         (x is X greyed, WinAPI is none)
+--          +1   _ [] X  _ [] X  _ [] X
+
+--          gRedraw(dlg)
+--  case VK_F11:        gToggleInt(dlg,"FULLSCREEN")
+    end if
+    return TG_DEFAULT
+end function
+
+--?""
+procedure tg_dialog_redraw(gdx canvas, integer w, h)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE"),
+--?{"tg_dialog_redraw",w,h}
+--DEV gDrawImage...
+--  gSetAttribute(gGetDialog(canvas),`SIZE`,{300,200}) -- well/wow, that works perfectly fine!!
+--  integer dlg = find(DIALOG,ctrl_types) -- fudge!
+    integer dlg = hGetDialog(canvas)
+    tg_lm_normalise_sizes(dlg)
+    tg_lm_accumulate_natural_sizes(dlg)
+--  tg_lm_disperse_space()
+    integer dw = max(ctrl_size[dlg][SZ_USER_W],ctrl_size[dlg][SZ_NORMAL_W]),
+            dh = max(ctrl_size[dlg][SZ_USER_H],ctrl_size[dlg][SZ_NORMAL_H]),
+            ddw = 2,
+            ddh = 32
+--  integer {dw,dh} = tg_lm_get_dialog_decoration_size(id)
+-- if not ctrl_xtra[id][CX_FULLSCREEN] --then
+---- no effect...
+-- and ctrl_xtra[id][CX_NOTITLE]=false then
+----?{`ct!rl_xtra[id][CX_NOTITLE]`,ctrl_xtra[id][CX_NOTITLE],id}
+--  width = 2
+--  height = 32
+-- end if
+
+--  tg_lm_disperse_user_sizes(dlg,dw-ddw,dh-ddh)
+    tg_lm_disperse_user_sizes(dlg,w,h)
+
+-- if first/CF_NEVER_SHOWN then
+    tg_lm_dump_ctrls()
+-- end if
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+    gSetAttribute(canvas,"FGCLR",TG_GREEN)
+    gDrawLine(canvas,0,0,w-1,h-1)
+    gDrawLine(canvas,0,h-1,w-1,0)
+    gDrawText(canvas,cx,cy,"Canvas",{},TG_C,0,TG_GREY)
+end procedure
+
+gdx canvas = gCanvas(tg_dialog_redraw,"BGCLR=PARCHMENT"),
+--  dialog = gDialog(canvas,`hBox`,`SIZE=240x156`)
+--  dialog = gDialog(canvas,`hBox`,`SIZE=240x80`)
+    dialog = gDialog(canvas,`hBox`)
+--  dialog = gDialog(canvas,NULL,"","",{},true)
+--DEV HDR/MNZ/RST/CLS - MNZ is (not GTK). Should you find/know a way to hide/disable the minimise button in GTK, let me know.
+--  ( ^^^ creation only?)
+--  dialog = gDialog(canvas,"==",{{`TITLE`,NULL}})
+
+gSetHandler(dialog,`KEY`,tg_dialog_key_handler)
+gSetAttribute(canvas,`SIZE`,{400,400})
+--gSetAttribute(dialog,`TITLE`,NULL)
+--gSetAttribute(dialog,`TITLE`,"")
+--gSetAttribute(dialog,`CLOSE`,false) -- hides min/max
+--gSetAttribute(dialog,`SIZE`,{400,400})
+gMainLoop(dialog)
+
+-- WINAPI: 402x432
+-- GTK2: 402x432
+-- GTK3: 402x232 << oops!
+-- p2js: 402x436 (albeit imposing my own 1-pixel border)
+
+--/*
+gSetAttribute[GTK](gCanvas,"SIZE",{400,400})
+"line 5949: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+{"gtk_widget_set_size_request",1,"gCanvas",400,400}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 gCanvas      0   0 400 400  12  14 400 400  2  0          CF_EXPANDB+MAPPED+UNMAPATTR
+ 2 gDialog    859 424 400 400   0   0   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+"line 5949: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+{"gtk_widget_set_size_request",1,"gCanvas",400,200}
+"line 5949: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+{"gtk_widget_set_size_request",1,"gCanvas",400,200}
+"line 5949: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+{"gtk_widget_set_size_request",1,"gCanvas",400,200}
+"line 5949: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+{"gtk_widget_set_size_request",1,"gCanvas",400,200}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags (fake)
+ 1 gCanvas      0   0   0   0  12  14   0   0  2  0          CF_EXPANDB+MAPPED+UNMAPATTR
+ 2 gDialog      0   0   0   0  14  46 400 400  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:153 constant SZ_MAX_H is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:152 constant SZ_MAX_W is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:151 constant SZ_MIN_H is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:150 constant SZ_MIN_W is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:139 constant CX_BOX_SPACE_V is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:138 constant CX_BOX_SPACE_H is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:104 constant CF_VEXPAND is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:103 constant CF_HEXPAND is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\hBox.exw:102 constant CF_EXPAND is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:4868 parameter bSumHeights is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:547 constant TG_PB_USER_DATA is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:546 constant TG_PB_LINEWIDTH is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:545 constant TG_PB_LINESTYLE is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:544 constant TG_PB_FGCLR is not used.
+Warning: C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:543 constant TG_PB_BGCLR is not used.
+--*/

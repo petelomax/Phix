@@ -1,0 +1,106 @@
+--
+-- demo\theGUI\single_instance.exw
+-- ===============================
+--
+--  A simple demonstration of using ipc and file locking to implement single instance handling.
+--
+--  First run should get you a simple list with a single "started at" line.
+--  Further attempts to run it again should just add a new entry to that.
+--
+--  Aside: I was thinking of putting a hwnd in the shared memory block, and
+--         then you could c_func(xSendMessage) to that, but there is simply
+--         no Linux equivalent - apparently it is a "major security issue".
+--
+--  Note that pw.exe may occasionally crash trying to run an exclusively locked source file,
+--      which should surprise no one, ain't a bug, and in retrospect wasn't the best choice.
+--
+without javascript_semantics -- this is never gona work in a browser!
+include ipc.e
+include timedate.e
+
+-- Note these should both be app/machine-specific:
+constant filename = "single_instance.exw",
+         sm_name = "SINGLE_INSTANCE_DEMO",
+-- Your responsibility to ensure this is big enough:
+         MEM_SIZE = 100
+
+integer fn = open(filename,"r")
+if fn=-1 then crash("cannot open "&filename) end if
+while not lock_file(fn,LOCK_EXCLUSIVE,{}) do
+    printf(1,filename&" locked...\n")
+    sleep(1)
+end while
+string t = format_timedate(date(),"hh:mm:sspm")
+
+-- shared memory contains dword length and string msg.
+-- main instance checks for non-zero length 4 times/s,
+--               and resets len to 0 once it has msg.
+-- secondary instances, which know when they are such
+--           due to shared memory already existing,
+--           wait for len to be zero, patch and quit.
+--
+atom pSharedMem = sm_open(sm_name)
+if pSharedMem!=SM_OPEN_FAIL then
+    integer count = 0
+    while peek4u(pSharedMem)!=0 do
+        count += 1
+        if count>90/45 then
+            --
+            -- nb should anything cling on to sm_open() for too long,
+            --    it will completely prevent a proper restart...
+            --        in fact ~2s may be a smarter choice...
+            --            logging errors may help too...
+            --
+            sm_close(sm_name)
+            unlock_file(fn,{})
+            crash("gave up after 90/45s...")
+        end if
+        printf(1,"waiting for prior msg to be processed...\n")
+        sleep(0.1)
+    end while
+    {} = poke_string(pSharedMem+4,MEM_SIZE-4,t) -- (do this first)
+    poke4(pSharedMem,length(t))              -- (nb do this second)
+    sm_close(sm_name)
+--sleep(2) -- DEV get_text() problem in p.exe...
+    unlock_file(fn,{})
+    abort(0)
+end if
+
+pSharedMem = sm_create(sm_name,MEM_SIZE)
+assert(pSharedMem>0)
+poke4(pSharedMem,0) -- mark empty
+unlock_file(fn,{})
+close(fn)
+
+include theGUI.e
+--gUseGTK()
+
+sequence data = {sprintf("demo started at %s",{t})}
+
+function mdx()
+    return largest(apply(data,length),return_index:=true)
+end function
+
+function get_data(integer idx)
+    if idx=0 then return length(data) end if
+    if idx=-1 then return mdx() end if
+    return data[idx]
+end function
+
+gdx list = gList(get_data,`FONT="Consolas, 12"`),
+    dlg = gDialog(list,"Single Instance",`SIZE=550x350`)
+
+procedure action()
+    if peek4u(pSharedMem)!=0 then -- (nb /after/ 2nd done)
+        t = peek_string(pSharedMem+4) -- (first'll be ok)
+        poke4(pSharedMem,0)
+        data = append(data,"recieved msg at "&t)
+        gRedraw(list)
+    end if
+end procedure
+
+gdx timer = gTimer(action,250,true) -- 4 times a second...
+gShow(dlg)
+gMainLoop()
+sm_close(sm_name)
+

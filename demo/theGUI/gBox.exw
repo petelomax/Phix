@@ -1,0 +1,112 @@
+--
+-- demo\theGUI\gBox.exw
+-- ====================
+-- 
+-- simple version, for some size testing
+-- specifically a "jump" problem of gRedraw() resizing a window. [FIXED 20/10/24]
+--
+--puts(1,"")
+--requires(64,true)
+with javascript_semantics
+--include theGUI.e
+include hGUI.e
+--include backup/hGUI.5355.e -- both visible
+--include backup/hGUI.5497.e -- both visible
+--include backup/hGUI.5539.e -- cv2 part visible [fixed]
+--include backup/hGUI.5712.e --  "" [not]
+--include backup/hGUI.5865.e
+--include backup/hGUI.5904.e -- cv2 part visible
+--include backup/hGUI.5908.e
+--include backup/hGUI.5966.e -- gv2 gone [now fixed]
+gSetGlobal("DIAGNOSTICS",true)
+--gUseGTK() -- ***BUG (13/2/26) hBox w,h 100x100 whereas WinAPI gets it right...        [FIXED!!!]
+-- (on both, x seems to be correctly clamped at 0 but y goes -ve... unexpectedly the    [FIXED!!!]
+--  same for gHbox & gVbox, I thought latter would get x wrong and y right instead)
+
+--/*
+--theGUI:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 gCanvas      0   0 150 300  11  15   0   0  3  0          CF_EXPANDB+MAPPED+UNMAPATTR
+ 2 gCanvas    150   0 150 300  11  15   0   0  3  0          CF_EXPANDB+MAPPED+UNMAPATTR
+ 3 gHbox        0   0 300 300   0   0   0   0  4  {1,2}      CF_EXPANDB+CTNR+MAPPED
+ 4 gDialog    809 374 302 332   0   0 302 332  0  {3}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+
+--hGUI:
+"WM_SETFOCUS"
+{"tg_draw_control_images","redraw is null"}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27123, gShow]
+ 1 gCanvas      0   0 150 300  11  15   0   0  3  0          CF_EXPANDB
+ 2 gCanvas    150   0 150 300  11  15   0   0  3  0          CF_EXPANDB
+ 3 gHbox        0   0 300 300  22  15   0   0  4  {1,2}      CF_EXPANDB+CTNR
+ 4 gDialog    809 374 302 332 198  47 302 332  0  {3}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+--*/
+
+--procedure edge(gdx canvas, integer w,h)
+------?{"edge",w,h}
+------?9/0
+--  gDrawRect(canvas,1,1,w-2,h-2)
+--  gDrawLine(canvas,1,1,w-2,h-2)
+--  gDrawLine(canvas,w-2,1,1,h-2)
+--  gDrawText(canvas,w/2,h/2,"%d x %d",{w,h},TG_C)
+--end procedure
+
+--function key_handler(gdx dlg, integer /*c*/)
+----    if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+----    if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+----    if c=VK_F1 then return show_help(dlg) end if
+----DEV this triggers the jump behaviour: [FIXED]
+--  gRedraw(dlg)
+--  return TG_DEFAULT
+--end function
+--DEV weirdly, setting the canvas size sets the min width of that to 300... (but height 200) [WinAPI && GTK] [FIXED, ish?..]
+--gdx cnv = gCanvas(edge), 
+-- Aside: these canvas|dislaog sizing tests are now part of tg_unit_tests()
+--gdx cv1 = gCanvas(edge), 
+--  cv2 = gCanvas(edge), 
+gdx cv1 = gCanvas(), 
+    cv2 = gCanvas(), 
+    box = gHbox({cv1,cv2}),
+--  box = gVbox({cv1,cv2}),
+--gdx cnv = gCanvas(`edge`,`SIZE = 300x300`), 
+--gdx cnv = gCanvas(`SIZE = 300x300`), 
+--  dlg = gDialog(cnv,`edge`,`SIZE=0x112`)
+--  dlg = gDialog(box,`edge`,`SIZE = 202x132`)
+    dlg = gDialog(box,`edge`,`SIZE = 212x142`)
+--  dlg = gDialog(box,`edge`)
+-- canvas min: 202x232, max: 354x361... (max is 48x71 off)
+--with -2,-32:
+-- canvas min: 202x232, max: 386x393... (max is 16x39 off)
+--gSetAttribute(dlg,"BGCLR",TG_PARCHMENT)
+--gSetAttribute(box,"BGCLR",TG_PARCHMENT)
+--gSetAttribute(box,"BGCLR",TG_PARCHMENT)
+--gSetAttribute(dlg,"MINSIZE","202x232")
+--gSetAttribute(dlg,"MAXSIZE","402x432") -- DEV for some reason I had to adjust these by {16,39}...
+--gSetAttributes({cv1,cv2},"SIZE=150x100,EXPAND=NO")
+--gSetAttributes({cv1,cv2},"SIZE=140x100,EXPAND=NO")
+--gSetAttributes({cv1,cv2},"SIZE=90x100,EXPAND=NO")
+--gSetAttributes({cv1,cv2},"SIZE=90x90,EXPAND=NO")
+--gSetAttribute(box,"SPACE","AROUND")
+--gSetAttribute(box,"GAP","10")
+--DEV not doing the harm slam properly... or rather it is doing that as if margins were not there... [FIXED, erm, NOT!] [erm YEAH!]
+gSetAttribute(box,"MARGIN","10")
+
+--/* oh dear:
+with gSetAttributes({cv1,cv2},"SIZE=90x90,EXPAND=NO") and dlg = gDialog(box,`edge`), beautiful:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27922, gShow]
+ 1 gCanvas     10  10  90  90  90  90  90  90  3  0
+ 2 gCanvas    110  10  90  90  90  90  90  90  3  0
+ 3 gHbox        0   0 210 110 190  90   0   0  4  {1,2}      CF_EXPANDB+CTNR
+ 4 gDialog    854 469 212 142 212 142   0   0  0  {3}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC
+
+but with dlg = gDialog(box,`edge`,`SIZE = 212x142`) (and both cases GAP=MARGIN=10), beautiful!
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [13088, WM_SIZE]
+ 1 gCanvas     10  10  90  90  11  15   0   0  3  0          CF_EXPANDB
+ 2 gCanvas    110  10  90  90  11  15   0   0  3  0          CF_EXPANDB
+ 3 gHbox        0   0 210 110  32  15   0   0  4  {1,2}      CF_EXPANDB+CTNR
+ 4 gDialog    854 469 212 142 198  67 212 142  0  {3}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC
+
+--*/
+--gSetHandler(dlg, `KEY`, key_handler);
+gShow(dlg)
+gMainLoop()
+

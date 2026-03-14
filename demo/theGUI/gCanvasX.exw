@@ -1,0 +1,84 @@
+--
+-- demo\theGUI\gCanvasX.exw
+-- ========================
+-- 
+-- simple version, for some size testing
+-- specifically a "jump" problem of gRedraw() resizing a window. [FIXED 20/10/24]
+--
+puts(1,"")
+--requires(64,true)
+with javascript_semantics
+include theGUI.e
+--include hGUI.e
+-- ^ much better!! - but canvas size i/o dlg not honoured (yet), and removing min/max then crashes... [FIXED]
+--include backup\hGUI.0626.e
+--include backup\hGUI.2364.e -- BAD
+--include backup\hGUI.2100.e -- BAD
+--include backup\hGUI.2201.e -- BAD
+--include backup\hGUI.2363.e -- BAD
+--include backup\hGUI.2365.e -- BAD
+--include backup\hGUI.2383.e -- BAD
+--include backup\hGUI.2384.e -- BAD
+--include backup\hGUI.2431.e -- BAD
+--gUseGTK() -- MIN/MAXSIZE now apply correctly [to the canvas] in tg_resize/tg_lm_disperse_user_sizes, but not window-drag...
+            -- NB MAXSIZE does not work in the 2.24.10 (from Feb 2012!) GTK2 windows dlls I still use... (bug fixed 2013!)
+
+--procedure edge(gdx canvas, integer w,h)
+----?{"edge",w,h}
+----?9/0
+--  gDrawRect(canvas,1,1,w-2,h-2)
+--  gDrawLine(canvas,1,1,w-2,h-2)
+--  gDrawLine(canvas,w-2,1,1,h-2)
+--  gDrawText(canvas,w/2,h/2,"%d x %d",{w,h},TG_C)
+--end procedure
+
+--function key_handler(gdx dlg, integer /*c*/)
+----    if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+----    if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+----    if c=VK_F1 then return show_help(dlg) end if
+----DEV this triggers the jump behaviour: [FIXED]
+--  gRedraw(dlg)
+--  return TG_DEFAULT
+--end function
+--DEV weirdly, setting the canvas size sets the min width of that to 300... (but height 200) [WinAPI && GTK] [FIXED, ish?..]
+--gdx cnv = gCanvas(edge), 
+-- Aside: these canvas|dialog sizing tests are now part of tg_unit_tests()
+gdx cnv = gCanvas(), 
+--gdx cnv = gCanvas(`edge`,`SIZE = 300x300`), 
+--gdx cnv = gCanvas(`SIZE = 300x300`), 
+--  dlg = gDialog(cnv,`edge`,`SIZE=0x112`)
+--  dlg = gDialog(cnv,`edge`,`SIZE = 302x332`)
+--  box = gHbox({cnv},`MARGIN=10`),
+--  dlg = gDialog(box,`edge`,`SIZE = 302x332`)
+    dlg = gDialog(cnv,`edge`)
+gSetAttribute(dlg,"MINSIZE","202x232") -- (ie a 200x200 canvas)
+gSetAttribute(dlg,"MAXSIZE","402x432") -- (ie a 400x400 canvas)
+--DEV borken:
+--gSetAttribute(cnv,"MINSIZE","200x200")
+--gSetAttribute(dlg,"MAXSIZE","400x400")
+--DEV broken/no visible difference... (works on a hbox - maybe I should just document it like that... and the BGCLR test below confirms that...)
+--gSetAttribute(cnv,"MARGIN",10)
+--gSetHandler(dlg, `KEY`, key_handler);
+--excellent!
+--gSetAttribute(cnv,"BGCLR","PARCHMENT")
+--gSetAttribute(box,"BGCLR","BLUE")
+gShow(dlg)
+gMainLoop()
+
+--/*
+"WM_SETFOCUS"
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
+ 1 gCanvas      0   0 300 300  11  15   0   0  2  0          CF_EXPANDB
+ 2 gDialog    809 374 302 332 226  47 302 332  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+oh dear:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
+ 1 gCanvas      0   0 230 200  11  15 300 300  2  0          CF_EXPANDB
+ 2 gDialog    847 516 232 232 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+even worse, w/o minsize:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26868, gShow]
+ 1 gCanvas      0   0 120   0  11  15 300 300  2  0          CF_EXPANDB
+ 2 gDialog    847 516 122  32 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+--*/

@@ -1,0 +1,475 @@
+--
+-- demo\theGUI\hCanvas.exw
+-- =======================
+-- 
+-- Near-pointless exercise: using a v1-style gCanvas, not that things shoould change drastically
+--  when migrated to v2-style, create an appropriate gImage and do all drawing on that.
+-- Add some tests to prove all our primitives are pixel-perfect-positioned.
+--
+-- Tests ((32|64)x(WinApi|gUsekGtk), ie fourfold):
+--  Is the default window filled and 240x163?
+--  Can it be resized (including shrinking)?
+--  Are the edges properly anti-aliased and shapes filled? (more of a to-do, that one, on WinAPI anyway)
+--   (work for the latter probably best done in aaline.exw rather than here...)
+--
+--with trace
+puts(1,"")
+--requires(64,true) --DEV no resizing under GTK3... (19/10/23) [NOW APPARENTLY FIXED] [BROKEN AGAIN, 17/6/25... and fixed 25/6/25...]
+with javascript_semantics
+include theGUI.e -- DEV silly size under WinAPI [FIXED 20/8/23]
+--inXclude hGUI.e -- (abandoned, use gCanvas instead)
+--include hGUI2.e -- (recovered - fudge: colour = tg_GTK_rgba_to_bgra(colour) in gDrawArc,
+--                                  and: tg_gtk_set_image_pen(atom hdc, pencolour, integer penwidth, penstyle) )
+--include backup\hGUI.0626.e -- borken
+--include backup\hGUI.2364.e -- BAD
+--include backup\hGUI.2100.e -- better
+--include backup\hGUI.2201.e -- better
+--include backup\hGUI.2205.e -- better
+--include backup\hGUI.2215.e -- better
+--include backup\hGUI.2216.e -- better
+--include backup\hGUI.2218.e -- better
+--include backup\hGUI.2222.e -- GOOD (colours bad)
+--include backup\hGUI.2300.e -- GOOD (colours bad)
+--include backup\hGUI.2339.e -- GOOD ("") --> hGUI2.e with colour fudge.
+--include backup\hGUI.2341.e -- BAD (fixed - tg_draw_control_images() in tg_draw_dialog() sets ctrl_images[child]..)
+--include backup\hGUI.2349.e -- BAD
+--include backup\hGUI.2363.e -- BAD
+--include backup\hGUI.2365.e -- BAD - fixed (all good!)
+--include backup\hGUI.2383.e -- BAD
+--include backup\hGUI.2384.e -- BAD -- fixed (all good!)
+--include backup\hGUI.2431.e -- BAD (assertion failure...)
+--include backup\hGUI.2555.e -- BAD
+--include backup\hGUI.2556.e -- BAD (mad size)
+--gUseGTK() -- DEV wrong size, colours kaput
+
+-- dopey git, I was using wu_ellipse!!
+--include backup\tg_xpm.2899.e
+--include backup\theGUI.2897.e  -- good (include tg_xpm taken out)
+--constant gDrawLine = gCanvasLine
+--constant gDrawArc = gCanvasArc
+--constant gDrawCircle = gCanvasCircle
+--constant gDrawCubicBezier = gCanvasCubicBezier
+--constant gDrawImage = gImageDraw
+--include theGUI4.e
+--include theGUI3.e -- DEV [25/8/23] allows some shrinkage under GTK...
+--include backup\theGUI.0220.e -- GOOD
+--include backup\theGUI.0801.e -- GOOD
+--include backup\theGUI.0826.e -- GOOD
+--include backup\theGUI.1004.e -- GOOD
+--include backup\theGUI.1220.e -- GOOD
+--include backup\theGUI.1414.e -- GOOD
+--include backup\theGUI.1475.e -- X
+--include backup\theGUI.1476.e -- X
+--include backup\theGUI.1477.e -- GOOD
+--include backup\theGUI.1483.e -- GOOD
+--include backup\theGUI.1486.e -- GOOD
+--include backup\theGUI.1487.e -- GOOD
+--include backup\theGUI.1488.e -- BAD
+--include backup\theGUI.1490.e -- BAD
+--include backup\theGUI.1502.e -- X
+--include backup\theGUI.1507.e -- BAD
+--include backup\theGUI.1530.e -- BAD
+--include backup\theGUI.1531.e -- BAD
+--include backup\theGUI.1532.e -- BAD
+--include backup\theGUI.1533.e -- BAD
+--include backup\theGUI.1535.e -- BAD
+--include backup\theGUI.1542.e -- BAD
+--include backup\theGUI.1545.e -- X
+--include backup\theGUI.1572.e -- BAD
+--include theGUI2.e
+--DEV [20/8/23] Won't permit size reduction.... (theGUI3.e does, although it gives me a 242x156 window[ie +2,-7])
+--DEV [23/8/23] Now better, but limited to initial size...
+--DEV [2/12/23 under WinAPI w,h get 238,124 but under GTK they get 12,14...
+--include backup\theGUI.0002.e -- GTK3 size still bad...
+--gUseGTK()
+--ERM: why are **ALL** these TG_NW,0??
+--{"tg_shifta","oxoy(orig)",{205,87'W'},"rxry(adj)",{0,0},"nxny(new)",{205,87'W'},"xy(old)",{205,87'W'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{177,55'7'},"rxry(adj)",{0,0},"nxny(new)",{177,55'7'},"xy(old)",{177,55'7'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{158,71'G'},"rxry(adj)",{0,0},"nxny(new)",{158,71'G'},"xy(old)",{158,71'G'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{54'6',23},"rxry(adj)",{0,0},"nxny(new)",{54'6',23},"xy(old)",{54'6',23},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{67'C',97'a'},"rxry(adj)",{0,0},"nxny(new)",{67'C',97'a'},"xy(old)",{67'C',97'a'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{181,9},"rxry(adj)",{0,0},"nxny(new)",{181,9},"xy(old)",{181,9},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{164,31},"rxry(adj)",{0,0},"nxny(new)",{164,31},"xy(old)",{164,31},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{1,0},"rxry(adj)",{0,0},"nxny(new)",{1,0},"xy(old)",{1,0},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{121'y',47'/'},"rxry(adj)",{0,0},"nxny(new)",{121'y',47'/'},"xy(old)",{121'y',47'/'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{218,109'm'},"rxry(adj)",{0,0},"nxny(new)",{218,109'm'},"xy(old)",{218,109'm'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{225,62'>'},"rxry(adj)",{0,0},"nxny(new)",{225,62'>'},"xy(old)",{225,62'>'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{120'x',109'm'},"rxry(adj)",{0,0},"nxny(new)",{120'x',109'm'},"xy(old)",{120'x',109'm'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{1,62'>'},"rxry(adj)",{0,0},"nxny(new)",{1,62'>'},"xy(old)",{1,62'>'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{92'\',0},"rxry(adj)",{0,0},"nxny(new)",{92'\',0},"xy(old)",{92'\',0},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{211,47'/'},"rxry(adj)",{0,0},"nxny(new)",{211,47'/'},"xy(old)",{211,47'/'},"TG_NW",0}
+
+
+--DEV no longer does...
+--bool bUsePoly = true -- (avoids bresenham edges on filled arcs under WinAPI)
+bool bUsePoly = false -- (bresenham edges on filled arcs under WinAPI)
+
+--include backup\theGUI.5875.e -- good fonts
+--include backup\theGUI.5877.e -- good fonts
+--include backup\theGUI.5878.e -- duff fonts (& background)
+--include backup\theGUI.5881.e -- duff fonts (& background)
+--include backup\theGUI.5890.e -- duff fonts
+--include backup\theGUI.5909.e -- duff fonts
+--include backup\theGUI.5960.e -- duff
+--include backup\theGUI.5965.e -- duff fonts
+--include backup\theGUI.3521.e -- good (resize)
+--include backup\theGUI.3524.e -- duff
+--include backup\theGUI.3525.e -- duff
+--include backup\theGUI.3526.e -- duff
+--include backup\theGUI.3527.e -- duff [GTK3 bad]
+--include backup\theGUI.3528.e -- near but off (fonts good) [GTK3 good]
+--include backup\theGUI.3529.e -- duff
+--include backup\theGUI.3530.e -- duff
+--include backup\theGUI.3531.e -- duff
+--include backup\theGUI.3532.e -- duff
+--include backup\theGUI.2290.e -- good (resize) [esp GTK - now in theGUI3.e]
+--include backup\theGUI.2320.e -- good
+--include backup\theGUI.2321.e -- duff
+--include backup\theGUI.2345.e -- duff
+--include backup\theGUI.2353.e -- duff
+--include backup\theGUI.2406.e -- duff
+--include backup\theGUI.2421.e -- duff
+--include backup\theGUI.2433.e -- duff
+--include backup\theGUI.2229.e -- (same resize flicker - I wonder whether using a gImage would help...)
+--include backup\theGUI.2344.e -- duf (resize)
+--include backup\theGUI.0731.e -- ok
+--include backup\theGUI.0735.e -- ok
+--include backup\theGUI.0739.e -- ok
+--include backup\theGUI.0756.e -- duff
+--include backup\theGUI.0780.e -- duff
+--include backup\theGUI.0810.e -- duff
+--include backup\theGUI.1176.e -- still duff
+--include backup\theGUI.1753.e -- still duff
+--include backup\theGUI.1914.e -- still duff
+--include backup\theGUI.1950.e -- ok
+--include backup\theGUI.1961.e -- ok
+--include backup\theGUI.1962.e -- ok
+--include backup\theGUI.2003.e -- duff
+--include backup\theGUI.2032.e -- duff
+--gUseGTK()
+
+--/!*
+-- test codewide>1 (assert failure as it stands) [FIXED]
+constant xpm_txt = """
+24 24 2 2
+._ c None
+*_ c #000000
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._*_._._._._._
+._._._._._._._._._._._._._._._._*_*_._._._._._._
+._._._._._._._._._._._._._._._*_*_._._._._._._._
+._._._._._._._._._._._._._._*_*_._._._._._._._._
+._._._._._._._._._._._._._*_*_._._._._._._._._._
+._._._._*_*_*_*_._._._._*_*_._._._._._*_*_*_._._
+._._._*_._._._*_*_._._*_*_._._._*_*_*_*_._._._._
+._._._*_._._._*_*_*_*_*_*_*_*_*_*_*_._._._._._._
+._._._._*_*_*_*_._._._*_*_*_*_._._._._._._._._._
+._._._._._._._._._._*_*_._._._._._._._._._._._._
+._._._._._._._._._*_*_*_._._._._._._._._._._._._
+._._._._._._._._*_._._*_._._._._._._._._._._._._
+._._._._._._._*_._._._*_._._._._._._._._._._._._
+._._._._._._._*_._._*_._._._._._._._._._._._._._
+._._._._._._._*_*_*_._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+._._._._._._._._._._._._._._._._._._._._._._._._
+"""
+--*!/
+--/*
+constant xpm_txt = """
+24 24 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+........................
+........................
+"""
+--*/
+--/*
+constant xpm_txt = {
+"32 32 6 1",
+"  s None c None",
+". c #808080",
+"X c #FFFFFF",
+"o c #000000",
+"O c #c0c0c0",
+"+ c #ffff00",
+"    ...................         ",
+"    .XXXXXXXXXXXXXXXXX.o        ",
+"    .XXXXXXXXXXXXXXXXX..o       ",
+"    .XXXXXXXXXXXXXXXXX.O.o      ",
+"    .XXXXXXXXXXXXXXXXX.XO.o     ",
+"    .XXXXXXXXXXXXXXXXX.XXO.o    ",
+"    .XXXXXXXXXXXXXXXXX.oooooo   ",
+"    .XXooOXXXXXXXXXXXXXXXXXOo   ",
+"    .XoOooXXXXXXXXXXXXXXXXXOo   ",
+"    .o+o...XXXXXX.XXXXXXXXXOo   ",
+"    o+..OO.OXXX..XXXXXXXXXXOo   ",
+"   o+Xo+O+.OX..XXXXXXXXXXXXOo   ",
+" oo+X+oO+O.O.XXXXXXXXXXXXXXOo   ",
+"oXOX+XooO+.OOXXXXXXXXXXXXXXOo   ",
+"o+.+++oOoX.OOXXXXXXXXXXXXXXOo   ",
+"o+.O+Oo.o+.O.....XXXXXXXXXXOo   ",
+"o..+O+oo+X.OOXXXXXXXXXXXXXXOo   ",
+" oo.+Oo+X+.OOXXXXXXXXXXXXXXOo   ",
+"   o.+oX+X.O.XXXXXXXXXXXXXXOo   ",
+"    o...XO.OO..XXXXXXXXXXXXOo   ",
+"    .o.oOO.OOXX..XXXXXXXXXXOo   ",
+"    .Xo.ooOOOXXXX.XXXXXXXXXOo   ",
+"    .XXoooOOOXXXXXXXXXXXXXXOo   ",
+"    .XXXOOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .OOOOOOOOOOOOOOOOOOOOOOOo   ",
+"    ooooooooooooooooooooooooo   "}
+--*/
+--/*
+constant xpm_txt = """
+16 16 5 1
+.        c #000000
++        c #C0C0C0
+@        c #808080
+#        c #FF0000
+_        c #FFFFFF
+_______________.
+_++++++++++++++.
+_+++++++++++++@.
+_+++++###.++++@.
+_+++#####.++++@.
+_+#######.++++@.
+_+#######.++++@.
+_+++#####.++++@.
+_+++++###.++++@.
+_++++++...++++@.
+_++++++...++++@.
+_++++++...++++@.
+_+++++......++@.
+_+++.........+@.
+_+++++++++++++@.
+_@@@@@@@@@@@@@@.
+"""
+--*/
+constant xpm = gImage_from_XPM(xpm_txt)
+--DEV: I mangled the above to:
+--constant xpm = (xpm_txt)
+--which led to a very weird "p2js violation: JavaScript does not support string subscript destructuring" 
+--inside printf() from the first line of tg_lm_dump_ctrls()... Note that an assert(src[1]="gImage") in
+--gDrawImage() successfully (but unintentionally) averted the issue... What I did find was that ?"bang"
+--(in"") was displayed but ?"crash" not, with the ex.err claiming it had long since left that routine.
+--With a bit of luck it's just a duff era somewhere in that statement... (an atom {a,b,c,d} = str[2]).
+--I may well have optimised that kind of thing, but not updated the error handling to match properly.
+
+
+function xy_mul(sequence poly, atom xm, ym)
+    poly = deep_copy(poly)
+    for i=1 to length(poly) do
+        for j=1 to length(poly[i]) by 2 do
+            poly[i][j] *= xm
+            poly[i][j+1] *= ym
+        end for
+    end for
+    return poly
+end function
+
+--procedure redraw(gdx canvas)
+procedure redraw(gdx canvas, integer w, h)
+--  integer {w,h} = gGetAttribute(canvas,"SIZE"),
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--  ?{"redraw",w,h} -- 238,131 under WinAPI, but 430,221 under GTK...
+--?to_rgba(TG_YELLOW) -- hmm, {255,255,0,0}
+--?to_rgba(TG_RED) -- hmm, {255,0,0,0}
+--?XgGetTextExtent(canvas,"W")
+--?gGetTextExtent("W",canvas)
+--  gSetAttribute(canvas,"FGCLR",TG_GREEN)
+--  gDrawArc(canvas,cx,cy,w,h,0,360)
+
+    gSetAttribute(canvas,"FGCLR",TG_GREEN)
+    gDrawLine(canvas,0,cy,w-1,cy)
+    gDrawLine(canvas,cx,0,cx,h-1)
+--  gDrawLine(canvas,0,0,w,h)
+--  gDrawLine(canvas,0,h,w,0)
+    gDrawArc(canvas,cx,cy,w,h,15,50)
+--  gDrawText(canvas,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK)
+    gDrawText(canvas,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_NORMAL)
+--  gDrawText(canvas,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_ITALIC)
+    atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
+--  gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_DOTTED,1,TG_GREY)
+    gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+    gDrawText(canvas,cx+dx/2,cy+dy/2,"15",{},TG_NE,0,TG_GREY)
+--  gDrawText(canvas,cx+round(dx/2),cy+round(dy/2),"15",{},TG_NE,0,TG_GREY)
+         dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
+--  gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_DOTTED,1,TG_GREY)
+    gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+    gDrawText(canvas,cx+dx/2,cy+dy/2,"50",{},TG_NE,0,TG_GREY)
+
+if bUsePoly then
+    -- These were hand-generated by manually dragging control points to match an overlaid gDrawArc(),
+    -- that is within the gDrawPolygon.exw example, and the code needed/added should still be there.
+    -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
+    sequence psect = xy_mul({{0,117,8,72,42,48},{66,34,91,20,128,5},{195,0},{214,129}},w/430,h/260),
+             pchrd = xy_mul({{337,234,287,256,244,258},{214,258,156,260,34,231},{5,161}},w/430,h/260)
+    gDrawPolygon(canvas,psect,colour:=TG_OLIVE)
+    gDrawPolygon(canvas,pchrd,colour:=TG_AMBER)
+else
+-- bresenham edges (under winAPI): [fixed, ish]
+    gDrawArc(canvas,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+    gDrawArc(canvas,cx,cy,w,h,55,165,TG_CHORD+TG_FILLED,TG_AMBER)
+-- no bresenham lines (under winAPI): (dopey git, I was using wu_ellipse!)
+--  gDrawArc(canvas,cx,cy,w,h,185,265,TG_SECTOR,TG_OLIVE)
+--  gDrawArc(canvas,cx,cy,w,h,55,165,TG_CHORD,TG_AMBER)
+end if
+    gDrawText(canvas,w*.3,h*.25,"sector",{},TG_CENTRE,0,TG_BLACK)
+    gDrawText(canvas,w*.35,h*.85,"chord",{},TG_CENTRE,0,TG_BLACK)
+    atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
+--?"red:"
+--trace(1)
+    gDrawCircle(canvas,x3,y4,r,colour:=TG_RED)
+--  gDrawCircle(canvas,x3,y4,r,colour:=TG_BLUE)
+--  gCanvasCircle(canvas,x3,y4,r,colour:=TG_RED)
+--  gCanvasCircle(canvas,x3,y4,r,TG_FILLED,colour:=TG_RED) -- but back still parchment!!!
+--  gDrawCircle(canvas,x3,y4,r,TG_FILLED,colour:=TG_RED) -- but back still parchment!!!
+--  gDrawCircle(canvas,x3,y4,r,TG_FILLED,colour:=TG_RED,fillcolour:=TG_RED)
+--?"/red"
+--  gDrawLine(canvas,x3,y4,x3+r2,y4-r2,-1,1,TG_GREY)
+    gDrawLine(canvas,x3,y4,x3+r2,y4-r2,TG_GREY,1)
+    gDrawText(canvas,x3+r4,y4-r4,"r",{},TG_NW,0,TG_GREY)
+    gDrawText(canvas,x3,y4,"circle",{},TG_S,0,TG_BLACK)
+    gSetAttribute(canvas,"FGCLR",TG_GREEN)
+    gDrawText(canvas,0,0,"0,0",{},TG_SE)
+    gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE)
+--  gDrawText(canvas,cx+1,cy,"123\n&abc\n&&45",{},TG_NE) -- good!
+--?sin(90*TG_DEG2RAD) -- 1
+--?cos(90*TG_DEG2RAD) -- ~0
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SE,90}) -- <crap>[FIXED]
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SW,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SW,45},colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NW,45},colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_S,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_W,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_E,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NE,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_N,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NW,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_C,90}) -- <crap>[FIXED]
+    gDrawText(canvas,w,h,"w,h",{},TG_NW)
+    gSetAttribute(canvas,"FGCLR",TG_BLACK)
+    string degrees = utf32_to_utf8({#00B0})
+    gDrawText(canvas,w,cy,"0"&degrees,{},TG_SW)
+    gDrawText(canvas,cx,h,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+--  gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+--  gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_BOLD)
+--  gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_NORMAL)
+    gDrawText(canvas,0,cy,"180"&degrees,{},TG_SE,style:=TG_BOLD)
+    gDrawText(canvas,cx,0,"270"&degrees,{},TG_SW,style:=TG_BOLDITALIC)
+    gDrawText(canvas,w,cy,"360"&degrees,{},TG_NW)
+
+--DEV:
+--  gSetAttribute(canvas,"LINEWIDTH",2)
+--  gSetAttribute(canvas,"FGCLR",TG_GREEN) -- (ok)
+--  gCanvasCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+    gDrawCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+
+--  gSetAttribute(canvas,"LINEWIDTH",5)
+--  gSetAttribute(canvas,"LINESTYLE",TG_CONTINUOUS)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASHED)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DOTTED)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASH_DOT)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASH_DOT_DOT)
+--  for px = 20 to 40 by 1 do
+--      for py=20 to 40 do
+--          gCanvasPixel(canvas,px,py,TG_BLUE)
+--      end for
+--  end for
+--  gDrawRect(canvas, 10, 10, 90, 90, true, 5)
+--  gDrawRect(canvas, 10, 10, 90, 90, true)
+--  gDrawRect(canvas, 10, 10, 90, 90, false, 5)
+--  gDrawRect(canvas, 10, 10, 90, 90, false)
+--  gDrawRect(canvas, 10, 10, 90, 90)
+--  gDrawRect(canvas, 0, 0, 118, 46)
+--  gDrawRect(canvas, 0, 0, 240, 180)
+
+--?xpm -- -1 (yeah!) [a proper gdm, 4/1/25]
+    gDrawImage(xpm,canvas,w*.3, h*.3)
+--?gCanvasGetFont
+--?gGetAttribute(canvas,"FONT")
+end procedure
+
+--/* -- works fine:
+function click(gdx canvas, sequence status, integer x, y)
+--procedure click(gdx canvas, sequence status)
+    integer {button,pressed,ctrl,shift,alt} = status
+    printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d)\n",
+             {button,pressed,ctrl,shift,alt,x,y})
+--  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d)\n",
+--           {button,pressed,ctrl,shift,alt})
+    return false
+end function
+--*/
+--/* -- works fine:
+--procedure mousemove(gdx canvas, integer x,y)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, bool left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right, ctrl,shift,alt)
+procedure mousemove(gdx canvas, integer x,y, bool left,middle,right, ctrl,shift,alt)
+--  ?{"mousemove",x,y}
+--  ?{"mousemove",x,y,left,middle,right}
+    ?{"mousemove",x,y,left,middle,right,ctrl,shift,alt}
+end procedure
+--*/
+
+gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
+    dialog = gDialog(canvas,`gCanvas`,`SIZE=240x156`)
+--  dialog = gDialog(canvas,`gCanvas`,`SIZE=240x80`)
+--?gGetAttribute(dialog,"MINSIZE")
+--gSetHandler(canvas,"CLICK",click)
+--gSetHandler(canvas,"MOUSEMOVE",mousemove)
+--gSetAttribute(canvas, "WU_BLEND", true) -- good!!
+--gSetAttribute(canvas, "WU_BLEND", false) -- bad!! (ie correctly shows bresenham edges on WinAPI) [GONE!]
+--gSetAttribute(canvas, "ACTIVE", false) -- (no effect)
+--?gVersion()
+gShow(dialog)
+gMainLoop()
+--?"done"
+--wait_key()
+
+--/*
+-- not respecting FGCLR:
+"gDrawLine(canvas)" - fixed
+"gDrawArc(canvas)"  - fixed
+?"gDrawCubicBezier(canvas)" -- fixed
+"gDrawText(canvas)" -- fixed
+
+--*/
+

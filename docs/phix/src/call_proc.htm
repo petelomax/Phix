@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          call_proc(<a href="integer.htm">integer</a> rid, <a href="sequence.htm">sequence</a> params)
+          call_proc(<a href>integer</a> rid, <a href>sequence</a> params)
          </td>
         </tr>
         <tr>
@@ -21,12 +21,14 @@
           <b>Description:</b>
          </td>
          <td>
-            Dynamically invoke the user-defined procedure with <a href="routine_id.htm">routine_id</a> rid.
+            Dynamically invoke a user-defined procedure. Partially depricated, in that rid(args) is equivalent, where args is the 
+            {}-less/longhand version of params, and rid is explicitly indicated to be an integer. Still valid/needed for all cases
+            where you want to keep/pass the params in a single sequence.
             <br>
             <br>
-            rid: a valid result from <a href="routine_id.htm">routine_id</a>().<br>
-            params: a <a href="sequence.htm">sequence</a> of argument values of length n, where n is compatible with the number of arguments 
-            required by the procedure identified by rid.
+            rid: a valid result from <a href>routine_id</a>(), or (better yet) originating from some plain procedure identifier.<br>
+            params: a <a href>sequence</a> of argument values of length n, where n is compatible with rid, aka
+                    in <a href="routine_id.htm#aux">minp</a>..<a href="routine_id.htm#aux">maxp</a>.
          </td>
         </tr>
         <tr>
@@ -42,13 +44,12 @@
           <b>Comments:</b>
          </td>
          <td>
-            Calling a routine directly is known as a static call: it is determined at compile-time and cannot be
-            changed at run-time. Conversely, invoking a routine via a routine_id is known as a dynamic call: the
-            value of the routine_id can be altered at run-time and hence the routine being called can be altered
-            at run-time. While the trivial example below shows no benefits, the ability to store routine_ids in
-            tables (etc) is much more flexible, and often quite necessary for gui programming. If you need a
-            routine to be invoked whenever a particular event occurs, the easiest way is to use a routine_id. 
-            Historically, a routine_id was the only way to effect a forward call, but that is no longer the case.
+            Calling a routine directly is known as a static call: it is determined at compile-time and cannot be changed at run-time. 
+            Conversely, invoking a routine via a routine_id is known as a dynamic call: the value of the routine_id can be altered at 
+            run-time and hence the routine being called can be altered at run-time. While the trivial example below shows no benefits, 
+            the ability to store routine_ids in tables (etc) is much more flexible, and often quite necessary for (say) gui programming. 
+            If you need a routine to be invoked whenever a particular event occurs, the easiest way is to use a routine_id. 
+            Historically, a routine_id was the only way to effect a <a href>forward</a> call, but that is no longer the case.
             <br>
             <br>
             If the procedure identified by rid does not take any arguments then params should be {}.
@@ -66,20 +67,18 @@
 procedure foo(integer fn, string s)
     puts(fn, s)
 end procedure
-integer r_foo = routine_id("foo")
+integer r_foo = foo -- [same as routine_id("foo"), 0.8.2+]
 
 foo(1,"Hello World\n")                  -- direct/static call
 call_proc(r_foo,{1,"Hello World\n"})    -- indirect/dynamic call (equivalent)
 r_foo(1,"Hello World\n")                --        ""                  ""      on 0.8.1+
-integer r_too = foo                     -- first class routines, 0.8.2+
-r_too(1,"Hello World\n")                --   (obviously r_too==r_foo)
 </eucode-->
 <pre>
 <font color="#008080">procedure</font><font color="#000000"> foo</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> fn</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> s</font><font color="#0000FF">)</font>
 <font color="#7060A8">    puts</font><font color="#0000FF">(</font><font color="#000000">fn</font><font color="#0000FF">,</font><font color="#000000"> s</font><font color="#0000FF">)</font>
 <font color="#008080">end procedure</font>
-<font color="#004080">integer</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#5E005E"> routine_id</font><font color="#0000FF">(</font><font color="#008000">"foo"</font><font color="#0000FF">)
-</font>
+<font color="#004080">integer</font><font color="#000000"> r_foo</font><font color="#0000FF"> =</font><font color="#000000"> foo</font><font color="#000080"><i> -- [same as routine_id("foo"), 0.8.2+]
+</i></font>
 <font color="#000000">foo</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hello World\n"</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- direct/static call</i></font>
 <font color="#7060A8">call_proc</font><font color="#0000FF">(</font><font color="#000000">r_foo</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hello World\n"</font><font color="#800000">}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- indirect/dynamic call (equivalent)</i></font>
 <font color="#000000">r_foo</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Hello World\n"</font><font color="#0000FF">)               </font><font color="#000080"><i> --        ""                  ""      on 0.8.1+</i></font>
@@ -91,10 +90,11 @@ r_too(1,"Hello World\n")                --   (obviously r_too==r_foo)
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opCallProc in builtins\VM\pcallfunc.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know. <br>
-            While it works fine, it is rather far from elegant and efficient, and any sensible suggestions for improvement would be most welcome.<br>
-            Some additional notes on first class routine_ids can be found in the technicalia drop-down of <a href="routine_id.htm">routine_id</a>.<br>
+            via :%opCallProc in builtins\VM\pcallfunc.e (an autoinclude) - be warned however it is low-level complicated stuff you do not need to know. 
+            While it works fine, it is inelegant and inefficient and sensible suggestions for improvement are welcome.<br>
+            Some additional notes on first class routine_ids can be found in the technicalia drop-down of <a href>routine_id</a>.<br>
             In a way, p2js.js cheats, since JavaScript can pass actual functions around and invoke them just as easily as Phix can do with these integers.
+            <small>(There are no procedures in JavaScript, instead a fuction wih no explicit return effectively/implicitly performs a return undefined.)</small>
          </td>
         </tr>
         <tr>
@@ -102,8 +102,8 @@ r_too(1,"Hello World\n")                --   (obviously r_too==r_foo)
           <b>See Also:</b>
          </td>
          <td>
-          <a href="call_func.htm">call_func</a>,
-          <a href="routine_id.htm">routine_id</a>
+          <a href>call_func</a>,
+          <a href>routine_id</a>
          </td>
         </tr>
        </table>

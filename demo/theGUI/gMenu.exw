@@ -1,0 +1,420 @@
+--
+--  demo\theGUI\gMenu.exw
+--  =====================
+--
+--   Creates a dialog with a menu with three submenus, and a popup menu.
+--   One of the submenus has a submenu, which has another submenu.
+--
+-- KNOWN ISSUE: transparent bitmaps on menus under WinAPI.
+-- There is a ton of pigheaded misinformation about this on'tinternet.
+-- "Pre multiplied alpha" is the thing, apparently, and the details are: "thread closed: fuck off".
+-- Nearest thing found so far:
+-- C:\Program Files (x86)\Phix\demo\Win32Demo\xcontrols\Examples\PicMenu\PicMenuTst.exw
+-- Since Edix/IUP manages this, maybe experiment with simple_paint stuff???
+--  (ie find out what the heck it has actually loaded, and encode that as a binary string??)
+--  [that would all be rather nice: obviously some kind of program to help you to build
+--   these things, but then just constant bitmap = x"0102<drivel>FF", and you're done!]
+--
+-- working notes:
+-- see file:///E:/downloads/misc/js/vanillajs/menu/fixed-header-with-responsive-drop-down-sliding-menu/dist/index.html
+-- gMenu not defined [FIXED, the above has now been incorporated into pGUI.js and pGUI.css]
+-- gShow[with bModal:=true] not defined
+-- Once Shift+Alt is keyed, cursor keys should do something...
+-- Menu actions are not yet invoked... [FIXED]
+-- resize problems galore...
+--
+puts(1,"")
+with javascript_semantics -- (some problems remain as noted above)
+--requires("1.0.3")
+--requires(64,true)
+--with trace
+--DEV BUG: background of plain popup cut icon left highlit when move mouse off (was TG_MAGENTA wrongly too) [wrong in 2897 too]
+include theGUI.e
+--include ..\theGUI\backup\tg_xpm.2899.e
+--include ..\theGUI\backup\theGUI.2897.e    -- good (include tg_xpm taken out)
+
+--include theGUI2.e -- GOOD...
+--include theGUI3.e -- works on 32-bit...
+--include backup.0002\theGUI.2491.e -- GOOD
+--include backup\theGUI.2520.e -- menu there
+--include backup\theGUI.2575.e -- menu there
+--include backup\theGUI.2646.e -- menu there
+--include backup\theGUI.2708.e -- menu there
+--include backup\theGUI.2786.e -- menu there (17/7/ 22:12)
+--include backup\theGUI.2873.e -- menu gone (17/7 23:20)
+--include backup\theGUI.2942.e -- menu gone
+--include backup\theGUI.3217.e -- menu gone
+--include backup\theGUI.3316.e -- menu gone
+--include backup\theGUI.3530.e -- menu gone
+--include backup\theGUI.3630.e -- menu gone
+--include backup\theGUI.3758.e -- duff
+--include backup\theGUI.3759.e -- duff
+--include backup\theGUI.3760.e -- duff
+--include backup\theGUI.3761.e -- duff
+--include backup\theGUI.3880.e -- duff
+--include backup\theGUI.3880.e -- duff
+--include backup\theGUI.4342.e -- menu gone
+--include backup\theGUI.4644.e -- menu gone
+--include backup\theGUI.5575.e -- menu gone
+--include backup\theGUI.5662.e -- menu gone
+--include backup\theGUI.5875.e -- menu gone
+--include backup\theGUI.5877.e -- good fonts
+--include backup\theGUI.5878.e -- duff fonts (& background)
+--include backup\theGUI.5881.e -- duff fonts (& background)
+--include backup\theGUI.5890.e -- duff fonts
+--include backup\theGUI.5909.e -- duff fonts
+--include backup\theGUI.5960.e -- duff
+--include backup.0002\theGUI.5965.e -- GOOD
+
+--include backup\theGUI.0220.e -- GOOD
+--include backup\theGUI.0801.e -- X
+--include backup\theGUI.0826.e -- GOOD (with img removed)
+--include backup\theGUI.1502.e -- X
+--include backup\theGUI.1507.e -- GOOD
+--include backup\theGUI.1530.e -- 
+--include backup\theGUI.1531.e -- GOOD
+--include backup\theGUI.1532.e -- 
+--include backup\theGUI.1533.e -- 
+--include backup\theGUI.1535.e -- 
+--include backup\theGUI.1542.e -- 
+--include backup\theGUI.1545.e -- 
+--include backup\theGUI.1572.e -- GOOD
+
+--gUseGTK()
+constant cut_xpm_txt = """
+16 16 2 1
+. c None
+* c #000000
+................
+................
+.............*..
+............*...
+...........**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***.......
+.....*..*.......
+....*...*.......
+....*..*........
+....***.........
+"""
+--constant cut_xpm = gImage_from_XPM(cut_xpm_txt,"MENU") -- DEV flakey on WinAPI 64-bit... [FIXED by making xCreateDIBitmap return C_LONG not C_PTR...4/10/23]
+constant cut_xpm = gImage_from_XPM(cut_xpm_txt) -- DEV flakey on WinAPI 64-bit... [FIXED by making xCreateDIBitmap return C_LONG not C_PTR...4/10/23]
+-- I may need to circle back on that and get C_PTR to work properly.... (as a return type in VM\pcfunc.e, that is)
+
+constant POPUP_ITEMS = {{"Cut",cut_xpm,CUT:=$},
+--constant POPUP_ITEMS = {{"Cut",CUT:=$},
+                        {"Copy",COPY:=$},
+                        {"Paste",PASTE:=$},
+                        {"Delete",DELETE:=$},
+                        "|",
+                        {"Reload",RELOAD:=$},
+                        "-",
+                        {"Exit",EXIT:=$}},
+
+         MAIN_MENU = {{"&File",{{"&New",NEW:=$},
+                                {"&Open",OPEN:=$},
+                                {"&ReOpen",REOPEN:=$},
+                                {"&Save",SAVE:=$},
+                                {"Save&As",SAVEAS:=$},
+                                {"FileLis&t",FILELIST:=$},
+                                {"&Close",CLOSE:=$},
+                                "|",
+                                {"PrintPre&view",PREVIEW:=$},
+                                {"&Print",PRINT:=$},
+                                "|",
+                                {"Recent&Files",RECENT:=$,{}},
+                                {"E&xit",EXIT}}},
+                      {"&Edit",EDIT_MENU:=$, -- (optional id)
+                               {{"Cut",cut_xpm_txt,CUT},
+--                             {{"Cut",CUT},
+                                {"Copy",COPY},
+                                {"Paste",PASTE,{{"Normal",NORMAL:=$},
+--                                        {"html-stripped",STRIPPED:=$}}}}},
+                                          {"Some ridiculously long text for a menu entry",STRIPPED:=$}}}}},
+--/*
+                                          {"html-stripped",STRIPPED:=$}}},
+                                "|",
+                                {"Create",{{"Line",LINE:=$},
+                                           {"?Circle",{{"?Normal",NORMALC:=$},
+                                                       {"?Dotted",DOTTEDC:=$},
+                                                       "|",
+                                                       {"?Filled",FILLEDC:=$}}},
+                                           "|",
+                                           {"Triangle",{{"Equilateral",EQUILATERAL:=$},
+                                                        {"Isoceles",ISOCELES:=$},
+                                                        {"Scalenus",SCALENUS:=$}}}}}}},
+--*/
+                      {"&Help",HELP:=$}}
+
+-- Each entry is one of {string menu_item, integer id} for a "leaf" menu entry, or 
+--  any of "|","-",'|','-' for a separator (which are all treated identically), or 
+-- {string submenu, [integer id,] sequence children}, and obviously with children following the same rules.
+--
+-- There is no id on the &File menu, so you cannot enable/disable it, and won't be notified when it opens and closes.
+--  (Likewise the Paste, Create, Circle, and Triangle sub-menus don't ever get any notifications, of any kind.)
+-- It would also not be possible to set/get the checked status, except for the two facts that you cannot have such
+--  on a [sub]menu, only menu items, and also it is an outright error not to have an id on "leaf" items anyway.
+--
+-- The '?' of "?Normal" makes that menu item checkable, but influenced by similar on the immediate parent submenu.
+-- The '?' of "?Circle" makes the submenu items into a radio, which ends if any separator is found, so "?Filled" is a
+--  separate standalone checked menu item. (Max 1 radio grouping per [sub]menu, must precede any checked items.)
+--
+-- Images must be set separately, and for that you would (again) need a (unique-per-gMenu-call/result) id set on
+--  any menu entries that you want to set an image on...
+--
+
+-- Aside: this handler is shared by POPUP_ITEMS and MAIN_MENU, which might not always be the best idea, and
+--        it would certainly be entirely the programmer's responsibility to ensure that, say, NEW != CUT.
+
+function menu_handler(gdx menu, integer id, bool bHighlight)
+--function menu_handler(gdx menu, integer id)
+    string s = gMenuGetAttribute(menu,id,"TITLE"),
+           h = iff(bHighlight?" (highlight)":
+--             iff(not find(id,{NORMALC,DOTTEDC,FILLEDC})?"":
+               iff(not find(id,{})?"":
+               iff(gMenuGetAttribute(menu,id,"CHECKED")?" (Checked)":" (unchecked)")))
+    printf(1,"%s%s (menu=%d, id=%d)\n",{s,h,menu,id})
+    -- test: close (not exit!) toggles paste active (main and nested, not on the plain menu popup) - works!
+    if id=CLOSE and not bHighlight then
+--      integer mitem = EDIT_MENU
+--      integer mitem = OPEN
+        integer mitem = PASTE
+        bool bActive = gMenuGetAttribute(menu,mitem,"ACTIVE")
+--?{"CLOSE:",bActive,CLOSE,EDIT_MENU}
+        gMenuSetAttribute(menu,mitem,"ACTIVE",not bActive)
+    end if
+    return iff(id=EXIT and not bHighlight?TG_CLOSE:TG_DEFAULT)
+end function
+
+--/!*
+procedure edge(gdx canvas, integer w,h)
+--?{"edge",w,h}
+--  gDrawRect(canvas,1,1,w-2,h-2)
+--  gDrawLine(canvas,0,0,w-1,h-1)
+--  gDrawLine(canvas,w-1,0,0,h-1)
+    sequence args = {gGetAttribute(canvas,"USER_DATA")}
+    gDrawText(canvas,w/2,h/2,"Right click here for a %s popup",args,TG_C)
+end procedure
+--*!/
+
+gdx menu = gMenu(MAIN_MENU,menu_handler),
+--DEV labels???
+-- erm, gText have their own menu...
+--  text = gText(`VALUE = "Right click here for a Cut Copy Paste Delete Reload Exit popup", EXPAND = YES`),
+--  c1 = gText(`VALUE = "Right click here for a Cut Copy Paste Delete Reload Exit popup", EXPAND = YES`),
+--  txt2 = gText(`VALUE = "Right click here for a different menu popup", EXPAND = YES`),
+--  c2 = gText(`VALUE = "Right click here for a different menu popup", EXPAND = YES`),
+--  lbl1 = gLabel(`Right click here for a Cut Copy Paste Delete Reload Exit popup`, `EXPAND = YES`),
+--  c1 = gLabel(`Right click here for a Cut Copy Paste Delete Reload Exit popup`, `EXPAND = NO`),
+--  c1 = gLabel(`Right click here for a plain popup`, `EXPAND = NO, MARGIN=0x0x0x10`),
+--  c1 = gLabel(`Right click here for a plain popup`, `EXPAND = YES`),
+--  lbl2 = gLabel(`Right click here for a different menu popup`, `EXPAND = YES`),
+--  c2 = gLabel(`Right click here for a nested popup`, `EXPAND = NO, MARGIN=0x0x0x10`),
+--  c2 = gLabel(`Right click here for a nested popup`, `EXPAND = YES`),
+    c1 = gCanvas(edge,`USER_DATA="plain"`), 
+    c2 = gCanvas(edge,`USER_DATA="nested"`), 
+    popup_menus = {NULL,NULL}
+--gSetAttribute(c1,"BGCLR",TG_PARCHMENT)
+--gSetAttribute({c1,c2},"BGCLR",TG_PARCHMENT)
+
+function text_click(gdx id, sequence status, integer x, y)
+--  integer tn = find(id,{c1,c2})
+--?{"text_click",tn,status, x, y}
+    if status[1..2]="RR" then -- (right button released)
+--      integer tn = find(id,{text,txt2})
+--      integer tn = find(id,{lbl1,lbl2})
+        integer tn = find(id,{c1,c2})
+--      integer tn = find(id,{c1})
+--DEV temp (right click not yet working on a gText...)
+--if tn=0 then ?{"oops:tn=0",id,lbl1,lbl2,menu,gGetDialog(id)}; tn=rand(2) end if
+--if tn=0 then ?9/0 end if
+--if tn=0 then ?{"oops:tn=0",id,c1,c2,menu,gGetDialog(id)}; tn=rand(2) end if
+-- if tn=0 then
+--  printf(1,"You missed!\n")
+-- else
+--if tn=0 then ?{"oops:tn=0",id,c1,menu,gGetDialog(id)}; tn=1 end if
+        if popup_menus[tn] = NULL then
+            popup_menus[tn] = gMenu({POPUP_ITEMS,MAIN_MENU}[tn],menu_handler)
+--DEV bRadio...
+--          popup_menus[tn] = gMenu({POPUP_ITEMS,MAIN_MENU}[tn],menu_handler,tn=1)
+        end if  
+--DEV
+--      gShow[with bModal:=true](popup_menu, TG_MOUSEPOS, TG_MOUSEPOS)
+--?{"gPopupMenu",tn}
+--      gPopupMenu(popup_menus[tn], TG_MOUSEPOS, TG_MOUSEPOS)
+--      gPopupMenu(popup_menus[tn],x,y) -- (nb these are client offsets...)
+--      gPopupMenu(id,popup_menus[tn])
+        gPopupMenu(popup_menus[tn])
+--?"gShow[with bModal:=true] returns"
+        return TG_IGNORE
+-- end if
+    end if
+    return TG_DEFAULT
+end function
+
+--function txt2_click(gdx /*id*/, sequence status, integer x, y)
+--  if status[1..2]="RR" then -- (right button released)
+--      if popup_menu2 = NULL then
+--          popup_menu2 = gMenu(MAIN_MENU,menu_handler) -- (a fresh separate copy)
+--      end if  
+----        gShow[with bModal:=true](popup_menu2, TG_MOUSEPOS, TG_MOUSEPOS)
+--      gShow(popup_menu2, TG_MOUSEPOS, TG_MOUSEPOS)
+----?"gShow[with bModal:=true] returns"
+--      return TG_IGNORE
+--  end if
+--  return TG_DEFAULT
+--end function
+
+--gdx vbox = gVbox({menu,text,txt2}),
+--gdx vbox = gVbox({menu,lbl1,lbl2},"GAP=22"),
+--gdx vbox = gVbox({menu,c1,c2},"GAP=22"),
+--gdx vbox = gVbox({menu,c1,c2},"MARGIN=0x0x10x0, GAP=10"),
+gdx vbox = gVbox({menu,c1,c2}),
+--gdx vbox = gVbox({menu,lbl1,lbl2}),
+--gdx vbox = gVbox({menu,c1,c2}),
+--gdx vbox = gVbox({menu,c1,c2},"SPACE=AROUND"),
+--gdx vbox = gVbox({menu,c1}),
+--/*
+c_func(xSetWindowPos[4983],{{4,"Dialog"},0,0,0,256,136,"SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE"}) ==> 1
+{"gShow",4,240,2,120'x',52'4',{238,68'D'}}
+c_func(xSetWindowPos[4600],{{2,"Canvas"},0,0,0,238,68,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{4,"Dialog"},0,0,0,254,107,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[20838],{{4,"Dialog"},0,840,490,242,152,"SWP_NOSIZE+SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{2,"Canvas"},0,0,0,238,48,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{4,"Dialog"},0,840,490,254,87,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+{"edge",238,48'0'}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Menu         0   0   0   0   0   0   0   0  3  0          CF_MAPPED
+ 2 Canvas       0   0 238  48  11  15   0   0  3  0          CF_EXPANDB+CF_MAPPED+CF_UNMAPATTR
+ 3 Vbox         0   0 238  48  11  15   0   0  4  {1,2}      CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 4 Dialog     840 490 240  80  13  67 240 120  0  {3}        CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+-- mspaint says 240x80:BAD! Canvas should be 78, I think...
+--windows: border:1, titlebar:30, Menu:18, incorrect gap:2, canvas(or the bits actually visible):28 [but 48 feels fine]
+--*/
+--gdx vbox = gVbox({c1,c2}),
+--gdx vbox = gVbox({c1}),
+--/*
+c_func(xSetWindowPos[4983],{{4,"Dialog"},0,0,0,256,136,"SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE"}) ==> 1
+{"gShow",4,240,2,120'x',32' ',{238,88'X'}}
+c_func(xSetWindowPos[4600],{{2,"Canvas"},0,0,0,238,88,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{4,"Dialog"},0,0,0,254,127,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[20838],{{4,"Dialog"},0,840,480,242,152,"SWP_NOSIZE+SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{2,"Canvas"},0,0,0,238,88,"SWP_NOZORDER"}) ==> 1
+c_func(xSetWindowPos[4600],{{4,"Dialog"},0,840,480,254,127,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+{"edge",238,88'X'}
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Menu                                                      Not mapped
+ 2 Canvas       0   0 238  88  11  15   0   0  3  0          CF_EXPANDB+CF_MAPPED+CF_UNMAPATTR
+ 3 Vbox         0   0 238  88  11  15   0   0  4  {2}        CF_EXPANDB+CF_CONTAINER+CF_MAPPED
+ 4 Dialog     840 480 240 120  13  47 240 120  0  {3}        CF_CONTAINER+CF_DECORATED+CF_RESIZE+CF_CLOSE_ON_ESC+CF_MAPPED+CF_UNMAPATTR
+-- mspaint says 240x120:GOOD! canvas:88
+--*/
+--gdx vbox = gVbox({menu}),
+--   dlg = gDialog(vbox,`TITLE="gSubmenu Example", SIZE[*charsize] = QUARTERxEIGHTH`)
+--   dlg = gDialog(vbox,`gSubmenu Example`,`SIZE = QUARTERxEIGHTH`)
+--   dlg = gDialog(vbox,`gSubMenu`,`SIZE = 240x80`)
+--   dlg = gDialog(vbox,`gMenu`,`SIZE = 240x38`)
+--DEV:...
+     dlg = gDialog(vbox,`gMenu`,`SIZE=240x120`)
+--   dlg = gDialog(vbox,`gMenu`,`SIZE=350x120`)
+--gSetHandler({text,txt2,dlg},"CLICK",text_click)
+--gSetHandler({lbl1,lbl2,dlg},"CLICK",text_click)
+---DEV CLICK inoperative on label??
+--gSetHandler({c1,c2,dlg},"CLICK",text_click)
+gSetHandler({c1,c2},"CLICK",text_click)
+--gSetHandler({c1,dlg},"CLICK",text_click)
+--gSetHandler({lbl1,lbl2},"CLICK",text_click) -- [DEV] not yet working...
+--gSetHandler(txt2,"CLICK",txt2_click)
+
+-- 'jump' test: (triggers, 31/10/24)
+function key_handler(gdx dlg, integer c)
+    if c=' ' then
+        gRedraw(dlg)
+    end if
+    return TG_CONTINUE
+end function
+gSetHandler(dlg,`KEY`,key_handler)
+
+--gSetAttributeHandle(dlg,"MENU",menu)
+--popup_menu = menu
+--gSetAttributeHandle(NULL,?PARENTDIALOG?,dlg)
+gShow(dlg)
+--?gMenuGetAttribute(menu,COPY,"TITLE")
+--gMenuSetAttribute(menu,COPY,"TITLE","Mimic")
+--?gMenuGetAttribute(menu,COPY,"TITLE")
+--DEV erm, I don't think you're supposed to be able to get the size of a vbox under WinAPI,
+--    at least it cannot ever have possibly worked/you can't throw NULL at GetWindowRect...
+--?{"vbs",gGetAttribute(vbox,"SIZE")}
+--?{"cut_xpm",cut_xpm,sprintf("#%16x",cut_xpm[2][1])}
+gMainLoop()
+
+--/*
+fail:
+{"cut_xpm",{"gImage",{1.844674407e+19,24,24,15790320}},"#FFFFFFFFBB051774"}
+{"cut_xpm",{"gImage",{1.844674407e+19,24,24,15790320}},"#FFFFFFFFBF051774"}
+pass:
+{"cut_xpm",{"gImage",{      956648147,24,24,15790320}},"#        39054AD3"}
+
+for tokei: [DONE]
+
+readme.md (~478):
+Phix
+
+languages.json:
+    "Phix": {
+      "line_comment": ["--", "//", "#!"],
+      "multi_line_comments": [["/*", "*/"], ["--/*", "--*/"]],
+      "nested": true,
+      "quotes": [["\\\"", "\\\""], ["'", "'"]],
+      "verbatim_quotes": [["\\\"\\\"\\\"", "\\\"\\\"\\\""], ["`", "`"]],
+      "extensions": ["e","exw"]
+    },
+
+tests/data/phix.e
+/* 40 lines 25 code 8 comments 7 blanks */
+
+-- copied from cpp, not necessarily idiomatic Euphoria code
+
+include std/sequence.e
+
+-- bubble_sort_function
+public function bubble_sort(sequence a)
+    integer t = 0
+    integer j = length(a)
+    integer s = 1
+    while s > 0 do
+        s = 0
+        integer i = 2
+        while i <= j do
+            if a[i] < a[i - 1] then
+                t = a[i]
+                a[i] = a[i - 1]
+                a[i - 1] = t
+                s = 1
+            end if
+            i += 1
+        end while
+        j -= 1
+    end while
+    return a
+end function
+
+sequence a = {4, 65, 2, -31, 0, 99, 2, 83, 782, 1}
+
+-- Single line comment
+? {"Before:", a}
+
+a = bubble_sort(a)
+
+/* multi
+ * line
+ * comment
+ */
+? {"After:", a, equal(a, {-31,0,1,2,2,4,65,83,99,782})}
+
+--*/

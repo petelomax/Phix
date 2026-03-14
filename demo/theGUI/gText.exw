@@ -1,0 +1,62 @@
+--
+-- demo\theGUI\gText.exw
+-- =====================
+--
+--  DEV focus and escape/quit handling issues...
+--      also, implement and test the VALUE_CHANGED handler...
+--
+--requires(64,true)
+with javascript_semantics
+include theGUI.e
+--include backup\theGUI.0826.e -- GOOD
+--include backup\theGUI.0889.e -- GOOD
+--include backup\theGUI.0933.e -- GOOD
+--include backup\theGUI.0934.e -- GOOD
+--include backup\theGUI.0957.e -- BAD
+--include backup\theGUI.0959.e -- BAD
+--include backup\theGUI.0960.e -- X
+--include backup\theGUI.0961.e -- BAD
+--include backup\theGUI.0970.e -- BAD
+--include backup\theGUI.1022.e -- BAD
+--include theGUI3.e -- shows something..
+gUseGTK()
+--win64: 226x73
+--gtk32: 212x66
+--gtk64: 168x34
+
+--integer vtc = 0
+procedure value_changed(gdx txt)
+--vtc += 1
+--if vtc=1 then ?9/0 end if -- WM_COMMAND from xSetWindowText
+--if vtc=2 then ?9/0 end if
+--if vtc=3 then ?9/0 end if -- WM_LBUTTONDOWN...
+    ?{"value_changed",gGetAttribute(txt,"VALUE")}
+end procedure
+
+integer h = iff(gVersion(-1)=TG_WINAPI?95:iff(gVersion(-2)=2?102:128))
+gdx txt = gText(value_changed,`VALUE="one two three"`),
+    tx2 = gText(value_changed,`VALUE="one two three"`),
+--gdx txt = gText(value_changed,`VALUE="one two three",BGCLR=RED`), -- fine
+--gdx txt = gText(value_changed,`VALUE="one two three",FGCLR=RED`), -- no??
+--gdx txt = gText(value_changed,`VALUE="one two three",SIZE=200x100`),
+--DEV should this be the default??
+--  txt = gText(`VALUE="one two three",EXPAND=HORIZONTAL`), -- ooh/er, WinAPI... [DEV]
+--gdx txt = gText(`VALUE="one two three",EXPAND=VERTICAL`),
+--  txt = gText(`VALUE="one two three",EXPAND=BOTH`),   -- ""
+--gdx txt = gText(),
+--  dialog = gDialog(txt,`gText`,`SIZE=226x73`)
+--  hbx = gHbox({txt},"MARGIN=13x13"),
+    hbx = gVbox({txt,tx2},"MARGIN=13x13"),
+--  dlg = gDialog(hbx,"gText","SIZE=240x80")
+--  dlg = gDialog(hbx,"gText","SIZE=240x95")
+    dlg = gDialog(hbx,"gText","==",{{"SIZE",{240,h}}})
+--  dlg = gDialog(hbx,"gText")
+--gSetAttribute(txt,"FONT","Helvetica, Italic 19")
+--gSetAttribute(txt,"SIZE",250)
+--gSetAttribute(txt,"SIZE","250")
+--gSetAttribute(txt,"BGCLR",TG_RED)
+gShow(dlg)
+?gGetAttribute(txt,"VALUE")
+?gGetAttribute(txt,"SIZE")
+gMainLoop()
+

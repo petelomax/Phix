@@ -8,6 +8,112 @@
 --  The timer label is updated every three seconds and gets mouse positions anywhere on the whole screen, whether it moves or not.
 --  Note that canvasmotion coordinates are relative to the top left of the canvas, whereas the other two are absolute.
 --
+--  NB/DEV several bugs still persist... this is also a good argument for adding a proper gSeparator()...
+--                                               also a good argument for the single-canvas approach...
+--
+--/!*
+--puts(1,"")
+--requires(64,true) --DEV gtk_widget_set_size_request going loopy... (now/tmp removed from tg_lm_apply_sizes_and_offsets)
+--                                                                   (reintroduced for the benefit of gSplit... 14/06/25)
+include theGUI.e
+--gUseGTK() -- DEV (natural) sizing all wrong...
+--DEV the rhs gCanvas frame is either hard right or over on WinAPI
+
+procedure dialog_motion(gdx dlg, integer x, y)
+    gdx lbl = gGetAttribute(dlg,"USER_DATA")
+    integer {l,t} = gGetAttribute(dlg,"CLIENT")
+    gSetAttribute(lbl,"TITLE","dialog_motion %d, %d (%d,%d)",{x,y,x+l,y+t})
+--  printf(1,"dialog_motion %d, %d (%d,%d) [%v]\n",{x,y,x+l,y+t,{l,t}})
+end procedure
+
+procedure canvas_motion(gdx canvas, integer x, y)
+    gdx lbl = gGetAttribute(canvas,"USER_DATA")
+    integer {l,t} = gGetAttribute(canvas,"CLIENT")
+    gSetAttribute(lbl,"TITLE","canvas_motion %d, %d (%d,%d)",{x,y,x+l,y+t})
+--  integer {l,t,w,h} = gGetAttribute(canvas,"CLIENT")
+--  gSetAttribute(lbl,"TITLE","canvas_motion %d, %d (%d,%d) [%v]",{x,y,x+l,y+t,{l,t,w,h}})
+end procedure
+
+procedure timer_action(gdx timer)
+    integer {x,y} = gGetGlobalIntInt("MOUSEPOS")
+    gdx lbl = gGetAttribute(timer,"USER_DATA")
+    gSetAttribute(lbl,"TITLE","timer %d, %d",{x,y})
+end procedure
+
+procedure draw_sep(gdx canvas, integer w,h)
+--  gDrawLine(canvas,0,h/2,w,h/2,TG_DARK_GREY)
+    --DEV horizontal only... (let's have a separate gSeparator...)
+--  h = floor(h/2)
+    gDrawLine(canvas,0,h/2,w,h/2,TG_DARK_GREY)
+--  gDrawLine(canvas,5,h/2,w-5,h/2,TG_DARK_GREY)
+end procedure
+
+procedure draw_nowt(gdx /*canvas*/)
+without warning
+end procedure
+
+gdx wlbl = gLabel("Move the mouse anywhere on the window","EXPAND=HORIZONTAL"),
+--  sep1 = IupLabel(NULL,"SEPARATOR=HORIZONTAL"),
+    sep1 = gCanvas(draw_sep,"SIZE=x20, EXPAND=HORIZONTAL"),
+    clbl = gLabel("Move the mouse anywhere on the canvas","EXPAND=HORIZONTAL"),
+--  sep2 = IupLabel(NULL,"SEPARATOR=HORIZONTAL"),
+    sep2 = gCanvas(draw_sep,"SIZE=x20, EXPAND=HORIZONTAL"),
+    tlbl = gLabel("This one runs on a three second timer","EXPAND=HORIZONTAL"),
+
+    vbox = gVbox({wlbl,
+                  sep1,
+                  clbl,
+                  sep2,
+--                tlbl}),
+                  tlbl},"MARGIN=5"),
+    frm1 = gFrame(vbox,"TITLE=gLabel, SIZE=200x"),
+--                     "TITLE=gLabel, SIZE=200x, MARGIN=5"), --DEV messes up natural sizing (WinAPI)
+
+    canvas = gCanvas(draw_nowt,"SIZE=200x200, BGCLR=PARCHMENT"),
+--  canvas = gCanvas(draw_nowt,"==",{{"SIZE",{200,200}},{"BGCLR",TG_PARCHMENT},{"USER_DATA",clbl}}),
+    frm2 = gFrame(canvas,"gCanvas"),
+
+    dlg = gDialog(gHbox({frm1,frm2},"MARGIN=5x5, GAP=5"),"Mouse motion"),
+--  dlg = gDialog(gHbox({frm1,frm2},"MARGIN=5x5, GAP=5"),"Mouse motion","==",{{"USER_DATA",wlbl}}),
+--DEV ok on WinAPI, except for some reason frame titles in bold, but totally wrong on GTK:
+--  frm3 = gFrame(gHbox({frm1,frm2},"MARGIN=5x5, GAP=5"),"gFrame"),
+--  dlg = gDialog(frm3,"Mouse motion"),
+--^ My current thinking is that you /can/ get {0,0} in MOUSEPOS so that /must/ be right, it's CLIENT that's wrong.
+--^^ DOH - to test, paste a screenshot into mspaint and select the control, them's the co-ordinates you should get!
+
+--  timer = gTimer(timer_action,250,true,tlbl)
+    timer = gTimer(timer_action,250)
+
+--DEV add a proper gSeparator()
+atom bgclr = {#DCDAD5,#F0F0F0,#F0F0F0}[gVersion(-1)]
+gSetAttribute({sep1,sep2},"BGCLR",bgclr)
+
+gSetAttribute(dlg,"USER_DATA",wlbl)
+gSetAttribute(canvas,"USER_DATA",clbl)
+gSetAttribute(timer,"USER_DATA",tlbl)
+
+gSetHandler(dlg,"MOUSEMOVE",dialog_motion)
+gSetHandler(canvas,"MOUSEMOVE",canvas_motion)
+--DEV/tmp for the benefit of GTK:
+gSetAttribute(dlg,"SIZE",{460,260})
+--gSetAttribute(frm1,"SIZE",{243,218})
+--gSetAttribute(sep1,"SIZE",{252,20}) -- no help...
+
+gShow(dlg)
+--gSetAttribute(frm1,"SIZE",{243,218})
+--?gGetAttribute(dlg,"SIZE")
+--?gGetAttribute(frm1,"SIZE")
+--?gGetAttribute(gGetChild(frm1,1),"SIZE")
+--?gGetAttribute(sep1,"SIZE")
+--?gGetAttribute(wlbl,"SIZE")
+
+gMainLoop()
+--  IupClose()
+--end procedure
+--main()
+--*!/
+
+--/*
 without js  -- IupSetGlobalFunction 
 include pGUI.e
 
@@ -65,4 +171,4 @@ Ihandle separator1, separator2, canvas, frame_1, frame_2, dlg
     IupClose()
 end procedure
 main()
-
+--*/

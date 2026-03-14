@@ -1,0 +1,46 @@
+--
+-- demo\theGUI\gtk_windows.exw
+--
+--  Simple parent/model child demo
+--
+--requires(64,true)
+include theGUI.GTK.e
+
+local function on_key_press_cb(atom widget, event, /*data*/)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        gtk_widget_hide(widget)
+        return true // Stop further handling
+    end if
+    return FALSE;
+end function
+constant on_key_press = call_back({'+',on_key_press_cb})
+
+procedure main()
+    gtk_init()
+
+    // Create windows w1 and w2
+    atom w1 = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(w1, "I'm Number One!")
+    gtk_window_set_default_size(w1, 500, 300)
+
+    atom w2 = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(w2, "but I'm on top")
+    gtk_window_set_default_size(w2, 286-2, 93-32)
+    gtk_window_set_transient_for(w2,w1)
+--  if and_bits(ctrl_flags[id],CF_MODAL) then
+        gtk_window_set_modal(w2,true)
+--  end if
+    
+    // Connect the destroy signal
+    integer id = NULL
+    g_signal_connect_data(w1,"destroy",gtk_main_quit,id)
+    g_signal_connect_data(w1,"key_press_event",escape_key_cb,id)
+    g_signal_connect_data(w2,"key_press_event",on_key_press,id)
+
+    gtk_widget_show_all(w1)
+    gtk_widget_show_all(w2)
+    gtk_main()
+end procedure
+main()
+

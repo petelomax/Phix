@@ -33,47 +33,17 @@ function setStart(img) {
     setleft(img);
 }
 function setStart2(img) {
+    /* setStart for main phix.htm page */
     img.style.position = "absolute";
     img.style.top = "360px";
     img.style.zIndex = 100;
     setleft(img);
 }
-function setStartT(img) {
-    img.style.top = -10;
-    img.style.zIndex = 100;
-}
-function changeImage(img) {
-    var elem = document.getElementById("leftNav");
-    if (elem.style.display == "none") {
-        elem.style.display = "";
-        img.src = img.src.replace("widen", "close");
-//      img.style.left = "292px";
-    } else {
-        elem.style.display = "none";
-        img.src = img.src.replace("close", "widen");
-//      img.style.left = "13px";
-    }
-    setleft(img);
-}
-function changeImageT(img) {
-    var elem = document.getElementById("Technicalia");
-    if (elem.style.display == "none") {
-        elem.style.display = "";
-        img.src = img.src.replace("open", "close");
-    } else {
-        elem.style.display = "none";
-        img.src = img.src.replace("close", "open");
-    }
-}
-function opentech() {
-    let elem = document.getElementById("Technicalia");
-    if (elem.style.display == "none") {
-        elem.style.display = "";
-        let img = document.getElementById("Timg");
-        img.src = img.src.replace("open", "close");
-    }
-}
-/* Used by the Hide/Show button beside syntax diagrams, to toggle the */
+//function setStartT(img) {
+//  img.style.top = +10;
+//  img.style.zIndex = 100;
+//}
+/* Used by the Hide/Show button beside syntax diagrams, to toggle them */
 function hideorshow(btn, obj) {
     var x = document.getElementById(obj),
         b = document.getElementById(btn);
@@ -102,5 +72,70 @@ function initAccordion() {
         }
     }
 }
+function changeImage(img) {
+    /* toggle leftNav display */
+    var elem = document.getElementById("leftNav");
+    if (elem.style.display == "none") {
+        elem.style.display = "";
+        img.src = img.src.replace("widen", "close");
+    } else {
+        elem.style.display = "none";
+        img.src = img.src.replace("close", "widen");
+    }
+    setleft(img);
+}
 
+const TOPEN = "images/sprites/tech.open.png",
+     TCLOSE = "images/sprites/tech.close.png",
+    TEXPSHR = "Expand/Shrink";
+
+function changeImageT(bOpenOnly) {
+    /* toggle technicalia display */
+    let elem = document.getElementById("Technicalia");
+    if (elem) {
+        let timg = document.getElementById("Timg"),
+           table = elem.parentNode;
+        if (elem.className === "hiddenRow") {
+            elem.className = "";
+            timg.src = TCLOSE;
+            table.classList.remove("tableHideBottomBorder");
+        } else if (bOpenOnly!=true) { // nb *NOT* (!bOpenOnly)
+            elem.className = "hiddenRow";
+            timg.src = TOPEN;
+            table.classList.add("tableHideBottomBorder");
+        }
+    }
+}
+function opentech() {
+    changeImageT(true);
+}
+function opentechsometimes() {
+    let url = window.location.href,
+        frag = url.split('#')[1];
+    if (frag === "bresenham" ||
+        frag === "fakescroll" ||
+        frag === "fsum" ||
+        frag === "psum" ||
+        frag === "GTK4" ||
+        frag === "All" ||
+        frag === "Alle" ||
+        frag === "hFake" ||
+        frag === "hImages") {
+      changeImageT(true);
+    }
+}
+function loaded() {
+    let timg = document.getElementById("Timg");
+    if (timg) {
+        timg.onclick = changeImageT;
+        timg.setAttribute("title", TEXPSHR);
+        timg.setAttribute("aria-label", TEXPSHR);
+        timg.src = TOPEN;
+        // force reflow
+        timg.style.bottom = "1px";
+        timg.offsetHeight; // trigger layout
+        timg.style.bottom = "0";
+    }
+}
+document.addEventListener("DOMContentLoaded", loaded);
 

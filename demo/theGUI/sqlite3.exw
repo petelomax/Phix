@@ -1,0 +1,167 @@
+--
+-- demo/theGUI/sqlite3.exw
+--
+--  Port of a program posted on https://openeuphoria.org/forum/index.wc by ron77 23/8/25
+--  However I omitted the view button, and deleted matching name/catagory/rank instead
+--     of doing it by screen selection index == database primary key, which felt wrong.
+--
+--  *** ON HOLD UNTIL GTABLE IS REPLACED BY HTABLE....
+--
+--requires("1.0.6") -- sorry, not yet shipped
+include theGUI.e
+include pSQLite.e
+ 
+constant DB_FILENAME = "catalog.db"  -- Database filename 
+constant create_cmd = "CREATE TABLE IF NOT EXISTS catalog (id INTEGER PRIMARY KEY, name TEXT, category TEXT, rank INTEGER);",
+          ID_COLUMN = 1,
+        NAME_COLUMN = 2,
+         CAT_COLUMN = 3,
+        RANK_COLUMN = 4
+
+sqlite3 db = NULL
+ 
+procedure init_database() 
+    db = sqlite3_open(DB_FILENAME) 
+    sqlite3_stmt stmt = sqlite3_prepare(db,create_cmd)
+    assert(stmt!=NULL)
+    assert(sqlite3_step(stmt)==SQLITE_DONE) 
+    assert(sqlite3_finalize(stmt)==SQLITE_OK) 
+end procedure 
+ 
+sequence data
+gdx dlg, table
+
+procedure load_records(bool bRedraw=true)
+    data = {{},{}}
+    string cmd = "SELECT id, name, category, rank FROM catalog ORDER BY id;" 
+    sqlite3_stmt stmt = sqlite3_prepare(db,cmd)
+    assert(stmt!=NULL)
+    while sqlite3_step(stmt)==SQLITE_ROW do 
+        string name = sqlite3_column_text(stmt,NAME_COLUMN),
+           category = sqlite3_column_text(stmt,CAT_COLUMN) 
+        integer rank = sqlite3_column_int(stmt,RANK_COLUMN) 
+        data[1] = append(data[1],{name,category,rank})
+    end while 
+    assert(sqlite3_finalize(stmt)==SQLITE_OK) 
+    gSetAttribute(table,"DATA",data)
+    if bRedraw then gRedraw(table) end if
+end procedure 
+ 
+gdx add_dlg = NULL, name_txt, cat_txt, rank_txt
+
+function okact()
+    string nt = gGetAttribute(name_txt,"VALUE"),
+           ct = gGetAttribute( cat_txt,"VALUE"),
+           rt = gGetAttribute(rank_txt,"VALUE")
+    bool bOK = length(nt) and
+               length(ct) and
+               length(rt) and
+               is_integer(rt)
+    if bOK then
+        string cmd = "INSERT INTO catalog (name, category, rank) VALUES (?, ?, ?);" 
+        sqlite3_stmt stmt = sqlite3_prepare(db,cmd)
+        assert(stmt!=NULL)
+        integer rank = to_integer(rt)
+        sqlite3_bind_text(stmt,1,nt)
+        sqlite3_bind_text(stmt,2,ct)
+        sqlite3_bind_int(stmt,3,to_integer(rt))
+        assert(sqlite3_step(stmt)==SQLITE_DONE) 
+        assert(sqlite3_finalize(stmt)==SQLITE_OK) 
+        load_records()
+    end if
+    return iff(bOK?TG_CLOSE:TG_DEFAULT)
+end function
+
+procedure add_record_dialog() 
+    if add_dlg=NULL then
+        name_txt = gText()
+        cat_txt = gText()
+        rank_txt = gText()
+        gdx nl = gLabel(    "Name:","SIZE=55x, EXPAND=N"),
+            cl = gLabel("Category:","SIZE=55x, EXPAND=N"),
+            rl = gLabel(    "Rank:","SIZE=55x, EXPAND=N"),
+            ok = gButton("OK",okact),
+          vbox = gVbox({gHbox({nl,name_txt}),
+                        gHbox({cl,cat_txt}),
+                        gHbox({rl,rank_txt}),
+                        gHbox({ok},"SPACE=AROUND")})
+        add_dlg = gDialog(vbox,dlg,"Add record","SIZE=250x100")
+    end if
+    gShow(add_dlg)
+end procedure 
+ 
+procedure delete_record()
+    ?gGetAttribute(table,"SELECTED") -- grr, always 0
+--/*
+    string sql_ptr = "SELECT id FROM catalog ORDER BY id;" 
+    atom stmt_ptr = allocate(?) 
+    atom rc = sqlite3_prepare, {db, sql_ptr, -1, stmt_ptr, 0}) 
+    atom idx = 0 
+    atom id = -1 
+    atom stmt 
+     
+    if rc = SQLITE_OK then 
+        if ? = 8 then 
+            stmt = peek8u(stmt_ptr) 
+        else 
+            stmt = peek4u(stmt_ptr) 
+        end if 
+        while sqlite3_step, {stmt}) = SQLITE_ROW do 
+            if idx = sel then 
+                id = sqlite3_column_int, {stmt, 0}) 
+                exit 
+            end if 
+            idx += 1 
+        end while 
+        {} = sqlite3_finalize, {stmt}) 
+    end if 
+     
+    if id != -1 then 
+            sql_ptr = "DELETE FROM catalog WHERE id = ?;" 
+            rc = sqlite3_prepare, {db, sql_ptr, -1, stmt_ptr, 0}) 
+            if rc = SQLITE_OK then 
+                if ? = 8 then 
+                    stmt = peek8u(stmt_ptr) 
+                else 
+                    stmt = peek4u(stmt_ptr) 
+                end if 
+                {} = sqlite3_bind_int, {stmt, 1, id}) 
+                {} = sqlite3_step, {stmt}) 
+                {} = sqlite3_finalize, {stmt}) 
+                load_records() 
+            end if 
+    end if 
+--*/
+end procedure 
+
+constant columns = {{"Name",120,"CR"},
+                    {"Category",120,"C"},
+                    {"Rank",40,"R"}}
+
+procedure close_handler()
+    if db!=NULL then
+        sqlite3_close(db)
+        db = NULL
+    end if
+end procedure
+
+procedure main() 
+    data = {{},{}}
+    gdx addbtn = gButton("Add",add_record_dialog),
+        delbtn = gButton("Delete",delete_record),
+          vbox = gVbox({addbtn,delbtn},"EXPAND=N")
+    table = gTable(columns,data)
+    dlg = gDialog(gHbox({table,vbox}),"Catalog Program") 
+    gSetHandler(dlg,"CLOSE",close_handler)
+--- aw bollocks, gTable not yet replaced by hTable...
+--  gSetAttribute(table,"SELMODE","LINE")
+--  gSetAttribute(table,"SELMODE",false)
+
+    -- Initialize database and load records 
+    init_database()
+    load_records(false)
+
+    gShow(dlg)
+    gMainLoop()
+end procedure 
+main() 

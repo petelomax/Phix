@@ -27,13 +27,14 @@
         <br>
         <br>
         [DEV/tbc] Note that you can "mov Rn,[local]", which is actually encoded as "ldr Rn,[fp+k]", and likewise
-        "mov [local],Rn", which is actually encoded as "str Rn,[fp+k]", but you&rsquo;ll get a compilation error
+        "mov [local],Rn", which is actually encoded as "str Rn,[fp+k]", but you&apos;ll get a compilation error
         for static variables, and instead have to code "lea Rm,[static_var]", which is actually encoded as mov
         plus up to three orr, followed by "mov Rn,[Rm]". Similarly with "constant THREE = 3, FOUR = four()", you
         can code "mov Rn,[THREE]" which is the same as "mov Rn,3", while "mov Rn,THREE" gets a complaint that 
         you should use "lea Rn,[THREE]" instead, and the latter is mandatory for all dealings with FOUR.
         <br>
         <br>
+ <small>
  <small>
  <div class="arm_table">
 |Opcode.....................................|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|9|8|7|6|5|4|3|2|1|0|
@@ -79,11 +80,12 @@
 ?swp&lt;b&gt;[cond] Rd, Rm, [Rn]............|..cond.|0 0 0 1 0|B|SBZ|...Rn..|...Rd..|..SBZ..|1 0 0 1|...Rm..|
  </div>
  </small>
+ </small>
         </div>
 <br>
         <div class="clear"></div>
         <br>
-        P means pre/post indexing (trust me, you don&rsquo;t want to know!)<br>
+        P means pre/post indexing (trust me, you don&apos;t want to know!)<br>
         U means up/down ("")<br>
         W means write-back ("")<br>
         S on mov/mvn determines whether to update the flags, for the rest it is a to/from memory direction.<br>
@@ -99,14 +101,14 @@
         respectively), only FD is supported by Phix, for obvious reasons of avoiding all that insanity. For
         data transfer use LDMFD (not LDMIA) and STMFD (not STMDB), and for the stack just use push and pop [DEV??].<br>
         Likewise the W bit is always set under Phix, aka ! after Rn, to indicate it <i>is</i> updated.<br>
-        Since the all generated code is run in user mode, I don&rsquo;t think the hat(^) is relevant.<br>
+        Since the all generated code is run in user mode, I don&apos;t think the hat(^) is relevant.<br>
         For push and pop, Rn is pc, aka 13. I think P[erm, S??!!] should be 1 on the push, 0 on the pop, ditto !U??<br>
         <br>
         The mvn ("Move Not") opcode is the same as mov but with (all 32) bits inverted on storage, so, for instance, 
         "mov r0,-1" is technically invalid but automatically mapped by the compiler to "mvn r0,0", and "mov r1,#FF shl 8" 
         is logically the same as (the technically invalid) "mov r1,#FFFF00FF". Elsewhere, mvn is often documented as 
-        "Move Negative", which is just downright misleading, since it is a 1&rsquo;s compliment (aka not_bits), rather 
-        than a 2&rsquo;s compliment (as in '-'). 
+        "Move Negative", which is just downright misleading, since it is a 1&apos;s compliment (aka not_bits), rather 
+        than a 2&apos;s compliment (as in '-'). 
         The compiler happily converts eg mov r0,-42 into the appropriate mvn, and of course it is recommended you rely on that.
 
         <h3>examples</h3>
@@ -152,18 +154,18 @@
         whereas in ARM you have to load the variable address separately before you can load the contents.<br>
         Attempting ldr r0,[i] (or the matching str) results in a compilation error, as does ldr r1,r0.<br>
         There is no actual lea instruction in ARM assembly, it is purely a (Phix specific) pseudo-instruction.<br>
-        In practice, (eg) "lea r0,[i]" maps to "ldr r0,i", though I don&rsquo;t like or support that syntax.<br>
+        In practice, (eg) "lea r0,[i]" maps to "ldr r0,i", though I don&apos;t like or support that syntax.<br>
         You can also use more x86-like lea forms such as lea r0, [r1+r2*4], which maps to an add.<br>
         The compiler is at liberty to utilise all manner of dirty tricks to implement lea efficiently,<br>
         from constructing it in byte-sized chunks to using an offset from some other known address,<br>
         and even utilising the s0..s31 floating point registers as a first level alu register spill cache.
         The *2/4/8 forms of lea/ldr are implemented via lsl 1/2/3 (not much different to x86 then).<br>
         I have no immediate plans to support adr/ldr Rn,=literal pseudo-instructions, for now use mov/orr.<br>
-        Likewise I don&rsquo;t support any ldr Rn, <i>&lt;hll_var&gt;</i> or similar(/no-[]-register) forms:<br>
+        Likewise I don&apos;t support any ldr Rn, <i>&lt;hll_var&gt;</i> or similar(/no-[]-register) forms:<br>
         In fact and of course lea Rn, [<i>&lt;hll_var&gt;</i>] is my take and as far as I go with all that.<br>
-        The swp[b] instruction is noted as deprecated in ARMv6, so I&rsquo;ll not use/support it.<br>
+        The swp[b] instruction is noted as deprecated in ARMv6, so I&apos;ll not use/support it.<br>
 <!--
-        I don&rsquo;t [yet] support post-indexed addressing, eg ldr r3, [r1], 4, which would be
+        I don&apos;t [yet] support post-indexed addressing, eg ldr r3, [r1], 4, which would be
         equivalent to r3:=[r1]; r1 += 4.
         swp may not use pc, Rd and Rm may be the same, but Rn must not be the same as either.
 -->
@@ -178,7 +180,7 @@ offset mode using a scaled register as offset:  ldr   r3, [r1, r2, LSL#2]
 
 How to remember the different address modes in LDR/STR:
 
-If there is a !, it&rsquo;s prefix address mode:    ldr   r3, [r1, #4]!
+If there is a !, it&apos;s prefix address mode: ldr   r3, [r1, #4]!
                                                     ldr   r3, [r1, r2]!
                                                     ldr   r3, [r1, r2, LSL#2]!
 A base register in brackets by itself is postfix:   ldr   r3, [r1], #4
@@ -245,7 +247,7 @@ _start:
    stmdb sp!, {r0, r1}
    ldmia sp!, {r4, r5}
    bkpt
-Let&rsquo;s look at the disassembly of this code.
+Let&apos;s look at the disassembly of this code.
 
 azeria@labs:~$ as pushpop.s -o pushpop.o
 azeria@labs:~$ ld pushpop.o -o pushpop
@@ -266,7 +268,7 @@ Disassembly of section .text:
 
 -->
 <!--
-        Also note that instead of the x86 "lea edi,[ebx+esi*4-12]", you&rsquo;ll probably just want 
+        Also note that instead of the x86 "lea edi,[ebx+esi*4-12]", you&apos;ll probably just want 
         "sub r7, r0 shl 2, 12". <br>
 -->
 <!-- ??? (oh yes you can! 
@@ -407,7 +409,7 @@ Routine A branches with link (BL) to routine B.
 This saves its return address, the address of the next instruction, into R14 and then jumps to the routine B’s first instruction.
 Routine B is going to call another subroutine, routine C.
 Were it to immediately call routine C using BL then its existing stored R14 would be overwritten. So it stores its R14 to the stack to preserve it.
-It BL&rsquo;s to routine C. (R14 := return address, PC := Routine C).
+It BL&apos;s to routine C. (R14 := return address, PC := Routine C).
 Routine C does its work, then returns using MOV pc,r14.
 Its return value is passed back in R0. R1 is corrupted. (R0..R3 are allowed to be corrupted in AAPCS).
 We return to Routine B after the BL instruction.
@@ -620,7 +622,7 @@ MVN : Move Negative
                 dest = !op1
 MVN loads a value into the destination register, from another register, a shifted register, or an immediate value.
 The difference is the bits are inverted prior to moving, thus you can move a negative value into a register.
-Due to the way this works (two&rsquo;s complement), you want to move one less than the required number:
+Due to the way this works (two&apos;s complement), you want to move one less than the required number:
   MVN     R0, #4                  ; R0 = -5
 
   MVN     R0, #0                  ; R0 = -1
@@ -635,7 +637,7 @@ If the B suffix is set, then a byte will be transferred, otherwise a word will b
  </pre>
 <br>
 <br>
-(out of place/DEV, and I&rsquo;m probably <i>not</i>?? going to use this in Phix...):<br>
+(out of place/DEV, and I&apos;m probably <i>not</i>?? going to use this in Phix...):<br>
 (not halfword or doubleword, see A3.11.3 [if ever needed], ditto multiple/A3.12)<br>
 Load instructions load a single value from memory and write it to a general-purpose register.<br>
 Store instructions read a value from a general-purpose register and store it to memory.<br>
@@ -662,7 +664,7 @@ but if you cannot load and store them to the main memory, then... &lt;grin&gt;
 Single Data Transfer
 The single data transfer instructions (STR and LDR) are used to load and store single bytes 
 or words of data from/to main memory. The addressing is very flexible.
-First, we&rsquo;ll look at the instruction:
+First, we&apos;ll look at the instruction:
 
   LDR    R0, address
   STR    R0, address
@@ -769,15 +771,15 @@ A descending stack grows downwards in memory (ie, from the end of application sp
 The other forms simply describe the behaviour of the instruction, and mean Increment After, Increment Before, Decrement After, Decrement Before.
 
 RISC OS, by tradition, uses a Fully Descending stack. When writing in APCS assembler, it is common to set your stack pointer to the end of application space and 
-then use a Full Descending stack. If you are working with a high level language (either BASIC or C), then you don&rsquo;t get a choice. 
+then use a Full Descending stack. If you are working with a high level language (either BASIC or C), then you don&apos;t get a choice. 
 The stack pointer (traditionally R13) points to the end of a fully descending stack. You must continue this format, or create and manage your own stack (if 
-you&rsquo;re the sort of die-hard person that would do something like this!).
+you&apos;re the sort of die-hard person that would do something like this!).
 
 'base' is the register containing the address to begin with. Traditionally under RISC OS, the stack pointer is R13, though you can use any available register except R15.
 
 If you would like the stack pointer to be updated with the new register contents, simply set the write-back bit by following the stack pointer register with an '!'.
 
-The register list is given in {curly brackets}. It doesn&rsquo;t matter what order you specify the registers in, they are stored from lowest to highest. 
+The register list is given in {curly brackets}. It doesn&apos;t matter what order you specify the registers in, they are stored from lowest to highest. 
 As a single bit determines whether or not a register is saved, there is no point to trying to specify it twice.
 A side effect of this is that code such as:
 

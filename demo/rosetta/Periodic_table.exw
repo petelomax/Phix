@@ -1,0 +1,154 @@
+--
+-- Periodic_table.exw
+-- ==================
+--
+with javascript_semantics
+constant match_wp = false
+
+function prc(integer n)
+--   constant t = {0,2,10,18,36,54,86,118,119}
+     sequence t = {0,2,10,18,36,54,86,118,119}
+     integer row = abs(binary_search(n,t,true))-1,
+             col = n-t[row]
+     if col>1+(row>1) then
+         col = 18-(t[row+1]-n)
+         if match_wp then
+             if col<=2 then return {row+2,col+14} end if
+         else -- matches above ascii:
+             if col<=2+(row>5) then return {row+2,col+15} end if
+         end if
+     end if
+     return {row,col}
+end function
+
+sequence pt = repeat(repeat("   ",19),10)
+pt[1][2..$] = apply(true,sprintf,{{"%3d"},tagset(18)})  -- column headings
+for i=1 to 9 do pt[i+1][1] = sprintf("%3d",i) end for -- row numbers
+for i=1 to 118 do
+     integer {r,c} = prc(i)
+     pt[r+1][c+1] = sprintf("%3d",i)
+end for
+if not match_wp then -- (ascii only:)
+     pt[7][4] = " L*"
+     pt[8][4] = " A*"
+     pt[9][2..4] = {"Lanthanide:"}
+     pt[10][2..4] = {"  Actinide:"}
+end if
+printf(1,"%s\n",{join(apply(true,join,{pt,{"|"}}),"\n")})
+
+--/*
+{{out}}
+With match_wp set to true:
+<pre>
+   |  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 11| 12| 13| 14| 15| 16| 17| 18
+  1|  1|   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |  2
+  2|  3|  4|   |   |   |   |   |   |   |   |   |   |  5|  6|  7|  8|  9| 10
+  3| 11| 12|   |   |   |   |   |   |   |   |   |   | 13| 14| 15| 16| 17| 18
+  4| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31| 32| 33| 34| 35| 36
+  5| 37| 38| 39| 40| 41| 42| 43| 44| 45| 46| 47| 48| 49| 50| 51| 52| 53| 54
+  6| 55| 56| 71| 72| 73| 74| 75| 76| 77| 78| 79| 80| 81| 82| 83| 84| 85| 86
+  7| 87| 88|103|104|105|106|107|108|109|110|111|112|113|114|115|116|117|118
+  8|   |   | 57| 58| 59| 60| 61| 62| 63| 64| 65| 66| 67| 68| 69| 70|   |
+  9|   |   | 89| 90| 91| 92| 93| 94| 95| 96| 97| 98| 99|100|101|102|   |
+</pre>
+Or with match_wp false:
+<pre>
+   |  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 11| 12| 13| 14| 15| 16| 17| 18
+  1|  1|   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |  2
+  2|  3|  4|   |   |   |   |   |   |   |   |   |   |  5|  6|  7|  8|  9| 10
+  3| 11| 12|   |   |   |   |   |   |   |   |   |   | 13| 14| 15| 16| 17| 18
+  4| 19| 20| 21| 22| 23| 24| 25| 26| 27| 28| 29| 30| 31| 32| 33| 34| 35| 36
+  5| 37| 38| 39| 40| 41| 42| 43| 44| 45| 46| 47| 48| 49| 50| 51| 52| 53| 54
+  6| 55| 56| L*| 72| 73| 74| 75| 76| 77| 78| 79| 80| 81| 82| 83| 84| 85| 86
+  7| 87| 88| A*|104|105|106|107|108|109|110|111|112|113|114|115|116|117|118
+  8|Lanthanide:| 57| 58| 59| 60| 61| 62| 63| 64| 65| 66| 67| 68| 69| 70| 71
+  9|  Actinide:| 89| 90| 91| 92| 93| 94| 95| 96| 97| 98| 99|100|101|102|103
+</pre>
+===alternate===
+--*/
+constant ptxt = """
+ __________________________________________________________________________
+|    1   2   3   4   5   6   7   8   9  10  11  12  13  14  15  16  17  18 |
+|                                                                          |
+|1  H                                                                   He |
+|                                                                          |
+|2  Li  Be                                          B   C   N   O   F   Ne |
+|                                                                          |
+|3  Na  Mg                                          Al  Si  P   S   Cl  Ar |
+|                                                                          |
+|4  K   Ca  Sc  Ti  V   Cr  Mn  Fe  Co  Ni  Cu  Zn  Ga  Ge  As  Se  Br  Kr |
+|                                                                          |
+|5  Rb  Sr  Y   Zr  Nb  Mo  Tc  Ru  Rh  Pd  Ag  Cd  In  Sn  Sb  Te  I   Xe |
+|                                                                          |
+|6  Cs  Ba  L*  Hf  Ta  W   Re  Os  Ir  Pt  Au  Hg  Tl  Pb  Bi  Po  At  Rn |
+|                                                                          |
+|7  Fr  Ra  A+  Rf  Db  Sg  Bh  Hs  Mt  Ds  Rg  Cn  Nh  Fl  Mc  Lv  Ts  Og |
+|__________________________________________________________________________|
+|                                                                          |
+|                                                                          |
+|8  Lantanoidi* La  Ce  Pr  Nd  Pm  Sm  Eu  Gd  Tb  Dy  Ho  Er  Tm  Yb  Lu |
+|                                                                          |
+|9  Aktinoidi+  Ak  Th  Pa  U   Np  Pu  Am  Cm  Bk  Cf  Es  Fm  Md  No  Lr |
+|__________________________________________________________________________|
+"""
+
+function tablify(string ptxt)
+     sequence lines = split(ptxt,"\n"),
+              res = {}
+     for l in lines do
+         integer ln = l[2]-'0', c = 0
+         if ln>=1 and ln<=9 then
+             res = append(res,{})
+             for j=5 to length(l) by 4 do
+                 c += 1
+                 if l[j]>='A' and l[j+2]<=' ' then
+                     res[$] = append(res[$],{trim(l[j..j+1]),ln,c})
+                 end if
+             end for
+         end if
+     end for
+     res[7][3..2] = res[9]
+     res[6][3..2] = res[8]
+     res = join(res[1..7],{},{})
+     return res
+end function
+
+constant p_t = apply(true,sprintf,{{"(%s) is at %d, %d"},tablify(ptxt)})
+
+for e in {1,2,29,42,57,58,59,71,72,89,90,103,113} do
+     printf(1,"Element %d %s\n",{e,p_t[e]})
+end for
+--/*
+{{out}}
+<pre>
+Element 1 (H) is at 1, 1
+Element 2 (He) is at 1, 18
+Element 29 (Cu) is at 4, 11
+Element 42 (Mo) is at 5, 6
+Element 57 (La) is at 8, 4
+Element 58 (Ce) is at 8, 5
+Element 59 (Pr) is at 8, 6
+Element 71 (Lu) is at 8, 18
+Element 72 (Hf) is at 6, 4
+Element 89 (Ak) is at 9, 4
+Element 90 (Th) is at 9, 5
+Element 103 (Lr) is at 9, 18
+Element 113 (Nh) is at 7, 13
+</pre>
+
+Element 1 (H) is at 1, 1
+Element 2 (He) is at 1, 18
+Element 29 (Cu) is at 4, 11
+Element 42 (Mo) is at 5, 6
+Element 57 (La) is at 8, 4
+Element 58 (Ce) is at 8, 5
+Element 59 (Pr) is at 8, 6
+Element 71 (Lu) is at 8, 18
+Element 72 (L*) is at 6, 3
+Element 89 (Ra) is at 7, 2
+Element 90 (i+) is at 9, 3
+Element 103 (Md) is at 9, 16
+Element 113 (Ds) is at 7, 10
+
+--*/
+wait_key()

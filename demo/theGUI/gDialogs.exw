@@ -1,0 +1,73 @@
+--
+-- demo\theGUI\gDialogs.exw
+-- ========================
+--
+--  A couple of plain overlapping windows.
+--  Test escape quits one at a time, and make that handling the builtin-default,
+--  and a gDialog(bEsc:=false) does not close on escape [DONE].
+--  Note: on desktop/Phix the window should immediately vanish when close()'d,
+--        rather than hang around like an unresponsive ghost, possibly hiding
+--        some diagnostics info. Stay/remain under p2js is unimportant, since 
+--        the browser window (should not!) vanish on escape/closeWindow()!!
+--      TG_WINAPI: good
+--      TG_GTK: good
+--BUG: single esc closes both. [FIXED!! - bClose = .. and not bUp in tg_key_handler]
+--
+puts(1,"")
+--requires(64,true)
+--include theGUI.e
+include hGUI.e
+--gUseGTK()
+
+--printf(1,"%s\n",{gVersion()})
+
+atom t0 = time()
+
+function close_handler(gdx dlg)
+    bool bAllow = time()>t0+2
+--  bool bAllow = time()>t0+0.5
+--  ?{"close_handler",gGetAttribute(id,"TITLE"),bAllow}
+    ?{"close_handler",bAllow}
+--no help...
+--gSetAttribute(dlg,"CLOSE_ON_ESCAPE",bAllow)
+--?9/0
+    return iff(bAllow?TG_CONTINUE:TG_IGNORE)
+--  return iff(bAllow?TG_DEFAULT:TG_IGNORE)
+end function
+
+--gdx w1 = gDialog(NULL,NULL,`TITLE="I'm Number One!",SIZE=500x300`),
+gdx w1 = gDialog(NULL,NULL,`I'm Number One!`,`SIZE=500x300`),
+    w2 = gDialog(NULL,w1,`but I'm on top`,`SIZE=280x100`)
+--  w2 = gDialog(NULL,w1,`TITLE="but I'm on top",SIZE=280x100`)
+--gSetAttribute({w1,w2},"CLOSE_ON_ESCAPE",false)
+gShow(w1)
+gShow(w2) 
+--DEV...
+--?gGetAttribute(w1,`SIZE`)
+--?gGetAttribute(w2,`SIZE`)
+--gSetAttribute(w1,"VISIBLE",false)
+--gSetAttribute(w1,"VISIBLE",false)
+--gSetFocus(w1)
+gSetHandler({w1,w2},"CLOSE",close_handler)
+gMainLoop()
+--?"quitting"
+--wait_key()
+--/*
+"DEV: defer tg_Dialog() until gShow..."
+{"msg","WM_GETMINMAXINFO"}
+"tg_set_font"
+{"msg","WM_GETMINMAXINFO"}
+"wm_size"
+"DEV: defer tg_Dialog() until gShow..."
+{"msg","WM_GETMINMAXINFO"}
+"tg_set_font"
+{"msg","WM_GETMINMAXINFO"}
+"wm_size"
+"WM_SETFOCUS"
+"wm_size"
+"WM_SETFOCUS"
+"wm_size"
+"WM_SETFOCUS"
+{"close_handler",1}
+"quitting"
+--*/

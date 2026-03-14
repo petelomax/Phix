@@ -3,53 +3,81 @@
 -- ====================================================
 --
 with javascript_semantics
-enum X,Y
 
-function inside(sequence cp1, cp2, p)
-    return (cp2[X]-cp1[X])*(p[Y]-cp1[Y])>(cp2[Y]-cp1[Y])*(p[X]-cp1[X])
+function inside(sequence cs, ce, p)
+    atom {{c1x,c1y},{c2x,c2y},{px,py}} = {cs,ce,p}
+    return (c2x-c1x)*(py-c1y)>(c2y-c1y)*(px-c1x)
 end function
 
-function intersect(sequence cp1, cp2, s, e)
-    atom {dcx,dcy} = {cp1[X]-cp2[X],cp1[Y]-cp2[Y]},
-         {dpx,dpy} = {s[X]-e[X],s[Y]-e[Y]},
-         n1 = cp1[X]*cp2[Y]-cp1[Y]*cp2[X],
-         n2 = s[X]*e[Y]-s[Y]*e[X],
+function intersect_point(sequence cs, ce, s, e)
+    atom {{c1x,c1y},{c2x,c2y}} = {cs,ce},
+         {{sx,sy},{ex,ey}} = {s,e},
+         {dcx,dcy} = {c1x-c2x,c1y-c2y},
+         {dpx,dpy} = {sx-ex,sy-ey},
+         n1 = c1x*c2y-c1y*c2x,
+         n2 = sx*ey-sy*ex,
          n3 = 1/(dcx*dpy-dcy*dpx)
-    return {(n1*dpx-n2*dcx)*n3,(n1*dpy-n2*dcy)*n3}
+--  return {(n1*dpx-n2*dcx)*n3,(n1*dpy-n2*dcy)*n3}
+    return {round((n1*dpx-n2*dcx)*n3),round((n1*dpy-n2*dcy)*n3)}
 end function
 
-function sutherland_hodgman(sequence subjectPolygon, clipPolygon)
-    sequence cp1 = clipPolygon[$],
-      outputList = subjectPolygon
-    for i=1 to length(clipPolygon) do
-        sequence cp2 = clipPolygon[i],
-           inputList = outputList,
-                   s = inputList[$]
-        outputList = {}
-        for j=1 to length(inputList) do
-            sequence e = inputList[j]
-            if inside(cp1,cp2,e) then
-                if not inside(cp1,cp2,s) then
-                    outputList = append(outputList,intersect(cp1,cp2,s,e))
+function sutherland_hodgman(sequence p, c)
+    --- p is the poly, c is the clip, cp the clipped result
+    sequence cs = c[$],
+             cp = p
+    for i=1 to length(c) do
+        sequence ce = c[i],
+                 ip = cp,   -- (new input poly)
+                  s = ip[$] -- (start point)
+        cp = {}
+        for e in ip do      -- (end point)
+            if inside(cs,ce,e) then
+                if not inside(cs,ce,s) then
+                    cp = append(cp,intersect_point(cs,ce,s,e))
                 end if
-                outputList = append(outputList,e)
-            elsif inside(cp1,cp2,s) then
-                outputList = append(outputList,intersect(cp1,cp2,s,e))
+                cp = append(cp,e)
+            elsif inside(cs,ce,s) then
+                cp = append(cp,intersect_point(cs,ce,s,e))
             end if
             s = e
         end for
-        cp1 = cp2
+        cs = ce
     end for
-    return outputList
+    return cp
 end function
 
-constant subjectPolygon = {{50, 150}, {200, 50}, {350, 150}, {350, 300},
-                           {250, 300}, {200, 250}, {150, 350}, {100, 250},
-                           {100, 200}},
-         clipPolygon = {{100, 100}, {300, 100}, {300, 300}, {100, 300}}
+--constant p = {{50,150},{200,50},{350,150},{350,300},
+sequence p = {{50,150},{200,50},{350,150},{350,300},{250,300},
+              {200,250},{150,350},{100,250},{100,200}},
+         c = {{100,100},{300,100},{300,300},{100,300}}
 
-sequence clippedPolygon = sutherland_hodgman(subjectPolygon,clipPolygon)
+-- ok, but extraneous line...
+--p = {{161,137},{429,376},{558,192},{619,418},{281,431}}
+--c = {{183,391},{224,240},{610,107},{657,361},{429,376}}
 
+
+-- a)
+--p = {{200,100},{300,100},{300,400},{200,400}}
+--c = {{250,150},{350,150},{350,450},{250,450}}
+-- c)
+--p = {{200,325},{550,325},{550,400},{200,400}}
+--c = {{250,150},{350,150},{350,450},{250,450}}
+-- e)
+--p = {{200,100},{300,100},{500,380},{300,400},{200,400},{150,305}}
+--c = {{250,150},{350,150},{350,450},{250,450}}
+-- f)
+--p = {{300,230},{400,230},{600,510},{400,530},{300,530},{250,435}}
+--c = {{275,150},{420,150},{375,505},{335,600},{275,450},{250,250}}
+-- h)
+--p = {{300,100},{400,100},{600,380},{400,400},{300,400},{250,305}}
+--c = {{275,150},{420,150},{375,505},{335,600},{275,450},{250,250}}
+
+
+sequence cp = sutherland_hodgman(p,c)
+?cp
+
+
+--/*
 include pGUI.e
 
 Ihandle dlg, canvas
@@ -68,11 +96,11 @@ function redraw_cb(Ihandle /*ih*/)
     cdCanvasActivate(cddbuffer)
     cdCanvasClear(cddbuffer)
     cdCanvasSetForeground(cddbuffer, CD_CYAN)
-    draw_poly(subjectPolygon)
+    draw_poly(p)
     cdCanvasSetForeground(cddbuffer, CD_MAGENTA)
-    draw_poly(clipPolygon)
+    draw_poly(c)
     cdCanvasSetForeground(cddbuffer, CD_ORANGE)
-    draw_poly(clippedPolygon)
+    draw_poly(cp)
     cdCanvasFlush(cddbuffer)
     return IUP_DEFAULT
 end function
@@ -100,4 +128,48 @@ procedure main()
 end procedure
 
 main()
+--*/
+--/!*
+--requires(64,true)
+include theGUI.e
+--gUseGTK() -- silly dialog size
+
+procedure redraw(gdx canvas, integer w, h)
+-- note this is upside-down compared to the above...
+--/!*
+    gDrawPolygon(canvas,p,colour:=TG_CYAN)
+    gDrawPolygon(canvas,c,colour:=TG_MAGENTA)
+    gDrawPolygon(canvas,cp,colour:=TG_ORANGE)
+--*!/
+--/*
+-- ... unless, that is, we do this (but why bother?):
+    nested function flip_points(sequence poly, atom h)
+        sequence res = {}
+        for pt in poly do
+            atom {x,y} = pt
+            res = append(res,{x,h-y})
+        end for
+        return res
+    end nested function
+    gDrawPolygon(canvas,flip_points(p,h),colour:=TG_CYAN)
+    gDrawPolygon(canvas,flip_points(c,h),colour:=TG_MAGENTA)
+    gDrawPolygon(canvas,flip_points(cp,h),colour:=TG_ORANGE)
+--*/
+end procedure
+
+constant title = "Sutherland-Hodgman polygon clipping"
+--gdx canvas = gCanvas(redraw,"SIZE=400x400"),
+--gdx canvas = gCanvas(redraw),
+gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
+--  dlg = gDialog(canvas,title,"RESIZE=NO")
+--  dlg = gDialog(canvas,title,"RESIZE=NO,SIZE=400x400")
+--  dlg = gDialog(canvas,title,"RESIZE=YES,SIZE=400x400")
+    dlg = gDialog(canvas,title,"SIZE=400x400")  -- fine!
+-- ^^ Note that RESIZE is not documented, and I now know that it don't work! (even YES!)
+--  dlg = gDialog(canvas,title,"RESIZE=NO,SIZE=800x800")
+--gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
+gShow(dlg)
+gMainLoop()
+--*!/
+
 

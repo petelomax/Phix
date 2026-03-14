@@ -14,14 +14,14 @@
          </td>
          <td>
           <div style="display:flex;">
-           <div><a href="sequence.htm">sequence</a> res = apply<br>
+           <div><a href>sequence</a> res = apply<br>&nbsp;&nbsp;
                 <i>-- or --</i><span style="float:right">papply</span></div>
-           <div>                                               (<a href="object.htm">object</a> s,
-                                                                <a href="integer.htm">integer</a> fn,
-                                                                <a href="object.htm">object</a> userdata={})<br>
-                                                               (<a href="object.htm">object</a> s,
-                                                                <a href="integer.htm">integer</a> fn,
-                                                                <a href="object.htm">object</a> userdata={})
+           <div>                                               (<a href>object</a> s,
+                                                                <a href>integer</a> fn,
+                                                                <a href>object</a> userdata={})<br>
+                                                               (<a href>object</a> s,
+                                                                <a href>integer</a> fn,
+                                                                <a href>object</a> userdata={})
            </div>
           </div>
          </td>
@@ -32,11 +32,11 @@
          </td>
          <td>
             Apply a routine to every element of a sequence and in the case of apply() return a new sequence of the same size (or
-            max(length(userdata[i])) when s is <a href="logicops.htm#tf">true</a>).
+            max(length(userdata[i])) when s is <a href>true</a>).
             <br>
             <br>
-            s : the <a href="sequence.htm">sequence</a> to map, or <a href="logicops.htm#tf">true</a>/<a href="logicops.htm#tf">false</a><br>
-            fn : the (<a href="routine_id.htm">routine_id</a> of a) procedure to invoke or function to use as converter<br>
+            s : the <a href>sequence</a> to map, or <a href>true</a>/<a href>false</a><br>
+            fn : a procedure to invoke or function to use as a converter<br>
             userdata : an object optionally passed to each invocation of fn (see comments re the default),
             or if s is true/false then this specifies all the arguments.
          </td>
@@ -58,36 +58,38 @@
             <br>
             <br>
             fn should be a function that accepts at least one parameter, which gets each s[i].<br>
+            When the first arg of fn is integer or atom but s[1] is a sequence, it automatically applies itself recursively.<br>
+            <small>&nbsp;[Note that isn&apos;t possible when s is true|false, since it wouldn&apos;t know which elements of userdata need whole|split treatment.]</small><br>
             The optional userdata value of {} is only is passed to fn if it <i>needs</i> it: <br>
             should fn have no second parameter or the second parameter is optional (already has a default), it will 
             <b>not</b> get passed the above default. In fact, fn can have more than two parameters, as long as the
             third and later are all defaulted parameters. Such handling proved necessary to allow things like 
-            <a href="sprint.htm">sprint</a>() to be used. Obviously if you pass a non-{} userdata that disagrees in 
-            any way with fn&rsquo;s second parameter you will get an error. In contrast, and again obviously, even 
+            <a href>sprint</a>() to be used. Obviously if you pass a non-{} userdata that disagrees in 
+            any way with fn&apos;s second parameter you will get an error. In contrast, and again obviously, even 
             if the first parameter of fn is defaulted it <i>will</i> still get passed each s[i] in turn.
             <br>
             <br>
             Compatibility note: In the Euphoria version of apply, fn must always accept two parameters, and is always
             passed userdata as the second argument. <br>
-            Also, Euphoria does not allow an <a href="atom.htm">atom</a> in s, or have papply().
+            Also, Euphoria does not allow a <a href>bool</a> in s (as next), or have papply().
             <br>
             <br>
-            <b>apply, when s is <a href="logicops.htm#tf">true</a>:</b>
+            <b>apply, when s is <a href>true</a>:</b>
             <br>
             <br>
             fn should be a function that accepts length(userdata) parameters.<br>
-            if userdata[i] is an <a href="atom.htm">atom</a>, it is passed to every call.<br>
+            if userdata[i] is an <a href>atom</a>, it is passed to every call.<br>
             if userdata[i] is length(1), then userdata[i][1] is passed to every call.<br>
             otherwise (n:=)length(userdata[i]) must match all other non-atom/length(1) elements of it.<br>
             fn is then invoked n times (can be 0), and always with exactly length(userdata) args.
             <br>
             <br>
-            <b>apply, when s is <a href="logicops.htm#tf">false</a>:</b>
+            <b>apply, when s is <a href>false</a>:</b>
             <br>
             <br>
             fn should be a function that can accept length(userdata[i]) parameters for all elements of userdata, <br>
             and is passed each in turn, aka invoked length(userdata) times, without hindrance or modification, except as follows.<br>
-            Any <a href="atom.htm">atom</a> or <a href="string.htm">string</a> elements of userdata are treated as/converted to a 
+            Any <a href>atom</a> or <a href>string</a> elements of userdata are treated as/converted to a 
             length-one sequence, which is then passed as a single argument to fn.<br>
             Shorter elements of userdata will result in/require more naturally defaulted arguments than longer elements.
             <br>
@@ -127,10 +129,10 @@ function plusn(integer n=0, m=5) return n+m end function
 <font color="#0000FF">?</font><font color="#7060A8">sprint</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)             </font><font color="#000080"><i> -- displays "{1,2,3,4,5}"</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#7060A8">sprint</font><font color="#0000FF">)       </font><font color="#000080"><i> -- displays {"1","2","3","4","5"}</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">sprint</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- displays {"1","2","3","4","5"}</i></font>
-<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"%d"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {"1","2","3","4","5"}</i></font>
-<font color="#7060A8">papply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">printf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"%d,"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 1,2,3,4,5,</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{</font><font color="#008000">"%d"</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {"1","2","3","4","5"}</i></font>
+<font color="#7060A8">papply</font><font color="#0000FF">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">printf</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"%d,"</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">s</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- 1,2,3,4,5,</i></font>
 <font color="#008080">function</font><font color="#000000"> plusn</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> n</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000"> m</font><font color="#0000FF">=</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#008080"> return</font><font color="#000000"> n</font><font color="#0000FF">+</font><font color="#000000">m</font><font color="#008080"> end function</font>
-<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#004600">false</font><font color="#0000FF">,</font><font color="#000000">plusn</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#000000">3</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {3,8,9,5}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">apply</font><font color="#0000FF">(</font><font color="#004600">false</font><font color="#0000FF">,</font><font color="#000000">plusn</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">3</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#008080">{}</font><font color="#800000">}</font><font color="#0000FF">) </font><font color="#000080"><i> -- {3,8,9,5}</i></font>
 </pre>
          </td>
         </tr>
@@ -143,22 +145,23 @@ function plusn(integer n=0, m=5) return n+m end function
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
-          <a href="filter.htm">filter</a>
+          <a href>filter</a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
           </a>
          </td>
          <td>
-            Passing any <a href="atom.htm">atom</a> value in s other than <a href="logicops.htm#tf">true</a> or 
-            <a href="logicops.htm#tf">false</a> triggers a fatal error.
+            Passing any <a href>atom</a> value in s other than <a href>true</a> or 
+            <a href>false</a> triggers a fatal error.
             <br>
             <br>
             Judicious use of functional programming style techniques can both shorten code and greatly improve clarity.<br>
@@ -171,8 +174,8 @@ function plusn(integer n=0, m=5) return n+m end function
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-
+       <div style="clear:both;height:1px;"> </div>
+       <br>
       </div>
      </stripped>
     </get>

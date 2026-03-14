@@ -1,0 +1,99 @@
+--
+-- demo\theGUI\win_windows.exw
+-- ===========================
+--
+--  Simple parent/model child demo (port of win01a.exw to theGUI.WINAPI.e)
+--
+?""
+--requires(64,true)
+include theGUI.WINAPI.e
+
+--constant wyte = CreateSolidBrush(0x00E0FFFF) -- TG_PARCHMENT (as bgr)
+
+function WndProc_cb(atom hWnd, msg, wParam, lParam)
+    switch msg do
+--/*
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, false)
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd) -- (also sets pRECT)
+
+            FillRect(hdc, pRECT, wyte)
+
+            -- Draw X
+            // Draw the first diagonal \
+            MoveToEx(hdc, 0, 0, NULL);      LineTo(hdc, w-1, h-1)
+            // Draw the second diagonal /
+            MoveToEx(hdc, w-1, 0, NULL);    LineTo(hdc,   0, h-1)
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+--*/
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then -- (and bEsc)
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_CLOSE then
+--          if modal(hWnd) then
+            atom pHWnd = GetParent(hWnd)
+            if pHWnd then
+                EnableWindow(pHWnd,true)
+            end if
+
+        case WM_DESTROY:
+--          if id=PrimaryWindowID then
+            if GetParent(hWnd)=NULL then
+                PostQuitMessage(0)
+                return 0
+            end if
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc = call_back(WndProc_cb)
+
+procedure main()
+    string classname = "Window",
+           caption1 = "I'm Number One!",
+           caption2 = "but I'm on top"
+    RegisterClassEx(classname,WndProc)
+
+    atom dwExStyle = 0,
+         style = WS_OVERLAPPEDWINDOW,
+         sty2e = WS_OVERLAPPEDWINDOW+WS_POPUP,
+         x1 = 100,  x2 = 140,
+         y1 = 100,  y2 = 140,
+         w1 = 500,  w2 = 300,
+         h1 = 300,  h2 = 100,
+         hMenu = NULL,
+         hInst = NULL,
+         pCreateArgs = NULL,
+         hWnd = CreateWindowEx(dwExStyle,classname,caption1,style,x1,y1,w1,h1,NULL,hMenu,hInst,pCreateArgs),
+         h2nd = CreateWindowEx(dwExStyle,classname,caption2,sty2e,x2,y2,w2,h2,hWnd,hMenu,hInst,pCreateArgs)
+-- aside: makes WM_CLOSE terminate the message loop (cos you're not following the rules):
+--       h2nd = CreateWindowEx(dwExStyle,classname,caption2,sty2e,x2,y2,w2,h2,NULL,hMenu,hInst,pCreateArgs)
+
+    ShowWindow(hWnd)
+    ShowWindow(h2nd)
+--  if modal(w2) then
+        EnableWindow(hWnd, false)
+--  end if
+
+    -- aside: don't seem to actually need these here, not that they hurt any.
+    UpdateWindow(hWnd)
+    UpdateWindow(h2nd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+?"done"
+wait_key()
+

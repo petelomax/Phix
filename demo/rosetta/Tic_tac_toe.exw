@@ -8,6 +8,204 @@
 
 with javascript_semantics
 --without debug
+--requires("1.0.5")
+puts(1,"")
+--include theGUI.e
+include ..\theGUI\hGUI.e -- fine... but wrong size on GTK...
+--include builtins\VM\pprntfN.e
+--include builtins\VM\pcfunc.e
+--include builtins\pfile.e
+--include builtins\scanf.e
+--include builtins\pdir.e
+--include builtins\penv.e
+--with debug
+gUseGTK() -- wrong size... [FIXED]
+
+constant title = "Tic Tac Toe"
+sequence board = repeat(' ',9)  -- {' '/'X'/'O'}
+bool human = false  -- (flipped in new_game)
+bool game_over = false
+constant play_dumb = false
+gdx dlg
+
+-- saved in redraw() for check_position():
+integer cx,cy,  -- board centre
+        d,      -- tile spacing
+        h       -- tile size/radius
+
+procedure redraw(gdx canvas, integer cw, ch)
+    d = floor(min(cw,ch)/8)
+    h = floor(d*2/3)
+    cx = floor(cw/2)
+    cy = floor(ch/2)
+
+    gSetAttribute(canvas,"FGCLR",TG_BLUE)
+    gSetAttribute(canvas,`LINEWIDTH`,5)
+    integer d3 = 3*d
+    gDrawLine(canvas,cx-d,cy-d3,cx-d,cy+d3)
+    gDrawLine(canvas,cx+d,cy-d3,cx+d,cy+d3)
+    gDrawLine(canvas,cx-d3,cy-d,cx+d3,cy-d)
+    gDrawLine(canvas,cx-d3,cy+d,cx+d3,cy+d) 
+    integer pdx = 1
+    for y=+1 to -1 by -1 do
+        integer my = cy+y*2*d
+        for x=-1 to +1 do
+            integer mx = cx+x*2*d
+            integer mark = board[pdx]
+            if mark='X' then
+                gDrawLine(canvas,mx-h,my-h,mx+h,my+h)
+                gDrawLine(canvas,mx-h,my+h,mx+h,my-h)
+            elsif mark='O' then
+                gDrawCircle(canvas,mx,my,h)
+            end if
+            pdx += 1
+        end for
+    end for
+end procedure
+
+constant wins = {{1,2,3},{4,5,6},{7,8,9},{1,4,7},{2,5,8},{3,6,9},{1,5,9},{3,5,7}}
+
+function check_winner()
+    for w=1 to length(wins) do
+        integer {i,j,k} = wins[w],
+                  mark = board[i]
+        if mark!=' ' and mark=board[j] and mark=board[k] then
+            return mark
+        end if
+    end for
+    return 0
+end function
+
+integer best_i
+
+function test_move(integer mark, depth)
+    integer score = check_winner(),
+            best = -1, changed = 0
+    if score!=0 then return iff(score=mark?1:-1) end if
+    for i=1 to 9 do
+        if board[i]=' ' then 
+            changed = mark
+            board[i] = mark
+            score = -test_move('O'+'X'-mark, depth + 1)
+            board[i] = ' '
+            if score>best then
+                if depth=0 then
+                    best_i = i;
+                end if
+                best = score;
+            end if
+        end if
+    end for
+    return iff(changed!=0?best:0)
+end function
+
+procedure check_game_over()
+    integer win = check_winner()
+    if win or not find(' ',board) then
+        string winner = iff(win='O'?"You win!",
+                        iff(win='X'?"Computer wins"
+                                   :"Draw"))
+        gSetAttribute(dlg,"TITLE","%s - %s",{title,winner})
+        game_over = true
+    end if
+end procedure
+
+procedure play_move(integer move)
+    if move then
+        assert(board[move]=' ')
+        board[move] = 'O'
+        check_game_over()
+        if not game_over then
+            human = false
+            if play_dumb then
+                sequence s = find_all(' ',board)
+                best_i = s[rand(length(s))]
+            else
+                {} = test_move('X', 0)
+                assert(board[best_i]=' ')
+            end if
+            board[best_i] = 'X'
+            check_game_over()
+            human = not game_over
+        end if
+    end if
+end procedure
+
+procedure new_game()
+    board = repeat(' ',9)
+    human = not human
+    if not human then
+        board[rand(9)] = 'X'
+        human = true
+    end if
+    game_over = false
+end procedure
+
+function check_position(integer px, py)
+    --
+    -- check if x,y is on a legal move.
+    -- uses cy,cx,d,h as saved by redraw().
+    --
+    integer pdx = 1
+    for y=+1 to -1 by -1 do
+        integer my = cy+y*2*d
+        for x=-1 to +1 do
+            integer mx = cx+x*2*d
+            if  px>=mx-h and px<=mx+h
+            and py>=my-h and py<=my+h then
+                integer mark = board[pdx]
+                return iff(mark==' '?pdx:0)
+            end if
+            pdx += 1
+        end for
+    end for
+    return 0
+end function
+
+procedure click(gdx /*canvas*/, sequence status, integer x, y)
+    if status[1..2]=`LR` then
+        if game_over then
+            new_game()
+        else
+            play_move(check_position(x,y))
+        end if
+        gRedraw(dlg)
+    end if
+end procedure
+
+constant help_text = """
+Tic Tac Toe, also known as Noughts and Crosses.
+
+The aim is to get three Os (or Xs) in a row.
+
+Human(O) plays first, as does loser. After a draw first player alternates.
+Computer(X) plays a random move first, to make it more interesting.
+Setting the constant play_dumb to true disables the internal AI.
+
+Once a game is over click anywhere on the board to start a new game.
+"""
+
+-- Other possible keys:
+-- Q - quit (end program) [==X?]
+-- C - concede (start new game)
+procedure key(gdx /*dlg*/, integer c)
+    if c=VK_F1 then 
+        ?"gMsgBox(dlg,title,help_text)"
+    end if
+end procedure
+
+gdx canvas = gCanvas(redraw,"SIZE=800x800")
+--gdx canvas = gCanvas(redraw)
+dlg = gDialog(canvas,title,`MINSIZE=245x180`)
+--dlg = gDialog(canvas,title,`SIZE=804x864,MINSIZE=245x180`)
+--dlg = gDialog(canvas,title,`SIZE=802x832,MINSIZE=245x180`)
+gSetHandler(canvas, `CLICK`, click)
+gSetHandler(dlg, `KEY`, key)
+new_game()
+gMainLoop(dlg)
+
+--/*
+--without debug
 include pGUI.e
 --include builtins\VM\pprntfN.e
 --include builtins\VM\pcfunc.e
@@ -25,16 +223,16 @@ constant play_dumb = false
 Ihandle dlg
 
 -- saved in redraw_cb() for check_position():
-integer cw,ch,  -- board centre
+integer cx,cy,  -- board centre
         d,      -- tile spacing
         h       -- tile size/radius
 
 function redraw_cb(Ihandle ih)
-    {cw,ch} = IupGetIntInt(ih, "DRAWSIZE")
-    d = floor(min(cw,ch)/8)
+    {cx,cy} = IupGetIntInt(ih, "DRAWSIZE")
+    d = floor(min(cx,cy)/8)
     h = floor(d*2/3)
-    cw = floor(cw/2)
-    ch = floor(ch/2)
+    cx = floor(cx/2)
+    cy = floor(cy/2)
 
     IupGLMakeCurrent(ih)
     cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
@@ -43,15 +241,15 @@ function redraw_cb(Ihandle ih)
     cdCanvasSetForeground(cddbuffer,CD_BLUE)
     cdCanvasSetLineWidth(cddbuffer,10)
     integer d3 = 3*d
-    cdCanvasLine(cddbuffer,cw-d,ch-d3,cw-d,ch+d3)
-    cdCanvasLine(cddbuffer,cw+d,ch-d3,cw+d,ch+d3)
-    cdCanvasLine(cddbuffer,cw-d3,ch-d,cw+d3,ch-d)
-    cdCanvasLine(cddbuffer,cw-d3,ch+d,cw+d3,ch+d)
+    cdCanvasLine(cddbuffer,cx-d,cy-d3,cx-d,cy+d3)
+    cdCanvasLine(cddbuffer,cx+d,cy-d3,cx+d,cy+d3)
+    cdCanvasLine(cddbuffer,cx-d3,cy-d,cx+d3,cy-d)
+    cdCanvasLine(cddbuffer,cx-d3,cy+d,cx+d3,cy+d)
     integer pdx = 1
     for y=+1 to -1 by -1 do
-        integer my = ch+y*2*d
+        integer my = cy+y*2*d
         for x=-1 to +1 do
-            integer mx = cw+x*2*d
+            integer mx = cx+x*2*d
             integer mark = board[pdx]
             if mark='X' then
                 cdCanvasLine(cddbuffer,mx-h,my-h,mx+h,my+h)
@@ -168,13 +366,13 @@ end procedure
 function check_position(integer px, py)
 --
 -- check if x,y is on a legal move.
--- uses ch,cw,d,h as saved by redraw_cb().
+-- uses cy,cx,d,h as saved by redraw_cb().
 --
     integer pdx = 1
     for y=-1 to +1 do
-        integer my = ch+y*2*d
+        integer my = cy+y*2*d
         for x=-1 to +1 do
-            integer mx = cw+x*2*d
+            integer mx = cx+x*2*d
             if  px>=mx-h and px<=mx+h
             and py>=my-h and py<=my+h then
                 integer mark = board[pdx]
@@ -250,7 +448,7 @@ procedure main()
 end procedure
  
 main()
-
+--*/
 --/* console version
 without js  -- uses wait_key()
 

@@ -1,0 +1,77 @@
+﻿--
+-- demo\theGUI\PhixLogo.exw
+-- ========================
+--
+--  Create a phix logo (see also gDrawPolygon.exw)
+--
+--  Improvements welcome:
+--  red edge artifacts under WinAPI (an tg_WinAPI_rgb_to_bgr() amiss?) [FIXED!]
+--  blurry edge fills under GTK (hmm, kinda keeps that hand-drawn feel)
+--  should probably dot the i...
+--  resize? rotate?
+--  
+requires(64,true) -- DEV, why larger[?] on GTK3??
+with javascript_semantics
+include theGUI.e
+--include backup\theGUI.4827.e -- better...
+--include backup\theGUI.4881.e -- better...
+--include backup\theGUI.4904.e -- better...
+--include backup\theGUI.4910.e -- better
+--include backup\theGUI.4913.e -- better
+--include backup\theGUI.4913.e -- better
+--include backup\theGUI.4916.e -- better
+--include backup\theGUI.4919.e -- bad (UGH, GOTTA CACHE PENS!) [FOR NOW FIXED BY IGNORING CXCF_REPEN] -- and now tg_WinAPI_get_pen(), yay!
+--include backup\theGUI.4940.e -- bad
+gUseGTK()
+
+-- Manually copied from gDrawPolygon.exw, after much manual fiddling, here in colour!:
+constant polyb = {{388,24}, {251,177}, {229,159}, {347,24}, {},
+--                {168,381}, {134,382}, {194,318,201,307,303,198}, {160,265}, {185,227,221,205,359,193}},
+                  {168,381}, {134,382}, {175,338,187,324,303,198}, {169,260}, {185,227,221,205,346,193}},
+         polyh = {{298,124}, {71,381}, {34,381}, {276,105}},
+         polyp = {{243,216}, {387,377}, {349,378}, {18,24,424,1,393,193}, {}, 
+                  {219,190}, {82,48,335,52,380,154}},
+         polyx = {{282,381,142,395,383,225}, {322,216,454,199,214,364}}
+--                {{243,216}, {387,377}, {349,378}, {18,24,424,1,393,193}, {}, 
+--                 {219,190}, {82,48,335,52,380,154}, {}, 
+--                 {298,124}, {71,381}, {34,381}, {276,105}, {},
+--                 {388,24}, {251,177}, {229,159}, {347,24}, {}, 
+--                 {168,381}, {134,382}, {175,338,187,324,303,198}, {169,260}, {185,227,221,205,346,193}, {},
+--                 {282,381,142,395,383,225}, {322,216,454,199,214,364}}
+
+
+function pmul(sequence p, atom m, wa, ha)
+    integer lp = length(p)
+    sequence res = repeat(0,lp)
+    for i,pi in p do
+        integer lpi = length(pi)
+        sequence ri = repeat(0,lpi)
+        for j=1 to lpi by 2 do
+            ri[j] = pi[j]*m + wa
+            ri[j+1] = pi[j+1]*m + ha
+        end for
+        res[i] = ri
+    end for
+    return res
+end function
+
+procedure redraw(gdx canvas, integer w, h)
+    atom mw = min(w,h), m = mw/400, wa = (w-mw)/2, ha = (h-mw)/2
+    gDrawPolygon(canvas,pmul(polyb,m,wa,ha),colour:=#009800) -- back part of h
+    gDrawPolygon(canvas,pmul(polyp,m,wa,ha),colour:=TG_DARK_GREEN) -- whole p
+    gDrawPolygon(canvas,pmul(polyh,m,wa,ha),colour:=#009800) -- rest of the h
+--  gDrawPolygon(canvas,pmul(polyx,m,wa,ha),colour:=TG_DARK_GREEN) -- the x
+    gDrawPolygon(canvas,pmul(polyx,m,wa,ha),colour:=#009000) -- the x
+end procedure
+
+-- A default size of 235x235 might be best?
+--gdx canvas = gCanvas(redraw,`SIZE=400x400`),
+gdx canvas = gCanvas(redraw,`SIZE=120x120`),
+    dialog = gDialog(canvas,`PhixLogo`)
+--gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
+--gSetAttribute(canvas,"BGCLR",TG_LIGHT_PARCHMENT)
+gSetAttribute(canvas,"BGCLR",TG_WHITE)
+--gSetAttribute(canvas,"WU_BLEND",true)
+gShow(dialog)
+gMainLoop()
+

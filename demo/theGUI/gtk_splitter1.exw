@@ -1,0 +1,234 @@
+﻿--
+-- demo\theGUI\gtk_splitter1.exw
+-- =============================
+--
+--  A resizeable splitter on GTK2/3...
+--  Will only be of use if /all/ elements|containers in theGUI end up canvas-based.
+--   (Note: Unlike WinAPI, the single canvas is /not/ "fake" here...)
+--
+--requires(64,true)
+include theGUI.GTK.e
+
+bool clip = false -- type 'C' to toggle
+
+enum CX_SPLIT_HWIDTH,
+     CX_SPLIT_RATIO, -- (left) 0.0..1.0 
+     CX_SPLIT_DRAGG, -- t/f
+     CX_SPLIT_LEN = $
+
+sequence ctrl_xtra
+
+local function draw_cb(atom widget, cairo, integer id)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer w = get_struct_field(idGdkRectangle,pRECT,"width"),
+            h = get_struct_field(idGdkRectangle,pRECT,"height"),
+           hw = ctrl_xtra[id][CX_SPLIT_HWIDTH]
+    atom l = floor((w - hw) * ctrl_xtra[id][CX_SPLIT_RATIO]),
+         m = floor(l+hw/2),
+         r = l+hw
+
+    if clip then
+        cairo_rectangle(cairo,w/8,h/8,w*0.75,h*0.75)
+        cairo_clip(cairo)
+    end if
+
+    // Left pane
+    cairo_set_source_rgb(cairo, 0.9, 0.9, 1.0);
+--  cairo_set_source_rgb(cairo, 1, 1, 1);
+    cairo_rectangle(cairo, 0, 0, l, h);
+    cairo_fill(cairo);
+
+    // Right pane
+    cairo_set_source_rgb(cairo, 1.0, 0.9, 0.9);
+    cairo_rectangle(cairo, r, 0, w-r, h);
+    cairo_fill(cairo);
+
+    // Left X
+    cairo_set_source_rgb(cairo, 0, 0, 0)
+    cairo_set_line_width(cairo,0.5)
+    cairo_move_to(cairo, 0, 0)
+    cairo_line_to(cairo, l, h)
+    cairo_move_to(cairo, l, 0)
+    cairo_line_to(cairo, 0, h)
+    // Right X
+    cairo_move_to(cairo, r, 0)
+    cairo_line_to(cairo, w, h)
+    cairo_move_to(cairo, w, 0)
+    cairo_line_to(cairo, r, h)
+    cairo_stroke(cairo)
+
+    // Splitter bar
+--  cairo_set_source_rgb(cairo, 1, 1, 1);
+--  cairo_set_source_rgb(cairo, 0.75, 0.75, 0.75);
+    cairo_set_source_rgb(cairo, 0.85, 0.85, 0.85);
+--  cairo_set_source_rgb(cairo, 0.5, 0.5, 0.5);
+    cairo_rectangle(cairo, l, 0, hw, h);
+--  cairo_rectangle(cairo, l, 0, hw+1, h);
+    cairo_fill(cairo);
+    cairo_set_source_rgb(cairo, 0.2, 0.2, 0.2)
+    cairo_set_dash(cairo,{2,2})
+    cairo_move_to(cairo, m, 0)
+    cairo_line_to(cairo, m, h)
+    cairo_stroke(cairo)
+
+//TEST/TEMP:
+    cairo_set_dash(cairo,{1,1})
+    cairo_set_source_rgba(cairo, 0, 0, 0, 1)
+--if hz or vt...?
+    cairo_set_antialias(cairo, CAIRO_ANTIALIAS_NONE)
+
+--hz:
+--  cairo_move_to(cairo, 10.5, 10); // Starting point (x1, y1)
+--  cairo_line_to(cairo, 200.5, 10); // Ending point (x2, y2)
+--vt: (ffs!)
+--  cairo_move_to(cairo, 10, 10.5); // Starting point (x1, y1)
+--  cairo_line_to(cairo, 10, 100.5); // Ending point (x2, y2)
+--diag:
+--  cairo_set_line_width(cairo,1)
+--  cairo_move_to(cairo, 10.3536, 10.3536);
+--  cairo_line_to(cairo, 20.3536, 20.3536);
+--  cairo_move_to(cairo, 10.8536, 10.8536);
+--  cairo_line_to(cairo, 20.8536, 20.8536);
+--  cairo_move_to(cairo, 10, 10);
+--  cairo_line_to(cairo, 20, 20);
+    atom x1 = 10, y1 = 10,
+         x2 = 100, y2 = 10 -- hz
+--       x2 = 10, y2 = 100 -- vt
+--       x2 = 100, y2 = 50 -- diag (meh)
+--       theta = atan2(x2-x1,y2-y1),
+--       xo = 0.5 * sin(theta),
+--       yo = 0.5 * cos(theta)
+--?{xo,yo}
+--  cairo_move_to(cairo, x1+xo, y1+yo);
+    cairo_move_to(cairo, x1, y1);
+--  cairo_line_to(cairo, x2+xo, y2+yo);
+    cairo_line_to(cairo, x2, y2);
+    cairo_stroke(cairo);
+
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return true
+end function
+constant draw = call_back({'+',draw_cb})
+
+local function expose_event(atom widget, /*event*/, integer id)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = gtk_widget_get_window(widget),
+       cairo = gdk_cairo_create(win)
+    integer res = draw_cb(widget,cairo,id)
+    cairo_destroy(cairo)
+    return res
+end function
+constant expose_cb = call_back({'+',expose_event})
+
+local function motion_cb(atom widget, event, integer id)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer w = get_struct_field(idGdkRectangle,pRECT,"width"),
+            x = get_struct_field(idGdkEventButton,event,"x")
+    if ctrl_xtra[id][CX_SPLIT_DRAGG] then
+        ctrl_xtra[id][CX_SPLIT_RATIO] = max(0,min(1,x/w))
+        gtk_widget_queue_draw(widget)
+    else
+        integer hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+                 l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+                 r = l+hw
+        atom gdk_window = gtk_widget_get_window(widget)
+        if x>=l and x<=r then
+            atom display = gdk_window_get_display(gdk_window),
+              col_resize = gdk_cursor_new_from_name(display, "col-resize")
+            gdk_window_set_cursor(gdk_window,col_resize)
+        else
+            gdk_window_set_cursor(gdk_window,NULL)
+        end if
+    end if
+    return TRUE;
+end function
+constant on_motion = call_back({'+',motion_cb})
+
+function button_press_cb(atom widget, event, integer id)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer x = get_struct_field(idGdkEventButton,event,"x"),
+            w = get_struct_field(idGdkRectangle,pRECT,"width"),
+           hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+            l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+            r = l+hw
+    if get_struct_field(idGdkEventButton,event,"button")==1
+    and x>=l and x<=r then
+        ctrl_xtra[id][CX_SPLIT_DRAGG] = true
+        gtk_widget_grab_focus(widget)
+        gtk_grab_add(widget)
+    end if
+    return TRUE;
+end function
+constant on_button_press = call_back({'+',button_press_cb})
+
+function button_release_cb(atom widget, event, integer id)
+    if get_struct_field(idGdkEventButton,event,"button")==1 
+    and ctrl_xtra[id][CX_SPLIT_DRAGG] then
+        ctrl_xtra[id][CX_SPLIT_DRAGG] = false
+        gtk_grab_remove(widget)
+    end if
+    return true
+end function
+constant on_button_release = call_back({'+',button_release_cb})
+
+local function key_cb(atom winmain, event, /*data*/) -- (GTK only)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        c_proc(x_gtk_main_quit)
+    elsif upper(keyval)='C' then
+        clip = not clip
+        gtk_widget_queue_draw(winmain)
+    end if
+    return true
+end function
+global constant key = call_back({'+',key_cb})
+
+
+procedure main()
+    gtk_init()
+
+    integer splitter = 1 -- (gdx)
+    object spx = repeat(0,CX_SPLIT_LEN)
+    spx[CX_SPLIT_RATIO] = 0.5
+    spx[CX_SPLIT_HWIDTH] = 5
+    ctrl_xtra = {spx}
+    spx = 0
+
+    atom window = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(window, "Resizable Single Canvas Split")
+--  gtk_window_set_default_size(window, 600, 400)
+    gtk_window_set_default_size(window, 238, 48) -- for 240x80...
+
+    integer id = splitter
+    g_signal_connect_data(window,"destroy",gtk_main_quit,id)
+    g_signal_connect_data(window,"key_press_event",key,id)
+
+    atom area = gtk_drawing_area_new()
+    {string signal, atom cb} = iff(bGTK2?{"expose_event", expose_cb}:{"draw", draw})
+    g_signal_connect_data(area,signal,cb,id)
+
+    atom mask = or_all({GDK_BUTTON_PRESS_MASK,
+                        GDK_BUTTON_RELEASE_MASK,
+                        GDK_POINTER_MOTION_MASK})
+    gtk_widget_add_events(area,mask)
+
+    g_signal_connect_data(area,"motion-notify-event",on_motion,id)
+    g_signal_connect_data(area,"button-press-event",on_button_press,id)
+    g_signal_connect_data(area,"button-release-event",on_button_release,id)
+
+    gtk_container_add(window, area)
+    gtk_widget_show_all(window)
+    gtk_main()
+end procedure
+main()
+
+--/*
+In GTK2:
+Use expose-event instead of draw and GdkDrawable for drawing. [done]
+Replace gtk_widget_queue_draw() with gtk_widget_queue_draw_area() as needed.
+Use gdk_window_get_geometry() instead of configure-event.
+GTK2 doesn’t support gdk_cursor_new_from_name, so use gdk_cursor_new(GDK_SB_H_DOUBLE_ARROW). [polyfilled-ish]
+--*/

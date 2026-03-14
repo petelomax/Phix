@@ -1,0 +1,666 @@
+--
+-- demo\theGUI\hList.exw
+-- =====================
+--
+--  A simple gList demo, but in pure hll code. (see also/contrast with gList.exw)
+--X DEV: Scrollbars do nowt @ 240x80, methinks a +/-1 or round() is missing....
+--X ***  Actually, so much missing here this is effectively rather useless...  ***
+--X UPDATE: I plan to rewrite/replace this when actually needed, but not before.
+--
+--  All bugs/omissions in gList() should be fixed here first, then copied to theGUI.e,
+--  and hopefully transpiling this will make getting such changes into theGUI.js easier.
+--  [I rather doubt there will ever be a fully automated way to deal with that, bicbw]
+--
+--  Note we simply do not bother with any form of paranormalisation, and direct use of 
+--  REDRAW/KEY/CLICK/MOUSEMOVE prevents any custom use here, whereas a real gList has/
+--  invokes tg_redraw_list/tg_list_key/tg_list_hover/tg_list_click directly. 
+--  Note that since theGUI does not know it's a LIST and thinks it's a plain CANVAS,
+--       you'll need to use shift + MOUSEWHEEL to get the correct/expected effect.
+--  I suppose this tests everything works fine when custom handlers are absent, and of 
+--  course the latter should be tested in gList.exw rather than here.
+-- NB/DEV spanners scrollbar handling... test/fix, esp on a plain gCanvas...
+--  gSetHandler(list,`CLICK`,tg_list_click)
+--  also, this does not have anything to match (eg) tg_scrollbar_key_handler(), or
+--                 tg_scrollbar_timer_action(), or tg_canvas_wheel_handler(), ...
+--
+--  Likewise the gList-specific attributes BGSEL, BG_HOV, CARAT, CURSORX/Y, MULTIPLE,
+--  SELECTED, SHOWLINE, TOPITEM, LASTITEM, and the DATA/SELECTED handlers all need a
+--  little bit of fudging here (just don't go deleting the comments against them).
+--
+--  Aside: Having destroyed the originals, I recreated this from theGUI.e, and mostly
+--         never really needed it, apart from use as a basis for other things I want
+--         to base on a gList, esp gTree. I /will/ however use it to add the missing
+--         KEY handler... [DONE]
+--
+with javascript_semantics
+puts(1,"")
+--requires(64,true)
+--include theGUI.e
+include hGUI.e
+--gUseGTK() -- (should make no noticeable difference whatsoever, bar [some] fonts)
+
+--DEV/SUG:
+--include h_scrollbars.e -- use the same scrollbar stuff as scroller.exw [DO AS PART OF PLANNED REWRITTE (aka re-merge?)]
+
+
+--sequence data = {`one`,`too`,`three`}
+--sequence data = {`one`,{{`too`,TG_RED,TG_ITALIC}},`three`}
+--sequence data = get_text(`hList.exw`,GT_LF_STRIPPED)
+sequence data = iff(platform()=JS?{`one`,{{`too`,TG_RED,TG_ITALIC}},`three`}
+                                 :get_text(`hList.exw`,GT_LF_STRIPPED))
+
+integer maxlen = largest(apply(data,length),return_index:=true)
+
+function get_data(integer idx)
+    if idx=0 then return length(data) end if
+    if idx=-1 then return maxlen end if
+    sequence res = data[idx]
+    if res=`too` then -- spelling mistake?
+        -- (see note 1 below)
+        res = {{`too`,TG_RED,TG_ITALIC}}
+--      res = {{`too`,{TG_BLUE,TG_RED},TG_ITALIC}}
+    end if
+    return res
+end function
+
+--OK:
+--procedure selected(object idx)
+--  ?{`selected`,idx}
+--end procedure
+
+--procedure listclick(gdx list, sequence status, integer x, y)
+--  integer cx = gGetAttribute(list,`CURSORX`),
+--          cy = gGetAttribute(list,`CURSORY`)
+--  ?{`listclick`, status, x, y, cx, cy}
+--end procedure
+
+--NO, kills it:
+--procedure cross(gdx canvas, integer w,h)
+--  gDrawLine(canvas,0,0,w-1,h-1)
+--  gDrawLine(canvas,w-1,0,0,h-1)
+--end procedure
+
+--REDRAW/CLICK/MOUSEMOVE:
+--  tg_redraw_list/tg_list_hover/tg_list_click
+--/!*
+--DEV or should I have my own ctrl_xtra[]??!! -- YEP!!
+
+--/*
+-- ctrl_xtra[CX_GTL_ATTRS] for gList():
+local constant list_attrs = {{     CXLIST_BGSEL:=$,'N',`BGSEL`      }, -- BGCLR for selected item[s]
+                             {     CXLIST_BGHOV:=$,'N',`BGHOV`      }, -- BGCLR when hovering
+                             {     CXLIST_CARET:=$,'I',`CARET`      }, -- true/false
+                             {  CXLIST_CARETCLR:=$,'n',`CARETCLR`   }, -- (internal) caret colour (black/bgsel)
+                             {  CXLIST_CARETIME:=$,'n',`CARETIME`   }, -- (internal) when flip due
+                             {  CXLIST_CARETEND:=$,'n',`CARETEND`   }, -- (internal) when stop due
+                             { CXLIST_CARETIMER:=$,'i',`CARETIMER`  }, -- (internal) gTimer for caret
+                             {   CXLIST_CURSORX:=$,'I',`CURSORX`    }, -- char 0..length(data[CURSORY])[+1?]
+                             {   CXLIST_CURSORY:=$,'I',`CURSORY`    }, -- line 0..data(-1)
+                             {      CXLIST_DATA:=$,'O',`DATA`       }, -- data or fetch function
+                             {    CXLIST_LINEHT:=$,'I',`LINEHT`     }, -- line/char height
+                             {   CXLIST_LINESPP:=$,'i',`[LINESPP]`  }, -- (internal) 0 or set topitem from this
+                             {   CXLIST_CHARWID:=$,'i',`CHARWID`    }, -- (internal) char width
+                             {    CXLIST_N_ROWS:=$,'i',`NROWS`      }, -- (internal) recent data(0)
+                             {   CXLIST_LONGEST:=$,'i',`LONGEST`    }, -- (internal) maxlen (when fixed)
+                             {   CXLIST_HOVLINE:=$,'i',`HOVLINE`    }, -- (internal) for ""
+                             {  CXLIST_MULTIPLE:=$,'B',`MULTIPLE`   }, -- true/false
+                             {  CXLIST_SELECTED:=$,'O',`SELECTED`   }, -- 0, n, or {...}
+                             {    CXLIST_SSTART:=$,'i',`SSTART`     }, -- (internal) shift select start (0==1)
+                             {  CXLIST_SHOWLINE:=$,'I',`SHOWLINE`   }, -- line /*or {line,offset[,fromcol[,tocol]]}*/
+                             {   CXLIST_TOPLINE:=$,'I',`TOPLINE`    }}, -- 1..data(-1)
+                   CXLIST_LEN = length(list_attrs),
+
+--*/
+
+--object list_data -- (instead of list_attr[CXLIST_SHOWLINE])
+--DEV shd be globals in h_scrollbars.e:
+sequence ctrl_xtra = {} -- NB hList/desktop-specific
+enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
+enum CXLIST_BGSEL, CXLIST_BGHOV, 
+     CXLIST_CARET,
+     CXLIST_CARETCLR,
+     CXLIST_CARETIMER,
+     CXLIST_CARETEND,
+     CXLIST_CARETIME,
+     CXLIST_CURSORX, CXLIST_CURSORY,  
+     CXLIST_DATA, 
+     CXLIST_LINEHT,
+--New: (internal only)
+     CXLIST_LINESPP,
+     CXLIST_CHARWID, 
+     CXLIST_N_ROWS,
+     CXLIST_LONGEST, 
+     CXLIST_HOVLINE,
+     CXLIST_MULTIPLE, 
+     CXLIST_SELECTED, 
+     CXLIST_SSTART, 
+     CXLIST_SHOWLINE, -- DEV see tg_ensure_visible()...
+     CXLIST_TOPLINE,
+     CXLIST_LEN = $
+
+integer list_selected = NULL -- hList's replacement for gSetHandler(list,`SELECTED`) [not CXLIST_SELECTED]
+
+local function tg_get_sig(rtn rid) -- (copied verbatim from theGUI.e)
+    return get_routine_info(rid,false)[3] -- eg `FI` (nb and that when rid==null, probably)
+end function
+
+--DEV no such routine in theGUI.e as yet...
+local procedure tg_list_set_top_line(gdx list, integer top_line)
+    integer line_height = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_LINEHT],
+          {ox,oy,vw,vh} = gGetAttribute(list,`VIEWPORT`)
+    oy = (top_line-1)*line_height
+    gSetAttribute(list,`VIEWPORT`,{ox,oy})
+    -- NB next line is ineffective, while we could just as well let redraw set it, 
+    --    someone somewhere sometime would no doubt moan if fetch!=the recent set,
+    --   plus this way I don't need another ugly explanation in the documentation.
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_TOPLINE] = top_line
+end procedure
+
+local procedure tg_list_set_line_col(gdx list, integer line, col)
+    object data = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_DATA]
+    if integer(data) then
+        string sig = tg_get_sig(data)
+        if sig=`FI` then
+            data = data(line)
+        elsif sig=`FOI` then
+            data = data(list,line)
+        else
+            ?9/0 -- unrecognised sig
+        end if
+    else
+        data = data[line]
+    end if
+    integer ll = length(data)
+    if not string(data) then
+        ll = 0
+        for fragment in data do
+            if string(fragment) then
+                ll += length(fragment)
+            else
+                ll += length(fragment[1])
+            end if
+        end for
+    end if
+    if col<1 then col=1 elsif col>ll+1 then col=ll+1 end if
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CURSORX] = col
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CURSORY] = line
+end procedure
+
+--DEV? (theGUI.e/js only, this'll get tested well enough by theEditor/find/goto...)
+local procedure tg_ensure_visible(gdx list, integer line)
+--DEV:
+--      gSetAttribute(list,`SHOWLINE`,line) [indirectly:]
+--      ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SHOWLINE] = line
+    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+    integer lpp = list_attr[CXLIST_LINESPP],
+         n_rows = list_attr[CXLIST_N_ROWS],
+       top_line = list_attr[CXLIST_TOPLINE],
+            col = list_attr[CXLIST_CURSORX],
+          third = floor(lpp/3),
+      last_line = min(line+lpp-third,n_rows)
+    list_attr = 0
+    top_line = max(top_line,last_line-lpp+1)
+    tg_list_set_top_line(list,top_line)
+    tg_list_set_line_col(list,line,col)
+    gRedraw(list)
+end procedure
+
+local procedure tg_reactivate_caret(gdx list=0)
+    if list=0 then
+--DEV for focus events...
+-- (but... hList does not [yet] have ctrl_types...)
+--      for id,t in ctrl_types do
+--          if t=CANVAS and ctrl_xtra[id][CX_CANVAS_TYPE]=LIST then
+--              tg_reactivate_caret(id)
+--          end if
+--      end for
+    elsif ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARET] then
+        gdx timer = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETIMER]
+        if timer then
+            gSetAttribute(timer,`RUN`,true)
+            ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETIME] = time()+0.375
+            ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETEND] = time()+5
+        end if
+    end if
+end procedure
+
+local procedure tg_redraw_list(gdx list)
+--?`>tg_redraw_list`
+--if gGetGlobal(`SHIFTKEY`) then ?9/0 end if
+    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS],
+           show_item = list_attr[CXLIST_SHOWLINE],
+            selected = list_attr[CXLIST_SELECTED],
+--            sbinfo = ctrl_xtra[list][CX_SBINFO],
+              sbinfo = 0, -- hList-specific
+                data = list_attr[CXLIST_DATA]
+--  integer sbw = iff(sequence(sbinfo)?sbinfo[SB_VWIDE]:17),
+    integer sbw = 17, -- hList-specific
+            {width, height} = gGetAttribute(list, `SIZE`),
+            {ox,oy,vw,vh} = gGetAttribute(list,`VIEWPORT`),
+--          {char_width,line_height} = XgGetTextExtent(list,`X`),
+            {char_width,line_height} = gGetTextExtent(`X`,list),
+            hover_line = list_attr[CXLIST_HOVLINE],
+            cursorx = list_attr[CXLIST_CURSORX],
+            cursory = list_attr[CXLIST_CURSORY],
+            caret = list_attr[CXLIST_CARET],
+            longest_line = list_attr[CXLIST_LONGEST],
+            n_rows = list_attr[CXLIST_N_ROWS]
+
+--?{{char_width,line_height},gGetTextExtent(`X`,list)}
+
+--  atom bgclr = gGetAttribute(list,`BGCLR`),
+    atom caretime = list_attr[CXLIST_CARETIME],
+         caretend = list_attr[CXLIST_CARETEND],
+--          bgclr = ctrl_bg[list],
+            bgclr = gGetAttribute(list,`BGCLR`), -- hList
+            bgsel = list_attr[CXLIST_BGSEL],
+            bghov = list_attr[CXLIST_BGHOV]
+    list_attr = 0 -- (kill refcount)
+    sbinfo = 0 -- (kill refcount)
+    if show_item!=0 then
+        tg_ensure_visible(list, show_item)
+        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SHOWLINE] = 0
+    end if
+--?{`line_height`,line_height} -- 19 for `Consolas, 12`, 22 for `Consolas, 14`, 15 for std font
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_LINEHT] = line_height
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CHARWID] = char_width
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_LINESPP] = floor(vh/line_height)
+--?{ox,oy,vw,vh}
+    string sig
+    if integer(data) then
+        sig = tg_get_sig(data)
+        if sig=`FI` then
+            n_rows = data(0)
+            longest_line = data(-1)
+        elsif sig=`FOI` then
+            n_rows = data(list,0)
+            longest_line = data(list,-1)
+        else
+            ?9/0 -- unrecognised sig
+        end if
+    elsif n_rows=0 then
+        n_rows = length(data)
+        integer ll = 0, lil
+        for i,line in data do
+            if string(line) then
+                lil = length(line)
+            else
+                lil = 0
+                for fragment in line do
+                    if string(fragment) then
+                        lil += length(fragment)
+                    else
+                        lil += length(fragment[1])
+                    end if
+                end for
+            end if
+            if lil>ll then
+                ll = lil
+                longest_line = i
+            end if
+        end for
+        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_LONGEST] = longest_line
+    end if
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_N_ROWS] = n_rows
+    if longest_line=0 then
+--      gSetAttribute(list,`SCROLLSIZE`,{width-sbw,line_height*n_rows})
+--      gSetAttribute(list,`SCROLLSIZE`,{width-sbw,(line_height+1)*n_rows})
+        gSetAttribute(list,`SCROLLSIZE`,{width-sbw,line_height*(n_rows+1)})
+--      gSetAttribute(tree,`SCROLLSIZE`,{w+5,line_height*(vnc+1)})
+    end if
+    sequence si
+    integer l1 = max(1,floor(oy/line_height)+1),
+            nr = min(n_rows-l1+1,ceil(vh/line_height)),
+--?? (untried)
+--          nr = min(n_rows-l1+1,ceil(height/line_height)),
+            vy = oy
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_TOPLINE] = l1
+    bool bActive = gGetAttribute(list,`ACTIVE`)
+    integer fgclr = iff(bActive?TG_BLACK:TG_DARK_GREY)
+    gSetAttribute(list,`FGCLR`,fgclr) -- (nb *NOT* saved/restored between redraws)
+
+    for rll=iff(longest_line?0:1) to nr do
+        integer r = iff(rll=0?longest_line:rll+l1-1), vx = 2
+        if integer(data) then
+            if sig=`FI` then
+                si = data(r)
+            elsif sig=`FOI` then
+                si = data(list,r)
+            else
+                ?9/0
+            end if
+--      elsif r=0 then
+--          si = n_rows
+        else
+            si = data[r]
+        end if
+        if rll!=0 and r!=0 then
+            atom clr = -1
+            if bgsel!=bgclr and iff(atom(selected)?r=selected:selected[r]) then
+                clr = bgsel
+            elsif bghov!=bgclr and r=hover_line then
+                clr = bghov
+            end if
+            if clr!=-1 then
+                integer ymin = vy-oy, ymax = ymin+line_height
+                gDrawRect(list,3,ymin,width-3,ymax,true,0,clr)
+--              if clr=bgsel and caret then
+                if clr=bgsel and caret and cursory=r then
+--                  assert(cursory=r) -- sanity check [it always is]
+--if cursory!=r then ?{"cursory",cursory,"!=r",r} end if
+                    clr = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETCLR]
+                    if time()>=caretime then
+                        clr = iff(clr=TG_BLACK?bgsel:TG_BLACK)
+                        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETIME] = time()+0.375
+                        if time()>caretend and clr=TG_BLACK then
+                            gdx timer = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETIMER]
+                            if timer then
+--?`stop caret timer?`
+                                gSetAttribute(timer,`RUN`,false)
+                            end if
+                        end if
+                    end if
+--tg_reactivate_caret(list)??
+                    integer xmin = (cursorx-1)*char_width+2
+                    gDrawRect(list,xmin,ymin,xmin+1,ymax,true,0,clr)
+                    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETCLR] = clr
+                end if
+            end if
+        end if
+        if string(si) then
+            if rll=0 then
+--              vx += XgGetTextExtent(list,si)[1]
+                vx += gGetTextExtent(si,list)[1]
+            else
+                gDrawText(list,vx-ox,vy-oy,si,{},TG_SE)
+            end if
+        else
+            for sii in si do
+                object sic = -1 -- colour
+                atom sis = -1  -- style
+                if not string(sii) then
+                    if not sequence(sii) then
+                        crash(`fragments must be string or {string,colour[,style}}`)
+                    end if
+                    if length(sii)=2 then
+                        {sii, sic} = sii
+                    elsif length(sii)=3 then
+                        {sii, sic, sis} = sii
+                    else
+                        crash(`unrecognised fragment[length]:%v`,{sii})
+                    end if
+                    assert(string(sii))
+                    if not bActive then -- greyscale
+?"gGreyscale"
+                        integer {rr,gg,bb,aa} = to_rgba(sic)
+                        rr = floor(sqrt((rr+gg+bb)/(255*3))*255)
+                        sic = rgba(rr,rr,rr,aa)
+                    end if
+                end if
+                if rll!=0 then
+                    gDrawText(list,vx-ox,vy-oy,sii,{},TG_SE,0,sic,sis)
+                end if
+--              vx += XgGetTextExtent(list,sii)[1]
+                vx += gGetTextExtent(sii,list)[1]
+            end for
+        end if
+        if rll=0 then
+--          gSetAttribute(list,`SCROLLSIZE`,{vx,line_height*n_rows})
+--          gSetAttribute(list,`SCROLLSIZE`,{vx,(line_height+1)*n_rows})
+            gSetAttribute(list,`SCROLLSIZE`,{vx,line_height*(n_rows+1)})
+        else
+            vy += line_height
+        end if      
+    end for
+--?`<tg_redraw_list`
+end procedure
+
+local procedure tg_list_set_selection(gdx list, integer line, bool ctrl, shift)
+    object sel = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED]
+--  bool bSingle = not gGetAttribute(list,`MULTIPLE`)
+    bool bSingle = not ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_MULTIPLE] -- (hList)
+    if bSingle then
+        sel = line
+    else
+        integer n_rows = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_N_ROWS]
+        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] = 0
+        if ctrl then
+            if atom(sel) then
+                integer psel = sel
+                sel = repeat(0,n_rows)
+                if psel then sel[psel] = true end if
+            end if
+            sel[line] = not sel[line]
+            ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SSTART] = line
+        elsif shift then
+            integer lstart = max(ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SSTART],1)
+            if lstart>line then {line,lstart} = {lstart,line} end if
+            sel = repeat(0,n_rows)
+            sel[lstart..line] = true
+        else
+            sel = line
+            ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SSTART] = line
+        end if
+    end if
+    ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] = sel
+--or more direct?
+    gRedraw(list)
+--  rtn selected = gGetHandler(list,`SELECTED`)
+--  integer selected = gGetHandler(list,`SELECTED`)
+    integer selected = list_selected -- hList-specific
+    if selected then
+        string sig = tg_get_sig(selected)
+--      sel = gGetAttribute(list,`SELECTED`) -- (to integer when sensible)
+        sel = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] -- hList-specific...
+        if length(sig)=3 then
+            selected(list,sel)
+        else
+            selected(sel)
+        end if
+    end if
+end procedure
+
+local procedure tg_list_click(gdx list, sequence status, integer x, y) 
+--?{`tg_list_click`,status, x, y}
+--tg_reactivate_caret(list)
+    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+--         data = list_attr[CXLIST_DATA]
+--  object data = list_data -- (hList fudge)
+    integer ox = gGetAttribute(list,`VIEWPORT`)[1],
+            line_height = list_attr[CXLIST_LINEHT],
+            char_width = list_attr[CXLIST_CHARWID],
+            top_line = list_attr[CXLIST_TOPLINE],
+            n_rows = list_attr[CXLIST_N_ROWS]
+    list_attr = 0 -- (kill refcount)
+    integer line = top_line + floor(y/line_height),
+            col = floor((ox+x-2)/char_width)+1
+
+    if status[1..2]=`LS` and line>=1 and line<=n_rows then
+        tg_list_set_line_col(list,line,col)
+        tg_reactivate_caret(list)
+        integer ctrl = status[3],
+               shift = status[4]
+        tg_list_set_selection(list,line,ctrl,shift)
+    end if
+end procedure
+
+--local procedure tg_list_hover(gdx list, integer /*x*/,y, left,middle,right, onscroll)
+local procedure tg_list_hover(gdx list, integer /*x*/,y, left,middle,right)
+bool onscroll=false -- hList-specific (fudge/broken)
+--?{`tg_list_click`,status, x, y}
+    tg_reactivate_caret(list)
+    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+    if sequence(list_attr) then
+--      atom bgclr = ctrl_bg[list],
+        atom bgclr = gGetAttribute(list,`BGCLR`), -- hList
+             bghov = list_attr[CXLIST_BGHOV],
+             line_height = list_attr[CXLIST_LINEHT]
+        if bgclr!=bghov and line_height!=0 then
+            integer top_line = list_attr[CXLIST_TOPLINE],
+                    was_hov = list_attr[CXLIST_HOVLINE],
+                    n_rows = list_attr[CXLIST_N_ROWS]
+            list_attr = 0 -- (kill refcount)
+            integer line = top_line + floor(y/line_height), new_hov = 0
+            if line<=n_rows and not (onscroll or left or middle or right) then
+                new_hov = line
+            end if
+            if new_hov!=was_hov then
+                ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_HOVLINE] = new_hov
+                gRedraw(list)
+            end if
+        end if
+    end if
+end procedure
+
+--/*
+--global function gList(object data, selected=NULL, sequence attributes=``, dword_seq args={})
+--  {selected,attributes,args} = paranormalise_raa(selected,attributes,args)
+    gdx list = gCanvas(tg_redraw_list)
+
+    ctrl_xtra[list][CX_CANVAS_TYPE] = LIST
+    object list_attr = repeat(0,CXLIST_LEN)
+    list_attr[CXLIST_DATA] = data
+    ctrl_xtra[list][CX_GTL_ATTRS] = list_attr
+    list_attr = 0 -- (kill refcount)
+    gSetAttribute(list,`BGSEL`,#CCE8FF)
+    gSetAttribute(list,`BGHOV`,#E5F3FF)
+
+--DEV spanners scrollbar handling...
+--  gSetHandler(list,`CLICK`,tg_list_click)
+--  tg_register_handler(LIST,`LISTCLICK`,{`POPIIII`})
+    -- aside: when called, only tests length 3 vs length 2:
+    tg_register_handler(LIST,`SELECTED`,{`POI`,`POO`,`PI`,`PO`})
+    if selected!=NULL then
+        gSetHandler(list,`SELECTED`,selected)
+    end if
+    if length(attributes) then
+        gSetAttributes(list,attributes,args)
+    end if
+    return list
+--end function 
+--*/
+
+local function tg_list_key(gdx list, integer c, bool ctrl, shift) 
+-- note: this replaces tg_scrollbar_key_handler in h_scrollbars.e, except for mousewheel use.
+--       LEFT/RIGHT should perhaps do the scrollbar thing...
+    tg_reactivate_caret(list)
+    if c=VK_UP
+    or c=VK_DOWN
+    or c=VK_PGUP
+    or c=VK_PGDN
+    or c=VK_HOME
+    or c=VK_END then
+        object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+        integer line = list_attr[CXLIST_CURSORY],
+                 col = list_attr[CXLIST_CURSORX],
+            top_line = list_attr[CXLIST_TOPLINE],
+              n_rows = list_attr[CXLIST_N_ROWS], -- aka length(data)
+--       line_height = list_attr[CXLIST_LINEHT],
+                 lpp = list_attr[CXLIST_LINESPP]
+        list_attr = 0 -- (kill refcount)
+        if c=VK_UP then         line = max(line-1,1)            top_line = min(top_line,line)
+        elsif c=VK_DOWN then    line = min(line+1,n_rows)       top_line = max(top_line,line-lpp+1)
+        elsif c=VK_PGUP then    line = max(line-lpp,1)          top_line = max(top_line-lpp,1)
+        elsif c=VK_PGDN then    line = min(line+lpp,n_rows)     top_line = min(top_line+lpp,n_rows)
+        elsif c=VK_HOME then    line = 1                        top_line = 1
+        elsif c=VK_END then     line = n_rows                   top_line = max(top_line,line-lpp+1)
+        end if
+        tg_list_set_top_line(list,top_line)
+        tg_list_set_line_col(list,line,col)
+        tg_list_set_selection(list,line,false,shift)
+--  elsif c=VK_LEFT
+--     or c=VK_RIGHT then
+--      return tg_scrollbar_key_handler(list, c, ctrl, shift, false)
+    elsif ctrl and upper(c)='A'
+      and ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_MULTIPLE] then
+        integer n_rows = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_N_ROWS]
+        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] = repeat(true,n_rows)
+        gRedraw(list)
+    -- Aside: VK_ESC cancelling select all is a feature of theEditor, not a gList.
+--temp/test:
+--  elsif c='5' then
+--      tg_ensure_visible(list, 50)
+--  elsif not find(c,{VK_LSHIFT,VK_RSHIFT,VK_LCTRL,VK_RCTRL,VK_CAPSLOCK,VK_ESC}) then
+--      ?{`tg_list_key`,list,c,gGetKeyName(c),ctrl,shift}
+    end if
+    return TG_CONTINUE
+end function
+
+--DEV Never goes idle... (see CXTEXT_CARETCT...)
+local procedure tg_list_cursorblink_action(gdx cursorblink)
+--  gdx list = user_data[cursorblink]
+    gdx list = gGetAttribute(cursorblink,`USER_DATA`)
+    gRedraw(list)
+end procedure
+
+
+-- let's just not bother with paranormalising this...
+function hList(rtn data, selected=NULL, string attributes=``, sequence args={})
+    gdx list = gCanvas(tg_redraw_list)
+--  if platform()=JS then
+    if platform()!=JS then
+--testme:
+        -- fudge: astonishingly, this works fine despite the fact it does things like
+        --        ctrl_xtra[table] all over the shop, as if it were an integer, when
+        --        it is in fact an HtmlElement...
+--      ctrl_xtra = {}
+--  else
+--      ctrl_xtra = repeat(0,table)
+        ctrl_xtra &= repeat(0,list-length(ctrl_xtra))
+    end if
+    ctrl_xtra[list] = repeat(0,CX_GTL_ATTRS)
+    object list_attr = repeat(0,CXLIST_LEN)
+    list_attr[CXLIST_DATA] = data
+    list_attr[CXLIST_BGSEL] = #CCE8FF
+    list_attr[CXLIST_BGHOV] = #E5F3FF
+--  list_attr[CXLIST_MULTIPLE] = true -- test (fine) [DEV proper attribute needed]
+    list_attr[CXLIST_CARET] = true -- test (fail, no timer here...)
+    ctrl_xtra[list][CX_GTL_ATTRS] = list_attr
+    list_attr = 0
+    tg_reactivate_caret(list)                                   -- ... or is there...!)
+        gdx timer = gTimer(tg_list_cursorblink_action,400,true,list)
+        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_CARETIMER] = timer
+
+    gSetHandler(list,`CLICK`,tg_list_click)
+    gSetHandler(list,`MOUSEMOVE`,tg_list_hover)
+    gSetHandler(list,`KEY`,tg_list_key)
+    if selected!=NULL then
+--      gSetHandler(list,`SELECTED`,selected)
+        list_selected = selected -- hList-specific
+    else                        -- ""
+        list_selected = NULL   -- ""
+    end if
+    if length(attributes) then
+        gSetAttributes(list,attributes,args)
+    end if
+
+    return list
+end function
+
+--gdx list = hList(get_data,selected),
+--gdx list = hList(get_data),
+--gdx list = hList(data,selected,`FONT="Consolas, 12"`),
+--gdx list = hList(get_data,selected,`FONT="Consolas, 12"`),
+gdx list = hList(get_data,NULL,`FONT="Consolas, 12"`),
+--?""
+--gdx list = hList(get_data),
+--DEV should not need this...
+--gdx list = hList(get_data,`SIZE=240x80`),
+--XXX   -- hList(data,selected), -- (fine too) [NO]
+--  dlg = gDialog(list,`hList`,`SIZE=240x80`)
+    dlg = gDialog(list,`hList`,`SIZE=550x353`)
+--gSetAttribute(list,`BGCLR`,#F0F0F0)
+gSetAttribute(list,`BGCLR`,TG_LIGHT_PARCHMENT)
+--gSetAttribute(list,{`BGCLR`,`BGSEL`},TG_LIGHT_PARCHMENT)
+--ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_BGSEL] = TG_LIGHT_PARCHMENT
+--gSetAttribute(list,`BGCLR`,TG_LIGHT_GREY)
+--gSetAttribute(list,`FONT`,`Consolas, 12`)
+--gSetHandler(list,`CLICK`,listclick)
+--gSetHandler(list,`REDRAW`,cross) -- NO! (added to docs)
+--gSetAttribute(list,`MULTIPLE`,true) -- (use CXLIST_MULTIPLE for now) [DEV]
+--gSetAttribute(list,`TOPITEM`,2) -- nope! (no effect)
+--gSetAttribute(list,`CARET`,true) -- fine (in gList.exw, but not hList,exw)
+--gSetAttribute(list,`ACTIVE`,false) -- seems effective
+gShow(dlg)
+--?gGetAttribute(list,`EXPAND`,`YES`)
+gMainLoop()

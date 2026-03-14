@@ -1,4 +1,4 @@
-#!/home/pete/phix/phix
+﻿#!/home/pete/phix/phix
 --
 -- makephix.exw
 --
@@ -18,16 +18,19 @@
 --      unreferenced files in \src
 --      unreferenced "<a name=" (nah)
 --      files with no entries in the toc/index
---gCanvas gSetAttribute
+--gCanvas gMsgBox gGraph gGetTextExtent gPixbuf gTabs gTree gMenu gList gTable printf theGUI gDrawPolygon gDrawText
+--gSetGlobal IDLE_ACTION DATA gGreyscale_XPM gSetHandler WU_BLEND OOP CURSOR VK_ESC get_struct_field get_routine_info 
+--test_equal gGetOpenFileName get_text gSetAttribute s largest gDialog MIN mpfr_get_str gDatePick gCanvasClip gSplit
+--gNormalise CLX source_line REDRAW glSimpleA7texcoords gButton gCheckbox gDrawLine
 -- map qu to ? (already done!!)
 -- make it more forgiving if src has a tailing blank line... (nah)
 --*** create html directory if it does not exist.
- 
+
 -- For the web version: create html/images, and copy phix.htm to index.htm (see installation.txt)
 
 -- Quick ref (for want of anywhere better to put it)
 
---  It's -> It&rsquo;s
+--  It's -> It&rsquo;s or better yet It&apos;s
 --  '\'' -> '\&#39;'    (when syntax colouring goes wrong) 
 --  'text' -> &lsquo;text&rsquo; ("")
 --  '\"' -> '\&quot;'            ("")
@@ -52,7 +55,9 @@ sequence tocf = {}, -- filenames
 --global --??
          contents,
          descriptions,
-         index
+         index_names,
+         index_values
+--       index
 constant stubnames = {"header","body","banner","trailer"},
                  HEAD = 1, BODY = 2, BANNER = 3, TAIL = 4
 sequence stubs = repeat("",length(stubnames))
@@ -401,19 +406,64 @@ function word_options(string word)
     return res
 end function
 
+integer fns, ulc = 0 // file and count
+
+function update_links(string content, filename, filepath)
+    sequence hrefs = match_all(`<a href`,content)
+    if length(hrefs) then
+        sequence chunks = {}
+        for k in reverse(hrefs) do
+            integer c = find('>',content,k),
+                    e = match(`</a>`,content,c), lineno
+            string key = content[c+1..e-1],
+                 plink = iff(c=k+7?"":content[k+9..c-2])
+            bool kBang = length(plink) and plink[1]='!'
+            if kBang then key = plink[2..$] end if
+            integer ndx = find(key,index_names)
+            if ndx!=0 then
+                string link = index_values[ndx]
+                if (link=plink or link=filename&plink) 
+                and c!=k+7 -- (don't say simplify <a href="">x<a/> to <a href>x</a> when it already is)
+                and not begins("ARM",filename) then -- (macro issues...)
+                    ulc += 1
+                    lineno = length(find_all('\n',content[1..k]))+7
+                    string msg = sprintf(`%s:%d simplify <a href="%s">%s</a> to <a href>%s</a>%n`,
+                                         {filepath,lineno,plink,key,key,true})
+                    puts(fns,msg)
+                    puts(1,msg)
+                end if
+                if plink="" or kBang then
+                    if begins(filename,link) and filename!=link then
+                        link = link[length(filename)+1..$]
+                        assert(link[1]='#')
+                    end if
+                    if kBang then key = content[c+1..e-1] end if
+                    chunks = append(chunks,sprintf(`<a href="%s">%s%s`,{link,key,content[e..$]}))
+                    content = content[1..k-1]
+                end if
+            elsif plink="" or kBang then
+                lineno = length(find_all('\n',content[1..k]))+7
+                crash("no index entry for %s (%s:%d)",{key,filename,lineno})
+            end if
+        end for
+        content &= join(reverse(chunks),"")
+    end if
+    return content
+end function
+
 procedure readtoc()
 string tocname = join_path({current_dir(),"src","toc.txt"})
 string idxname = join_path({current_dir(),"src","index.txt"})
 integer fn = open(tocname,"r")
 object line
 integer ch
-string filename
+string filename, filepath
 string content, description
 integer dstart, dend
 integer level
 integer lineno = 0
 string oneline, onekey, text
-sequence keywords -- (for duplicate checking)
+--sequence keywords -- (for duplicate checking)
 integer startidx, endidx, k, s, e
 
     puts(1,"Reading files...\n")
@@ -450,8 +500,10 @@ integer startidx, endidx, k, s, e
     end while
     close(fn)
 
-    index = {}
-    keywords = {}
+--  index = {}
+    index_names = {}
+    index_values = {}
+--  keywords = {}
     fn = open(idxname,"rb")
     if fn=-1 then fatal(sprintf("error opening %s\n",{idxname})) end if
 --newEmit:
@@ -494,14 +546,20 @@ integer startidx, endidx, k, s, e
                 if find('[',onekey) then
                     sequence manykeys = word_options(onekey)
                     for akey in manykeys do
-                        if find(akey,keywords) then crash("duplicate:"&akey) end if
-                        index = append(index,{akey,oneline})
-                        keywords = append(keywords,akey)
+--                      if find(akey,keywords) then crash("duplicate:"&akey) end if
+                        if find(akey,index_names) then crash("duplicate:"&akey) end if
+--                      index = append(index,{akey,oneline})
+                        index_names = append(index_names,akey)
+                        index_values = append(index_values,oneline)
+--                      keywords = append(keywords,akey)
                     end for
                 else
-                    if find(onekey,keywords) then crash("duplicate:"&onekey) end if
-                    index = append(index,{onekey,oneline})
-                    keywords = append(keywords,onekey)
+--                  if find(onekey,keywords) then crash("duplicate:"&onekey) end if
+                    if find(onekey,index_names) then crash("duplicate:"&onekey) end if
+--                  index = append(index,{onekey,oneline})
+                    index_names = append(index_names,onekey)
+                    index_values = append(index_values,oneline)
+--                  keywords = append(keywords,onekey)
                 end if
             end if
         end if
@@ -510,15 +568,16 @@ integer startidx, endidx, k, s, e
 
     contents = repeat("",length(tocf))
     descriptions = repeat("",length(tocf))
+    fns = open("simplify.txt","w")
     for i=1 to length(tocf) do
-        filename = tocf[i]
+        filename = tocf[i]&".htm"
 --      filename = "src\\"&filename&".htm" 
-        filename = join_path({current_dir(),"src",filename&".htm"}) 
+        filepath = join_path({current_dir(),"src",filename}) 
 --temp, for linux:
-string test = get_proper_path(filename)
-if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
-        fn = open(filename,"r")
-        if fn=-1 then fatal("error opening "&filename&"\n") end if
+string test = get_proper_path(filepath)
+if get_file_name(filepath)!=get_file_name(test) then ?9/0 end if
+        fn = open(filepath,"r")
+        if fn=-1 then fatal("error opening "&filepath&"\n") end if
         content = ""
         while 1 do
             line = gets(fn)
@@ -579,6 +638,7 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
 if match("ARM",filename) or match("x86.htm",filename) then
     content = armify(content,filename)
 end if
+        content = update_links(content,filename,filepath)
         contents[i] = content
         if wikidocs then
             description = substitute(description,"/","")
@@ -589,6 +649,11 @@ end if
             printf(1,"%s %s\n",{filename,description})
         end if
     end for
+    close(fns)
+    if ulc then
+        printf(1,"%d simplifications suggested, see simplify.txt/run simplify.exw\n",ulc)
+    end if
+--?stubnames -- {"header","body","banner","trailer"}
     for i=1 to length(stubnames) do
 --      filename = "src\\"&stubnames[i]&".htm" 
         filename = join_path({current_dir(),"src",stubnames[i]&".htm"}) 
@@ -651,7 +716,8 @@ if get_file_name(filename)!=get_file_name(test) then ?9/0 end if
     if not match("<h3>Version "&pglobals&"</h3>",content) then
         s = find(' ',content,match("<h3>Version",content))+1
         e = match("</h3>",content,s)-1
-        {text,keywords} = {"",{}} -- (debug aid)
+--      {text,keywords} = {"",{}} -- (debug aid)
+        text = "" -- (debug aid)
         string bver = content[s..e]
         crash(`version error: "%s"(from pglobals.e)!="%s"(from banner.htm)`,{pglobals,bver})
     end if  
@@ -668,6 +734,14 @@ function b(string desc)
 --  the "Operating System" sub-heading, but that should not be a reason
 --  to list abort (and all the rest) in the results for machine_bits.
 --  Likewise "Operating System" becomes "O<b></b>perating S<b></b>ystem".
+-- 3/12/24 for glBegin
+    if begins(`<span class="illegal">`,desc) then
+        assert(ends(`</span>`,desc))
+        integer k = length(`<span class="illegal">`)+1,
+                l = length(`</span>`)+1
+        desc[k..-l] = b(desc[k..-l])
+        return desc
+    end if
     desc = desc[1]&"<b></b>"&desc[2..$]
     for i=length(desc) to 10 by -1 do   -- (10 is length("x<b></b>x")+1)
 -- 14/10/2020, for <a href="p2js.htm">p<b></b>wa/p2js</a>
@@ -714,22 +788,19 @@ end function
 procedure write_toc(integer fn, integer i)
     sequence toci = get_toc(i)
 --integer this, that
-integer current = i
-string filename
-integer level
-string toclevel
+    integer current = i
 
     puts(fn,"    <div id=\"leftNav\">\n")
     puts(fn,"     <div id=\"tocnav\">\n")
     for i=1 to length(toci) do
         if toci[i] then
-            level = tocl[i]
-            toclevel = sprintf("toclevel%d",level)
+            integer level = tocl[i]
+            string toclevel = sprintf("toclevel%d",level)
             if i=current then
                 toclevel &= " current"
             end if
             printf(fn,"      <div class=\"%s\" data-toclevel=\"%d\">\n",{toclevel,level})
-            filename = tocf[i]
+            string filename = tocf[i]
             if current=1 and i!=1 then
                 filename = "html/"&filename
 --20/9/19:
@@ -1054,6 +1125,7 @@ bool skip_pre = false
                     end if
                 end for
             elsif tag="a" then
+--?ci
 --              string link, desc = ci[HTML_CONTENTS][1]
 --              string link, desc = plain_text(ci[HTML_CONTENTS])
                 string link, desc = plain_text(ci)
@@ -1084,6 +1156,7 @@ integer jel = length(jelink)
                         content &= sprintf("[[%s|%s]]",{link,desc})
                     end if
                 elsif attrnames={`href`} then
+--?ci
                     -- Internal link
                     link = trim(ci[HTML_ATTRIBS][2][1])
                     if link[1]='#' then
@@ -2555,7 +2628,14 @@ end if
             filename &= ".htm"
             fn = open(filename,"w")
             if fn=-1 then fatal("error opening "&filename&"\n") end if
-            printf(fn,stubs[HEAD],{descriptions[i]})
+--30/8/25:
+--          printf(fn,stubs[HEAD],{descriptions[i]})
+            string headstub = stubs[HEAD]
+            if i=1 then
+                headstub = substitute(headstub,`class="library"`
+                                              ,`class="library intro"`)
+            end if
+            printf(fn,headstub,{descriptions[i]})
             if i=1 then
                 puts(fn,stubs[BANNER])
             else
@@ -2658,8 +2738,10 @@ integer level, this
     if fn=-1 then fatal("error opening "&filename&"\n") end if
     puts(fn,hhhdr)
     puts(fn,hhkhdr)
-    for i=1 to length(index) do
-        printf(fn,hhkitem,index[i])
+--  for i=1 to length(index) do
+    for i=1 to length(index_names) do
+--      printf(fn,hhkitem,index[i])
+        printf(fn,hhkitem,{index_names[i],index_values[i]})
     end for
     puts(fn,hhktail)
     close(fn)

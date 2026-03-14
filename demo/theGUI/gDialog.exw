@@ -1,0 +1,149 @@
+﻿--
+-- demo\theGUI\gDialog.exw
+-- =======================
+--
+puts(1,"")
+--requires(64,true)
+--with trace
+--include theGUI.e
+include hGUI.e
+--gUseGTK()
+
+gdx dlg = gDialog(NULL,"gDialog","SIZE=240x80")
+--DEV let's worry about this case much later!!! (or just put a note in the docs!) [FIXED]
+--gdx dlg = gDialog(NULL,"gDialog") -- seems ok 1/2/26... except under GTK, 'R' messes up (and gtk_window_set_default_size was no help) [docs updated]
+--/*
+WinAPI: (good)
+"WM_SETFOCUS"
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27185, gShow]
+ 1 gDialog    853 524 213  32 213  32   0   0  0  {}         CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+GTK (good)
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27197, gShow]
+ 1 gDialog    854 523 212  32 212  32   0   0  0  {}         CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+with 240x80:
+"WM_SETFOCUS"
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27197, gShow]
+ 1 gDialog    840 500 240  80 213  32 240  80  0  {}         CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+GTK:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [27197, gShow]
+ 1 gDialog    840 500 240  80 212  32 240  80  0  {}         CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+--*/
+--gSetAttributes(dlg,"MINSIZE=225x75, MAXSIZE=300x100")
+--gSetAttribute(dlg,"RESIZE",false) -- mullers size big time (both gtk & winapi [latter now down to just a final stubborn +1])
+--?gVersion() -- "theGUI on Phix version 1.0.5 (32 bits) on Windows, using GTK 3.24.34" with the "precompiled-sdk"
+--gShow(dlg)
+--?gdx_name(dlg)
+--?gGetAttribute(dlg,`CLASSNAME`)
+
+--gSetAttribute(dlg,"RESIZE",false) -- mullers size big time (just gtk)
+-- and this blanks out the title...
+--?gGetAttribute(dlg,"RESIZE")
+--for i=1 to 2 do
+--  gToggleInt(dlg,"RESIZE")
+--end for
+--?gGetAttribute(dlg,"RESIZE")
+
+--function tg_dialog_key_handler(gdx dlg, integer c)
+procedure tg_dialog_key_handler(gdx dlg, integer c)
+--?9/0
+if c='?' then ?9/0 end if
+    -- Note: RST:=false on GTK messes up gDialog(NULL) size, as now documented.
+    c = find(upper(c),"HMRX")
+    if c then
+        gToggleInt(dlg,{`HDR`,`MNZ`,`RST`,`CLX`}[c])
+        gRedraw(dlg)
+    end if
+--  return TG_DEFAULT
+--end function
+end procedure
+gSetHandler(dlg,`KEY`,tg_dialog_key_handler)
+--gSetInt(dlg,`RST`,false) -- GTK/no help...
+
+gMainLoop(dlg)
+--?gGetAttribute(dlg,`VISIBLE`) -- 0
+--?gGetAttribute(dlg,`SIZE`) -- {2,32}
+--gShow(dlg)
+--?gGetAttribute(dlg,`VISIBLE`) -- 1
+--?gGetAttribute(dlg,`SIZE`) -- now good
+--gMainLoop()
+
+--/*
+function quit(gdx ih)
+?"quit"
+sleep(5)
+    -- save_files(), etc.
+    return TG_CLOSE
+end function
+
+gdx quitbn = gButton("Quit", quit),
+--gdx quitbn = gButton("Quit", gQuit),
+    label = gLabel("Very Long Text Label","EXPAND=YES, ALIGNMENT=ACENTER"),
+--  vbox = gVbox({label, quitbn},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"),
+    vbox = gVbox({label, quitbn},"ALIGNMENT=ACENTER,MARGIN=10x10"),
+--  dlg = gDialog(vbox,"Dialog Title","SIZE=180x")
+    dlg = gDialog(vbox,"Dialog Title","SIZE=250x100")
+--  dlg = gDialog(vbox,"Dialog Title")
+--  dlg = gDialog(vbox,"Dialog Title","SIZE=180x,DEFAULTESC=%d",{quitbtn})
+gSetHandler(dlg,"CLOSE",quit) -- (should you want the save_files(), etc)
+gSetAttribute(dlg,"DEFAULTESC",quitbn)
+gShow(dlg)
+gMainLoop()
+--*/
+
+--/!*
+
+--1/4:
+--/*
+include theGUI.e
+gdx dlg = gDialog(gVbox({gButton(`Button With Very Long Text`),
+                         gButton(`short`),
+                         gButton(`Mid Button`)}),
+                  `gDialog`, `FONT="Helvetica, Bold 14"`) 
+gShow(dlg)
+gMainLoop()
+--*/
+--/*
+--2/4:
+include theGUI.e
+gdx dlg = gDialog(gVbox({gButton(`Button With Very Long Text`, `SIZE=50x`),
+                         gButton(`short`, `SIZE=50x`),
+                         gButton(`Mid Button`, `SIZE=50x`)}),
+                  `gDialog`, `FONT="Helvetica, Bold 14"`) 
+gShow(dlg)
+gMainLoop()
+--*/
+--/*
+--3/4
+include theGUI.e
+
+gdx dlg = gDialog(gVbox({gButton(`Button With Very Long Text`),
+                         gButton(`short`, `EXPAND=HORIZONTAL`),
+                         gButton(`Mid Button`, `EXPAND=HORIZONTAL`)}),
+                  `gDialog`, `FONT="Helvetica, Bold 14"`) 
+gShow(dlg)
+gMainLoop()
+--*/
+--/*
+--4/4
+include theGUI.e
+
+gdx dlg = gDialog(gVbox({gButton(`Button With Very Long Text`),
+                         gButton(`short`, `EXPAND=HORIZONTAL`),
+                         gButton(`Mid Button`, `EXPAND=HORIZONTAL`)}),
+                  `gDialog`, `SHRINK=YES, FONT="Helvetica, Bold 14"`) 
+gShow(dlg)
+gMainLoop()
+--*/
+--/*
+"DEV: defer tg_Dialog() until gShow..."
+"tg_set_font"
+"tg_get_window_rect"
+"tg_get_client_rect"
+{"gGetFocus"}
+{"gRedraw",1,6}
+{"gRedraw",1,6}
+"TG_RESIZE"
+"TG_RESIZE"
+"TG_RESIZE"
+--*/

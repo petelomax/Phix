@@ -1,0 +1,57 @@
+--
+-- demo\theGUI\file_open.exw
+-- ==========================
+--
+--  Simple use of gGetOpenFileName()
+--  Should be similar to C:\Program Files (x86)\Phix\pwa\js\poc\drop.html
+--
+with javascript_semantics
+--requires(64,true)
+include theGUI.e
+--gUseGTK() -- DEV sizing problems, see gtk_win_open...
+
+-- <some bog-standard gList stuff:>
+--DEV ... (no type/paste/drag/drop, as yet...)
+sequence data = {{{"Type, paste, drag and drop a file here, or click the button above...",TG_GREY,TG_ITALIC}}}
+--sequence data = {{{"click the button above...",TG_GREY,TG_ITALIC}}}
+
+integer maxlen = largest(apply(data,length),return_index:=true)
+
+function get_data(integer idx)
+    if idx=0 then return length(data) end if
+    if idx=-1 then return maxlen end if
+    sequence res = data[idx]
+    return res
+end function
+-- </some bog-standard gList stuff>
+
+procedure got_txt(string filename, sequence contents, gdx lbl)
+    gSetAttribute(lbl,"TITLE",filename)
+    data = contents
+    maxlen = largest(apply(data,length),return_index:=true)
+    gRedraw(gGetDialog(lbl))
+end procedure   
+    
+procedure got(object file, gdx lbl)
+    gGetFileText(file,GT_LF_STRIPPED,got_txt,lbl)
+end procedure
+
+procedure action(gdx btn)
+    gdx dlg = gGetDialog(btn),
+        lbl = gGetAttribute(btn,"USER_DATA")
+    gGetOpenFileName(dlg,got,lbl)
+end procedure
+
+--DEV gLabel() don't like "" (the empty string)...
+--gdx lbl = gLabel(" ","EXPAND=H"),
+gdx lbl = gLabel(repeat(' ',100),"EXPAND=H"),
+    btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl}}),
+--  btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl},{"SIZE",{85,25}}}), --GTK2
+--  btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl},{"SIZE",{95,35}}}), --GTK3
+    hbox = gHbox({btn,gHbox({lbl},"SPACE=AROUND")},"GAP=5,EXPAND=H"),
+    list = gList(get_data,`FONT="Consolas, 12", BGCLR=LIGHT_PARCHMENT`),
+    vbox = gVbox({hbox,list}),
+    dlg = gDialog(vbox,"File Open Demo",`SIZE=435x171`)
+gShow(dlg)
+gMainLoop()
+

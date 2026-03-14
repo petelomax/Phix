@@ -1,0 +1,97 @@
+--
+-- demo\theGUI\gDropDown.exw
+-- =========================
+-- 
+-- DEV simply /cannot/ get EDITABLE to work on WinAPI...
+--
+requires(64,true)
+with javascript_semantics
+--/* -- (not js:)
+without debug
+--include theGUI.e
+--include VM\pTime.e
+--include dict.e
+--include pdates.e
+--include pdate.e
+--include utfconv.e
+--include substitute.e
+--include pFloatN.e
+include pcfunc.e
+include ptagset.e
+include pprntfN.e
+include pfindany.e
+include to_int.e
+include cffi.e
+include ptypes.e
+include porall.e
+include dict.e
+include scanf.e
+include ubits.e
+with debug
+with trace
+--trace(3)
+--*/
+include theGUI.e
+--include backup\xpGUI.9491.e -- BAD
+--include backup\xpGUI.8426.e -- BAD
+--Xinclude backup\theGUI.7381.e -- good! (25/4, 7:00) [esc and focus]
+--include backup\tg_xpm.2899.e
+--include backup\theGUI.2897.e  -- bad..
+--include backup\theGUI.0003.e  -- bad.. -- tg_lm_set_element_sizes
+--include backup\tg_xpm.1129.e
+--include backup\theGUI.0165.e  -- good
+--include backup\theGUI.1124.e  -- good
+--include backup\theGUI.1422.e  -- good
+--include backup\theGUI.1449.e  -- good
+--include backup\theGUI.1468.e  -- good
+--include backup\theGUI.1475.e  -- good
+--include backup\theGUI.1478.e  -- good
+--include backup\theGUI.1479.e  -- good
+--include backup\theGUI.1480.e  -- BAD [FIXED]
+--include backup\theGUI.1485.e  -- BAD
+--include backup\theGUI.1494.e  -- BAD
+--include backup\theGUI.1567.e  -- BAD
+--include backup\theGUI.1745.e  -- BAD
+--include backup\theGUI.2226.e  -- BAD
+
+gUseGTK()
+-- (single drop, since changed:)
+--win32/64: 120x23
+--gtk32: 123x28
+--gtk64: 122x34
+
+procedure changed(gdx id)
+--DEV...
+--  ?{"changed",id,gGetAttribute(id,"VALINT"),
+--trace(1)
+    ?{"changed",id,gGetInt(id,"VALUE"),
+--  ?{"changed",gGetAttribute(id,"VALUE"),
+                   gGetAttribute(id,"VALUE")}
+--  bool editable = gGetAttribute(id,"EDITABLE",false)
+--?{"editable",editable,id}
+
+end procedure
+
+--gdx drop1 = gDropDown({"one","two","threefourfivesix"},changed),
+-- bug: on WinAPI, many hoops to avoid [0], then it kills tab/shift tab/esc...
+--gdx drop1 = gDropDown({"one","two","three"},changed,"EDITABLE=TRUE"),
+gdx drop1 = gDropDown({"one","two","three"},changed),
+    drop2 = gDropDown({"one","two","three"},changed,"VALUE=3"),
+--  drop2 = gDropDown(changed,`VALUE=3,OPTIONS={"Brazil","USA","Japan","France"}`), -- (nope, .. update docs?)
+--  drop2 = gDropDown(changed,"=VALUE,OPTIONS",{3,{"Brazil","USA","Japan","France"}}),
+--  drop2 = gDropDown(changed,"=OPTIONS,VALUE",{{"Brazil","USA","Japan","France"},3}), -- fine
+--  drop2 = gDropDown({"Brazil","USA","Japan","France"},changed,"VALUE=3"), -- fine
+--  vhbox = gVbox({gHbox({drop1,drop2})}),
+--  vhbox = gVbox({gFrame(gHbox({drop1,drop2}),"gFrame")}),
+--  vhbox = gVbox({gHbox({drop1})}),
+    hbox = gHbox({drop1,drop2},"MARGIN=13x13"),
+    dlg = gDialog(hbox,"gDropDown",`SIZE=240x80`)
+--gSetAttribute(drop2,"VALUE",3) -- (else it's blank)
+--puts(1,"")
+--DEV I simply don't get why this completely fucks up key handling...
+gSetAttribute(drop1,"EDITABLE",true) -- (no such thing...)
+gShow(dlg)
+--?gGetAttribute(drop1,"VALINT")
+--?gGetAttribute(drop2,"OPTIONS")
+gMainLoop()
+

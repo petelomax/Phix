@@ -18,19 +18,26 @@ szTitle:    .asciz "This is the title\n"    @ (say this is at #40123456)
 iAdrszTitle:     .int szTitle
 
 main:                           @ entry of program 
-    ldr r0,iAdrszTitle          @ (similar to x86&rsquo;s lea)
+    ldr r0,iAdrszTitle          @ (similar to x86&apos;s lea)
 @ or (as sub-4K style)
     ldr r0,=szTitle
-@ or (Phix-style - don&rsquo;t panic!):
+@ or (Phix-style - don&apos;t panic!):
     mov r0,#40000000 @ (lsl 24)
     orr r0,#00120000 @ (lsl 16)
     orr r0,#00003400 @ (lsl 8)
     orr r0,#00000056 @ (lsl 0)
-    bl displayMsg               @ (similar to x86&rsquo;s call)
+@ or (untried but wd be much better):
+    mov r0,pc
+    b nxt                       @ (if/when the 4K limit breached..)
+    .int szTitle                @ data addr
+  nxt:
+    ldr r0,[r0]
+@ ...
+    bl displayMsg               @ (similar to x86&apos;s call)
  </pre>
         All you really need to know/accept from that is that values (often) need to be loaded in 8-bit chunks.<br>
         NB: in "as" (ie the RPi assembler) syntax, #NN is a decimal number, but pilasm.e treats that as hex.<br>
-        For pilasm.e, I think I&rsquo;ll allow an "lea [var]" and have it spit out three instructions.<br>
+        For pilasm.e, I think I&apos;ll allow an "lea [var]" and have it spit out three instructions.<br>
 <!--
         However for our experiments with "as" and "ld", we still need to cope with iAdrszTitle being slap in the middle
         of the code section. Or just assume that 4K is enough for all rosettacode samples...<br>
@@ -38,10 +45,10 @@ main:                           @ entry of program
         
         <br>
         <br>
-        There are several other non-standard quirks of Phix&rsquo;s (internal) ARM assembly langugage, such as:<br>
-        "add r5, r4, r2, lsl 3" &lt;===&gt; "add r5, r4, r2 lsl 3" &lt;===&gt; "add r5, r4, r2<<3" &lt;===&gt; "add r5, r4, r2*8",<br>
-        "ldr r3, [r5, 4]" &lt;===&gt; "ldr r3, [r5+4]".<br>
-        In other words I&rsquo;ll make up my own rules/syntax as I see fit, to preserve my own sanity.<br>
+        There are several other non-standard quirks of Phix&apos;s (internal) ARM assembly langugage, such as:<br>
+        "add r5, r4, r2, lsl 3" &hArr; "add r5, r4, r2 lsl 3" &hArr; "add r5, r4, r2<<3" &hArr; "add r5, r4, r2*8",<br>
+        "ldr r3, [r5, 4]" &hArr; "ldr r3, [r5+4]".<br>
+        In other words I&apos;ll make up my own rules/syntax as I see fit, to preserve my own sanity.<br>
         Some will no doubt disagree, but for me the pre-UAL syntax is all round far nicer to deal with.<br>
         By default (in filedump.e unless UsePhixSyntax is true) it will disassemble to a standard syntax, whereas
         when disassembling for a list.asm file it will try as best it can to match the #ilASM{[ARM]} source input.
@@ -66,7 +73,7 @@ The compiler must know when a register contains:<br>
     ...<br>
 5) Test.<br>
 6) ex.err creation.<br>
-7) pGUI, mpfr, etc...<br>
+7) theGUI, mpfr, etc...<br>
 8) trace, profile, etc...<br>
 <br>
 Of necessity 4.1-4 will intertwine and overlap, and take many months and quite probably years,
@@ -109,14 +116,15 @@ look at a disassembly listing and match it to the original source. Example:
                              orr r1,0x0067
  </pre>
 
-blx is not supported, but you can always replace:
- <pre>
-@   blx r4                               @ call of the function to be measured
-    mov lr,pc                            @ pc is always +8!! (+4 in thumb mode)
-    bx r4
- </pre>
-
-nb: bx pc is undefined... (compiler error needed?)
+<!--
+//blx is not supported, but you can always replace:
+// <pre>
+//@ blx r4                               @ call of the function to be measured
+//  mov lr,pc                            @ pc is always +8!! (+4 in thumb mode)
+//  bx r4
+// </pre>
+//nb: bx pc is undefined... (compiler error needed?)
+-->
 
 <!--
 -- http://www.davespace.co.uk/arm/introduction-to-arm/index.html

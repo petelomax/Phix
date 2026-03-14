@@ -1,0 +1,57 @@
+--
+-- simplify.exw
+--
+--  process simplify.txt as output by makephix.exw
+--
+sequence lines = get_text("simplify.txt",GT_LF_STRIPPED), files = {}
+string filepath, prev = "", rep, file = ""
+for i,l in lines do
+    sequence r = scanf(l,"%s:%d simplify %s to %s")
+    if length(r)!=1 then ?9/0 end if
+    filepath = r[1][1]
+    if filepath!=prev then
+        files = append(files,filepath)
+        prev = filepath
+    end if
+    lines[i] = r[1]
+end for
+integer l = length(lines), lineno
+if l=0 then
+    printf(1,"simplify.txt empty")
+else
+--  ?shorten(files,"files",4)
+    printf(1,"Apply %d simplifications to %d files?:",{l,length(files)})
+end if
+sequence contents
+procedure update_and_close()
+    if file!="" then
+        integer fn = open(file,"w")
+        puts(fn,join(contents,"\n")&"\n")
+        close(fn)
+    end if
+end procedure
+
+integer ch = upper(wait_key())
+if l and ch!='N' and ch!=#1B then
+    puts(1,ch&"\n")
+    prev = ""
+    for i,line in lines do
+        {filepath, lineno, prev, rep} = line
+        progress("processing %s",{filepath})
+        if filepath!=file then
+            update_and_close()
+            file = filepath
+            contents = get_text(file,GT_LF_STRIPPED)
+        end if
+        string cl = contents[lineno]
+        integer k = match(prev,cl),
+                e = k+length(prev)-1
+        if k=0 then ?9/0 end if
+        cl[k..e] = rep
+        contents[lineno] = cl
+    end for
+    update_and_close()
+    progress("")
+    ?"done"
+    wait_key()  
+end if

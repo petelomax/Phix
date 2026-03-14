@@ -1,0 +1,744 @@
+--
+-- demo\theGUI\gPixbuf.exw
+-- =======================
+-- 
+-- SUG: throw in gPolygon.exw (renamed less "Canvas") and PhixLogo.exw (C/P/L in the keyhandler).
+--
+-- Tests ((32|64)x(WinApi|gUsekGtk), ie fourfold):
+--  Is the default window filled and 240x156?
+--  Can it be resized (including shrinking)?
+--  Are the edges properly anti-aliased and shapes filled?
+--
+?""
+with javascript_semantics
+--requires(64,true)
+include theGUI.e
+--include hGUI.e
+sequence cl = command_line()
+if find("-GTK",cl) then
+    gUseGTK()
+end if
+--gUseGTK()
+--include tg_xpm.e
+--include backup\theGUI.4970.e -- bad (NO FULLSCREEN)
+--include backup\theGUI.5120.e -- bad ("")
+--include backup\theGUI.5280.e -- bad ("")
+--include backup\theGUI.5356.e -- bad ("")
+--include backup\theGUI.5366.e -- bad (F11 inop)
+--include backup\theGUI.5370.e -- good (BLUE)
+--include backup\theGUI.5371.e -- good (F11)
+--include backup\theGUI.5372.e -- half-bad (F11)
+--include backup\theGUI.5373.e -- half-bad (F11)
+--include backup\theGUI.5374.e -- good (blue)
+--include backup\theGUI.5400.e -- bad (F11)
+--include backup\theGUI.5420.e -- good (blue)
+--include backup\theGUI.5611.e -- bad (F11)??
+--include backup\theGUI.5735.e -- bad (F11)??
+--include backup\theGUI.6101.e -- good (blue)
+--include backup\theGUI.6105.e -- good (blue)
+--include backup\theGUI.6116.e -- bad (BLACK) [FIXED]
+--include backup\theGUI.6118.e -- bad (BLACK)
+--include backup\theGUI.6130.e -- bad (BLACK)
+--include backup\theGUI.6142.e -- bad (BLACK)
+--include backup\theGUI.6599.e -- bad (BLACK)
+--include backup\theGUI.6532.e -- bad (BLACK)
+--include backup\theGUI.0002.e -- X
+--include backup\theGUI.0074.e -- bad (resize)
+--include backup\theGUI.0100.e -- bad (resize)
+--include backup\theGUI.0155.e -- bad (resize)
+--include backup\theGUI.1530.e -- bad (resize)
+--gUseGTK()
+
+--include theGUI4.e
+--include theGUI3.e -- DEV [25/8/23] allows some shrinkage under GTK...
+--include backup\theGUI.0220.e -- GOOD
+--include backup\theGUI.0801.e -- GOOD
+--include backup\theGUI.0826.e -- GOOD
+--include backup\theGUI.1004.e -- GOOD
+--include backup\theGUI.1220.e -- GOOD
+--include backup\theGUI.1414.e -- GOOD
+--include backup\theGUI.1475.e -- X
+--include backup\theGUI.1476.e -- X
+--include backup\theGUI.1477.e -- GOOD
+--include backup\theGUI.1483.e -- GOOD
+--include backup\theGUI.1486.e -- GOOD
+--include backup\theGUI.1487.e -- GOOD
+--include backup\theGUI.1488.e -- BAD
+--include backup\theGUI.1490.e -- BAD
+--include backup\theGUI.1502.e -- X
+--include backup\theGUI.1507.e -- BAD
+--include backup\theGUI.1530.e -- BAD
+--include backup\theGUI.1531.e -- BAD
+--include backup\theGUI.1532.e -- BAD
+--include backup\theGUI.1533.e -- BAD
+--include backup\theGUI.1535.e -- BAD
+--include backup\theGUI.1542.e -- BAD
+--include backup\theGUI.1545.e -- X
+--include backup\theGUI.1572.e -- BAD
+--include theGUI2.e
+--DEV [20/8/23] Won't permit size reduction.... (theGUI3.e does, although it gives me a 242x156 window[ie +2,-7])
+--DEV [23/8/23] Now better, but limited to initial size...
+--DEV [2/12/23 under WinAPI w,h get 238,124 but under GTK they get 12,14...
+--ERM: why are **ALL** these TG_NW,0??
+--{"tg_shifta","oxoy(orig)",{205,87'W'},"rxry(adj)",{0,0},"nxny(new)",{205,87'W'},"xy(old)",{205,87'W'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{177,55'7'},"rxry(adj)",{0,0},"nxny(new)",{177,55'7'},"xy(old)",{177,55'7'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{158,71'G'},"rxry(adj)",{0,0},"nxny(new)",{158,71'G'},"xy(old)",{158,71'G'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{54'6',23},"rxry(adj)",{0,0},"nxny(new)",{54'6',23},"xy(old)",{54'6',23},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{67'C',97'a'},"rxry(adj)",{0,0},"nxny(new)",{67'C',97'a'},"xy(old)",{67'C',97'a'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{181,9},"rxry(adj)",{0,0},"nxny(new)",{181,9},"xy(old)",{181,9},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{164,31},"rxry(adj)",{0,0},"nxny(new)",{164,31},"xy(old)",{164,31},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{1,0},"rxry(adj)",{0,0},"nxny(new)",{1,0},"xy(old)",{1,0},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{121'y',47'/'},"rxry(adj)",{0,0},"nxny(new)",{121'y',47'/'},"xy(old)",{121'y',47'/'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{218,109'm'},"rxry(adj)",{0,0},"nxny(new)",{218,109'm'},"xy(old)",{218,109'm'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{225,62},"rxry(adj)",{0,0},"nxny(new)",{225,62},"xy(old)",{225,62},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{120'x',109'm'},"rxry(adj)",{0,0},"nxny(new)",{120'x',109'm'},"xy(old)",{120'x',109'm'},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{1,62},"rxry(adj)",{0,0},"nxny(new)",{1,62},"xy(old)",{1,62},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{92'\',0},"rxry(adj)",{0,0},"nxny(new)",{92'\',0},"xy(old)",{92'\',0},"TG_NW",0}
+--{"tg_shifta","oxoy(orig)",{211,47'/'},"rxry(adj)",{0,0},"nxny(new)",{211,47'/'},"xy(old)",{211,47'/'},"TG_NW",0}
+
+
+bool bUsePoly = true -- (avoids bresenham edges on filled arcs under WinAPI)
+--bool bUsePoly = false -- (bresenham edges on filled arcs under WinAPI) [FIXED, ish, see WU_BLEND]
+
+bool timing_active = false
+string tcode = "PF", tc1txt, tc2txt
+
+--include backup\theGUI.5875.e -- good fonts
+--include backup\theGUI.5877.e -- good fonts
+--include backup\theGUI.5878.e -- duff fonts (& background)
+--include backup\theGUI.5881.e -- duff fonts (& background)
+--include backup\theGUI.5890.e -- duff fonts
+--include backup\theGUI.5909.e -- duff fonts
+--include backup\theGUI.5960.e -- duff
+--include backup\theGUI.5965.e -- duff fonts
+--include backup\theGUI.3521.e -- good (resize)
+--include backup\theGUI.3524.e -- duff
+--include backup\theGUI.3525.e -- duff
+--include backup\theGUI.3526.e -- duff
+--include backup\theGUI.3527.e -- duff [GTK3 bad]
+--include backup\theGUI.3528.e -- near but off (fonts good) [GTK3 good]
+--include backup\theGUI.3529.e -- duff
+--include backup\theGUI.3530.e -- duff
+--include backup\theGUI.3531.e -- duff
+--include backup\theGUI.3532.e -- duff
+--include backup\theGUI.2290.e -- good (resize) [esp GTK - now in theGUI3.e]
+--include backup\theGUI.2320.e -- good
+--include backup\theGUI.2321.e -- duff
+--include backup\theGUI.2345.e -- duff
+--include backup\theGUI.2353.e -- duff
+--include backup\theGUI.2406.e -- duff
+--include backup\theGUI.2421.e -- duff
+--include backup\theGUI.2433.e -- duff
+--include backup\theGUI.2229.e -- (same resize flicker - I wonder whether using a gImage would help...)
+--include backup\theGUI.2344.e -- duf (resize)
+--include backup\theGUI.0731.e -- ok
+--include backup\theGUI.0735.e -- ok
+--include backup\theGUI.0739.e -- ok
+--include backup\theGUI.0756.e -- duff
+--include backup\theGUI.0780.e -- duff
+--include backup\theGUI.0810.e -- duff
+--include backup\theGUI.1176.e -- still duff
+--include backup\theGUI.1753.e -- still duff
+--include backup\theGUI.1914.e -- still duff
+--include backup\theGUI.1950.e -- ok
+--include backup\theGUI.1961.e -- ok
+--include backup\theGUI.1962.e -- ok
+--include backup\theGUI.2003.e -- duff
+--include backup\theGUI.2032.e -- duff
+--gUseGTK()
+
+constant degrees = utf32_to_utf8({#00B0})
+
+--/*
+constant scissors = """
+........................
+........................
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+........................
+........................
+"""
+--gdp pixels = split(substitute_all(scissors,".*",{TG_MAGENTA,TG_RED}),'\n')
+gdp pixels = split(substitute_all(scissors,".*",{TG_WHITE,TG_RED}),'\n')
+--*/
+--?pixels
+--?columnize(pixels)
+
+--Well, this does the trick!
+--pp(split(scissors,'\n'))
+--pp(columnize(split(scissors,'\n'),defval:=' '))
+
+-- DEV check (/implement): [test this in a procedure for automatic pbr handling]
+--  pixels = gPixbuf_from_Pixels(pixels) 
+--?pixels
+--  pixels = gPixbuf_from_Pixels(deep_copy(pixels)) -- OK
+--?pixels
+--  pixels = gPixbuf_take_Pixels(pixels)  -- OK
+--?pixels
+--  gdn image = gImage_from_Pixbuf(pixels,TG_MAGENTA)
+--object image = gImage_from_Pixbuf(pixels,TG_MAGENTA)
+--object image = gImage_from_Pixbuf(pixels) -- OK (if using TG_WHITE)
+--?image
+--or
+--  integer image = gImage_from_Pixbuf(pixels,TG_MAGENTA)
+--  sequence recovered = gPixbuf_from_Image(image) -- nb image is (now) destroyed
+--  sequence recovered = gPixbuf_from_Image(xpm) // (defined below) ""
+--  assert(pixels == recovered)
+--? {} = gImageDestroy(image)
+--or
+--  image = gImageDestroy(image)
+
+
+--/!*
+constant xpm_txt = """
+24 24 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+........................
+........................
+"""
+--*!/
+--/*
+constant xpm_txt = {
+"32 32 6 1",
+"  s None c None",
+". c #808080",
+"X c #FFFFFF",
+"o c #000000",
+"O c #c0c0c0",
+"+ c #ffff00",
+"    ...................         ",
+"    .XXXXXXXXXXXXXXXXX.o        ",
+"    .XXXXXXXXXXXXXXXXX..o       ",
+"    .XXXXXXXXXXXXXXXXX.O.o      ",
+"    .XXXXXXXXXXXXXXXXX.XO.o     ",
+"    .XXXXXXXXXXXXXXXXX.XXO.o    ",
+"    .XXXXXXXXXXXXXXXXX.oooooo   ",
+"    .XXooOXXXXXXXXXXXXXXXXXOo   ",
+"    .XoOooXXXXXXXXXXXXXXXXXOo   ",
+"    .o+o...XXXXXX.XXXXXXXXXOo   ",
+"    o+..OO.OXXX..XXXXXXXXXXOo   ",
+"   o+Xo+O+.OX..XXXXXXXXXXXXOo   ",
+" oo+X+oO+O.O.XXXXXXXXXXXXXXOo   ",
+"oXOX+XooO+.OOXXXXXXXXXXXXXXOo   ",
+"o+.+++oOoX.OOXXXXXXXXXXXXXXOo   ",
+"o+.O+Oo.o+.O.....XXXXXXXXXXOo   ",
+"o..+O+oo+X.OOXXXXXXXXXXXXXXOo   ",
+" oo.+Oo+X+.OOXXXXXXXXXXXXXXOo   ",
+"   o.+oX+X.O.XXXXXXXXXXXXXXOo   ",
+"    o...XO.OO..XXXXXXXXXXXXOo   ",
+"    .o.oOO.OOXX..XXXXXXXXXXOo   ",
+"    .Xo.ooOOOXXXX.XXXXXXXXXOo   ",
+"    .XXoooOOOXXXXXXXXXXXXXXOo   ",
+"    .XXXOOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXOOOXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
+"    .OOOOOOOOOOOOOOOOOOOOOOOo   ",
+"    ooooooooooooooooooooooooo   "}
+--*/
+--/*
+constant xpm_txt = """
+16 16 5 1
+.        c #000000
++        c #C0C0C0
+@        c #808080
+#        c #FF0000
+_        c #FFFFFF
+_______________.
+_++++++++++++++.
+_+++++++++++++@.
+_+++++###.++++@.
+_+++#####.++++@.
+_+#######.++++@.
+_+#######.++++@.
+_+++#####.++++@.
+_+++++###.++++@.
+_++++++...++++@.
+_++++++...++++@.
+_++++++...++++@.
+_+++++......++@.
+_+++.........+@.
+_+++++++++++++@.
+_@@@@@@@@@@@@@@.
+"""
+--*/
+constant xpm = gImage_from_XPM(xpm_txt)
+--?xpm
+--?gImage_get_info(xpm)
+--constant xpm = gImage_from_XPM(xpm_txt,true)
+--?xpm
+--DEV: I mangled the above to:
+--constant xpm = (xpm_txt)
+--which led to a very weird "p2js violation: JavaScript does not support string subscript destructuring" 
+--inside printf() from the first line of tg_lm_dump_ctrls()... Note that an assert(src[1]="gImage") in
+--gDrawImage() successfully (but unintentionally) averted the issue... What I did find was that ?"bang"
+--(in"") was displayed but ?"crash" not, with the ex.err claiming it had long since left that routine.
+--With a bit of luck it's just a duff era somewhere in that statement... (an atom {a,b,c,d} = str[2]).
+--I may well have optimised that kind of thing, but not updated the error handling to match properly.
+
+
+function xy_mul(sequence poly, atom xm, ym)
+    -- Quick hack. If you can fix/rewrite this so that polygons 
+    -- come out right at sizes other than 240x156 let me know..
+    poly = deep_copy(poly)
+    for i=1 to length(poly) do
+        for j=1 to length(poly[i]) by 2 do
+            poly[i][j] *= xm
+            poly[i][j+1] *= ym
+        end for
+    end for
+    return poly
+end function
+
+procedure redraw(gdx canvas, integer w, h)
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--?XgGetTextExtent(canvas,"circle") -- 29,15 (winAPI)
+--?gGetTextExtent("circle",canvas) -- 29,15 (winAPI)
+--?gVersion()
+
+--<deleteme> --- just some tests to get the ball rolling...
+--  gdn image = gImage(w, h,TG_PARCHMENT) 
+--  gDrawLine(image,0,cy,w-1,cy,TG_GREEN)
+--  gdp pid = gPixbuf(w,h,TG_PARCHMENT)
+--  gDrawLine(pid,0,cy,w-1,cy,TG_GREEN)
+--  gdn image = gImage_from_Pixbuf(pid,bDestroy:=false) -- param gone...
+--  gdn image = gImage_from_Pixbuf(pid)
+--  gDrawImage(image,canvas)
+
+--</deleteme>
+
+    gdp pid = gPixbuf(w,h,TG_PARCHMENT,true)
+--  gDrawLine(canvas,0,cy,w-1,cy,TG_GREEN)
+--DEV
+    gDrawLine(pid,0,cy,w-1,cy,TG_GREEN)
+    gDrawLine(pid,cx,0,cx,h-1,TG_GREEN)
+--  gDrawLine(pid,0,0,w,h,TG_RED)
+--  gDrawLine(pid,0,h,w,0)
+
+--  gdn image = gImage_from_Pixbuf(pid)
+    gDrawArc(pid,cx,cy,w,h,15,50,colour:=TG_GREEN)
+
+--  gDrawArc(pid,cx,cy,w,h,15,50,colour:=TG_RED)
+--DEV not filled... [FIXED]
+--  gDrawArc(pid,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+--  gDrawText(pid,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_NORMAL) -- assert failure, good
+
+
+    --aside: these only come out right at the 240x156 size
+    sequence psect = xy_mul({{0,117,8,72,42,48},{66,34,91,20,128,5},{195,0},{214,129}},w/430,h/260),
+             pchrd = xy_mul({{337,234,287,256,244,258},{214,258,156,260,34,231},{5,161}},w/430,h/260)
+
+    if bUsePoly then
+        -- These were hand-generated by manually dragging control points to match an overlaid gDrawArc(),
+        -- that is within the gDrawPolygon.exw example, and the code needed/added should still be there.
+        -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
+        gDrawPolygon(pid,psect,colour:=TG_OLIVE)
+        gDrawPolygon(pid,pchrd,colour:=TG_AMBER)
+    else
+        gDrawArc(pid,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+        gDrawArc(pid,cx,cy,w,h,55,165,TG_CHORD+TG_FILLED,TG_AMBER)
+        -- no bresenham lines (under winAPI): (doh, I was using wu_ellipse!)
+--      gDrawArc(pid,cx,cy,w,h,185,265,TG_SECTOR,TG_OLIVE)
+--      gDrawArc(pid,cx,cy,w,h,55,165,TG_CHORD,TG_AMBER)
+    end if
+    gDrawPolygon(pid,psect,false,colour:=TG_OLIVE)
+
+--X gDrawText(pid,w*.3,h*.25,"sector",{},TG_CENTRE,0,TG_BLACK)
+--X gDrawText(pid,w*.35,h*.85,"chord",{},TG_CENTRE,0,TG_BLACK)
+    atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
+    gDrawCircle(pid,x3,y4,r,colour:=TG_RED)
+--DEV not filled... [FIXED]
+--  gDrawCircle(pid,x3,y4,r,TG_FILLED,colour:=TG_RED)
+    gDrawLine(pid,x3,y4,x3+r2,y4-r2,TG_GREY,1)
+
+    gDrawCubicBezier(pid,10,10,w-10,10,0,h-10,w-10,h-10,width:=1)
+--  gDrawCubicBezier(pid,10,10,w-10,10,0,h-10,w-10,h-10,TG_RED,width:=2)
+
+    gdn image = gImage_from_Pixbuf(pid)  -- nb pid destroyed
+--  if odd(bm) then
+--      gDrawLine(image,0,cy,w-1,cy,TG_GREEN)
+--      gDrawLine(image,cx,0,cx,h-1,TG_GREEN)
+--  end if
+--  gDrawLine(image,0,0,w,h)
+--  gDrawLine(image,0,h,w,0)
+
+--  bm = floor(bm/2)
+--  gDrawArc(image,cx,cy,w,h,15,50,colour:=TG_GREEN)
+--  gDrawArc(image,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+    gDrawText(image,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_NORMAL)
+    atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
+    gDrawLine(image,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+--  gSetAttribute(image,`FGCLR`,TG_GREY)
+--  gSetAttribute(image,`LINEWIDTH`,1)
+--  gSetAttribute(image,`LINESTYLE`,TG_DOTTED)
+--  gDrawLine(image,cx,cy,cx+dx,cy+dy,-1,-1,-1)
+--  gSetAttribute(image,`FGCLR`,TG_BLACK)
+    gDrawText(image,cx+dx/2,cy+dy/2,"15",{},TG_NE,0,TG_GREY)
+         dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
+    gDrawLine(image,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+    gDrawText(image,cx+dx/2,cy+dy/2,"50",{},TG_NE,0,TG_GREY)
+
+    gDrawText(image,w*.3,h*.25,"sector",{},TG_CENTRE,0,TG_BLACK)
+    gDrawText(image,w*.35,h*.85,"chord",{},TG_CENTRE,0,TG_BLACK)
+--  atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
+--  gDrawCircle(image,x3,y4,r,colour:=TG_RED)
+----    gDrawCircle(image,x3,y4,r,TG_FILLED,colour:=TG_RED)
+
+--  gDrawLine(image,x3,y4,x3+r2,y4-r2,TG_GREY,1)
+    gDrawText(image,x3+r4,y4-r4,"r",{},TG_NW,0,TG_GREY)
+--?XgGetTextExtent(image,"circle") -- 29,15 (WinAPI) / 27,14 (GTK2/3)
+--?gGetTextExtent("circle",image) -- 29,15 (WinAPI) / 27,14 (GTK2/3)
+--?gGetAttribute(image,`FONT`)
+    gDrawText(image,x3,y4,"circle",{},TG_S,0,TG_BLACK)
+    gDrawText(image,0,0,"0,0",{},TG_SE,0,TG_GREEN)
+    gDrawText(image,cx+1,cy,"w/2,h/2",{},TG_NE,0,TG_GREEN)
+
+    gDrawText(image,w,h,"w,h",{},TG_NW)
+--  gSetAttribute(canvas,"FGCLR",TG_BLACK)
+    gDrawText(image,w,cy,"0"&degrees,{},TG_SW)
+--  gSetAttribute(image,`FGCLR`,TG_RED)
+    gDrawText(image,cx,h,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+--  gDrawText(image,cx,h,"90"&degrees,{},TG_NE,style:="Arial,Italic 7") -- YEP!
+--  gSetAttribute(image,`FONT`,"Arial,Italic 7")
+--  gSetAttribute(image,`FONT`,"Arial, 7")
+--  ?gGetAttribute(image,`FONT`)
+--  gDrawText(image,cx,h,"90"&degrees,{},TG_NE)
+--  gDrawText(image,cx,h,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+--  gSetAttribute(image,`FONT`,NULL) -- (reset to Helvetica, 9, effectively)
+--  ?gGetAttribute(image,`FONT`)
+
+--  gDrawText(image,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+--  gDrawText(image,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_BOLD)
+--  gDrawText(image,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_NORMAL)
+    gDrawText(image,0,cy,"180"&degrees,{},TG_SE,style:=TG_BOLD)
+--  gDrawText(image,cx,0,"270"&degrees,{},TG_SW,style:=TG_BOLDITALIC)
+    gDrawText(image,cx,0,"270"&degrees,{},TG_SW,style:="Arial, italic 9")
+    gDrawText(image,w,cy,"360"&degrees,{},TG_NW)
+
+--  gDrawCubicBezier(image,10,10,w-10,10,0,h-10,w-10,h-10,width:=1)
+
+    gDrawImage(xpm,image,w*.3, h*.3)
+    gDrawImage(image,canvas)
+--  gDrawLine(canvas,0,cy,w-1,cy,TG_GREEN)
+--  gDrawLine(canvas,10,cy,w-11,cy,TG_RED)
+--  gDrawLine(canvas,cx,0,cx,h-1,TG_GREEN)
+--  gDrawLine(canvas,cx,10,cx,h-11,TG_BLUE)
+--  gDrawLine(canvas,0,0,w,h)
+--  gDrawLine(canvas,0,h,w,0)
+
+--  gDrawArc(canvas,cx,cy,w,h,15,50,colour:=TG_GREEN)
+--  gDrawArc(canvas,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+--  gDrawText(canvas,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_NORMAL)
+
+--  atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
+--  gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+--  gDrawText(canvas,cx+dx/2,cy+dy/2,"15",{},TG_NE,0,TG_GREY)
+--       dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
+--  gDrawLine(canvas,cx,cy,cx+dx,cy+dy,TG_GREY,1,TG_DOTTED)
+--  gDrawText(canvas,cx+dx/2,cy+dy/2,"50",{},TG_NE,0,TG_GREY)
+
+--if bUsePoly then
+--if false then
+--  -- These were hand-generated by manually dragging control points to match an overlaid gDrawArc(),
+--  -- that is within the gDrawPolygon.exw example, and the code needed/added should still be there.
+--  -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
+--  gDrawPolygon(canvas,psect,colour:=TG_OLIVE)
+--  gDrawPolygon(canvas,pchrd,colour:=TG_AMBER)
+--else
+---- bresenham edges (under winAPI):
+--  gDrawArc(canvas,cx,cy,w,h,185,265,TG_SECTOR+TG_FILLED,TG_OLIVE)
+--  gDrawArc(canvas,cx,cy,w,h,55,165,TG_CHORD+TG_FILLED,TG_AMBER)
+---- no bresenham lines (under winAPI): (doh)
+----    gDrawArc(canvas,cx,cy,w,h,185,265,TG_SECTOR,TG_OLIVE)
+----    gDrawArc(canvas,cx,cy,w,h,55,165,TG_CHORD,TG_AMBER)
+--end if
+--  gDrawText(canvas,w*.3,h*.25,"sector",{},TG_CENTRE,0,TG_BLACK)
+--  gDrawText(canvas,w*.35,h*.85,"chord",{},TG_CENTRE,0,TG_BLACK)
+--  atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
+--  gDrawCircle(canvas,x3,y4,r,colour:=TG_RED)
+----    gDrawCircle(canvas,x3,y4,r,TG_FILLED,colour:=TG_RED)
+
+--  gDrawLine(canvas,x3,y4,x3+r2,y4-r2,TG_GREY,1)
+--  gDrawText(canvas,x3+r4,y4-r4,"r",{},TG_NW,0,TG_GREY)
+--  gDrawText(canvas,x3,y4,"circle",{},TG_S,0,TG_BLACK)
+--  gSetAttribute(canvas,"FGCLR",TG_GREEN)
+--  gDrawText(canvas,0,0,"0,0",{},TG_SE)
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE)
+
+
+--?sin(90*TG_DEG2RAD) -- 1
+--?cos(90*TG_DEG2RAD) -- ~0
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SE,90}) -- <crap>[FIXED]
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SW,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_SW,45},colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NW,45},colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,colour:={TG_RED,TG_BLUE}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_S,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_W,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_E,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NE,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_N,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_NW,90}) -- GOOD
+--  gDrawText(canvas,cx+1,cy,"w/2,h/2",{},TG_NE,{TG_C,90}) -- <crap>[FIXED]
+
+--  gDrawText(canvas,w,h,"w,h",{},TG_NW)
+--  gSetAttribute(canvas,"FGCLR",TG_BLACK)
+--  gDrawText(canvas,w,cy,"0"&degrees,{},TG_SW)
+--  gDrawText(canvas,cx,h,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+----    gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_ITALIC)
+----    gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_BOLD)
+----    gDrawText(canvas,cx,h-10,"90"&degrees,{},TG_NE,style:=TG_NORMAL)
+--  gDrawText(canvas,0,cy,"180"&degrees,{},TG_SE,style:=TG_BOLD)
+--  gDrawText(canvas,cx,0,"270"&degrees,{},TG_SW,style:=TG_BOLDITALIC)
+--  gDrawText(canvas,w,cy,"360"&degrees,{},TG_NW)
+
+--  gSetAttribute(canvas,"LINEWIDTH",2)
+--  gDrawCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+
+--/!*
+
+--  gSetAttribute(canvas,"LINEWIDTH",5)
+--  gSetAttribute(canvas,"LINESTYLE",TG_CONTINUOUS)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASHED)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DOTTED)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASH_DOT)
+--  gSetAttribute(canvas,"LINESTYLE",TG_DASH_DOT_DOT)
+--  for px = 20 to 40 by 1 do
+--      for py=20 to 40 do
+--          gCanvasPixel(canvas,px,py,TG_BLUE)
+--      end for
+--  end for
+--  gDrawRect(canvas, 10, 10, 90, 90, true, 5)
+--  gDrawRect(canvas, 10, 10, 90, 90, true)
+--  gDrawRect(canvas, 10, 10, 90, 90, false, 5)
+--  gDrawRect(canvas, 10, 10, 90, 90, false)
+--  gDrawRect(canvas, 10, 10, 90, 90)
+--  gDrawRect(canvas, 0, 0, 118, 46)
+--  gDrawRect(canvas, 0, 0, 240, 180)
+
+--  gDrawImage(xpm,canvas,w*.3, h*.3)
+--X gDrawImage(image,canvas,w*.3, h-h*.3)
+--?xpm
+--?image
+--?gGetAttribute(canvas,"FONT")
+--*!/
+
+    if timing_active then
+        atom time_plus_a_half = time()+0.5, pixel
+        integer fps = 0, t1 = tcode[1], t2 = tcode[2]
+-- WBG for winapi/wu_blend/gtk, 3/6 for 32/4 bit
+-- PIC for pixbuf/image/canvas,
+-- FNAHZLORUMEXYK direct or space cycles (including toggling fill)
+--gSetAttribute(canvas,"BGCLR",TG_BLUE)
+--gSetAttribute(canvas,"FGCLR",TG_BLUE)
+--gSetAttribute(canvas,"FGCLR",TG_BLACK)
+        object real_tgt = {pid,image,canvas}[find(t1,"PIC")],
+                    tgt = {canvas,canvas,image}[find(t1,"PIC")] -- 1st iteration only
+        pid = gPixbuf(w,h,TG_PARCHMENT)
+        if find(t2,"XY") then
+            pid = gPixbuf_take_Pixels(pid)
+        end if
+        do
+            switch t2 do
+                case 'F':   gDrawLine(tgt,0,0,w-1,0,TG_BLUE)                            -- Flat line
+                case 'N':   gDrawLine(tgt,0,0,w-1,h-1,TG_BLUE)                          -- Non-flat
+                case 'A':   gDrawArc(tgt,cx,cy,w,h,15,50,colour:=TG_GREEN)              -- Arc
+                case 'H':   gDrawArc(tgt,cx,cy,w,h,55,165,TG_CHORD+TG_FILLED,TG_AMBER)  -- cHord
+                case 'Z':   gDrawCubicBezier(tgt,10,10,w-10,10,0,h-10,w-10,h-10)        -- beZier
+                --aside: these (gDrawPolygon) only come out right at the 240x156 size..
+                case 'L':   gDrawPolygon(tgt,psect,colour:=TG_OLIVE)                    -- poLygon
+                case 'O':   gDrawPolygon(tgt,psect,false,colour:=TG_OLIVE)              -- polyOut
+                case 'R':   gDrawRect(tgt,10,10,w-10,h-10,true,colour:=TG_CYAN)         -- Rect
+                case 'U':   gDrawRect(tgt,10,10,w-10,h-10,colour:=TG_CYAN)              -- rectoUt
+                case 'M':   gDrawImage(xpm,tgt,w*.3, h*.3)                              -- iMage
+                case 'E':   gDrawText(tgt,w*.9,h*.7,"arc",{},TG_S,0,TG_BLACK,TG_NORMAL) -- Text
+                case 'X':   if t1='P' then                                              -- set piXel
+                                pid[11][11] = TG_RED
+                            else
+--                              gCanvasPixel(canvas, 10, 10, TG_RED)
+                                gCanvasPixel(tgt, 10, 10, TG_RED)
+                            end if  
+                case 'Y':   if t1='P' then                                              -- get pixYel
+                                pixel = pid[11][11]
+                            else
+--                              pixel = gCanvasGetPixel(canvas, 10, 10)
+                                pixel = gCanvasGetPixel(tgt, 10, 10)
+                            end if  
+                case 'K':   pid = gPixbuf_take_Pixels(pid)                              -- from/taKe pxls
+                            pid = gPixbuf_from_Pixels(pid)
+                default:    ?9/0
+            end switch
+            
+            if fps=0 then
+                tgt = real_tgt
+            end if
+
+            fps += 2 -- (since we're counting for 0.5s)
+        until time()>=time_plus_a_half
+        if t1='C' then
+            gDrawImage(image,canvas) -- ('bliterate any repeatedly-anti-aliasing-the-same-bit glitches)
+        end if
+        gdx dlg = gGetDialog(canvas)
+        string wg = gVersion(true)
+        if gVersion(-1)=TG_WINAPI and gGetAttribute(canvas,"WU_BLEND") then
+            wg &= "[WU_BLEND]"
+        end if
+        gSetAttribute(dlg,"TITLE","gPixBuf (%,d FPS, %s %s %s)",{fps,tc1txt,tc2txt,wg})
+--if platform()!=JS then
+        if integer(pid) then {} = gPixbuf_take_Pixels(pid) end if
+--end if
+    end if
+    image = gImageDestroy(image)
+end procedure
+
+--/* -- works fine:
+function click(gdx canvas, sequence status, integer x, y)
+--procedure click(gdx canvas, sequence status)
+    integer {button,pressed,ctrl,shift,alt} = status
+    printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d)\n",
+             {button,pressed,ctrl,shift,alt,x,y})
+--  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d)\n",
+--           {button,pressed,ctrl,shift,alt})
+    return false
+end function
+--*/
+--/* -- works fine:
+--procedure mousemove(gdx canvas, integer x,y)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, bool left,middle,right)
+--procedure mousemove(gdx canvas, integer x,y, left,middle,right, ctrl,shift,alt)
+procedure mousemove(gdx canvas, integer x,y, bool left,middle,right, ctrl,shift,alt)
+--  ?{"mousemove",x,y}
+--  ?{"mousemove",x,y,left,middle,right}
+    ?{"mousemove",x,y,left,middle,right,ctrl,shift,alt}
+end procedure
+--*/
+
+function key_handler(gdx dlg, integer c)
+    c = upper(c)
+    switch c do
+        case VK_F11:        gToggleInt(dlg,"FULLSCREEN")
+        case 'T':           timing_active = not timing_active
+                            gdx timer = gGetAttribute(dlg,"USER_DATA")
+                            gSetAttribute(timer,"RUN",timing_active)
+                            gSetAttribute(dlg,"TITLE","gPixbuf")
+--                          gRedraw(dlg)
+--      case 'B':           gdx canvas = gGetChild(dlg,1)
+--                          gToggleInt(canvas,"WU_BLEND")
+        case ' ':           tcode[2] = "NAHZLORUMEXYKF"[find(tcode[2],"FNAHZLORUMEXYK")]
+        default:            integer k = find(c,"PICFNAHZLORUMEXYK")
+                            if k then
+                                tcode[1+(k>3)] = c
+                            elsif platform()!=JS then
+                                k = find(c,"36WG")
+                                if k and ((k<=2 and machine_bits()!={32,64}[k]) or
+                                          (k>=3 and gVersion(-1)!={TG_WINAPI,TG_GTK}[k-2])) then
+                                    integer m = {-32,-64,-machine_bits(),-machine_bits()}[k]
+                                    sequence opts = {}
+                                    if c='G' or (c!='W' and gVersion(-1)=TG_GTK) then 
+                                        opts = append(opts,"-GTK")
+                                    end if
+                                    if timing_active then
+                                        opts &= {"-T","-"&tcode}
+                                    end if
+                                    requires({m,join(opts," ")},9)
+                                end if
+                            end if
+    end switch
+    if timing_active then
+        while find(tcode,{"PM","PE"}) do
+            tcode[2] = "NAHZLORUMEXYKF"[find(tcode[2],"FNAHZLORUMEXYK")]
+        end while
+        tc1txt = {"pixbuf",
+                  "image",
+                  "canvas"}[find(tcode[1],"PIC")]
+        tc2txt = {"Flat line",
+                  "Non-flat",
+                  "Arc",
+                  "cHord",
+                  "Bezier",
+                  "poLygon",
+                  "polyOut",
+                  "Rect",
+                  "recoUt",
+                  "iMage",
+                  "tExt",
+                  "set piXel",
+                  "get pixYel",
+                  "from/taKe pxls"}[find(tcode[2],"FNAHZLORUMEXYK")]
+    end if          
+    return TG_CONTINUE
+end function
+
+procedure action(gdx timer)
+    gdx canvas = gGetAttribute(timer,"USER_DATA")
+    gRedraw(canvas)
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
+--  dialog = gDialog(canvas,`gPixbuf`,`SIZE=240x156`), -- matches doc screenshot 
+    dialog = gDialog(canvas,`gPixbuf`,`SIZE=540x456`), -- better for speed tests
+     timer = gTimer(action,1000,timing_active)
+gSetAttribute(dialog,"USER_DATA",timer)
+gSetAttribute(timer,"USER_DATA",dialog)
+gSetHandler(dialog,`KEY`,key_handler)
+
+--gSetHandler(canvas,"CLICK",click)
+--gSetHandler(canvas,"MOUSEMOVE",mousemove)
+--gSetAttribute(canvas, "WU_BLEND", true)
+
+gShow(dialog)
+if find("-T",cl) then
+    tcode = cl[$][2..$]
+    {} = key_handler(dialog,'T')
+end if
+gMainLoop()
+--?"done"
+--wait_key()
+
+

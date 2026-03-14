@@ -1,0 +1,1141 @@
+﻿--
+-- demo\theGUI\hText.exw
+-- =====================
+--
+--  Experimental. A planned drop-in canva-based replacement for gText.
+--
+--  Note the frankly rubbish single-step Ctrl Z toggle of the native control
+--  has been replaced with a hopefully much better stack, with Ctrl Z being
+--  strictly undo, and (the natively ignored) Ctrl Y being strictly redo.
+--
+--  Of course it is utterly, utterly insane to do it this way, but quite a
+--  bit of fun and extremely pleasing to prove to myself that I got the base
+--  API right, while (re-)implementing an equally elegant higher level API.
+--
+--  On the other hand, once you have a text field working, you can start to
+--  think about tweaking it to support a spin field, and (later) maybe even 
+--  a dropdown and datepick, rather than start from scratch &/or duplicate 
+--  ~700 lines, along with however many bugs they might contain.
+--
+--  This code may also have uses elsewhere, for instance should you hanker
+--  after in-place editing on a gTable this should contain almost all the 
+--  code you need, except perhaps for some finer positioning points, with
+--  potential re-use/re-draw of the gTable's canvas all down to you.
+--
+--  Differences to native (semi-deliberate):
+--   Does not switch mouse cursor from ARROW to TEXT when it moves over the field.
+--  Differences to GTK native (semi-deliberate):
+--   Does not implement the truly awful auto-full-select on *EVERY* (re-)focus.
+--
+--  Aside: I never did get the native GtkEntry to expand horizontally, not
+--          that I tried very hard to do so.
+--  In truth I have imitated the GTK2/3 look and feel just to show that I can,
+--          but certainly not because I think it is a spectacularly good idea!
+--
+-- enum TEXT, SPIN, CHECKBOX, DATEPICK
+-- constant ?? = TEXT
+--/*
+--        SPIN
+--          (non inheritable, creation only) Makes the control a <a href="gSpin.htm">gSpin</a>. Can be <a href="logicops.htm#tf">false</a> (the default),
+--          <a href="logicops.htm#tf">true</a> (== {0,100,1,false}), or {lo,hi[,step[,wrap]]} where lo and hi must be integers with lo&lt;=hi,
+--          step must be an integer&gt;=1, and wrap must be true/false. Reading ths attribute yeilds either false or a four-element sequence. 
+--          Setting before the first display defaults the control size from lo/hi. Changing the <a href="gSetAttribute.htm#FONT">FONT</a>
+--          changes the up/down image sizes to match.
+--*/
+
+puts(1,"")
+--requires(64,true)
+--with trace
+--trace(3)
+with javascript_semantics
+without debug
+include theGUI.e
+--/!*
+include VM\pTime.e
+include dict.e
+include pdates.e
+include pdate.e
+include utfconv.e
+include substitute.e
+include pFloatN.e
+include builtins\pfile.e
+--*!/
+with debug
+--include deGUI.e -- nah
+--include theGUI.e  -- yep! the hyper easy gui
+--include backup\theGUI.0003.e -- no gDrawRect...
+--include backup\theGUI.0438.e -- no gDrawRect...
+--include backup\theGUI.3000.e -- no gDrawRect...
+--include backup\theGUI.6021.e -- NOT loopy!
+--include backup\theGUI.6080.e -- NOT loopy!
+--include backup\theGUI.6097.e -- NOT loopy!
+--include backup\theGUI.6103.e -- NOT loopy!
+--include backup\theGUI.6105.e -- NOT loopy!
+--include backup\theGUI.6116.e -- loopy!
+--include backup\theGUI.6130.e -- loopy!
+--include backup\theGUI.6140.e -- loopy!
+--include backup\theGUI.7060.e -- loopy!
+--gUseGTK() -- DEV loopy on GTK2 [FIXED]... also no focus on canvas...
+--  it seems gtk_widget_modify_fg() triggers a full redraw - I need to google that...
+--  better: revert to ctrl_bg/fg for a canvas... [DONE]
+
+--Temp, ==> ctrl_xtra[CX_GTL_ATTRS] for gText(): (eg)
+--                            {   CXTEXT_VALUE:=$,      'S',`VALUE`     }, -- text
+--                            {   CXTEXT_CARETPOS=$,    'i',`$CPOS`     }, -- cursor position
+--string it
+--integer cpos = 01
+
+local constant bGTK = gVersion(-1)==TG_GTK,
+               bGTK2 = bGTK and gVersion(-2)==2,
+               bGTK3 = bGTK and gVersion(-2)==3,
+               bWAPI = gVersion(-1)==TG_WINAPI
+
+enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
+enum CXTEXT_CARETCLR,
+     CXTEXT_CARETCT,
+     CXTEXT_CARETIME,
+     CXTEXT_CARETIMER,
+     CXTEXT_CARETPOS,
+     CXTEXT_CHARSFROM,
+     CXTEXT_HADFOCUS,
+     CXTEXT_SELSTART,
+     CXTEXT_VALUE,
+     CXTEXT_VALUE_CHANGED,
+     CXTEXT_CUEBANNER,              -- (yet to be added to the docs)
+     CXTEXT_UNDO,
+     CXTEXT_UNDOPOS,
+     CXTEXT_DEFER,
+     CXTEXT_DEFERX,
+--DEV:
+     CXTEXT_SPIN,       -- t/f
+     CXSPIN_LO,         -- int <= hi
+     CXSPIN_HI,         -- int >= lo
+     CXSPIN_STEP,       -- int >= 1 (or same sign as hi-lo? or just suckitandsee?)
+     CXSPIN_WRAP,       -- t/f              (may work for +ve step only, "")    
+     CXSPIN_HOV,        -- 0/1/2 for none/up/down
+     CXTEXT_LEN = $
+sequence ctrl_xtra
+
+gdx clipboard = NULL
+
+bool bTest = false
+
+function tg_nearest_cpos(gdx text, integer x)
+    -- perform a binary chop to find the nearest cpos, taking cfrom into account
+    integer cfrom = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM]
+    if x<=5 then return cfrom end if
+    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE]
+--?txt
+    sequence utf32 = utf8_to_utf32(txt)[cfrom..$]
+--?utf32
+    integer lo = 0,
+            hi = length(utf32),
+            lopos = 5,
+--          hipos = 5 + XgGetTextExtent32(text,utf32)[1]
+            hipos = 5 + gGetTextExtent32(utf32,text)[1]
+    if x>=hipos then return cfrom+hi end if
+    while hi>lo+1 do
+        integer mid = floor((hi+lo)/2)
+        -- may as well leave these in (never triggered for me)
+        if mid<=lo then ?9/0 end if
+        if mid>=hi then ?9/0 end if
+--      integer midpos = 5 + XgGetTextExtent32(text,utf32[1..mid])[1]
+        integer midpos = 5 + gGetTextExtent32(utf32[1..mid],text)[1]
+        if x<midpos then
+            hi = mid
+            hipos = midpos
+        else
+            lo = mid
+            lopos = midpos
+        end if
+    end while
+    -- aside: I was planning on nearest(hi,lo) here, but this seems fine:
+    return cfrom+lo
+end function
+
+local function tg_gtext_prev_word_boundary(integer cpos, sequence utf32)
+    cpos = max(cpos-1,1)
+    while cpos>1 do
+        if utf32[cpos-1]=' ' then
+            exit
+        end if
+        cpos -= 1
+    end while
+    return cpos
+end function
+
+local function tg_gtext_next_word_boundary(integer cpos, len, sequence utf32)
+    cpos = min(cpos+1,len+1)
+    while cpos<=len do
+        if utf32[cpos-1]=' '
+        and utf32[cpos]!=' ' then
+            exit
+        end if
+        cpos += 1
+    end while
+    return cpos
+end function
+
+procedure tg_gtext_redraw(gdx text, integer w, h)
+--?`redraw`
+--?{w,h}
+    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE], substr
+--?txt
+    sequence utf32 = utf8_to_utf32(txt)
+--?{`utf32<`,utf32}
+    bool unicode = length(txt)!=length(utf32),
+           bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN]
+    if bTest and bSpin then ?9/0 end if
+    integer cfrom = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM],
+             cpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS],
+         selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART],
+                d = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER]
+    if d then
+        --
+        -- process deferred mouse click/move:
+        -- 
+        integer prev_cpos = cpos,
+                x = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX]
+        if bGTK2 then x += 4 end if
+        if bGTK3 then x -= 2 end if
+        cpos = tg_nearest_cpos(text, x)
+        if d='S' then
+            bool shift = gGetGlobal(`SHIFTKEY`)
+            if shift and selstart=0 then
+                selstart = prev_cpos
+            elsif selstart=0 or not shift then
+                selstart = cpos
+            end if
+        elsif d='D' then
+            selstart = tg_gtext_prev_word_boundary(cpos,utf32)
+            cpos = tg_gtext_next_word_boundary(cpos,length(utf32),utf32)
+        elsif d='M' then
+            if x<=5 then
+                if cfrom>1 then
+                    cfrom -= 1
+                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM] = cfrom
+                end if
+                cpos = cfrom
+--          else
+--              cpos = tg_nearest_cpos(text,x)
+            end if
+--      ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
+        else
+            ?9/0
+        end if
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART] = selstart
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = 0
+        -- </deferred mouse click/move>
+    end if
+    bool bHasFocus = (gGetFocus()==text), 
+       bDrawCursor = false
+    if not bTest then
+        if bGTK2 then
+            gDrawLine(text,0,0,w-1,0,colour:=#9E9A91)
+            gDrawLine(text,0,0,0,h-1,colour:=#9E9A91)
+            gDrawLine(text,1,1,w-2,1,colour:=TG_BLACK)
+            gDrawLine(text,1,1,1,h-2,colour:=TG_BLACK)
+            gDrawLine(text,w-2,2,w-2,h-2,colour:=#DCDAD5)
+            gDrawLine(text,2,h-2,w-2,h-2,colour:=#DCDAD5)
+        elsif bGTK3 then
+            gDrawRect(text,0,0,w-1,h-1,false,0,colour:=#E8E8E7,width:=1)
+
+            if bHasFocus then
+--          if false then
+--              gDrawRect(text,1,1,w-1,h-1,false,2,colour:=#4A90D9,width:=2)
+                gDrawRect(text,1,1,w-2,h-5,false,2,colour:=#4A90D9,width:=2)
+            else
+--              gDrawRect(text,0,0,w,h,false,4,colour:=#808080,width:=1)
+                gDrawRect(text,0,0,w-1,h-8,false,4,colour:=#808080,width:=1)
+            end if
+        elsif bWAPI then
+            atom boxclr = iff(bHasFocus?#0078D4:#646464)
+            gDrawRect(text,0,0,w-1,h-1,colour:=boxclr)
+        else
+            ?9/0
+        end if
+    end if
+    integer x = floor(h/5), y = floor(h/2), tw, th
+    if bGTK2 then x -= 2 y += 1 end if
+--  if bGTK3 then x += 1 end if
+    if bGTK3 then x += 4 y += 1 end if
+--?{`x`,x}
+--DEV/SUG:
+--  if txt=`` and not bHasFocus then
+--      txt = cuebanner
+--  end if
+    -- cursor:
+    gdx cursorblinktimer = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIMER]
+    -- Aside: GTK only shows cursor when no text selected, WinAPI always
+    if bHasFocus and ((not (bGTK2 or bGTK3)) or selstart=0 or selstart=cpos) then
+        if not ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] then
+            ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT] = 6
+            gSetAttribute(cursorblinktimer,`RUN`,true)
+        end if
+        if gGetAttribute(cursorblinktimer,`RUN`) then
+            atom caretime = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIME],
+                 caretclr = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCLR]
+            if time()>=caretime then
+--              caretclr = iff(caretclr=TG_BLACK?bgsel:TG_BLACK)
+                caretclr = iff(caretclr=TG_BLACK?TG_WHITE:TG_BLACK)
+                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCLR] = caretclr
+                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIME] = time()+0.5
+                if caretclr=TG_BLACK then
+                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT] -= 1
+                    if ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT]<=0 then
+                        gSetAttribute(cursorblinktimer,`RUN`,false)
+                    end if
+                end if
+            end if
+
+            integer newfrom = iff(cfrom>=cpos?1:cfrom)
+            substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
+                                                :txt[newfrom..cpos-1])
+--          {tw,th} = XgGetTextExtent(text,substr)
+            {tw,th} = gGetTextExtent(substr,text)
+--?{`Twth`,tw,th,w,h}
+--?{`Tw`,tw,w,txt[newfrom..cpos-1]} £"333
+--?{`Tw`,tw,w,substr}
+--          if tw>=w-6-bSpin*15 then
+            if tw>=w-6-bSpin*(h-6) then
+--?"shift" -- DEV proves above test is insufficient/wrong... (when dlg resized deeper/narrower, also click stops being correct)
+--              newfrom = cpos-floor((cpos-newfrom)*((w*2/3)/tw))
+                newfrom = max(1,cpos-floor((cpos-newfrom)*((w*2/3)/tw)))
+--/*DEV slice length is negative [40..10] -- fixed, I think, by prev max(1,).
+    text = 1
+    w = 385
+    h = 267
+    txt = `one two three four five six seven eight nine ten`
+--         123456789012345678901234567890123456789012345678 -- 48
+    substr = `one two th`
+    utf32 = `one two three four five six seven eight nine ten`
+    unicode = 0
+    bSpin = 1
+    cfrom = 1
+    cpos = 11
+    selstart = 0
+    d = 0
+    prev_cpos = <novalue>
+    x = <novalue>
+    shift = <novalue>
+    bHasFocus = 1
+    bDrawCursor = 0
+    boxclr = 30932
+    x = 53'5'
+    y = 133
+    tw = 128
+    th = 32' '
+    newfrom = -9
+--*/
+                substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
+                                                    :txt[newfrom..cpos-1])
+--              {tw,th} = XgGetTextExtent(text,substr)
+                {tw,th} = gGetTextExtent(substr,text)
+            end if
+            if newfrom!=cfrom then
+                cfrom = newfrom
+                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM] = cfrom
+            end if
+            bDrawCursor = (caretclr=TG_BLACK)
+        end if
+    else
+        gSetAttribute(cursorblinktimer,`RUN`,false)
+    end if
+    if not bTest then gCanvasClip(text,{1,1,w-2-bSpin*(h-6),h-2}) end if
+    if selstart and bHasFocus then
+        if selstart>cpos then {cpos,selstart} = {selstart,cpos} end if
+        integer sx = x
+        if selstart>cfrom then
+            substr = iff(unicode?utf32_to_utf8(utf32[cfrom..selstart-1])
+                                                :txt[cfrom..selstart-1])
+            if not bTest then
+                gDrawText(text,sx,y,substr)
+            end if
+--          sx += XgGetTextExtent(text,substr)[1]
+            sx += gGetTextExtent(substr,text)[1]
+            cfrom = selstart
+        end if
+        substr = iff(unicode?utf32_to_utf8(utf32[cfrom..cpos-1])
+                                            :txt[cfrom..cpos-1])
+        if not bTest then
+            sequence selclr = iff(bGTK2?{TG_WHITE,iff(bHasFocus?#4B6983:#9C9A94)}
+                             :iff(bGTK3?{#DBFFF2,#0078D7}
+                             :iff(bWAPI?{#DBFFF2,#0078D7}
+                             :9/0)))
+            -- selclr = #DBFFF2, selbg = #0078D7
+            gDrawText(text,sx,y,substr,colour:=selclr)
+        end if
+--?{length(txt),cfrom,cpos}
+        if cpos<=length(txt) then
+--          sx += XgGetTextExtent(text,substr)[1]
+            sx += gGetTextExtent(substr,text)[1]
+            substr = iff(unicode?utf32_to_utf8(utf32[cpos..$])
+                                                :txt[cpos..$])
+            gDrawText(text,sx,y,substr)
+        end if
+    else
+        substr = iff(unicode?utf32_to_utf8(utf32[cfrom..$])
+                                            :txt[cfrom..$])
+        if not bTest then
+            if length(substr)=0 then
+                substr = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CUEBANNER]
+                gDrawText(text,x,y,substr,colour:=TG_GREY)
+            else
+                gDrawText(text,x,y,substr)
+            end if
+        end if
+    end if
+    if not bTest then gCanvasClip(text,NULL) end if
+    if bSpin then
+--DEV we should probably force a gSpin to have an odd height...
+--    I also suspect a gText height should depend on FONT or an explicit SIZE, but not/refuse to expand heightwise.
+        integer hov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV],
+--              m = floor(h/2)
+--              g = floor(h/7),
+                g = ceil(h/10),
+                m = ceil(h/2),
+                l = w-h+5,
+                r = w-2
+--?{"hmg",h,m,g}
+        gDrawLine(text,l,1,l,h-1,#D2D2D2)
+--      gDrawRect(text,l,m,r,m+1,colour:=#D2D2D2)
+        gDrawLine(text,l,r+1,m,m,colour:=#D2D2D2)
+        if hov then 
+--      if true then    
+            integer {t,b} = iff(hov=1?{1,m-1}:{m,h-2})
+            gDrawRect(text,l,t,r,b,true,colour:=#D8E6F1)
+--          if hov=1 then t -= 1 else b += 1 end if
+            if hov=1 then t -= 1 end if
+            gDrawRect(text,l,t,r+1,b+1,false,colour:=#0078D4)
+        end if
+        -- draw the up and down arrows themselves
+--      integer xl = w-m+1, la = 0, yb = h-g-1
+        integer xl = w-m+2, la = 0, yb = h-g-1
+--      for yt=g to m-g do
+        for yt=g+1 to m-g-1 do
+--          integer xr = xl+la+1, aclr = #606060
+            integer xr = xl+la+1, aclr = #505050
+--          integer xr = xl+la+1, aclr = #404040
+--          integer xr = xl+la+1, aclr = #303030
+--          integer xr = xl+la+1, aclr = #202020
+            gDrawLine(text,xl,yt,xr,yt,aclr)
+            gDrawLine(text,xl,yb,xr,yb,aclr)
+            xl -= 1
+            la += 2
+            yb -= 1
+        end for
+    end if
+    if bDrawCursor then
+        integer cx = x+tw+1+bGTK2,
+               hth = floor(th/2)
+--?{`cursor`,cx}
+--      if bGTK3 then cx += 1 y -= 2 end if
+        if bGTK3 then cx -= 1 y -= 1 end if
+        gDrawLine(text,cx,y-hth,cx,y+hth,TG_BLACK)
+    end if
+    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = bHasFocus
+end procedure   
+
+local procedure tg_gtext_cursorblink_action(gdx cursorblinktimer)
+--  gdx text = user_data[cursorblink]
+    gdx text = gGetAttribute(cursorblinktimer,`USER_DATA`)
+    gRedraw(text)
+end procedure
+
+--
+-- undo/redo handling:
+--
+local constant TG_GTEXT_DEL=-1,
+               TG_GTEXT_SAME=0,
+               TG_GTEXT_INS=+1,
+               TG_GTEXT_CPLX=9
+
+-- this lot may need to be utf32 sequences rather than utf8 strings...
+local function tg_gtext_onediff(string s1, s2)
+    -- part of undo/redo: do s1,s2 differ by a single/central
+    --  insert/delete, and if so how long is it, and where?
+    -- nb something much cleverer than this may be desired...
+    -- aside: this relies heavily on unit_tests() passing.
+    integer l1 = length(s1),
+            l2 = length(s2),
+            s = 1
+    while l1 and l2 and s1[l1] = s2[l2] do
+        l1 -= 1
+        l2 -= 1
+    end while
+    while l1 and l2 and s1[s] = s2[s] do
+        s += 1
+        l1 -= 1
+        l2 -= 1
+    end while
+    if l1=0 and l2=0 then return {TG_GTEXT_SAME,0,0} end if
+    if l1=0 then return {TG_GTEXT_INS,l2,s} end if
+    if l2=0 then return {TG_GTEXT_DEL,-l1,s} end if
+    return {TG_GTEXT_CPLX,0,0}
+end function
+
+local sequence undo -- temp: [CXTEXT_UNDO] (with refcount of one)
+local integer upos  -- temp: [CXTEXT_UNDOPOS]
+local procedure tg_gtext_update_undo(string c)
+    -- aside: this relies heavily on unit_tests() passing,
+    --         as opposed to being intuitively easy code.
+    -- undo[1] is the initial state and is never changed.
+    if length(undo)!=1 then
+        -- c is the current value, b,a are the last two
+        string b = undo[-1],
+               a = undo[-2]
+        if c==b then return end if  
+        -- {tg_gtext_type, length, position}:
+        integer {act,acl,sac} = tg_gtext_onediff(a,c),
+                {abt,abl,sab} = tg_gtext_onediff(a,b)
+--?{act,acl,sac,a,c}
+--?{abt,abl,sab,a,b}
+--?{abl+act,acl}
+        -- if ac is one insert/delete and one more than ab then 
+        if act==abt and (abl+act)==acl
+        and ((act==TG_GTEXT_DEL and sac-acl==sab-abl) or
+             (act==TG_GTEXT_INS and sac ==sab    )) then
+            undo[$] = c -- replace b
+            return
+        end if
+    elsif c==undo[1] then
+        return
+    end if
+    -- add new entry
+    undo = append(undo,c)
+    upos += 1
+    assert(upos==length(undo)) -- (quick sanity check)
+end procedure
+
+-- Debug aid (temp):
+--local sequence klog = {}
+
+--with trace
+local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift) 
+--if c='!' then ?9/0 end if -- (debug aid)
+--  klog = append(klog,{c,gGetKeyName(c),ctrl,shift})
+--if not bTest then
+--  ?{`tg_gtext_key_handler`,text,c,gGetKeyName(c),ctrl,shift}
+--end if
+    bool redraw = true, -- (and not TG_IGNORE)
+       bAltered = false,
+       bGraphic = (not ctrl) and ((c>=' ' and c<=#7E) or c=VK_POUND)
+        -- ^certainly avoid #A1..#A4 (udlr), #E0..E6 (VK_APPS..VK_SCROLL),
+        --                  #90 (VK_NUMLOCK), or #F1..FC (VK_F1..F12)...
+    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE]
+    sequence utf32 = utf8_to_utf32(txt)
+    integer cpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS],
+        selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART], was_ss = selstart,
+             len = length(utf32)
+    bool unicode = length(txt)!=len
+--if ctrl and c='C' then trace(1) end if
+--if selstart and ctrl and c=VK_RIGHT then trace(1) end if
+    --
+    -- Aside: the next few conditions here are absolutely critical, and
+    --        non-intuitive, at least until you enumerate them out loud:
+    --          shift VK_RIGHT starts/extends the selection
+    --          shift 'c' gets you a capital(/caplock) 'C'.
+    --          ctrl VK_RIGHT starts/extends the selection
+    --          ctrl ACXVZ only change selection indirectly
+    --          .. (I could go on almost forever...)
+    --        It is certainly more valuable and probably much easier,
+    --        albeit rather tedious, to properly extend unit_tests()
+    --        than it would be to make these tests crystal clear...
+    --
+    if selstart and (bGraphic or find(c,{VK_BS,VK_DEL})) then
+        if selstart>cpos then {cpos,selstart} = {selstart,cpos} end if
+        if unicode then
+            utf32[selstart..cpos-1] = {}
+            len = length(utf32)
+            txt = utf32_to_utf8(utf32)
+        else
+            txt[selstart..cpos-1] = ``
+            len = length(txt)
+        end if
+        cpos = selstart
+        selstart = 0
+        if not bGraphic then c=-1 end if
+        bAltered = true
+    else
+--      if shift and (not (bGraphic or c=VK_POUND)) then
+        if shift and (not bGraphic) then
+            if selstart=0 then selstart = cpos end if
+        elsif not ctrl then
+            selstart = 0
+        end if
+    end if
+    if c=VK_HOME then
+        cpos = 1
+    elsif c=VK_END then
+        cpos = len+1
+    elsif c=VK_BS then
+        if cpos>1 then
+            if unicode then
+                utf32 = utf32[1..cpos-2] & utf32[cpos..len]
+                txt = utf32_to_utf8(utf32)
+            else
+                txt = txt[1..cpos-2] & txt[cpos..len]
+            end if
+            cpos = max(cpos-1,1)
+        end if
+        selstart = 0
+        bAltered = true
+    elsif c=VK_DEL then
+        if cpos<=len then
+            if unicode then
+                utf32 = utf32[1..cpos-1] & utf32[cpos+1..len]
+                txt = utf32_to_utf8(utf32)
+            else
+                txt = txt[1..cpos-1] & txt[cpos+1..len]
+            end if
+        end if
+        bAltered = true
+    elsif ctrl then
+        c = upper(c)
+        if c='A' then
+            selstart = 1
+            cpos = len+1
+        elsif c='C'
+           or c='X'
+           or c='V' then
+            if clipboard=NULL then clipboard = gClipboard() end if
+            sequence clip = ``
+            if selstart>cpos then {cpos,selstart} = {selstart,cpos} end if
+            if c='V' then
+--              clip = filter(gGetAttribute(clipboard,`TEXT`),`in`,{#20,#FF},`[]`)
+                clip = gGetAttribute(clipboard,`TEXT`)
+                clip = clip[1..find_any("\r\n",clip)-1]
+            elsif selstart and selstart!=cpos then
+                clip = iff(unicode?utf32_to_utf8(utf32[selstart..cpos-1])
+                                                  :txt[selstart..cpos-1])
+                gSetAttribute(clipboard,`TEXT`,clip)
+            end if
+            if c!='C' and length(clip) then
+                if selstart and selstart!=cpos then
+                    if unicode then
+                        utf32[selstart..cpos-1] = {}
+                        txt = utf32_to_utf8(utf32)
+                    else
+                        txt[selstart..cpos-1] = ``
+                    end if
+                    cpos = selstart
+                end if
+                bAltered = true
+                selstart = 0
+                if c='V' then
+                    if unicode then
+                        clip = utf8_to_utf32(clip)
+                        utf32[cpos..cpos-1] = clip
+                        txt = utf32_to_utf8(utf32)
+                    else
+                        txt[cpos..cpos-1] = clip
+                    end if
+                    cpos += length(clip)
+                end if
+            end if
+        elsif c='Y' or c='Z' then -- redo/undo
+            bAltered = true -- (see below)
+        elsif c=VK_RIGHT then
+            cpos = tg_gtext_next_word_boundary(cpos,len,utf32)
+            if not shift then selstart = 0 end if
+        elsif c=VK_LEFT then
+            cpos = tg_gtext_prev_word_boundary(cpos,utf32)
+            if not shift then selstart = 0 end if
+        else
+            redraw = false
+        end if  
+    elsif c=VK_RIGHT then
+        if not shift and was_ss and was_ss!=cpos then
+            cpos = max(was_ss,cpos)
+        else
+            cpos = min(cpos+1,len+1)
+        end if
+    elsif c=VK_LEFT then
+        if not shift and was_ss and was_ss!=cpos then
+            cpos = min(was_ss,cpos)
+        else
+            cpos = max(cpos-1,1)
+        end if
+    elsif bGraphic then
+        object cc = iff(c=VK_POUND?iff(unicode?#A3:x"C2A3"):c)
+        if unicode then
+            utf32 = utf32[1..cpos-1] & cc & utf32[cpos..len]
+            txt = utf32_to_utf8(utf32)
+        else
+            txt = txt[1..cpos-1] & cc & txt[cpos..len]
+        end if
+        cpos += 1
+        bAltered = true
+    else
+        redraw = false
+    end if
+    if redraw or c=-1 then
+        if bAltered then
+            undo = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO]
+            upos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS]
+            if ctrl and (c='Z' or c='Y') then
+                string was_txt = txt
+                if c='Z' then -- undo
+                    if upos>1 then
+                        upos -=1
+                        txt = undo[upos]
+                    end if
+                elsif c='Y' then -- redo
+                    if upos<length(undo) then
+                        upos += 1
+                        txt = undo[upos]
+                    end if
+                end if
+                integer {t,l,s} = tg_gtext_onediff(txt,was_txt)
+--if not bTest then
+--  ?{`t`,t,l,s,txt,was_txt,`Ctrl `&c}
+--end if
+                if t=TG_GTEXT_DEL then
+                    selstart = s
+                    cpos = s-l
+--?{`del`,selstart,cpos}
+                elsif t=TG_GTEXT_INS then
+                    cpos = s
+                    selstart = 0
+--?{`ins`,selstart,cpos}
+                end if
+            else
+                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO] = 0 -- (kill refcount)
+                if upos<length(undo) then undo = undo[1..upos] end if
+                tg_gtext_update_undo(txt)
+                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO] = undo
+            end if
+            ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS] = upos
+--if not bTest then
+--  ?{undo,upos}
+--end if
+        end if
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE] = txt
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false -- (restart caret timer)
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART] = selstart
+        gRedraw(text)
+        if bAltered then
+            rtn value_changed = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE_CHANGED]
+            if value_changed then
+                value_changed(text)
+            end if
+        end if
+--?`ignore`
+        return TG_IGNORE -- dealt with; do not propagate
+    end if
+    return TG_DEFAULT
+end function
+
+local gdx gtext_menu = NULL
+
+-- the following uses control key codes for menu ids:
+local constant TG_GTEXT_POPUP_MENU = {{`Undo`,'Z'},
+                                      {`Redo`,'Y'},
+                                      `-`,
+                                      {`Cut`,'X'},
+                                      {`Copy`,'C'},
+                                      {`Paste`,'V'},
+                                      {`Delete`,VK_DEL},
+                                      `-`,
+                                      {`Select all`,'A'}}
+--- The native (WinAPI) version also has no icons and:
+--      Right to left Reading order
+--      Show Unicode control characters
+--      Insert Unicode control character
+--      Open IME
+--      Reconversion
+--  (none of which I have any interest in or understanding of)
+--  [Clearly per field r2l is just sheer utter lunatic madness]
+--  The native (GTK2) version also has five (ugly) icons and:
+--      InputMethods
+--      Insert Unicode Control Character
+--  The native (GTK3) version also has no icons and:
+--      Insert Emoji
+--  (not very interested in latter but more than rest combined)
+
+local procedure tg_gtext_menu_handler(gdx menu, integer id)
+    gdx text = gGetAttribute(gtext_menu,`USER_DATA`)
+    bool ctrl = id!=VK_DEL
+    {} = tg_gtext_key_handler(text,id,ctrl,false) 
+end procedure
+
+function tg_gtext_click(gdx text, sequence status, integer x, /*y*/)
+    switch status[1..2] do
+        case `RR`:  -- (right button released)
+                    gSetFocus(text)
+                    if gtext_menu=NULL then
+                        gtext_menu = gMenu(TG_GTEXT_POPUP_MENU,tg_gtext_menu_handler)
+                        gSetAttribute(gtext_menu,`USER_DATA`,text)
+                    end if
+                    integer undolen = length(ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO]),
+                            undopos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS],
+                           selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART],
+                           caretpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS]
+                    if clipboard=NULL then clipboard = gClipboard() end if
+                    bool selected = selstart and selstart!=caretpos,
+                         cliptext = gGetAttribute(clipboard,`TEXTAVAILABLE`)
+                    gMenuSetAttribute(gtext_menu,'Z',`ACTIVE`,undopos>1)
+                    gMenuSetAttribute(gtext_menu,'Y',`ACTIVE`,undopos<undolen)
+                    gMenuSetAttribute(gtext_menu,'X',`ACTIVE`,selected)
+                    gMenuSetAttribute(gtext_menu,'C',`ACTIVE`,selected)
+                    gMenuSetAttribute(gtext_menu,'V',`ACTIVE`,cliptext)
+                    gMenuSetAttribute(gtext_menu,VK_DEL,`ACTIVE`,selected)
+                    gPopupMenu(gtext_menu)
+                    return TG_IGNORE
+        case `LS`:  -- (left button single click/down) [or]
+        case `LD`:  -- (left button double click: select word)
+                    bool bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN]
+                    integer hov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV]
+                    if bSpin and hov then
+                        integer lo = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_LO],
+                                hi = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HI],
+                              step = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_STEP],
+--DEV [docs index] wrap/WRAP...
+                             bWrap = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_WRAP],
+                                 v = to_integer(ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE])
+                        if hov=1 then -- up
+                            v = max(lo,v+step)
+                            if v>hi then v = iff(bWrap?lo:hi) end if
+                        else          -- down
+                            v = min(hi,v-step)
+                            if v<lo then v = iff(bWrap?hi:lo) end if
+                        end if
+                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE] = sprintf("%d",v)
+--                      gSetAttribute(v,"VALUE",sprint("%d",v))
+--                      ?{"spin",v}
+                    else
+--dev utter codswallop... (not that this "unnecessary workaround" causes any known issues)
+                        -- see tg_gtext_redraw(): While WinAPI, JavaScript and GTK2 allow
+                        --  gGetTextExtent from anywhere, under GTK3, bless it, that can 
+                        --  /*only*/ be invoked from *within* a redraw operation... (grrr)
+                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = status[2]
+                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX] = x
+                    end if
+                    -- restart cursorblink...
+                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false
+                    gSetFocus(text) -- ... whether this matters or not
+                    gRedraw(text)
+    end switch
+    return TG_DEFAULT
+end function
+
+procedure tg_gtext_mousemove(gdx text, integer x,y, bool left,/*middle*/,/*right*/)
+--bSpin/hover on up/down?
+    bool bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN],
+       bRedraw = false
+    if bSpin then
+        integer {w,h} = gGetAttribute(text,"SIZE"), hov = 0,
+               washov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV]
+        if x>w-h+4 then hov = 1 + (y>h/2) end if
+        if hov!=washov then
+            ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV] = hov
+            bRedraw = true
+        end if
+--      ?{w,h,x,y,hov}
+    end if
+    if left then
+        -- see tg_gtext_redraw():
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = 'M'
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX] = x
+        -- restart cursorblink:
+        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false
+        bRedraw = true
+    end if
+    if bRedraw then gRedraw(text) end if
+end procedure
+
+function hText(rtn value_changed, string attr)
+--  return gText(value_changed, attr)
+    -- [DEV] theGUI.e can probably just set ctrl_size[id][SZ_[USER_|NATURAL]H].
+    string hsz = iff(bGTK2?`x22`:iff(bGTK3?`x34`:`x20`))
+    gdx id = gCanvas(tg_gtext_redraw,`SIZE=%s`,{hsz})
+--  ctrl_xtra[id][CX_CANVAS_TYPE] = TEXT
+    if platform()=JS then
+        -- fudge: astonishingly, this works fine despite the fact it does things like
+        --        ctrl_xtra[table] all over the shop, as if it were an integer, when
+        --        it is in fact an HtmlElement...
+        ctrl_xtra = {}
+    else
+        ctrl_xtra = repeat(0,id)
+    end if
+    object cx = repeat(0,CXTEXT_LEN),
+          cxi = repeat(0,CX_GTL_ATTRS)
+    cx[CXTEXT_CARETCLR] = TG_BLACK
+    cx[CXTEXT_CARETCT] = 6
+--  cx[CXTEXT_CARETIME] = time()
+--  cx[CXTEXT_CARETIMER] = gTimer(tg_gtext_cursorblink_action,525,false,id)
+    cx[CXTEXT_CARETIMER] = gTimer(tg_gtext_cursorblink_action,525,true,id)
+    cx[CXTEXT_CARETPOS] = 1
+    cx[CXTEXT_CHARSFROM] = 1
+--  cx[CXTEXT_HADFOCUS] = 0 -- (already is)
+--  cx[CXTEXT_SELSTART] = 0 -- (already is)
+    cx[CXTEXT_VALUE] = attr -- DEV...:
+--  cx[CXTEXT_VALUE] = ``
+    cx[CXTEXT_VALUE_CHANGED] = value_changed
+    cx[CXTEXT_CUEBANNER] = ``
+--  cx[CXTEXT_CUEBANNER] = `Enter some text`
+    cx[CXTEXT_UNDOPOS] = 1
+
+--/*
+-- bTest must not be set true, in unit_tests()...
+    cx[CXTEXT_SPIN] = true
+    cx[CXSPIN_LO] = 3
+    cx[CXSPIN_HI] = 7
+    cx[CXSPIN_STEP] = 1
+--*/
+
+--  ctrl_xtra[id][CX_GTL_ATTRS] = cx
+    cxi[CX_GTL_ATTRS] = cx
+    cx = 0
+    ctrl_xtra[id] = cxi
+    cxi = 0
+    -- .. gSetAttributes() [in the final version]
+    string v = ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_VALUE]
+    ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_UNDO] = {v}
+--  ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_UNDO] = {attr}
+--DEV fwd, or not....
+    gSetHandler(id,`KEY`,tg_gtext_key_handler)
+    gSetHandler(id,`CLICK`,tg_gtext_click)
+    gSetHandler(id,`MOUSEMOVE`,tg_gtext_mousemove)
+    return id
+end function
+
+procedure value_changed(gdx txt)
+if not bTest then
+    string cn = gGetAttribute(txt,`CLASSNAME`)
+    if cn=`Text` then
+        ?{`value_changed`,cn,gGetAttribute(txt,`VALUE`)}
+    elsif cn=`Canvas` then -- and/or ctrl_xtra[text][CX_CANVAS_TYPE]=TEXT:
+        -- (obvs this eventually needs to go into "")
+        ?{`value_changed`,cn,ctrl_xtra[txt][CX_GTL_ATTRS][CXTEXT_VALUE]}
+    end if
+end if
+end procedure
+
+
+string dsz = iff(bGTK2?`240x80`:iff(bGTK3?`240x92`:`240x80`))
+--gdx txt = gText(value_changed,`VALUE=`one two three``),
+--gdx txt = gText(value_changed,`VALUE=`hButton``),
+--  htx = hText(value_changed,`VALUE=`uno duo tre``),
+--  htx = hText(value_changed,`uno duo tre`),
+gdx htx = hText(value_changed,`one two three`),
+--gdx htx = hText(value_changed,`one two three four five six seven eight nine ten`),
+--  htx = hText(value_changed,`hButton`),
+--gdx txt = gText(value_changed,`VALUE=`one two three`,BGCLR=RED`), -- fine
+--gdx txt = gText(value_changed,`VALUE=`one two three`,FGCLR=RED`), -- no??
+--gdx txt = gText(value_changed,`VALUE=`one two three`,SIZE=200x100`),
+--DEV not working on GTK... (who cares!)
+--gdx txt = gText(`VALUE=`one two three`,EXPAND=HORIZONTAL`), -- ooh/er, WinAPI... [DEV]
+--gdx txt = gText(`VALUE=`one two three`,EXPAND=VERTICAL`),
+--gdx txt = gText(`VALUE=`one two three`,EXPAND=BOTH`),     -- ""
+--gdx txt = gText(),
+--  dialog = gDialog(txt,`gText`,`SIZE=226x73`)
+--  hbx = gVbox({txt,htx},`MARGIN=13x13, GAP=10`),
+    hbx = gVbox({htx},`MARGIN=13x13, GAP=10`),
+--  dlg = gDialog(hbx,`gText`,`SIZE=240x80`)
+    dlg = gDialog(hbx,`gText`,`SIZE=%s`,{dsz})
+--  dlg = gDialog(hbx,`gText`)
+--gSetAttribute({txt,htx},`EXPAND`,`HORIZONTAL`)
+--gSetAttribute({htx},`EXPAND`,`HORIZONTAL`)
+gSetAttribute(htx,`CANFOCUS`,true) -- no discernable effect...
+--gSetAttribute(htx,`FONT`,`Helvetica, Italic 21`)
+--?gGetAttribute(htx,`FONT`)
+--gSetAttribute(htx,`FONT`,`Helvetica, 21`)
+--gSetAttribute(txt,`SIZE`,250)
+--gSetAttribute(txt,`SIZE`,`250`)
+--gSetAttribute(txt,`BGCLR`,TG_RED)
+gShow(dlg)
+--gSetFocus(htx)
+--?gGetFocus()
+--?gGetAttribute(txt,`VALUE`)
+--?gGetAttribute(txt,`SIZE`)
+
+object was_ctrl_xtra
+procedure replay(sequence klog)
+    -- part of unit_tests()
+    ctrl_xtra = deep_copy(was_ctrl_xtra)
+    for i,k in klog do
+        k = deep_copy(k)
+        k[1] = htx
+        {} = call_func(tg_gtext_key_handler,k)
+        tg_gtext_redraw(htx,212,20)
+    end for
+end procedure
+
+procedure unit_tests()
+    assert(tg_gtext_onediff(``,``)=={TG_GTEXT_SAME,0,0})
+    assert(tg_gtext_onediff(`abc`,``)=={TG_GTEXT_DEL,-3,1})
+    assert(tg_gtext_onediff(``,`abc`)=={TG_GTEXT_INS,3,1})
+    assert(tg_gtext_onediff(`xyz`,`abc`)=={TG_GTEXT_CPLX,0,0})
+    assert(tg_gtext_onediff(`abc`,`ac`)=={TG_GTEXT_DEL,-1,2})
+    assert(tg_gtext_onediff(`ac`,`abc`)=={TG_GTEXT_INS,1,2})
+
+    undo = {`abc`}
+    upos = 1
+    tg_gtext_update_undo(``)
+    assert(undo=={`abc`,``})
+    tg_gtext_update_undo(`abc`)
+    assert(undo=={`abc`,``,`abc`})
+    tg_gtext_update_undo(`ac`)
+    assert(undo=={`abc`,``,`abc`,`ac`})
+    tg_gtext_update_undo(`abc`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`})
+    tg_gtext_update_undo(`abcd`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcd`})
+    tg_gtext_update_undo(`abcde`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcde`})
+    tg_gtext_update_undo(`abcdef`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcdef`})
+    upos = 3
+    undo = undo[1..3]
+    tg_gtext_update_undo(`xyz`)
+    assert(undo=={`abc`,``,`abc`,`xyz`})
+    assert(upos==4)
+
+    was_ctrl_xtra = deep_copy(ctrl_xtra)
+    gSetFocus(htx)
+    bTest = true
+    --
+    --  Some of these tests are a plain "not crash", others should assert
+    --  the internals end up as expected, which can only realistically be
+    --  achieved by selective ?9/0 and copying stuff from the ex.err...
+    --  [eg ensure future mods don't fubar klog ==> [CXTEXT_SELSTART]=4,
+    --      ditto expected values for cpos, and the text value, etc.]
+    --
+    --  Note these tests are (almost completely) platform-independent.
+    --  It would be a separate (manual) test to ensure different backends
+    --  actually fed tg_gtext_key_handler() [almost?] the same stuff.
+    --  [As noted in the docs some things such as capslock may differ.]
+    --  It may be worthwhile having some on-at-a-time-manual tests that
+    --  do /not/ restore ctrl_xtra and friends, to check it looks right.
+    --
+-- DONE [I think]:
+--/*
+    sequence rklog = {{227,VK_END,0,0},{21,VK_LSHIFT,0,1},{164,VK_LEFT,0,1},{21,VK_LSHIFT,0,1},
+                      {69,'E',0,1},{21,VK_LSHIFT,0,1},{164,VK_LEFT,0,1},{120,'x',0,0},{21,VK_LSHIFT,0,1},
+                      {164,VK_LEFT,0,1},{127,VK_DEL,0,0},
+                      {21,VK_LSHIFT,0,1},{120,'x',0,0},{8,VK_BS,0,0},{21,VK_LSHIFT,0,1},{162,VK_RIGHT,0,1},
+                      {21,VK_LSHIFT,0,1},{79,'O',0,1},{227,VK_END,0,0},
+                      {21,VK_LSHIFT,0,1},{8,VK_BS,0,0},{21,VK_LSHIFT,0,1},{8,VK_BS,0,1}}
+--*/
+--/*
+    sequence rklog = {{227,VK_END,0,0},{164,VK_LEFT,0,1},{69,'E',0,1},{164,VK_LEFT,0,1},{120,'x',0,0},
+                      {164,VK_LEFT,0,1},{127,VK_DEL,0,0},{120,'x',0,0},{8,VK_BS,0,0},{162,VK_RIGHT,0,1},
+                      {79,'O',0,1},{227,VK_END,0,0},{8,VK_BS,0,0},{8,VK_BS,0,1}}
+--*/
+--  sequence rklog = {{227,VK_END,0,0},{8,VK_BS,0,0},{8,VK_BS,0,1}}
+    -- (no longer triggered by the time I got round to it...)
+    sequence rklog = {{227,VK_END,0,0},{127,VK_DEL,0,0},{225,VK_INS,0,0},{229,VK_PGDN,0,0},{228,VK_PGUP,0,0},{226,VK_HOME,0,0},
+                      {21,VK_LSHIFT,0,1},{49827,VK_POUND,0,1},{34,'"',0,1}}
+
+    replay(rklog)
+
+    -- DONE [the now permanent tests]:
+    replay({{227,VK_END,0,0},{8,VK_BS,0,1}})
+    integer caretpos = ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_CARETPOS]
+    assert(caretpos==13)
+    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_CHARSFROM]==1)
+    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_SELSTART]==0)
+    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_VALUE]==`one two thre`)
+
+--?9/0
+
+    ctrl_xtra = was_ctrl_xtra
+    was_ctrl_xtra = 0 -- kill refcount
+--  klog = {}
+    bTest = false
+--?`unit_tests done`
+end procedure unit_tests()
+
+gMainLoop()
+
+--/*
+DEV use these (and more) to replicate/debug *AND* write unit tests on tg_gtext_key_handler: [DONE | I/P:]
+
+====
+ C:\Program Files (x86)\Phix\demo\theGUI\hText.exw:
+    ctrl_xtra = {0,{{16777215,6,4.735,3,16,1,0,0,`one two three`,12335,{`one two three`,"oone two three`"},1}}}
+    clipboard = 6
+    bTest = 0
+    undo = {`one two three`,"oone two three`"}
+    upos = 1
+    klog = {{23,`VK_LCTRL`,1,0},{86'V',`V`,1,0},{227,`VK_END`,0,0},{96'`',```,0,0},{23,`VK_LCTRL`,1,0},{90'Z',`Z`,1,0}}
+    txt = 1
+    htx = 2
+    hbx = 4
+    dlg = 5
+    was_ctrl_xtra = 0
+vs:
+ C:\Program Files (x86)\Phix\demo\theGUI\hText.exw:
+    ctrl_xtra = {0,{{0,4,6.969,3,18,1,1,0,"oneone two three`",12335,{`one two three`,`oneone two three`,"oneone two three`"},3}}}
+                                 ^^   ^hadfocus
+enum CXTEXT_CARETCLR,
+     CXTEXT_CARETCT,
+     CXTEXT_CARETIME,
+     CXTEXT_CARETIMER, -- 3
+     CXTEXT_CARETPOS,
+     CXTEXT_CHARSFROM,
+     CXTEXT_HADFOCUS,
+     CXTEXT_SELSTART,
+     CXTEXT_VALUE,
+     CXTEXT_VALUE_CHANGED,
+     CXTEXT_UNDO,
+     CXTEXT_UNDOPOS,
+
+    clipboard = 0
+    bTest = 0
+    undo = {`one two three`,`oneone two three`,"oneone two three`"}
+    upos = 3
+    klog = {{111'o',`o`,0,0},{110'n',`n`,0,0},{101'e',`e`,0,0},{227,`VK_END`,0,0},{96'`',"`",0,0},{21,`VK_LSHIFT`,0,1}}
+    txt = 1
+    htx = 2
+    hbx = 4
+    dlg = 5
+    was_ctrl_xtra = 0
+
+C:\Program Files (x86)\Phix\p.exw:2315
+abort() code must be integer
+    eres = 3221226356.0
+    eres = #C0000374
+#374
+884
+
+C:\Program Files (x86)\Phix>p64 demo\theGUI\hText.exw
+
+
+C:\Program Files (x86)\Phix>
+
+-- for the fake/hll GTK version of gDatePick() only:
+local constant dp_xpm_txt = """
+22 14 11 1
+. c None
+d c #4D6185
+@ c #AFA8A6
+b c #776B68
+e c #FFFFFF
+f c #EFF2F9
+g c #EAEFF7
+i c #F7F7F7
+p c #C8C8C8
+t c #958E8C
+u c #5D5452
+......................
+.@bbbbbbbbb@..........
+.bepppppppfb..........
+.beeeeeeeegb..........
+.bepppppppgb..........
+.bepgpgpgpgb..ddddddd.
+.bepppppppgb...ddddd..
+.bepgpgpgpgb....ddd...
+.bepppppppgb.....d....
+.bepgpgpgpgb..........
+.bfppppppubb..........
+.bfffffffbt...........
+.@bbbbbbbb............
+......................
+"""
+
+
+--*/

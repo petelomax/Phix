@@ -1,0 +1,88 @@
+--
+-- demo\theGUI\win_canvasX.exw
+-- ===========================
+--
+--  A resizeable canvas on WinAPI...
+--  It draws an X on it, to make sure it's doing the resizing stuff right.
+--  (Not sure this has much to offer, beyond verifying basics are working)
+--
+--  Will only be of use if /all/ elements|containers in theGUI end up canvas-based.
+--   (Note even the canvas is "fake", we're just drawing onto the client area)
+--
+--?""
+--requires(64,true)
+include theGUI.WINAPI.e
+
+bool clip = false -- type 'C' to toggle
+
+constant wyte = CreateSolidBrush(0x00E0FFFF) -- TG_PARCHMENT (as bgr)
+
+function WndProc_cb(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, false)
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT), hClip
+            integer {?,?,w,h} = GetClientRect(hWnd)
+
+            if clip then
+                FillRect(hdc, pRECT, wyte) -- blank whole (this demo only!)
+                hClip = CreateRectRgn(w/8, h/8, w*7/8, h*7/8)
+                SelectClipRgn(hdc, hClip)
+            end if
+
+            FillRect(hdc, pRECT, wyte)
+
+            -- Draw X
+            // Draw the first diagonal \
+            MoveToEx(hdc, 0, 0, NULL);      LineTo(hdc, w-1, h-1)
+            // Draw the second diagonal /
+            MoveToEx(hdc, w-1, 0, NULL);    LineTo(hdc,   0, h-1)
+
+            if clip then
+                SelectClipRgn(hdc, NULL)
+                DeleteObject(hClip)
+            end if
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            elsif upper(wParam)='C' then
+                clip = not clip
+                InvalidateRect(hWnd, NULL, false)
+            end if
+
+        case WM_DESTROY:
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc = call_back(WndProc_cb)
+
+procedure main()
+    RegisterClassEx("CanvasX",WndProc)
+
+    atom hWnd = CreateWindowEx(0, "CanvasX", "X Canvas",
+                               WS_OVERLAPPEDWINDOW,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 400, 400,
+                               NULL, NULL, 0, NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+

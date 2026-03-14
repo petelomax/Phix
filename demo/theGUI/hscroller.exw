@@ -1,0 +1,102 @@
+--
+-- demo\theGUI\hscroller.exw
+-- =========================
+--
+--  As scroller.exw but with the implementation of SCROLLSIZE/SCROLLPORT in pure hll code,
+--  as extracted from theGUI.e, with the SOLE AIM of expediating the updates to theGUI.js.
+--
+-- KNOWN BUG:
+--  Canvas size wrong when maximised? If you maximise then move the mouse onto the title bar, 
+--  the whole image suddenly jumps... (for precise reasons unknown)
+--
+--  Obviously this file must NOT set those attributes, otherwise the equivalent code in
+--  theGUI.e will also trigger (and we have to hope and trust not when they're not set).
+--
+--  The scrollbars are in fact 100% fake, as in completely drawn/shown/hidden/managed in Phix.
+--  That turned out easier than trying to convince both the WinAPI and GTK natives to obey me.
+--  It also means they are theoretically 100% customisable, should you for instance dislike
+--  the (carefully and faithfully replicated) Windows 10/11 style on a Linux box, or whatever.
+--  A similar approach on other things (eg gDatePick) may also end up proving quite useful...
+--  Incidentally, gGraph, gList, and gTable are also implemented in 100% pure Phix hll code.
+--
+--  Should you set the SCROLLSIZE to (eg) 6800000x5600000, that's equivalent to a 138TB canvas,
+--  but being virtual it takes <= what (eg) 1920x1280 does and actually just 624x440 or 1.05MB.
+--
+--  tests: (manual, and/or add to the manual)
+--   page up/down, ctrl arrow, and clicks to left/right/above/below of scrollbar thumb are the right amount
+--   scrollbar arrows highlight on hover, which goes away when mouse goes off-window (as well as off-scrollbar inwards)
+--   shift(/alt) arrows ("" and keyboard) are much faster than plain arrows (and as above, ctrl is page u/d/l/r)
+--   thumb drag captures mouse properly/works when the cursor strays off-window (as long as btn held down)
+--   mousewheel moves up/down, ctrl mousewheel moves left/right
+--   drag anywhere works fine
+--   viewport>canvas centres it
+--   resizing drags btm right corner with, when it should (the original/arwen had a fancy focus thing...[DEV])
+--
+-- TODO:
+--  A help popup?... maybe a second window...
+--  + zoom in
+--  - zoom out
+--  = original zoom
+--  # fit to screen
+--  key_handler...
+--
+-- center the canvas when smaller than the avalilable space -- [FIXED]
+-- MOUSELEAVE, eg hover on vertical scrollbar uparrow, then move mouse off(dialog), should remove the highlight. [FIXED]
+-- mouse capture under WinAPI: dragging scrollbar thumbs stops when mouse goes off-window [unlike GTK].          [FIXED]
+-- (by default) give the dialog a MINSIZE that fits the title (and make that work on GTK).
+--XX When dragging a scrollbar and straying slightly off-dialog, the cursor flips into a dialog resizer, which is
+--XX something that demo\arwendemo\scroller.exw does not do... 
+--^^^^BLUFF: this allows right-click dragging (of the entire canvas[1]) which the arwen one does not...
+--           [1] which includes the scrollbars, but maybe should not??  Next thing is real though:
+-- The bottom right square does not allow dialog resizing, except for the same region as when not present,
+--  whereas the arwen demo allows the proper dragging anywhere on that ~1cm square box.
+--
+with javascript_semantics
+puts(1,"")
+--requires(64,true) -- DEV GTK draw canvas size is 1x1... [FIXED] lm_dump says 0x0... [still...]
+                  -- no scrollbars get shown at all...    """
+                  -- left/right don't limit properly, pg up/dn way off... [FIXED]
+                  -- mousewheel does not trigger (mask missing?) [FIXED]
+--include theGUI.e
+include hGUI.e -- all good!!
+gUseGTK() -- thick lines [FIXED 14/9/25]
+
+include h_scrollbars.e -- so that hTable.exw can use the same code...
+
+constant TITLE = sprintf(`Virtual Window Demo (%s)`,{gVersion(true)})
+
+constant imgX = 1280,
+         imgY = 960
+
+procedure redraw(gdx canvas)
+--?9/0
+    integer {ox,oy,vw,vh} = hGetAttribute(canvas,"VIEWPORT")
+    --
+    -- Centre the virtual canvas when smaller than the avalilable space:
+    -- Aside: these need to be the opposite sign to what I initially expected,
+    --  but a VIEWPORT with ox=+10 should hide ten pixels of the virtual, and
+    --  hence ox:=-10 should be and is what's needed to show a 10 pixel border.
+    --  As per the docs, the viewport itself has a hard lower limit of {0,0}.
+    --
+    if vw>imgX then ox = floor((imgX-vw)/2) end if
+    if vh>imgY then oy = floor((imgY-vh)/2) end if
+    gDrawRect(canvas,-ox,-oy,imgX-ox,imgY-oy, true, colour:=TG_LIGHT_PARCHMENT)
+    gDrawRect(canvas,10-ox,10-oy,floor((imgX-80)/2)-ox,floor((imgY-130)/2)-oy, colour:=TG_BLACK)
+--  gDrawRect(canvas,10-ox,10-oy,floor((imgX-80)/2)-ox,floor((imgY-130)/2)-oy, rc:=5, colour:=TG_BLACK)
+    gDrawRect(canvas,floor(imgX/4)-ox,floor(imgY/4)-oy,imgX-75-ox,(imgY-75)-oy, colour:=TG_RED)
+    gDrawRect(canvas,5-ox,5-oy,imgX-5-ox,imgY-5-oy, colour:=TG_GREEN)
+end procedure
+
+--gdx canvas = hCanvas(redraw,"SCROLLSIZE=%dx%d",{imgX,imgY}),
+--gdx canvas = hCanvas(tg_redraw_canvas),
+gdx canvas = hCanvas(redraw),
+--scrollsize = {imgX,imgY}
+--gdx canvas = gCanvas(redraw),
+       dlg = gDialog(canvas,TITLE,`SIZE=626x472`)
+hSetAttribute(canvas,"SCROLLSIZE",{imgX,imgY})
+gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
+--gSetHandler(canvas,"MOUSEWHEEL",mouse_wheel)
+
+gShow(dlg)
+gMainLoop()
+

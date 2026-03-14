@@ -6,7 +6,7 @@
      <stripped>
       <h1 class="title">ARM instruction set</h1>
       <div id="mainSection">
-        Almost certainly more for my benefit that anyone else&rsquo;s, but if I am about to take on 
+        Almost certainly more for my benefit that anyone else&apos;s, but if I am about to take on 
         the ludicrously difficult task of porting Phix to the Raspberry Pi (specifically that is on
         RaspbianOS running on an ARM mfpu=vfpv2+ chip, as opposed to bare-metal LED blinking stuff) 
         then I <i>need</i> a decent lookup to be one (F1) keystroke away, rather than wade though all 
@@ -60,7 +60,7 @@
 :SWPB:<a href="ARM___mov_htm">swpb</a>
 :FLS:<a href="ARM___fpu_htm">fls</a>
 :FPU:<a href="ARM___fpu_htm">fpu</a>
-:BX:<a href="ARM_branch_htm">bx</a>
+:B_L_X:<a href="ARM_branch_htm">b[l]x</a>
 :BL:<a href="ARM_branch_htm">bl</a>
 :B_:<a href="ARM_branch_htm">b</a>
 :SWI:<a href="ARM___swi_htm">swi</a>
@@ -175,7 +175,7 @@
 -*stm[cond]&lt;addrmode&gt; Rm&lt;!&gt;, reglst^..........|..cond.|1 0 0|P|U|1|W|0|...Rn..|1|........register list........|
 -*ldm[cond]&lt;addrmode&gt; Rm&lt;!&gt;, reglst^..........|..cond.|1 0 0|P|U|1|W|1|...Rn..|1|........register list........|
 |=(LDR/LDM as STR/STM but with S set to 1)................................................................................|
-|BX[cond] Rm..............................................|..cond.|0 0 0 1 0 0 1 0|..SBO..|..SBO..|..SBO..|0 0 0 1|...Rm..|
+|B_L_X[cond] Rm...........................................|..cond.|0 0 0 1 0 0 1 0|..SBO..|..SBO..|..SBO..|0 0 L 1|...Rm..|
 |B_&lt;l&gt;[cond] &lt;target addr&gt;....................|..cond.|1 0 1 L|.................24_bit_offset.................|
 -BL[cond] &lt;target addr&gt;.............................|..cond.|1 0 1 1|.................24_bit_offset.................|
 |FLS Rd,CRd,#.............................................|..cond.|1 1 0|P|U|N|W|S|...Rn..|..CRd..|.cp_num|.......#.......|
@@ -209,7 +209,7 @@ SBO = should be one
         You may recognise that as a somewhat cut-down "rE Ejected" table, however I am only interested in documenting
         opcodes that are actually used and supported/properly tested, and deliberately omitting distractions (via a
         prefix of '-'): for instance there are four different types of stack, garnished with pre- and post- increment,
-        so for my own sanity I&rsquo;m just sticking with push and pop [erm... I think I spoke too soon on that, but
+        so for my own sanity I&apos;m just sticking with push and pop [erm... I think I spoke too soon on that, but
         I think you get the idea]. The full/original "rE Ejected" was used to write the dissassembler, and therefore
         should perhaps be trusted slightly more (but lacks any fpu stuff), the above was/will be used to write the 
         inline assembler (ie extensions to pilasm.e/ilasm() and friends).
@@ -217,8 +217,8 @@ SBO = should be one
         <br>
         For my own sanity I have hidden the dataprocessing opcodes EOR..BIC in the main table as they are very similar 
         to <a href="ARM___dpo.htm">and</a>, ditto mvn/ldr/ldm, <a href="ARM___mov.htm">mov/str/stm</a>, and all fpu.<br>
-        Likewise I don&rsquo;t support the adr pseudo-instruction, and have replaced overloaded ldr pseudo-forms with lea.<br>
-        It is probably fair to describe my (Phix-specific) opcodes as "pre-UAL", I&rsquo;ve certainly avoided any
+        Likewise I don&apos;t support the adr pseudo-instruction, and have replaced overloaded ldr pseudo-forms with lea.<br>
+        It is probably fair to describe my (Phix-specific) opcodes as "pre-UAL", I&apos;ve certainly avoided any
         jack-of-all-trades such as vmov, since they may be nice for a coder but a royal pain to de/encode and test.
         The (P/L)U(I/D/N/B)W (etc) bits may/are not really properly documented and unlikely to ever be.
         <br>
@@ -229,20 +229,20 @@ SBO = should be one
 <!--
         <br>
         <br>
-        If the following (cut-down!) table does not initially strike the fear of god into you, you&rsquo;re not human.
+        If the following (cut-down!) table does not initially strike the fear of god into you, you&apos;re not human.
         <img src="images/ksk-smile.png" alt="smile" /> Or at least that was the case before I started rationalising
         it and removing unsupported instructions and all the near-duplicates.
         <br>
         ldr is the same as str but with the S bit set, ditto ldm and stm.
-        Otherwise, of necessity, the above table contains many (*)opcodes that I don&rsquo;t ever plan on using,
+        Otherwise, of necessity, the above table contains many (*)opcodes that I don&apos;t ever plan on using,
         although there are a couple of simple push/pop aliases for a specific subset of the stm/ldm instructions
-        (and as above I&rsquo;ll reconsider supporting the full set once/if Phix 2.0.0 is out the door).
+        (and as above I&apos;ll reconsider supporting the full set once/if Phix 2.0.0 is out the door).
 -->
         <br>
         <br>
         These are (most of) the internal mask constants, as used in filedump.exw and similar:
         <br>    
-
+        <small>
 <!-- Aside: I made it OPCODEtable instead of OPCODETABLE to stop BL being substituted first! -->
  <div class="arm_table">
 :OPCODEtable:<a href="ARM___dpo_htm#opcodes">here</a>
@@ -271,6 +271,7 @@ SBO = should be one
 |LIT12.........|#0000_0FFF|0b0000_0000_0000_0000_0000_1111_1111_1111|12 bit immediate..............................|
 |OFFSET........|#0000_0FFF|0b0000_0000_1111_1111_1111_1111_1111_1111|24 bit immediate offset.......................|
  </div>
+        </small>
 <!--
 
 -->
@@ -433,12 +434,12 @@ SWP Swap register with memory Rd := [Rn], [Rn] := Rm 4.12
 Mnemonic Instruction Action See Section:
 4.2 The Condition Field
 In ARM state, all instructions are conditionally executed according to the state of the
-CPSR condition codes and the instruction&rsquo;s condition field. This field (bits 31:28)
+CPSR condition codes and the instruction&apos;s condition field. This field (bits 31:28)
 determines the circumstances under which an instruction is to be executed. If the state
 of the C, N, Z and V flags fulfils the conditions encoded by the field, the instruction is
 executed, otherwise it is ignored.
 There are sixteen possible conditions, each represented by a two-character suffix that
-can be appended to the instruction&rsquo;s mnemonic. For example, a Branch (B in assembly
+can be appended to the instruction&apos;s mnemonic. For example, a Branch (B in assembly
 language) becomes BEQ for "Branch if Equal", which means the Branch will only be
 taken if the Z flag is set.
 In practice, fifteen different conditions may be used: these are listed in Table 4-2:
@@ -519,7 +520,7 @@ The instruction is only executed if the condition is true. The various condition
 defined Table 4-2: Condition code summary on page 4-5. The instruction encoding
 is shown in Figure 4-3: Branch instructions, below.
  Figure 4-3: Branch instructions
-Branch instructions contain a signed 2&rsquo;s complement 24 bit offset. This is shifted left
+Branch instructions contain a signed 2&apos;s complement 24 bit offset. This is shifted left
 two bits, sign extended to 32 bits, and added to the PC. The instruction can therefore
 specify a branch of +/- 32Mbytes. The branch offset must take account of the prefetch
 operation, which causes the PC to be 2 words (8 bytes) ahead of the current instruction.
@@ -816,14 +817,14 @@ MRS Rd,SPSR ; Rd[31:0] <- SPSR_<mode>[31:0]
 The instruction is only executed if the condition is true. The various conditions are
 defined in Table 4-2: Condition code summary on page 4-5. The instruction
 encoding is shown in Figure 4-12: Multiply instructions.
-The multiply and multiply-accumulate instructions use an 8 bit Booth&rsquo;s algorithm to
+The multiply and multiply-accumulate instructions use an 8 bit Booth&apos;s algorithm to
 perform integer multiplication.
  Figure 4-12: Multiply instructions
 The multiply form of the instruction gives Rd:=Rm*Rs. Rn is ignored, and should be set
 to zero for compatibility with possible future upgrades to the instruction set.
 The multiply-accumulate form gives Rd:=Rm*Rs+Rn, which can save an explicit ADD
 instruction in some circumstances.
-Both forms of the instruction work on operands which may be considered as signed (2&rsquo;s
+Both forms of the instruction work on operands which may be considered as signed (2&apos;s
 complement) or unsigned integers.
 The results of a signed multiply and of an unsigned multiply of 32 bit operands differ
 only in the upper 32 bits - the low 32 bits of the signed and unsigned results are
@@ -900,7 +901,7 @@ upper 32 bits of the 64 bit number to add is read from RdHi. The lower 32 bits o
 bit result are written to RdLo. The upper 32 bits of the 64 bit result are written to RdHi.
 The UMULL and UMLAL instructions treat all of their operands as unsigned binary
 numbers and write an unsigned 64 bit result. The SMULL and SMLAL instructions treat
-all of their operands as two&rsquo;s-complement signed numbers and write a two&rsquo;scomplement signed 64 bit result.
+all of their operands as two&apos;s-complement signed numbers and write a two&apos;scomplement signed 64 bit result.
 4.8.1 Operand restrictions
 • R15 must not be used as an operand or as a destination register.
 • RdHi, RdLo, and Rm must all specify different registers.
@@ -1173,7 +1174,7 @@ STR R1,[R2,R4]! ; Store R1 at R2+R4 (both of which are
 STR R1,[R2],R4 ; Store R1 at R2 and write back
  ; R2+R4 to R2.
 LDR R1,[R2,#16] ; Load R1 from contents of R2+16, but
-; don&rsquo;t write back.
+; don&apos;t write back.
 LDR R1,[R2,R3,LSL#2] ; Load R1 from contents of R2+R3*4.
 LDREQBR1,[R6,#5] ; Conditionally load byte at R6+5 into
 ; R1 bits 0 to 7, filling bits 8 to 31
@@ -1382,7 +1383,7 @@ LDRHR1,[R2,-R3]!; Load R1 from the contents of the
 ; R2-R3 (both of which are registers)
 ; and write back address to R2
 STRHR3,[R4,#14]; Store the halfword in R3 at R14+14
-; but don&rsquo;t write back.
+; but don&apos;t write back.
 LDRSBR8,[R2],#-223; Load R8 with the sign extended
 ; contents of the byte address
 ; contained in R2 and write back
@@ -1842,7 +1843,7 @@ The instruction is only executed if the condition is true. The various condition
 defined in Table 4-2: Condition code summary on page 4-5. The instruction
 encoding is shown in Figure 4-26: Coprocessor data transfer instructions.
 This class of instruction is used to load (LDC) or store (STC) a subset of a
-coprocessors&rsquo;s registers directly to memory. ARM7TDMI-S is responsible for supplying
+coprocessors&apos;s registers directly to memory. ARM7TDMI-S is responsible for supplying
 the memory address, and the coprocessor supplies or accepts the data and controls
 the number of words transferred.
  Figure 4-26: Coprocessor data transfer instructions
@@ -2076,7 +2077,7 @@ cmpne Rm,#q ; If condition not satisfied try
 BEQ Label
 Absolute value
 TEQ Rn,#0 ; Test sign
-RSBMI Rn,Rn,#0 ; and 2&rsquo;s complement if necessary.
+RSBMI Rn,Rn,#0 ; and 2&apos;s complement if necessary.
 Multiplication by 4, 5 or 6 (run time)
 MOV Rc,Ra,LSL#2 ; Multiply by 4,
 cmp Rb,#5 ; test value,

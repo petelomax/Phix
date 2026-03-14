@@ -1,0 +1,89 @@
+--
+-- hDialog.exw
+--
+
+--
+-- demo\theGUI\gDialog.exw - DONE
+-- demo\theGUI\gDialogs.exw - DONE
+-- ========================
+--
+--  A couple of plain overlapping windows.
+--  Test escape quits one at a time, and make that handling the builtin-default,
+--  and a gDialog(bEsc:=false) does not close on escape [DONE].
+--  Note: on desktop/Phix the window should immediately vanish when close()'d,
+--        rather than hang around like an unresponsive ghost, possibly hiding
+--        some diagnostics info. Stay/remain under p2js is unimportant, since 
+--        the browser window (should not!) vanish on escape/closeWindow()!!
+--      TG_WINAPI: good
+--      TG_GTK: good
+-- BUG: single esc closes both. [FIXED!! - bClose = .. and not bUp in tg_key_handler]
+--  demo\theGUI\win_windows.exw is fine...
+--  demo\theGUI\gtk_windows.exw is fine...
+--  pwa\js\poc\gDialogs.htm is also ok...
+--
+puts(1,"")
+--requires(64,true)
+include theGUI.e
+--inXclude hGUI.e -- use gDialogs instead
+--gUseGTK()
+
+--printf(1,"%s\n",{gVersion()})
+
+atom t0 = time()
+
+--integer count = 0
+function close_handler(gdx dlg)
+--count += 1
+--if count=1 then ?9/0 end if -- WM_CLOSE
+--if count=2 then ?9/0 end if -- "" ??
+    bool bAllow = time()>t0+.5
+--  ?{"close_handler",gGetAttribute(id,"TITLE"),bAllow}
+--  ?{"close_handler",bAllow,dlg}
+--no help...
+--gSetAttribute(dlg,"CLOSE_ON_ESCAPE",bAllow)
+--?9/0
+    return iff(bAllow?TG_CONTINUE:TG_IGNORE)
+end function
+
+function tg_dialog_key_handler(gdx dlg, integer c)--, bool ctrl, shift, alt) 
+--?{`key_handler`,dlg,c,gGetKeyName(c),ctrl,shift,alt}
+--/*
+    c = upper(c)
+    if c='H' then
+        -- toggle header
+        gToggleInt(dlg,`HDR`)
+    elsif c='M' then
+        -- toggle min
+        gToggleInt(dlg,`MNZ`)
+    elsif c='R' then
+        -- toggle restore
+        gToggleInt(dlg,`RST`)
+    elsif c='X' then
+        -- toggle close
+        gToggleInt(dlg,`CLX`)
+    end if
+--*/
+    c = find(upper(c),"HMRX")
+    if c then
+        gToggleInt(dlg,{`HDR`,`MNZ`,`RST`,`CLX`}[c])
+    end if
+    return TG_DEFAULT
+end function
+
+gdx w1 = gDialog(NULL,NULL,`TITLE="I'm Number One!",SIZE=500x300`),
+    w2 = gDialog(NULL,w1,`TITLE="but I'm on top",SIZE=280x100`)
+gSetHandler({w1,w2},`KEY`,tg_dialog_key_handler)
+--gSetAttribute({w1,w2},"CLOSE_ON_ESCAPE",false)
+--?"gShow(w1)"
+gShow(w1)
+--?"gShow(w2)"
+gShow(w2) 
+--gSetAttribute(w1,"VISIBLE",false)
+--gSetAttribute(w1,"VISIBLE",false)
+--gSetFocus(w1)
+--gSetHandler(w1,"CLOSE",close_handler)
+gSetHandler(w2,"CLOSE",close_handler)
+--?"gMainLoop()"
+gMainLoop()
+--?"done"
+--wait_key()

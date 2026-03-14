@@ -1,0 +1,668 @@
+--
+-- demo\theGUI\hButton.exw
+-- =======================
+-- 
+--  Experimental. A planned drop-in canva-based replacement for gButton.
+--
+--  DEV alt keys - revisit when integrating, as it may be too many key handlers spoil the broth...
+--X Nearly complete under WinAPI, but there are *LOTS* of problems under GTK, 
+--X so I'm shelving this for now...
+--X AH: I didn't try anything to do with icons in here yet at all...
+--  AH: &h relies on ct=BUTTON, so that'll be in theGUI.e only... (unless mnemonics suffices...)
+--  No real effort to get this working under p2js done yet either...
+--
+--X Once all elements are canvas-based, gDialog contains a/the only canvas, 
+--X  and h|vbox/frame/split/canvas can all be made purely virtual.
+--X     "" NO: off-canvas drawing must be ignored, bgclr c/would get messy!
+--  Note that hDropDown/hDatePick/hTree take priority (ito) over this.
+--   (however this proved great for focus issues, at least on WinAPI...)
+--
+-- Focus rect, KEY, MOUSE, CLICK... [DONE on WinAPI]
+-- Hover effects [DONE]
+-- flat? [NAH]
+-- focus events? (see GETFOCUS_CB / KILLFOCUS_CB in IUP, and maybe ENTERWINDOW_CB / LEAVEWINDOW_CB) [seems ok...]
+-- there may be a call for MAP_CB, eg setting the size... [NAH]
+-- icons...
+--
+--with trace
+with javascript_semantics
+--requires(64,true) 
+--include theGUI.e
+include hGUI.e -- needs gHbox (got), MOUSELEAVE (done), tab/focus (done), next up: IMAGE (done!)
+gSetGlobal("DIAGNOSTICS",true)
+--include backup\theGUI.0002.e -- no diff (GTK2)
+--gUseGTK() -- DEV overlapping buttons... no tab, no mnemonics, needs new colours, click repositions[!?!], 
+
+rtn btn_click -- (OK since only ever the same 'action')
+--gdn btn_img = NULL -- now ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_IMAGE] - but still unset/unused [DEV]
+--string btn_txt = `` -- now ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_TITLE]
+--gdx btn_un_hover_timer
+
+-- ah, this wants to be per-dialog... (and not interfere with menus!) [dictionary, maybe?]
+sequence mnemonics = {},
+         mnemonici = {}
+--integer mnemonics = NULL
+
+--integer tw,th
+
+constant backend = gVersion(-1),
+         backver = gVersion(-2)
+
+--/*
+-- ctrl_xtra[CX_GTL_ATTRS] for gButton():
+local constant btn_attrs = {{      CXBTN_IMAGE:=$,'I',`IMAGE`       }, -- gImage/NULL
+                            {      CXBTN_TITLE:=$,'S',`TITLE`       }, -- title
+                            {        CXBTN_HOV:=$,'b',`[HOV]`       }, -- hovering? (change bgclr)
+                            {        CXBTN_UHT:=$,'n',`[UHT]`       }}, -- unhover timer (a gdx)
+                   CXBTN__LEN = length(btn_attrs),
+--*/
+
+sequence ctrl_xtra = {} -- hButton-specific
+enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
+enum CXBTN_IMAGE,
+     CXBTN_TITLE,
+     CXBTN_HOV,
+     CXBTN_UHT,
+     CXBTN_LEN = $
+
+local procedure tg_btn_mouse_click(gdx btn, sequence status)
+--?{"tg_btn_mouse_click",btn,status}
+    if begins("LR",status)
+    and gGetAttribute(btn,`ACTIVE`) then
+        gSetFocus(btn)
+--      atom handler = gGetHandler(btn,`ACTION`)
+--      handler(btn,status)
+        btn_click(btn)
+        gRedraw(btn)
+    end if
+end procedure
+
+-- copied verbatim from theGUI.e:
+local function tg_demnemonicalize(string s, integer be=backend)
+    -- convert eg `&Help` to `Help` for sizing, more examples below
+    -- be can be TG_GTK, TG_WINAPI, or even TG_JS? for testing.
+    string res = ``
+    integer l = length(s), skip = false,
+          ech = iff(be=TG_GTK?'_':
+                iff(be=TG_WINAPI?'&':9/0))
+    for i=1 to l do
+        if skip then
+            skip = false
+        else
+            integer c = s[i]
+            if c!=ech or i=l then
+                res &= c
+            else
+                res &= s[i+1]
+                skip = true
+            end if
+        end if
+    end for
+    return res
+end function
+
+--copied from theGUI.e:
+local function tg_gtk_mnemonicalize(string s)
+    -- convert eg `&Help` to `_Help` for GTK, more examples below
+    string res = ``
+    integer l = length(s), skip = false
+    for i=1 to l do
+        if skip then
+            skip = false
+        else
+            integer c = s[i]
+            if c='_' then
+                res &= `__`
+            elsif c!='&' or i=l then
+                res &= c
+            elsif s[i+1]='&' then
+--maybe:
+                res &= c
+--              res &= &amp;
+                skip = true
+            else
+                res &= '_'
+            end if
+        end if
+    end for
+    return res
+end function
+
+local procedure tg_set_mnemonic(string title, gdx btn)
+    integer l = length(title), skip = false
+    for i=1 to l-1 do
+        if skip then
+            skip = false
+        elsif title[i]='&' then
+            integer mnemonic = title[i+1]
+            if mnemonic!='&' then
+-- bollocks, dialog is null, needs to be done post-mapping... (this should be ok for theGUI.e?)
+--              if mnemonics=NULL then mnemonics = new_dict() end if
+--              ?{"setd",{gGetDialog(btn),upper(mnemonic)},btn,mnemonics}
+--?             ?{"setd",{0,btn,upper(mnemonic)},btn,mnemonics}
+--?             mnemonic = upper(mnemonic)
+--?             sequence ctrls = deep_copy(getdd(mnemonic,{},mnemonics))&btn
+--?             setd(mnemonic,ctrls,mnemonics)
+--              setd({gGetDialog(btn),upper(mnemonic)},btn,mnemonics)
+                mnemonics &= upper(mnemonic)
+                mnemonici &= btn
+                exit
+            end if
+        end if
+    end for
+end procedure
+
+local function tg_process_mnemonics(integer c, gdx /*id*/)
+    integer ak = find(upper(c),mnemonics)
+    if ak then
+        tg_btn_mouse_click(mnemonici[ak],"LR")
+        return TG_IGNORE
+    end if
+--local function tg_process_mnemonics(integer c, gdx id)
+--  if mnemonics!=NULL then
+--      gdx ctrl = getd({gGetDialog(id),upper(c)},mnemonics)
+--      ?{"getd",{gGetDialog(id),upper(c)},ctrl,mnemonics}
+--?{"tg_process_mnemonics",c,id,ctrl}
+--      if ctrl!=NULL then
+--          tg_btn_mouse_click(id)
+--          return TG_IGNORE
+--      end if
+--  end if
+    return TG_CONTINUE
+end function
+
+procedure tg_btn_redraw(gdx btn, integer w, h)
+--GTK2 background: #EEEBE7, rhs/btm: TG_BLACK, m1: #AFA699, lhs/top: TG_WHITE [DONE]
+--GTK2 background: #DFDFDE, rhs/btm: TG_BLACK, m1: #AFA699, lhs/top: TG_WHITE [DONE]
+    string btn_txt = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_TITLE]
+    integer {tw,th} = gGetAttribute(btn,`SIZE`), tx, ty
+    bool bActive = gGetAttribute(btn,`ACTIVE`),
+         bHover = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV]
+    atom hclr
+    if backend=TG_GTK then
+        if backver=2 then
+            gDrawLine(btn,tw-1,0,tw-1,th-1,TG_BLACK)
+            gDrawLine(btn,0,th-1,tw-1,th-1,TG_BLACK)
+            gDrawLine(btn,tw-2,0,tw-2,th-2,#AFA699)
+            gDrawLine(btn,0,th-2,tw-2,th-2,#AFA699)
+            gDrawLine(btn,0,0,tw-2,0,TG_WHITE)
+            gDrawLine(btn,0,0,0,th-2,TG_WHITE)
+            {tx,ty} = {3,11}
+            hclr = #EEEBE7
+        elsif backver=3 then
+            gDrawRect(btn,0,0,tw-1,th-1,true,colour:=#DFDFDF)
+            gDrawRect(btn,0,0,tw-1,th-1,colour:=#E8E8E7)
+            gDrawLine(btn,2,1,tw-2,1,colour:=#FAFAFA)
+            {tx,ty} = {15,17}
+            hclr = #E9E9E9
+        else
+            ?9/0 -- (unknown TG_GTK backver)
+        end if
+--?btn_txt
+--      btn_txt = tg_gtk_mnemonicalize(btn_txt)
+--?btn_txt
+    elsif backend=TG_WINAPI then
+        gDrawRect(btn,0,0,tw-1,th-1,true,colour:=iff(bActive?#FDFDFD:#F9F9F9))
+--  atom bgclr = iff(backend=TG_WINAPI?#F0F0F0:#DCDAD5)
+--  atom bgclr = iff(backend=TG_GTK?iff(backver=2?#DCDAD5
+--                                               :#B6B6B3)
+--                                               :#E8E8E7)
+--                                 :#F0F0F0)
+--bgclr = TG_RED
+        gDrawRect(btn,0,0,tw-1,th-1,colour:=#F0F0F0)
+--  gDrawRect(btn,0,0,tw-1,th-1,colour:=TG_RED)
+--  gDrawRect(btn,0,0,tw-1,th-1,colour:=bgclr) -- border!
+--end if
+--if 1 then return end if
+--  gDrawRect(btn,0,0,tw,th,colour:=bgclr,width:=2) -- GTK
+--  {tx,ty} = {6,12}
+        {tx,ty} = {4,12}
+        hclr = #E0EEF9
+    else
+        ?9/0
+    end if
+    -- 2) replace inner bgclr when hovering
+    if bHover and bActive then
+        gDrawRect(btn,1,1,tw-2,th-2,true,colour:=hclr)
+    end if
+--  gDrawRect(btn,0,0,tw-1,th-1,rc:=0,colour:=TG_RED)
+if backend=TG_GTK and backver=2 then
+elsif backend=TG_GTK and backver=3 then
+-- if not bHover th
+--  atom border = iff(bHover?#0078D4:#B6B6B3)
+    atom border = #B6B6B3
+--  gDrawRect(btn,0,0,tw,th,rc:=5,colour:=border)
+--  gDrawRect(btn,0,0,tw-1,th-1,rc:=5,colour:=border)
+    gDrawRect(btn,0,0,tw-1,th-6,rc:=3,colour:=border)
+else
+    atom border = iff(bActive?iff(bHover?#0078D4:#D0D0D0):#E9E9E9)
+    gDrawRect(btn,0,0,tw-1,th,rc:=5,colour:=border)
+end if
+--  gDrawLine(btn,4,th-1,tw-4,th-1,colour:=#BABABA) -- (non-hover only, anyway...)
+--  integer x = floor(th/5), y = floor(th/2)
+--  gDrawText(btn,x,y,btn_txt)
+--  if backend=TG_GTK then
+--?btn_txt
+--?tg_gtk_mnemonicalize(btn_txt)
+----        btn_txt = tg_gtk_mnemonicalize(btn_txt)
+----?btn_txt
+--      gDrawText(btn,6,12,tg_gtk_mnemonicalize(btn_txt))
+--DEV/SUG drawtext TG_C, where we'll adjust C for any image...
+--  integer {tx,ty} = iff(backend
+    gdn image = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_IMAGE]
+    if image then
+        integer {iw,ih} = gGetAttribute(image,`SIZE`)
+--?9/0
+        if not bActive then image = gGreyscale_XPM(image,true) end if
+        gDrawImage(image,btn,tx,ty-ih/2)
+        tx += iw+2
+    end if
+    gDrawText(btn,tx,ty,btn_txt,colour:=iff(bActive?TG_BLACK:TG_DARK_GREY))
+    if gGetFocus()==btn and bActive then
+        integer rc = 2
+        atom fclr = TG_BLACK
+        if backend=TG_GTK and backver=2 then
+--          gDrawRect(btn,2,2,tw-4,th-4,rc:=0,colour:=TG_BLACK,style:=TG_DOTTED)
+            tw -= 1
+            th -= 4
+            rc = 0
+        elsif backend=TG_GTK and backver=3 then
+--          gDrawRect(btn,2,2,tw-3,th-6,rc:=2,colour:=#909090,style:=TG_DOTTED)
+            th -= 6
+            fclr = #909090
+        else -- WinAPI
+--          gDrawRect(btn,2,2,tw-3,th-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
+            th -= 2
+        end if
+        gDrawRect(btn,2,2,tw-3,th,rc:=rc,colour:=fclr,style:=TG_DOTTED)
+    end if
+end procedure   
+
+--/*
+-- Hmm, all very good and well but: same in GTK and JS... that's v3+ then!
+
+// Create an array of TRIVERTEX structures that describe 
+// positional and color values for each vertex. For a rectangle, 
+// only two vertices need to be defined: upper-left and lower-right. 
+TRIVERTEX vertex[2] ;
+vertex[0].x     = 0;
+vertex[0].y     = 0;
+vertex[0].Red   = 0x0000;
+vertex[0].Green = 0x8000;
+vertex[0].Blue  = 0x8000;
+vertex[0].Alpha = 0x0000;
+
+vertex[1].x     = 300;
+vertex[1].y     = 80; 
+vertex[1].Red   = 0x0000;
+vertex[1].Green = 0xd000;
+vertex[1].Blue  = 0xd000;
+vertex[1].Alpha = 0x0000;
+
+// Create a GRADIENT_RECT structure that 
+// references the TRIVERTEX vertices. 
+GRADIENT_RECT gRect;
+gRect.UpperLeft  = 0;
+gRect.LowerRight = 1;
+
+// Draw a shaded rectangle. 
+GradientFill(hdc, vertex, 2, &gRect, 1, GRADIENT_FILL_RECT_H);
+           
+
+typedef struct _TRIVERTEX {
+  LONG    x;
+  Long    y;
+  COLOR16 Red;
+  COLOR16 Green;
+  COLOR16 Blue;
+  COLOR16 Alpha;
+} TRIVERTEX, *PTRIVERTEX;
+
+
+typedef struct _GRADIENT_RECT {
+  ULONG UpperLeft;
+  ULONG LowerRight;
+} GRADIENT_RECT, *PGRADIENT_RECT;
+
+
+BOOL GradientFill(
+  _In_  HDC hdc,
+  _In_  PTRIVERTEX pVertex,
+  _In_  ULONG nVertex,
+  _In_  PVOID pMesh,
+  _In_  ULONG nMesh,
+  _In_  ULONG ulMode
+);
+           
+
+--*/
+
+local procedure tg_btn_mouse_move(gdx btn)
+--?{`tg_btn_mouse_move`,btn}
+    ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV] = true
+--  clear_btn_un_hover_timer(btn)
+    gdx btn_un_hover_timer = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT]
+    if btn_un_hover_timer!=NULL then
+        gSetAttribute(btn_un_hover_timer,`RUN`,false)
+        -- (we could perhaps shove these back on a freelist...)
+    end if
+--  gSetAttribute(ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT],`RUN`,false)
+    gRedraw(btn)
+end procedure
+
+local procedure tg_btn_mouse_leave(gdx btn)
+--?{`tg_btn_mouse_leave`,btn}
+    ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV] = false
+    gRedraw(btn)
+end procedure
+
+local procedure tg_btn_un_hover(gdx btn_un_hover_timer)
+    gdx btn = gGetAttribute(btn_un_hover_timer,`USER_DATA`)
+--assert(ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT]==btn_un_hover_timer)
+    ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV] = false
+    gRedraw(btn)
+    gSetAttribute(btn_un_hover_timer,`RUN`,false)
+end procedure
+
+--local function tg_btn_key(gdx btn, integer c)
+function tg_btn_key(gdx btn, integer c, bool ctrl, shift, alt)
+--function tg_btn_key(gdx btn, integer c, bool ctrl, shift)
+if not find(c,{VK_LALT}) then
+?{`tg_btn_key`,btn, gGetKeyName(c), ctrl, shift, alt}
+end if
+--?9/0
+--?{`tg_btn_key`,btn, c, ctrl, shift}
+    if alt then
+--DEV probably should be key_handler only...
+--      if tg_process_mnemonics(c)==TG_IGNORE then
+        if tg_process_mnemonics(c,btn)==TG_IGNORE then
+            return TG_IGNORE
+        end if
+    elsif c=' ' then
+        if not ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV] then
+            ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_HOV] = true
+            gRedraw(btn)
+--          set_btn_un_hover_timer(btn) --- if using a freelist...
+            gdx btn_un_hover_timer = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT]
+            if btn_un_hover_timer=NULL then
+                btn_un_hover_timer = gTimer(tg_btn_un_hover,250,true,btn)
+                ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT] = btn_un_hover_timer
+            else
+                gSetAttribute(btn_un_hover_timer,`RUN`,true)
+            end if
+--          gSetAttribute(ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT],`RUN`,true)
+        end if
+        btn_click(btn)
+--      return TG_IGNORE -- not needed
+    end if
+--trace(1)
+    return TG_CONTINUE
+end function
+
+function hButton(string title, rtn action)
+    gdx btn = gCanvas(tg_btn_redraw,`EXPAND=NO`)
+    atom bgclr = iff(backend=TG_GTK?iff(backver=2?#DCDAD5
+                                                 :#FDFDFD)
+                /*TG_WINAPI/TG_JS*/:#F0F0F0)
+    gSetAttribute(btn,"BGCLR",bgclr)
+    if platform()!=JS then
+        ctrl_xtra &= repeat(0,btn-length(ctrl_xtra))
+    end if
+    ctrl_xtra[btn] = repeat(0,CX_GTL_ATTRS)
+    object btn_attr = repeat(0,CXBTN_LEN)
+    btn_attr[CXBTN_TITLE] = title
+    ctrl_xtra[btn][CX_GTL_ATTRS] = btn_attr
+    btn_attr = 0
+    tg_set_mnemonic(title,btn)
+    gSetAttribute(btn,`CANFOCUS`,true)
+    gSetHandler(btn,`CLICK`,tg_btn_mouse_click)
+    gSetHandler(btn,`KEY`,tg_btn_key)
+    gSetHandler(btn,`MOUSEMOVE`,tg_btn_mouse_move)
+    gSetHandler(btn,`MOUSELEAVE`,tg_btn_mouse_leave)
+    btn_click = action
+--  btn_txt = title
+--DEV one only needed? (when/if shifted into theGUI.e) [no, per-button for obvious USER_DATA reasons!]
+--  btn_un_hover_timer = gTimer(tg_btn_un_hover,250,false,btn)
+-- now created on demand (for any dialog with 9 or 10 buttons, most times 9/10 won't get clicked or hovered on)
+--  ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_UHT] = gTimer(tg_btn_un_hover,250,false,btn)
+    return btn
+end function
+
+--procedure action(gdx btn)
+----?9/0
+----    ?{`action!`,gGetAttribute(btn,`TITLE`)}
+----procedure action()
+--  ?{`action`,btn}
+--  gRedraw(gGetDialog(btn))
+--end procedure
+
+--gdx btnset
+local procedure set_btn_sizes(sequence btns)
+--  btnset = btns
+    for btn in btns do
+        string --font = gGetAttribute(id,`FONT`),
+--            title = gGetAttribute(id,`TITLE`)
+              title = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_TITLE]
+        integer {tw,th} = gGetTextExtent(tg_demnemonicalize(title),btn)
+--?gGetTextExtent("",btn) -- {0,14}, btw...
+        ?{btn,title,tw,th}
+        if backend=TG_GTK then
+            if backver=2 then
+                -- GTK2: 49x15 -> 59x23
+--?{15,9}?
+                tw += 10
+--              th += 8
+                th += 10
+            elsif backver=3 then
+                -- GTK3: 45x14 -> 79x34
+                tw += 34
+                th += 20
+            else
+                ?9/0
+            end if
+        elsif backend=TG_WINAPI then
+            -- WinAPI: 50x15 -> 56x23
+--          tw += 6
+            tw += 14
+            th += 8
+        else
+            ?9/0
+        end if
+        gdn image = ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_IMAGE]
+        if image then
+            integer {iw,ih} = gGetAttribute(image,`SIZE`)
+?{"image",image,iw,ih}
+--          tw += iw+3
+            tw += iw+2
+--DEV th+=??
+        end if
+--DEV (maybe??)
+--      -- (ensuring even-ness gives slightly nicer focus rects) [winapi only?]
+--      tw += odd(tw)
+--      th += odd(th)
+        gSetAttribute(btn,`SIZE`,{tw,th})
+--      gSetAttribute(btn,`NORMAL`,{tw,th})
+    end for
+end procedure
+
+puts(1,"")
+function key_handler(gdx id, integer c, bool ctrl, shift, alt) 
+if not find(c,{VK_LALT}) then
+?{`key_handler`,id,gGetKeyName(c),ctrl,shift,alt}
+end if
+--  if alt and tg_process_mnemonics(c)==TG_IGNORE then
+    if alt and tg_process_mnemonics(c,id)==TG_IGNORE then
+        return TG_IGNORE
+    end if
+--/* hmmm, didn't really pan out...
+    integer W23 = find(upper(c),"W23")
+    if W23 then
+        -- NB: this toggle does not alter gGetTextExtent() results!
+        if W23=1 then backend = TG_WINAPI
+        else {backend,backver} = {TG_GTK,W23} end if
+        set_btn_sizes(btnset)
+        gRedraw(id)
+    end if
+--*/
+    return TG_DEFAULT
+end function
+--/!*
+constant cut_xpm_txt = `
+24 20 2 1
+. c None
+* c #000000
+........................
+........................
+........................
+..................*.....
+................**......
+...............**.......
+..............**........
+.............**.........
+....****....**.....***..
+...*...**..**...****....
+...*...***********......
+....****...****.........
+..........**............
+.........***............
+........*..*............
+.......*...*............
+.......*..*.............
+.......***..............
+........................
+........................
+`
+constant cut_xpm = gImage_from_XPM(cut_xpm_txt)
+
+--*!/
+
+include builtins\theGUI_from_pGUI.e
+gdx clipboard = gClipboard()
+function mini_porting_helper(bool bJustCheck=false)
+    object text = gGetAttribute(clipboard,`TEXT`,``)
+    if not string(text) then return false end if
+    if not bJustCheck then
+        text = theGUI_from_pGUI(text)
+        gSetAttribute(clipboard,`TEXT`,text)
+    end if
+    return match(`include pGUI.e`,text)
+    --     aside: ^mangled by theGUI_from_pGUI()
+end function
+
+--function action(gdx btn)
+--function action()
+procedure action(gdx btn)
+--?{`action!`,gGetAttribute(btn,`TITLE`)}
+--procedure action()
+--?`action!`
+    gSetAttribute(btn,`ACTIVE`,mini_porting_helper())
+--  gSetAttribute(btn,`TITLE`,`ported`)
+    ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_TITLE] = `ported`
+--  return TG_DEFAULT
+--end function
+end procedure
+
+
+--constant margin = `11x11`
+--constant margin = iff(backend!=TG_GTK?`11x11`:    // WINDOWS
+--                iff(gVersion(-2)=2?`9x9`:`7x7`))  // GTK2, 3
+
+gdx btn = hButton(`&port from pGUI`,action),
+--gdx btn = gHbox({gButton(`port from pGUI`,action)}), -- WinAPI ok, GTK not
+--gdx btn = gButton(`gButton`,action),
+--gdx btn = gButton(`&gButton`,action,`SIZE=59x23`), -- GTK2...
+--gdx btn = hButton(`&gButton`,action),
+--  bt2 = gButton(`gButton`,action,`SIZE=59x23`),
+--DEV fixme, via ctrl_xtra...
+--  bt2 = gButton(`g&Button`,action), -- good, bar shared and therefore quite wrong btn_hov [etc, FIXED].
+--  hbn = gButton(`&gButton`,action), -- no mnemonic activation as yet (any, inc WinAPI)
+--  hbn = hButton(`gButton&2`,action), -- no mnemonic activation as yet (any, inc WinAPI)
+--gdx btn = gButton(`&port from pGUI`,action,`==`,{{`IMAGE`,cut_xpm},
+--                                      {`TIP`,`This is a button`}}),
+--gdx btn = gButton(`&port from pGUI`,action,`MARGIN=11x11`),
+--gdx btn = gButton(`&port from pGUI`,action,`FLAT=YES`),
+--gdx btn = gButton(`port from pGUI`,action,`PADDING=10`),
+--  hbx = gVbox({gHbox({btn})}),
+--  hbx = gVbox({btn}),
+--  hbx = gHbox({btn},`PADDING=11x11`),
+--  hbx = gHbox({btn},`MARGIN=11x11`),
+--  hbx = gHbox({btn},`MARGIN=11x11,SPACE=AROUND`),
+--  hbx = gHbox({btn,hbn},`MARGIN=%s,SPACE={RIGHT,AROUND}`,{margin}),
+--  btns = {btn,hbn}, -- (as used below)
+    btns = {btn}, -- (as used below)
+--  hbx = gHbox(btns,`MARGIN=%s,SPACE=AROUND`,{margin}),
+--  hbx = gHbox({btn,bt2,hbn},`MARGIN=%s,SPACE={RIGHT,AROUND},GAP=1`,{margin}),
+--  hbx = gHbox({btn,bt2,hbn},`MARGIN=%s,GAP=1`,{margin}),
+--  hbx = gHbox({btn},`MARGIN=11x11,SPACE=BLEFT`), --DEV
+    hbx = gHbox({btn},`MARGIN=12x12`),
+--  hbx = btn,
+--  dlg = gDialog(hbx,`gButton`,`SIZE=240x80`)
+--DEV no effect...[FIXED on WinAPI... for GTK see gtk_fixed.exw... maybe...]
+    dlg = gDialog(hbx,`gButton`,`SIZE=240x80, MINSIZE=212x25`)
+--  dlg = gDialog(hbx,`gButton`)
+--  dlg = gDialog(hbx,`gButton`,`SIZE=226x73`)
+--DEV 236x68...
+--  dlg = gDialog(hbx,`TITLE=`gButton`,SIZE=226x73,RESIZE=NO`)
+gSetHandler(dlg,`KEY`,key_handler)
+--gSetAttribute(btn,`ACTIVE`,mini_porting_helper(true))
+--gSetAttribute(btn,`TIP`,`This is a button`)
+--gSetAttribute(btn,`ACTIVE`,true)
+--gSetAttribute(btn,`ACTIVE`,false) -- [DEV] setFocus fail on tab...
+--gSetAttribute(btn,`ACTIVE`,mini_porting_helper(true))
+--gSetAttribute(btn,`IMAGE`,cut_xpm)
+ctrl_xtra[btn][CX_GTL_ATTRS][CXBTN_IMAGE] = cut_xpm
+
+--gSetAttribute(dlg,`ACTIVE`,false) -- [DEV] setFocus fail on tab...
+--gSetAttribute(btn,`IMAGE`,cut_xpm)
+--gSetAttribute(btn,`IMAGE`,cut_xpm_txt)
+--gSetAttributes({btn,bt2,hbn},`==`,{--{`IMAGE`,cut_xpm_txt},
+--                       {`TIP`,`This is a button`}})
+--gSetBodge(btn,{11,11,101,26}) -- bad idea...
+--gSetAttribute(btn,`VISIBLE`,false)
+
+--DEV noticed alt-g does not set focus on btn...
+--function dlg_key(gdx dlg, integer c, bool ctrl, shift, alt)
+----?{`dlg_key`,dlg, c, ctrl, shift, alt}
+--  if upper(c)='H' and alt then
+--      tg_btn_mouse_click(hbn, ``)
+--      return TG_IGNORE
+--  end if
+--  return TG_CONTINUE
+--end function
+--gSetHandler(dlg,`KEY`,dlg_key)
+--DEV as per tg_lm_accumulate_sizes():
+set_btn_sizes(btns)
+gShow(dlg)
+
+--gRedraw(dlg)  --**DEV that makes a hell of a difference!! (WinAPI)
+--gHide(dlg)
+--gHide(btns) -- DEV
+--gHide(btn)
+--gShow(btn)
+--gRedraw(dlg)
+--^^ On GTK2, manually resizing does it, but even two redraws don't
+
+--?{dlg,gGetDialog(btn),gGetDialog(dlg)}
+--      if lbl!=NULL and find('&', lbl) then
+--          tg_WinAPI_set_accelerator(id, lbl)
+--          tg_WinAPI_set_accelerator(hbn, `&hButton`)
+-- ^^ don't work because tg_WINAPI_process_WM_COMMAND relies on:
+--          if ct=BUTTON then
+--              return tg_button_clicked(id)
+--      end if
+
+--?gGetAttribute(btn,`IMAGE`) -- now -1 (a gdm)
+--{`gImage`,{-1660591307.0,24,20,16645629},1}
+--{`gImage`,{-1660591307.0,24,20,#FDFDFD},1}
+
+
+--?gGetAttribute(btn,`SIZE`)
+--?gGetAttribute(hbn,`SIZE`) -- DEV oh dear, GTK native reporting 0,0...
+--?gGetAttribute(btn,`TITLE`)
+--rtn q = gGetHandler(btn,`CLICK`)
+----integer q = gGetHandler(btn,`CLICK`)
+--?q(btn) -- (-2)
+gMainLoop()
+--gMainLoop(dlg)
+
+

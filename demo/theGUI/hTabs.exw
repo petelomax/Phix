@@ -1,0 +1,526 @@
+--
+-- demo\theGUI\hTabs.exw
+-- =====================
+--
+--  Demonstration/test of some simple gTabs() controls....
+-- (Experiment to imitate a tab control with a canvas, which was successful & now part of theGUI.e)
+-- (Aside: one of my earlier efforts, written without .e innards or transpiling for js in mind, but
+--         it probably wouldn't really have benefited either all that much anyway...)
+--
+-- todo: close buttons, [DONE]
+--       right click popup menu, 
+--       canvas/edge check, natural sizes (for different backends)... [assume done]
+--       there is no keyboard or focus handling at all as yet.... [DONE!]
+--       DEV needs fake ctrl_xtra[], and reworking to ease copy into theGUI.e/js
+--
+with javascript_semantics   -- usual (re)size issues remain... [DEV] [NOW SOLVED??]
+puts(1,"")
+--requires(`1.0.6`)
+--requires(64,true)
+--include theGUI.e
+include hGUI.e -- all good!! (but after click, VK_TAB loses focus, which theOLD don't)
+--include backup/theGUI.2195.e
+--include backup/theGUI.0003.e -- tabs active
+--include backup/theGUI.0230.e -- tabs active
+--include backup/theGUI.0785.e -- tabs active
+--include backup/theGUI.1200.e -- tabs active
+--include backup/theGUI.1405.e -- tabs active
+--include backup/theGUI.1450.e -- tabs active
+--include backup/theGUI.1475.e -- tabs active
+--include backup/theGUI.1478.e -- tabs active
+--include backup/theGUI.1479.e -- tabs active
+--include backup/theGUI.1480.e -- tabs inactive
+--include backup/theGUI.1485.e -- tabs inactive
+--include backup/theGUI.1500.e -- tabs inactive
+--include theGUI3.e -- proves something to do with resizing got fixed under WinAPI!!
+--gUseGTK()
+
+-- nb must match system small icons under winAPI (typically 16x16) [docs need updating]
+-- DEV background not quite right under WinAPI... [FIXED, I think]
+--+ c None
+
+constant xpm_txt = `
+16 16 3 1
++ c None
+. c #000000
+# c #FF0000
+++++++++++++++++
+++++++++++++++++
+++++++++++++++++
+++++++###.++++++
+++++#####.++++++
+++#######.++++++
+++#######.++++++
+++++#####.++++++
+++++++###.++++++
++++++++...++++++
++++++++...++++++
++++++++...++++++
+++++++......++++
+++++.........+++
+++++++++++++++++
+++++++++++++++++
+`
+constant xpm = gImage_from_XPM(xpm_txt)
+
+--/*
+gdx vboxA = gVbox({gLabel(`Inside Tab A`), gButton(`Button A`)},`TABTITLE="Tab A"`),
+    vboxB = gVbox({gLabel(`Inside Tab B`), gButton(`Button B`)},`TABTITLE="Tab B"`),
+--  tabs1 = gTabs({vboxA, vboxB}, `SIZE[*charsize]=80x80`),
+    tabs1 = gTabs({vboxA, vboxB}, `SIZE=180x80`),
+    vboxC = gVbox({gLabel(`Inside Tab C`), gButton(`Button C`)},`TABTITLE="Tab C"`),
+    vboxD = gVbox({gLabel(`Inside Tab D`), gButton(`Button D`)},`TABTITLE="Tab D"`),
+--test:  `TOP`, `BOTTOM`, `LEFT` or `RIGHT`: (nah, p2js only supports TOP, for now[?])
+--  tabs2 = gTabs({vboxC, vboxD}, `TABTYPE=LEFT`),
+--  tabs2 = gTabs({vboxC, vboxD}, `TABTYPE=TOP, SIZE[*charsize]=80x80`),
+--  tabs2 = gTabs({vboxC, vboxD}, `TABTYPE=TOP, SIZE=80x80`),
+    tabs2 = gTabs({vboxC, vboxD}, `SIZE=180x80`),
+--  tabs2 = gTabs({vboxC, vboxD}, `TABTYPE=BOTTOM, SIZE[*charsize]=80x80`),
+--  tabs2 = gTabs({vboxC, vboxD}, `TABTYPE=RIGHT, SIZE[*charsize]=80x80`),
+--  hbox = gHbox({tabs1, tabs2}, `MARGIN=10x10, GAP=10`),
+    hbox = gHbox({tabs1, tabs2}, `MARGIN=10x10`),
+--  dlg = gDialog(hbox,`TITLE=gTabs, SIZE[*charsize]=200x120, DIALOGFRAME=YES`)
+    dlg = gDialog(hbox,`gTabs`,`SIZE=200x120`)
+--*/
+--gdx tabs = gTabs({`First`,`Second`,`Third`,`Fourth`}, `SIZE=225x23`),
+
+--/!* looks good to me:
+constant x_txt = `
+9 9 2 1
+. c None
+x c #000000
+.........
+.........
+..x...x..
+...x.x...
+....x....
+...x.x...
+..x...x..
+.........
+.........
+`
+constant ximg = gImage_from_XPM(x_txt)
+
+constant l_txt = `
+7 9 2 1
+. c None
+x c #000000
+.......
+.......
+....x..
+...xx..
+..xxx..
+...xx..
+....x..
+.......
+.......
+`
+constant ltab = gImage_from_XPM(l_txt)
+
+constant r_txt = `
+7 9 2 1
+. c None
+x c #000000
+.......
+.......
+..x....
+..xx...
+..xxx..
+..xx...
+..x....
+.......
+.......
+`
+constant rtab = gImage_from_XPM(r_txt)
+
+local constant TAB_BORDER = #E6E6E6,
+--             TAB_BGCLR = #F0F0F0,     -- overall
+               TAB_BG_SEL = #F9F9F9,    -- selected/active tab background
+               TAB_BG_NS = #F3F3F3,     -- other tabs
+               TAB_BG_HOV = #EDEDED,    -- hover on other tabs
+               TAB_OVER_HOV = #E0EEFC   -- hover on overflow buttons
+
+--[DEV stored or callback'd?]
+--constant tabset = {{`First`,xpm},{`Second`},{`Third`},{`Fourth`}}
+--constant tabset = {{`First`,xpm},`Second`,`Third`,`Fourth`}
+constant tabset = {{`First`,xpm},`Second`,`Third`,`Fourth`,`Fifth`,`Sixth`,`Seventh`,`Eighth`}
+--?tabset
+-- (temp/DEV *5: [keep in CX_GTL_ATTRS])
+integer selected = 3, --- POSN
+        firsttab = 2
+--bool bClose = true
+bool bClose = false
+bool rover_needed = false
+sequence twsave
+
+-- Note: this is now tg_redraw_tabs() in theGUI.e (using ctrl_xtra[tabs][CX_GTL_ATTRS][CXTABS_FIRSTTAB] etc, [DEV..])
+--                                                (aka b4 modifying, make a tad more similar, to reduce effort later)
+procedure tg_tabs_redraw(gdx tabs, integer w,h)
+--?{`tg_tabs_redraw`,w,h}
+--  gDrawRect(tabs,1,1,w-2,h-2)
+--  gDrawLine(tabs,0,0,w-1,h-1)
+--  gDrawLine(tabs,w-1,0,0,h-1)
+    -- first pass: calculate all the tab widths
+    sequence tabwidths = {}
+    integer x = 0, tw,
+      {mx,my} = gGetAttribute(tabs,`MOUSEPOS`)
+    rover_needed = false
+    bool bTrackMouse = false,   -- DEV see theGUI.e
+         bHasFocus = gGetFocus()=tabs
+    x = iff(firsttab>1?10:0)
+    for i,t in tabset from firsttab do
+        tw = 0
+        if not string(t) then
+--          tw += t[2][2][2]+4
+--          tw += gImage_get_wh(t[2])[1]+4
+            tw += gGetAttribute(t[2],`SIZE`)[1]+4
+            t = t[1]
+        end if
+--      tw += XgGetTextExtent(tabs,t)[1]+12
+        tw += gGetTextExtent(t,tabs)[1]+12
+        if bClose then tw += 10 end if
+        x += tw
+        rover_needed = x>(w-(i<length(tabset))*11)
+        if rover_needed then
+            if i>selected then exit end if
+            if firsttab=1 then x += 10 end if
+            x -= tabwidths[1]
+            tabwidths = tabwidths[2..$]
+            firsttab += 1
+            rover_needed = false -- (i/c i==$)
+        end if
+        tabwidths &= tw
+        if i=length(tabset) then
+            while firsttab>1 do
+                -- when resizing, drag in any that now fit, aka
+                --  when it would have left rover_needed false.
+                t = tabset[firsttab-1]
+                tw = 0
+                if not string(t) then
+--                  tw += t[2][2][2]+4
+--                  tw += gImage_get_wh(t[2])[1]+4
+                    tw += gGetAttribute(t[2],`SIZE`)[1]+4
+                    t = t[1]
+                end if
+--              tw += XgGetTextExtent(tabs,t)[1]+12
+                tw += gGetTextExtent(t,tabs)[1]+12
+                if bClose then tw += 10 end if
+                if x+tw-(firsttab=2)*10>w then exit end if
+                x += tw
+                tabwidths = tw & tabwidths
+                firsttab -= 1
+            end while
+        end if
+    end for
+    if firsttab>1 then
+        -- show leftarrow:
+        if mx>=0 and mx<10 
+        and my>2 and my<22 then
+            -- show hover highlight on leftarrow:
+            gDrawRect(tabs, 0, 3, 9, 21, true, colour:=TAB_OVER_HOV)
+            bTrackMouse = true
+        end if
+        gDrawImage(ltab,tabs,2,8)
+        x = 10
+    end if
+--DEV
+    -- save for mouse handling:
+--  ctrl_xtras[tabs][?] = tabwidths
+    twsave = tabwidths
+    x = iff(firsttab>1?10:0)
+    for i,t in tabset from firsttab do
+        integer wdx = i-firsttab+1, ty, bg
+        if wdx>length(tabwidths) then exit end if
+        tw = tabwidths[wdx]
+        if i=selected then
+            ty = 0
+            bg = TAB_BG_SEL
+        else
+            ty = 2
+            if mx>x and mx<x+tw
+            and my>2 and my<22 then
+                bg = TAB_BG_HOV
+                bTrackMouse = true
+            else
+                bg = TAB_BG_NS
+            end if
+        end if
+        gDrawRect(tabs,x,ty,x+tw,h-1,true,colour:=bg)
+        if bHasFocus and i=selected then
+            -- draw focus rect  
+            gDrawRect(tabs,x+2,ty+2,x+tw-1,h-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
+        end if
+        -- left edge
+        gDrawLine(tabs,x,ty,x,h-1,colour:=TAB_BORDER)
+        integer iw = 0, ih
+        if not string(t) then
+--          iw = t[2][2][2]+4
+--          iw = gImage_get_width(t[2])+4
+--          ih = t[2][2][3]
+--          ih = gImage_get_height(t[2])
+--          {iw,ih} = gImage_get_wh(t[2])
+            {iw,ih} = gGetAttribute(t[2],`SIZE`)
+            iw += 4
+            gDrawImage(t[2],tabs,x+6,ty+10-floor(ih/2))
+            t = t[1]
+        end if
+        gDrawText(tabs,x+iw+5,ty+3,t,{},TG_SE)
+        if bClose then
+            gDrawImage(ximg,tabs,x+tw-12,ty+6)
+        end if
+        -- top edge
+        gDrawLine(tabs,x,ty,x+tw,ty,colour:=TAB_BORDER)
+        if i!=selected then
+            -- bottom edge
+            gDrawLine(tabs,x,h-2,x+tw,h-2,colour:=TAB_BORDER)
+        end if
+        x += tw     
+        -- right edge
+        gDrawLine(tabs,x,ty,x,h-2,colour:=TAB_BORDER)
+    end for
+    if rover_needed then
+        if mx>=w-10 and mx<w
+        and my>2 and my<22 then
+            gDrawRect(tabs, w-10, 3, w-1, 21, true, colour:=TAB_OVER_HOV)
+            bTrackMouse = true
+        end if
+        gDrawImage(rtab,tabs,w-9,8)
+    end if
+--DEV/SUG:
+--  if bTrackMouse then tg_track_mouseleave(tabs,?) end if
+--?`tg_track_mouseleave...`
+--  tg_track_mouseleave(tabs, bTrackMouse)
+end procedure
+
+--procedure tg_tabs_mousemove(gdx tabs, integer x,y, bool left,middle,right, ctrl,shift,alt)
+procedure tg_tabs_mousemove(gdx tabs, integer /*x*/,/*y*/)
+--  ?{`tg_tabs_mousemove`,x,y,left,middle,right,ctrl,shift,alt}
+--  ?{`tg_tabs_mousemove`,x,y}
+--DEV can we only do this when we really need to?
+--  maybe tg_tabs_redraw can leave a rect in ctrl_xtra, mouse moves inside/out which are ignored...
+    gRedraw(tabs)
+end procedure
+
+rtn tabchanged = NULL
+--local procedure hSetHandler(gdx /*id*/, string /*name*/, rtn r) tabchanged = r end procedure
+--local function hGetHandler(gdx /*id*/, string /*name*/) return tabchanged end function
+local procedure hSetHandler(rtn r) tabchanged = r end procedure
+local function hGetHandler() return tabchanged end function
+
+--/*
+ TABCLICK  Note the standard CLICK handler is used internally by this control and should
+not be overidden, however it will forward all such events to a TABCLICK handler first, if one is defined, and as
+a bonus indicates which tab it occurred on, before POSN is updated, so that can still
+be used within this handler to determine the current/prior one, and whether a close button has been clicked. 
+
+function tabclick(gdx id, sequence status, integer x, y, posn, bool bClose) 
+See CLICK for more details, note however this must be a function with all sixparameters. 
+
+Returns of TG_IGNORE prevent any further processing and hence effectivelydisable the control (or just the close action), whereas TG_CONTINUE and TG_DEFAULT behave as if this handler did not exist, with all other values triggeringan error, including TG_CLOSE.  
+--*/
+procedure tg_tabs_click(gdx tabs, sequence status, integer x, y) 
+--/*
+--id: identifies the interface element that activated the event.
+--status: a sequence of two characters and three bools that qualify the precise event that just occurred:
+-- The first character is 'L', 'M', 'R' for Left, Middle, or Right button, or 'X', 'Y' for those under your thumb on the mouse.
+-- The second character is 'S', 'D', or 'R' for Single-click, Double-click (not XY), or Release events, see note.
+-- The third element is true if the ctrl key is depressed, false otherwise.
+-- The fourth element is true if the shift key is depressed, false otherwise.
+-- The fifth element is true if the alt key is depressed, false otherwise.
+-- You may prefer to code integer {button,pressed,ctrl,shift,alt} = status over using [1..5]s.
+--x,y: (optional) pixel co-ordinates of the mouse cursor when the click/release occurred. 
+--
+--The ACTION event is usually much more suitable for a gButton.
+--The VALUE_CHANGED event is usually much more suitable for a gCheckbox.
+--The HANDLER event is always much more suitable for a gMenu. 
+--
+--In many/most other cases the system would naturally ignore a click and perform no further action anyway, hence
+--if the handler is declared as a procedure it is treated the same as a function which always returns TG_IGNORE.
+--Returning TG_IGNORE prevents the event from being propagated, all other values do not,though it is probably best to use TG_CONTINUE to implicitly imply that propagation. 
+--*/
+    integer {w,h} = gGetAttribute(tabs,`SIZE`), tdx = -2
+    bool doleft = false,
+         doright = false,
+         doclose = false,
+         dochange = false
+    if status[1..2]=`LS` 
+    and y>2 and y<22 then
+        if firsttab>1 
+        and x>=0 and x<10 then
+            doleft = true
+            tdx = -1
+        elsif rover_needed
+          and x>=w-10 and x<w then
+            doright = true
+            tdx = 0
+        else
+            integer tx = iff(firsttab>1?10:0)
+            for i,rhs in twsave do
+                tx += rhs
+                if x<=tx then
+                    tdx = firsttab+i-1
+                    doclose = bClose and tx-x<=10
+                    dochange = not doclose
+                    exit
+                end if
+            end for
+        end if
+    end if
+    rtn tabclick = gGetHandler(tabs,`TABCLICK`)
+    if tabclick then
+        integer res = tabclick(tabs,status,x,y,tdx,doclose)
+        if res=TG_IGNORE then return end if
+        assert(res=TG_CONTINUE or res=TG_DEFAULT)
+    end if
+    if doleft then
+        firsttab -= 1
+        gRedraw(tabs)
+    elsif doright then
+        firsttab += 1
+        gRedraw(tabs)
+    elsif doclose then
+        rtn tabclosed = gGetHandler(tabs,`TABCLOSED`)
+        if tabclosed then
+            string sig = get_routine_info(tabclosed,false)[3]
+            if sig=`POI` then
+                tabclosed(tabs,tdx)
+            elsif sig=`PI` then
+                tabclosed(tdx)
+            else
+                ?9/0
+            end if
+        else
+--          assert(tabclick,`neither TABCLICK nor TABCLOSED defined`)
+            if not tabclick then ?`WARNING: neither TABCLICK nor TABCLOSED defined` end if
+        end if
+--DEV move selected down if > COUNT
+--      if selected=gGetAttribute(tabs,`COUNT`) then
+--          selected -= 1
+--      end if
+    elsif dochange then
+        integer old_posn = selected
+        selected = tdx
+--      rtn tabchanged = gGetHandler(tabs,`TABCHANGED`)
+        rtn tabchanged = hGetHandler()
+        if tabchanged then
+            string sig = get_routine_info(tabchanged,false)[3]
+            if sig=`POII` then
+                tabchanged(tabs,old_posn,tdx)
+            elsif sig=`PII` then
+                tabchanged(old_posn,tdx)
+            else
+                ?9/0
+            end if
+        end if
+        gRedraw(tabs)
+    end if
+end procedure
+
+--function tg_tabs_key_handler(gdx tabs, integer c, bool ctrl, shift, alt) 
+--?{`key_handler`,tabs,c,gGetKeyName(c),ctrl,shift,alt}
+function tg_tabs_key_handler(gdx tabs, integer c) 
+--?{`key_handler`,tabs,c,gGetKeyName(c)}
+    if c=VK_LEFT then
+        if selected>1 then
+            selected -= 1
+            if firsttab>selected then firsttab = selected end if
+            gRedraw(tabs)
+            return TG_IGNORE
+        end if
+    elsif c=VK_RIGHT then
+        if selected<length(tabset) then
+            selected += 1
+            gRedraw(tabs)
+            return TG_IGNORE
+        end if
+    end if
+    return TG_DEFAULT
+end function
+
+local type dword_seq(object s)  -- (technically qword_seq on 64-bit)
+    return sequence(s) and not string(s)
+end type
+
+--local function hTabs(object tabitems, [rtn tabchanged=NULL,] string attributes="", dword_seq args={}) 
+local function hTabs(object tabitems, rtn tabchanged=NULL, string attributes="", dword_seq args={})
+    gdx tabs = gCanvas(tg_tabs_redraw,`SIZE=0x24,EXPAND=HORIZONTAL`)
+--gdx tabs = gCanvas(tg_tabs_redraw,`SIZE=240x24,EXPAND=HORIZONTAL`)
+--gdx   tabs = gCanvas(tg_tabs_redraw,`SIZE=240x24,EXPAND=NONE`)
+--gSetAttribute(tabs,`BGCLR`,TAB_BGCLR)
+    gSetAttribute(tabs,`BGCLR`,#F0F0F0)
+--             TAB_BGCLR = #F0F0F0,     -- overall
+    gSetHandler(tabs,`MOUSEMOVE`,tg_tabs_mousemove)
+    gSetHandler(tabs,`CLICK`,tg_tabs_click)
+    gSetHandler(tabs,`KEY`,tg_tabs_key_handler)
+    if tabchanged then
+--      gSetHandler(tabs,`TABCHANGED`,tabchanged)
+        hSetHandler(tabchanged)
+    end if
+    return tabs
+end function
+
+--procedure tabchange(gdx id, integer old_posn, new_posn)
+procedure tabchange(integer old_posn, new_posn)
+--  ?{`tabchange`, id, old_posn, new_posn}
+    ?{`tabchange`, old_posn, new_posn}
+end procedure
+
+gdx tabs = hTabs(tabset,tabchange)
+--gdx   tabs = gCanvas(tg_tabs_redraw,`SIZE=0x24,EXPAND=HORIZONTAL,BGCLR=#F0F0F0,CANFOCUS=TRUE`) -- (no help)
+--gdx   tabs = gCanvas(tg_tabs_redraw),
+--      c2 = gCanvas(tg_tabs_redraw) 
+--*!/
+
+--***DEV: the children loop in gTabs() needs a bit of a rewrite, and quite probably moving...
+--  (adding/removing children post-map also (almost certainly) needs a bit more work)
+--gdx tabs = gTabs({`First`,`Second`,{`Third`,xpm},`Fourth`}),
+--gdx tabs = gTabs({{`First`,xpm},{`Second`},{`Third`},{`Fourth`}},tabchange,`EXPAND=HORIZONTAL`),
+--gdx tabs = gTabs({{`First`,xpm},{`Second`},{`Third`},{`Fourth`}},tabchange),
+--gdx tabs = gTabs({{`First`,xpm},{`Second`},{`Third`},{`Fourth`},{`Fifth`},{`Sixth`},{`Seventh`},{`Eighth`}},tabchange),
+ 
+--  dlg = gDialog(tabs,`gTabs`,`SIZE=230x120`)  -- DEV much better for GTK...[??]
+--  dlg = gDialog(tabs,`gTabs`,`SIZE=240x80`)
+--  dlg = gDialog(tabs,`gTabs`,`MAXSIZE=240x80`)
+--  dlg = gDialog(tabs,`gTabs`,`SIZE=285x80`) -- much better for GTK3 (64-bit)
+--  dlg = gDialog(tabs,`gTabs`,`SIZE=285x80`) -- much better for GTK3 (64-bit)
+--  dlg = gDialog(tabs,`gTabs`)
+--WinAPI: 200x22 (now 200x25, shd be OK...)
+--GTK2: 192x26 (not 170x30 as shown!)
+--GTK3: 283x38 (not 283x39, shd now be OK...)
+gdx vbox = gVbox({tabs}),
+    dlg = gDialog(vbox,`gTabs`,`SIZE=240x80`)
+--  dlg = gDialog(vbox,`gTabs`)
+--  dlg = gDialog(gVbox({tabs}),`gTabs`,`SIZE=230x120`)
+--  dlg = gDialog(gVbox({tabs},`SIZE=210x120`),`gTabs`,`SIZE=230x120`)
+--nope, and not much point implementing...
+--gSetAttribute(tabs,`POSN`,3)
+--gSetAttribute(tabs,`VALUE`,3)
+--gSetAttribute(tabs,`SIZE`,`240x`)
+
+function key_handler(gdx dlg, integer c, bool ctrl, shift, alt) 
+--function key_handler(gdx dlg, integer c) 
+--?{`key_handler`,dlg,c,gGetKeyName(c),ctrl,shift,alt}
+--?9/0
+    if upper(c)='R' then
+        gRedraw(dlg)
+--  elsif c=VK_LEFT then
+--      if selected>1 
+--          selected -= 1
+--          gRedraw(dlg)
+--      end if
+--  elsif c=VK_RIGHT then
+--      selcted += 1
+--      gRedraw(dlg)
+    end if
+    return TG_DEFAULT
+end function
+gSetHandler(dlg,`KEY`,key_handler)
+
+gShow(dlg)
+--gdx ih = IupLayoutDialog(dlg)
+--gdx ih = IupGlobalsDialog(`SIZE=450x500`)
+--gdx ih = IupClassInfoDialog(dlg)
+--gShow(ih)
+--gVersionShow()
+gMainLoop()
+

@@ -1,0 +1,100 @@
+--
+-- demo\theGUI\GraphR.exw
+-- ======================
+--
+-- Displays a simple staggered rainbow graph. 
+--
+-- Uses the clipboard text if it begins with "GraphR:{" and ends with "}":
+--  between those it should contain a comma-separated list of elements,
+--  each of which is a sub-sequence of "{description,start,size}", for
+--  an example, test by copying GraphR:{{"red",0,20},{"orange",30,50}}
+--  Note that eg "red" is a description not a colour here, which happens 
+--  to match the (non-overrideable) colours in the rainbow constant.
+--
+-- Pressing F9 in filedump.exw, when it is showing a PE executable, invokes
+--  this program to show a simple memory (erm, actually a file) map. While
+--  not exactly pretty, it helped quickly resolve some issues with "strange"
+--  (albeit perfectly legal) format files, such as the import RVA lying slap
+--  in the middle of the data section, rather than occupying a separate one.
+--  Seeing a visual representation is far easier than studying 10 or 15 sets
+--  of numbers in no particular order, especially with not only different
+--  file and virtual addresses, but also those tricky RVA offset thingies.
+--
+with javascript_semantics
+--requires("1.0.3")
+include theGUI.e
+--include hGUI.e -- gClipboard
+--gUseGTK()
+
+constant default_v = {{"red",0,20},         -- {name,x,width}
+                      {"orange",10,30},
+                      {"yellow",20,40},
+                      {"green",30,50},
+                      {"blue",40,60},
+                      {"indigo",50,70},
+                      {"violet",60,80}}
+
+sequence v  -- decoded version of clipboard text, or copy of the above
+
+integer maxright    -- The highest (start+size) [aka x+width] found.
+
+constant rainbow = {TG_RED, TG_ORANGE, TG_YELLOW, TG_GREEN, TG_BLUE, TG_INDIGO, TG_VIOLET}
+
+function negate_colour(object colour)
+    if string(colour) then  -- pwa/p2js
+        colour = to_integer(colour,0,16)
+        colour = xor_bits(colour,#FFFFFF)
+        colour = sprintf("#%06x",colour)
+    else
+        colour = xor_bits(colour,#FFFFFF)
+    end if
+    return colour
+end function
+
+procedure redraw(gdx canvas)
+    integer {width, height} = gGetIntInt(canvas, "SIZE")
+    -- surrounding box:
+    gDrawRect(canvas, 5, 5, width-5, height-5, colour:=TG_BLACK)
+    width -= 30
+    for pass=1 to 2 do  -- draw all blocks first, then text
+        integer cidx = 1, x, y1 = 20, w, right
+        string text
+        for i=1 to length(v) do
+            {text,x,w} = v[i]
+            right = x+w
+            integer x1 = floor(x/maxright*width)+10,
+                    x2 = floor(right/maxright*width)+10,
+                    y2 = height-((length(v)-i)*20+15),
+                    rc = rainbow[cidx]
+            if pass=1 then
+                gDrawRect(canvas, x1, y1, x2, y2, true, colour:=rc) 
+            else
+                rc = negate_colour(rc)
+                gDrawText(canvas, x1, y1, text, {}, TG_SE, colour:=rc)
+                gDrawText(canvas, x1, y1, text, {}, TG_SE, {TG_SW,90}, rc)
+            end if
+            y1 += 20
+            cidx += 1
+            if cidx>length(rainbow) then cidx = 1 end if
+        end for
+    end for
+end procedure
+
+gdx clipboard = gClipboard()
+string text = gGetAttribute(clipboard,"TEXT")
+if length(text)=0
+or not begins("GraphR:{",text)
+or text[$]!='}' then
+    v = default_v
+else
+    text = text[10..$-2] -- strip the "GraphR:{{", and final "}}"
+    v = split(text,"},{")
+    for i=1 to length(v) do
+        v[i] = scanf(v[i],`"%s",%d,%d`)[1]
+    end for
+end if
+maxright = max(sq_add(vslice(v,2),vslice(v,3))) -- max({<x>+<width>})
+gdx canvas = gCanvas(redraw,"BGCLR=LIGHT_PARCHMENT"),
+    dlg = gDialog(canvas,"GraphR","SIZE=600x400")
+gMainLoop(dlg)
+

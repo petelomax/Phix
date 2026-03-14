@@ -53,7 +53,8 @@ global function read_ppm(string filename, bool bFlat=false, bText=false)
                 p = p*#100 + ppm[pdx]
                 pdx += 1
             end for
-            image[x][y] = p
+--          image[x][y] = p
+            image[y][x] = p
         end for
     end for
     return image

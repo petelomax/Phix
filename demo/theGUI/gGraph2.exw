@@ -1,0 +1,45 @@
+--
+-- demo\theGUI\gGraph2.exw
+-- =======================
+--
+with javascript_semantics
+requires("1.0.4")
+include theGUI.e
+--include backup\theGUI.1572.e -- GOOD
+--include backup\theGUI.2650.e -- GOOD
+--gUseGTK() --DEV needs "if false then" at end of tg_lm_disperse_user_sizes()... (which breaks gCheckbox.exw)
+include builtins\timedate.e
+
+constant factor = 1e-6,
+          limit = 7000,
+              x = tagset(limit),
+              y = sq_add(sq_mul(sq_power(x,3),factor),0.2),
+         dayone = parse_date_string("1/1/1999",{"D/M/YYYY"}),
+         oneday = timedelta(days:=1)
+
+function format_as_date(integer d)
+    timedate td = adjust_timedate(dayone,oneday*d)
+    return format_timedate(td,"DD/MM/YYYY")
+end function
+
+--function get_data(gdx /*graph*/)
+function get_data()
+--  return {{x,y,TG_RED}}
+--  return {{x,y,TG_DARK_GREY}}
+--  return {{x,y,TG_INDIGO}}
+    return {{x,y,TG_OLIVE}}
+end function
+
+
+gdx graph = gGraph(get_data)
+--gdx graph = gGraph(get_data,"MODE=MARK") -- nope... [DEV]
+--gdx dlg = gDialog(graph,`temperature/moisture`,"SIZE=640x480")
+gdx dlg = gDialog(graph,`temperature/moisture`,"SIZE=320x240")
+gSetAttributes(graph,"XTICK=500,XMIN=0,XMAX=7000")
+gSetAttributes(graph,"YTICK=5e4,YMIN=-5e4,YMAX=4e5")
+gSetAttributes(graph,`YTICKFMT="%.1e"`)
+gSetAttributes(graph,`XMARGIN=30, XANGLE=90, YMARGIN=45`)
+gSetHandler(graph,"XRID",format_as_date)
+gShow(dlg)
+gMainLoop()
+

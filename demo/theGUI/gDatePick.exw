@@ -1,0 +1,51 @@
+--
+-- demo\theGUI\gDatePick.exw
+-- =========================
+-- 
+--requires(64,true)
+with javascript_semantics
+include theGUI.e
+--include backup/theGUI.1198.e -- GOOD
+--include backup/theGUI.1319.e -- GOOD
+--include backup/theGUI.1429.e -- GOOD
+--include backup/theGUI.1472.e -- GOOD
+--include backup/theGUI.1478.e -- GOOD
+--include backup/theGUI.1479.e -- GOOD
+--include backup/theGUI.1480.e -- BAD [FIXED]
+--include backup/theGUI.1493.e -- BAD
+--include backup/theGUI.1543.e -- BAD (dropdown does nowt)
+--include backup/theGUI.0002.e -- BAD (dropdown does nowt)
+--gUseGTK() -- very bad on GTK3 (gave up trying to track that one down)
+
+include timedate.e
+
+procedure valuechanged(gdx id, string d)
+    sequence dt = parse_date_string(d,{"DD/MM/YYYY"})
+--crashes if date is 1601... [FIXED 29/10/25]
+--  d = format_timedate(dt,"Dddd Mmmm ddth, yyyy")
+    d = format_timedate(dt,"Ddd dth Mmm yyyy")
+    gSetAttribute(gGetDialog(id),"TITLE",d)
+end procedure
+
+--ugh...
+constant GTK = gVersion(-1)==TG_GTK,
+        GTKV = gVersion(-2),
+      MARGIN = iff(not GTK?{13,13}:
+               iff(GTKV==2?{12,12}: // GTK2
+                           {7,7}))  // GTK3
+gdx dp = gDatePick(valuechanged),
+    hb = gHbox({dp},`==`,{{`MARGIN`,MARGIN}}),
+--  hb = gHbox({dp},`SPACE=AROUND`),        -- (as next, too)
+--  hb = gHbox({dp},`SPACE={MATCH,AROUND}`), -- Grr, does not work on GTK... [DEV]
+--   dlg = gDialog(hb,`gDatePick`,`SIZE=240x80`) -- for docs
+   dlg = gDialog(hb,`gDatePick`,`SIZE=380x80`) -- so date fits
+--gHbox: {MATCH,AROUND|CENTRE}
+--gHbox: {AROUND|CENTRE,MATCH}
+--gSetAttribute(dp,"CANFOCUS",true) -- DEV shd be the default!
+gShow(dlg)
+gMainLoop()
+--/*
+dates from 1600..9999
+
+ dp_xpm = gImage_from_XPM(tg_XPM_from_shorthand(`dp_xpm`))
+--*/
