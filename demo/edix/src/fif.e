@@ -918,7 +918,9 @@ string directory
 --DEV
 --  searchstring = getText(findiftext)
         result = append(result,"Searching for: "&searchstring)
-        result = append(result," Files scanned %d, Directories scanned %d, Lines %d")
+--      result = append(result," Files scanned %d, Directories scanned %d, Lines %d")
+        result = append(result," in %s, files scanned %d, lines %d")
+        string root_dir = directories[1]
         init_charmash()
 
 -- somewhere in the loop...
@@ -985,7 +987,14 @@ string directory
 --      {} = close_cb(fifdlg)
 
         -- and the rest...
-        result[2] = sprintf(result[2], {files_scanned,directories_scanned,lines_scanned})
+--      result[2] = sprintf(result[2], {files_scanned,directories_scanned,lines_scanned})
+        if length(result)>2 and length(root_dir)>7 then root_dir[1..6] = ".." end if
+        if directories_scanned=2 then
+            root_dir = sprintf("%s and 1 subdirectory",{root_dir})
+        elsif directories_scanned>1 then
+            root_dir = sprintf("%s and %d subdirectories",{root_dir,directories_scanned-1})
+        end if
+        result[2] = sprintf(result[2], {root_dir,files_scanned,lines_scanned})
 --pp(result)
         string errfile = join_path({filepaths[currfile],"ex.err"})
         integer log_file = open(errfile, "w")

@@ -8,15 +8,12 @@
 --with trace
 
 global sequence Extensions,     -- eg {"e","ex","ew","exw","html"}
-                ExtensionNos    -- eg { 1 , 1  , 1  , 1   , 2}
-
-global integer newSyntax        -- from ExtensionNos, or 1 if none
-                newSyntax=1
-
-global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
+                ExtensionNos,   -- eg { 1 , 1  , 1  , 1   , 2}
+                SynNames,       -- eg "Phix"
                 LineComments,   -- eg {"--"}
                 BlockComments,  -- eg {"<!--","-->"}
                 AutoCompletes,  -- see eauto.e
+                NestedSyntax,   -- ???
                 EscapeLeadIns,  -- eg \         (quotes omitted for clarity)
                 Escapes,        -- eg nrt\'"    (           ""             )    
                 BraceLevels,    -- 1..9
@@ -28,12 +25,11 @@ global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
                 styleTabs,      -- eg {...CD_PLAIN,         CD_ITALIC,...}
                 charMaps        -- character Types for #00..#FF
 
-global integer MAXnColours
-               MAXnColours=16   -- (minimum possible) [??]
+global integer newSyntax = 1,   -- from ExtensionNos, or 1 if none
+               MAXnColours = 16 -- (minimum possible) [??]
 
 
 constant standardThings={"Background", "Comments", "Highlight", "Current Line", "Strings",
---                       "Illegals", "Operators", "URLs", "Other"}
                          "Illegals", "Operators", "URLs", "Other",
                          "Marginbg","Linenos","Bookmarks"}
 
@@ -44,50 +40,58 @@ global constant Background=1, Comments=2, Highlight=3, HighLine=4, Strings=5,
 --DEV use CD_PLAIN etc...
 --global constant EA_Normal=4, EA_Bold=1, EA_Italic=2 -- So we can have Bold+Italic(=3)
 
-global constant
- TokenStart = 1,
- TokenChar  = 2,
- TokenFirst = 3,
- TokenLast  = 4,
- OpenBrace  = 5,
- CloseBrace = 6,
- Whitespace = 7,
- Delimiter  = 8,
- Operator   = 9,
- String     = 10,
- Illegal    = 11,
- Comment    = 12
+global constant TokenStart = 1,
+                TokenChar   = 2,
+                TokenFirst = 3,
+                TokenLast   = 4,
+                OpenBrace   = 5,
+                CloseBrace = 6,
+                Whitespace = 7,
+                Delimiter   = 8,
+                Operator    = 9,
+                String  = 10,
+                Illegal = 11,
+                Comment = 12
 
 global sequence wordChar    -- set by easynld.e (all are TokenChar, not TokenStart/First/Last)
 
+global sequence standardColourNames = {},
+                standardColours={}
 
-global sequence standardColourNames,standardColours
-standardColourNames={} standardColours={}
-
---procedure addStandardColour(sequence text, integer r, integer g, integer b)
-procedure addStandardColour(sequence text, integer b, integer g, integer r)
-integer colour
-    standardColourNames = append(standardColourNames,text)
-    colour = r+g*#100+b*#10000
+local procedure addStandardColour(string name, integer b, g, r)
+    integer colour = r+g*#100+b*#10000
+    standardColourNames = append(standardColourNames,name)
     standardColours = append(standardColours,colour)
 end procedure
-addStandardColour("Black",    0,  0,  0)
-addStandardColour("Maroon", 128,  0,  0)
-addStandardColour("Green",    0,128,  0)
-addStandardColour("Olive",  128,128,  0)
-addStandardColour("Navy",     0,  0,128)
-addStandardColour("Purple", 128,  0,128)
-addStandardColour("Teal",     0,128,128)
-addStandardColour("Gray",   128,128,128)
-addStandardColour("Silver", 192,192,192)
-addStandardColour("Red",    255,  0,  0)
-addStandardColour("Lime",     0,255,  0)
-addStandardColour("Yellow", 255,255,  0)
-addStandardColour("Blue",     0,  0,255)
-addStandardColour("Fuchsia",255,  0,255)
-addStandardColour("Aqua",     0,255,255)
-addStandardColour("White",  255,255,255)
+addStandardColour("Black",        0,  0,  0)
+addStandardColour("Maroon",     128,  0,  0)
+addStandardColour("Green",        0,128,  0)
+addStandardColour("Olive",      128,128,  0)
+addStandardColour("Navy",         0,  0,128)
+addStandardColour("Purple",     128,  0,128)
+addStandardColour("Teal",         0,128,128)
+addStandardColour("Gray",       128,128,128)
+addStandardColour("Silver",     192,192,192)
+addStandardColour("Red",        255,  0,  0)
+addStandardColour("Lime",         0,255,  0)
+addStandardColour("Yellow",     255,255,  0)
+addStandardColour("Blue",         0,  0,255)
+addStandardColour("Fuchsia",    255,  0,255)
+addStandardColour("Aqua",         0,255,255)
+addStandardColour("Parchment",  255,255,224)
+addStandardColour("White",      255,255,255)
 
+local function getStandardColour(string name)
+    integer kdx = find(name,standardColourNames)
+    return standardColours[kdx]
+end function
+
+local constant Black     = getStandardColour("Black"),
+               Gray      = getStandardColour("Gray"),
+               Blue      = getStandardColour("Blue"),
+               Yellow    = getStandardColour("Yellow"),
+               Parchment = getStandardColour("Parchment"),
+               White     = getStandardColour("White")
 
 --include builtins\file.e -- seek() and where()
 
@@ -99,7 +103,6 @@ integer f,          -- file handle
 
 string errorTitle, errorMsg
 
---global sequence comment -- eg "--"    -- set by changeTo()
 global sequence lineComments -- eg {"--"}   -- set by changeTo()
 --DEV
 --global sequence blockComment              -- ""
@@ -107,7 +110,7 @@ global sequence blockComment = ""           -- ""
 global sequence ColourTab                   -- ""
 global sequence StyleTab                    -- ""
 
-sequence fullname   -- eg "syn\Euphoria.syn" (same for Phix)
+sequence fullname           -- eg "syn\Phix.syn"
 
 global sequence charMap     -- set by changeTo()
 
@@ -300,6 +303,67 @@ sequence LineMatch,InsertLine,InsertLines
     -- leave the remainder for Expect("#end AutoComplete")
 end procedure
 
+local function opening_set(string ebnf)
+--  if find('[',ebnf) then
+        if ebnf=`<script[_type="text/javascript"]>` then
+            return {`<script>`, `<script type="text/javascript">`}
+        end if
+--      ?9/0 -- unknown/unhandled enbf
+--  end if
+    assert(find(ebnf,{"#ilASM{","[ARM]","<?php","<style>"})) -- (those known)
+    return {ebnf} -- (assume just the one single exact terminal token)
+end function
+
+local function closing_set(string ebnf)
+    if find('|',ebnf) then
+        if ebnf="[[PE|ELF][32|64]]" then
+            -- just do it the easy way for now...
+            -- NB outer [] are literals, inner are BNF-like "optional", but
+            --     in practice this closing value is hard-coded in synld.e:
+            return {"[]","[32]","[64]",
+                    "[PE]","[PE32]","[PE64]",
+                    "[ELF]","[ELF32]","[ELF64]"}
+        end if
+        ?9/0 -- unknown/unhandled enbf
+    end if
+    assert(find(ebnf,{"?>","</script>","</style>","}"})) -- (those known)
+    return {ebnf} -- (assume just the one single exact terminal token)
+end function
+
+procedure loadNestedSyntax()
+    -- for now just stash everything, until we hit a '*', as string triplets
+    string line = ""
+    skipSpaces()
+    while 1 do
+        if ch='\n' then
+            sequence triplet = split(line,' ')
+            if length(triplet)!=3 then
+                fatal("bad Nested Syntax:`"&line&"`")
+                return
+            end if
+            line = ""
+--          triplet[2] = substitute(triplet[2],'_',' ')
+            triplet[2] = opening_set(triplet[2])
+--          triplet[3] = closing_set(substitute(triplet[3],'_',' '))
+            triplet[3] = closing_set(triplet[3])
+            nestedSyntax = append(nestedSyntax,triplet)
+            skipSpaces()
+        end if
+        if ch='*' then exit end if
+        if ch=-1 then
+            fatal("**end NestedSyntax missing")
+            return
+        elsif ch!='\r' then
+            line &= ch
+        end if
+        ch = getc(f)
+    end while
+--DEV...
+    -- .. should end up with something like this:
+    --  css <style> </style>
+    --  nestedSyntax == {{"css","<style>","</style>"}}
+    -- leave the remainder for Expect(**end NestedSyntax")
+end procedure
 
 function Expect(sequence txt)
     if errorAlready then return (newSyntax!=1) end if
@@ -318,7 +382,7 @@ function Expect(sequence txt)
 end function
 
 function ifItReallyIs(sequence txt)
--- we know ch matches txt[1]. Check the rest & return True/reset & return False.
+    -- we know ch matches txt[1]. Check the rest & return True/reset & return False.
     if not errorAlready then
         if not columnOne then return 0 end if
         for i=1 to length(txt) do
@@ -336,12 +400,8 @@ function ifItReallyIs(sequence txt)
     return 1
 end function
 
---string loadSynName = "???"
-
 function getWord()
-sequence word
---  word = {}
-    word = ""
+    string word = ""
     if not errorAlready then
         while ch>' ' do
             word &= ch
@@ -349,18 +409,16 @@ sequence word
         end while
         skipSpaces()
     end if
---if word="adc" then ?{loadSynName,"adc"} trace(1) end if
     return word
 end function
 
 
 constant Lower=1, Upper=2
-sequence caseMap
-    caseMap = repeat(0,255)
+sequence caseMap = repeat(0,255)
     for i='a' to 'z' do caseMap[i] = Lower end for
---  caseMap['a'..'z']=Lower
+--  caseMap['a'..'z'] = Lower
     for i='A' to 'Z' do caseMap[i] = Upper end for
---  caseMap['A'..'Z']=Upper -- lots of machine errors (DEV!)
+--  caseMap['A'..'Z'] = Upper -- lots of machine errors (DEV!)
 
 function spaceOutSectionName(sequence name)
     for i=length(name) to 2 by -1 do
@@ -379,31 +437,33 @@ procedure defaultColourTab()
 --  Note that 2) may be absent but 3) not.
     if not length(ColourTab) then
 --      ColourTab = repeat(0,MAXnColours) -- BLACKNESS!!
-        ColourTab = repeat(CD_BLACK,MAXnColours)
---      ColourTab[Background] = White
-        ColourTab[Background] = CD_WHITE
+--      ColourTab = repeat(CD_BLACK,MAXnColours)
+        ColourTab = repeat(Black,MAXnColours)
+        ColourTab[Background] = White
+--      ColourTab[Background] = CD_WHITE
+--      ColourTab[Background] = getStandardColour("White")
 --  CD_WHITE        = #FFFFFF,
 --erm:
 --  CD_WHITE        = #E0E0E0,
 --  CD_BRIGHTWHITE  = #FFFFFF,
 --  White           = rgb(224, 224, #E0),
 --  BrightWhite     = rgb(255, 255, 255)
---      ColourTab[HighLine] = Parchment
-        ColourTab[HighLine] = CD_PARCHMENT
---      ColourTab[Highlight] = Gray
-        ColourTab[Highlight] = CD_DARK_GRAY
+        ColourTab[HighLine] = Parchment
+--      ColourTab[HighLine] = CD_PARCHMENT
+        ColourTab[Highlight] = Gray
+--      ColourTab[Highlight] = CD_DARK_GRAY
 --  Gray            = rgb(128, 128, #80),
 --  CD_DARK_GRAY    = #808080,
 --  CD_GRAY         = #C0C0C0,
---      ColourTab[Marginbg] = White
-        ColourTab[Marginbg] = CD_WHITE
---      ColourTab[Linenos] = Blue
-        ColourTab[Linenos] = CD_DARK_BLUE
+        ColourTab[Marginbg] = White
+--      ColourTab[Marginbg] = CD_WHITE
+        ColourTab[Linenos] = Blue
+--      ColourTab[Linenos] = CD_DARK_BLUE
 --  Blue            = rgb(  0,   0, 128),
 --  CD_BLUE         = #0000FF,
 --  CD_DARK_BLUE    = #000080,
---      ColourTab[BookMarks] = Yellow
-        ColourTab[BookMarks] = CD_YELLOW
+        ColourTab[BookMarks] = Yellow
+--      ColourTab[BookMarks] = CD_YELLOW
 --  Yellow          = rgb(255, 255,   0),
 --  CD_YELLOW       = #FFFF00,
 --  CD_DARK_YELLOW  = #808000,
@@ -578,8 +638,14 @@ integer TokenType
     bracelevel = 0
     operatorset = {}
     indentset = repeat({},4)
-    newSections = standardThings
+    sequence indentset1 = {},
+             indentset2 = {},
+             indentset3 = {},
+             indentset4 = {}
+--  newSections = standardThings
+    newSections = deep_copy(standardThings)
     autoComplete = {}
+    nestedSyntax = {}
     ColourTab = {}
 --defaultColourTab()    -- 4/7  StyleTab is left tiddly
     if newSyntax=1 then
@@ -734,6 +800,11 @@ integer TokenType
             if ch!='F' then exit end if
             if not ifItReallyIs("FileExtensions") then exit end if
         end while
+        if ch='N' then
+            if not Expect("NestedSyntax") then close(f) return end if
+            loadNestedSyntax()
+            if not Expect("**end NestedSyntax") then close(f) return end if
+        end if
 --      indentset=repeat({},4)
         if ch='I' then
             if not Expect("Indents") then close(f) return end if
@@ -752,20 +823,28 @@ integer TokenType
                     word = getWord()
                     skipSpaces()
                 end if
-                if length(indentset)=0 and indentTypeSave=0 then
-                    fatal("'+' or '-' missing")
-                    close(f)
-                    return
-                end if
+--              if length(indentset)=0 and indentTypeSave=0 then
+--                  fatal("'+' or '-' missing")
+--                  close(f)
+--                  return
+--              end if
 --              word = KtoF(word)
                 if length(word)=1 then  -- eg {, }
-                    indentset[3] = indentset[3]&word
-                    indentset[4] = indentset[4]&indentTypeSave
+--                  indentset[3] = indentset[3]&word
+                    indentset3 = indentset3&word
+--                  indentset[4] = indentset[4]&indentTypeSave
+                    indentset4 = indentset4&indentTypeSave
                 else
-                    indentset[1] = append(indentset[1],word)
-                    indentset[2] = append(indentset[2],indentTypeSave)
+--                  indentset[1] = append(indentset[1],word)
+                    indentset1 = append(indentset1,word)
+--                  indentset[2] = append(indentset[2],indentTypeSave)
+                    indentset2 = append(indentset2,indentTypeSave)
                 end if
             end while
+            indentset = {indentset1,
+                         indentset2,
+                         indentset3,
+                         indentset4}
         end if
 --      autoComplete = {}
         if ch='A' then
@@ -842,6 +921,7 @@ if sectionNo<=0 then fatal("not allowed") close(f) return end if
         LineComments = append(LineComments,linecomment)
         BlockComments = append(BlockComments,blockcomment)
         AutoCompletes = append(AutoCompletes,autoComplete)
+        NestedSyntax = append(NestedSyntax,nestedSyntax)
         EscapeLeadIns = append(EscapeLeadIns,escapeLeadIn)
         Escapes = append(Escapes,escapes)
         BraceLevels &= bracelevel
@@ -857,6 +937,7 @@ if sectionNo<=0 then fatal("not allowed") close(f) return end if
 --  else
 --      newSyntax = 1
     end if
+    fullname = ""
 end procedure
 
 global sequence helpnames, helpfiles, menuTxts, F1lists
@@ -965,12 +1046,10 @@ integer lh, f2, k, b1, b2
         menuTxts = append(menuTxts,mtxt)
         F1lists = append(F1lists,wordlist)
     end if
+    fullname = ""
 end procedure
 
 global procedure initSyn()
-object dirlist
-sequence filename
-integer len
 
     Extensions = {}
     ExtensionNos = {}
@@ -985,6 +1064,7 @@ integer len
     LineComments = {}
     BlockComments = {}
     AutoCompletes = {}
+    NestedSyntax = {}
     charMaps = {}
 
     colourTabs = {}
@@ -998,11 +1078,15 @@ integer len
 --      dirlist = dir(initialcurrentdir&"syn")
 ----*/
 ----**/ dirlist = pdir:dir(initialcurrentdir&"syn")
-    dirlist = dir(initialcurrentdir&"syn")
+--  dirlist = dir(initialcurrentdir&"syn")
+    object dirlist = dir(join_path({initialcurrentdir,"syn"}))
+--?initialcurrentdir
+--?dirlist
+    integer len
     if sequence(dirlist) then
         for i=1 to length(dirlist) do
             if not find('d',dirlist[i][2]) then
-                filename = dirlist[i][1]
+                string filename = dirlist[i][1]
                 len = length(filename)
                 if len>4 
                 and equal(".syn",lower(filename[len-3..len])) then
@@ -1024,7 +1108,8 @@ integer len
     for i=1 to length(colourTabs) do
         len = length(colourTabs[i])
         if len<MAXnColours then
-            colourTabs[i] = colourTabs[i] & repeat(0,MAXnColours-len)   -- BLACKNESS
+--          colourTabs[i] = colourTabs[i] & repeat(0,MAXnColours-len)   -- BLACKNESS
+            colourTabs[i] = deep_copy(colourTabs[i]) & repeat(0,MAXnColours-len)    -- BLACKNESS
         end if
     end for
     newSyntax = 1 -- revert to 'None'
@@ -1033,7 +1118,8 @@ integer len
     StyleTab = styleTabs[1]
 
     if length(errorMsg) then
-        IupMessage(errorTitle,errorMsg)
+--      IupMessage(errorTitle,errorMsg)
+        Error_Message(errorTitle,errorMsg)
     end if
 end procedure
 initSyn()
@@ -1078,7 +1164,8 @@ integer wasSyntax
         end for
         newSyntax = wasSyntax
         if length(errorMsg) then
-            IupMessage(errorTitle,errorMsg)
+--          IupMessage(errorTitle,errorMsg)
+            Error_Message(errorTitle,errorMsg)
         end if
 --      pp(dirlist)
 --      pp({helpnames,
@@ -1091,42 +1178,42 @@ initHlp()
 
 --/*
 --DEV we ain't gonna be using these in pGUI!!!
-global sequence sampleBrush,    -- brushes (must be kept up to date)
-                sampleBrushClr -- actual colours of ""
-
-        sampleBrush = repeat(0,MAXnColours)
---      sampleBrushClr = ColourTab+1    -- Force reBrush to create new brushes on first file open (below 12/7)
-        sampleBrushClr = ColourTab
---      for i=1 to length(sampleBrushClr) do sampleBrushClr[i] += 1 end for
-        for i=1 to length(sampleBrushClr) do
-            sampleBrushClr[i] = sampleBrushClr[i] + 1
-        end for
-
-global atom backBrush
-
-global atom wwrapPen
-
-global function reBrush(sequence cnew, sequence cold)
-atom oldBrush
-integer oldColour
-    for i=1 to length(cnew) do
-        if cnew[i]!=cold[i] then
-            oldBrush = sampleBrush[i]
-            if oldBrush then {} = c_func(xDeleteObject,{oldBrush}) end if
-            oldColour = cold[i]
-            sampleBrush[i] = c_func(xCreateSolidBrush, {oldColour})
-            sampleBrushClr[i] = oldColour
-            if i=1 then
-                backBrush = sampleBrush[1]
---          elsif i=Other then
-                if oldBrush then {} = c_func(xDeleteObject,{wwrapPen}) end if
-                wwrapPen = c_func(xCreatePen,{2,1,not_bits(oldColour)})
-                {} = c_func(xSelectObject,{mainDC,wwrapPen})
-            end if
-            cnew[i] = oldColour
-        end if
-    end for
-    return cnew
-end function
-sampleBrushClr = reBrush(sampleBrushClr,ColourTab)  -- added 12/7
+--global sequence sampleBrush,  -- brushes (must be kept up to date)
+--              sampleBrushClr -- actual colours of ""
+--
+--      sampleBrush = repeat(0,MAXnColours)
+----        sampleBrushClr = ColourTab+1    -- Force reBrush to create new brushes on first file open (below 12/7)
+--      sampleBrushClr = ColourTab
+----        for i=1 to length(sampleBrushClr) do sampleBrushClr[i] += 1 end for
+--      for i=1 to length(sampleBrushClr) do
+--          sampleBrushClr[i] = sampleBrushClr[i] + 1
+--      end for
+--
+--global atom backBrush
+--
+--global atom wwrapPen
+--
+--global function reBrush(sequence cnew, sequence cold)
+--atom oldBrush
+--integer oldColour
+--  for i=1 to length(cnew) do
+--      if cnew[i]!=cold[i] then
+--          oldBrush = sampleBrush[i]
+--          if oldBrush then {} = c_func(xDeleteObject,{oldBrush}) end if
+--          oldColour = cold[i]
+--          sampleBrush[i] = c_func(xCreateSolidBrush, {oldColour})
+--          sampleBrushClr[i] = oldColour
+--          if i=1 then
+--              backBrush = sampleBrush[1]
+----            elsif i=Other then
+--              if oldBrush then {} = c_func(xDeleteObject,{wwrapPen}) end if
+--              wwrapPen = c_func(xCreatePen,{2,1,not_bits(oldColour)})
+--              {} = c_func(xSelectObject,{mainDC,wwrapPen})
+--          end if
+--          cnew[i] = oldColour
+--      end if
+--  end for
+--  return cnew
+--end function
+--sampleBrushClr = reBrush(sampleBrushClr,ColourTab)    -- added 12/7
 --*/

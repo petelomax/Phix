@@ -1,5 +1,5 @@
 --
--- easynclr.e
+-- synclr.e
 --
 -- syntax colour text, including current selection highlighting.
 --
@@ -38,13 +38,14 @@ procedure getBrktCfwd(integer lineno)
     exactmatch = 0
     if sequence(bCfwd) then --DEV prevent crash?
         for i=length(bCfwd) to 1 by -1 do
-            if lineno>bCfwd[i][B_line] then
+            integer biline = bCfwd[i][B_line]
+            if lineno>biline then
                 startblockcomment = bCfwd[i][B_blockcomment]
                 startlevel = bCfwd[i][B_level]
                 startCfwd = bCfwd[i][B_closesrqd]
                 closeRqd[1..startlevel] = startCfwd
                 return
-            elsif lineno=bCfwd[i][B_line] then
+            elsif lineno=biline then
                 exactmatch = 1
             end if
         end for

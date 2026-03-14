@@ -119,13 +119,12 @@
 -- Whitespace formatting of *.ini is done automatically
 
 --- data types
-global 
-constant
+global constant
     BOOL = 1, -- boolean type True or False, 1 or 0
     INT = 2, -- integer
     SEQ = 3, -- sequence of integers
     TEXT = 4  -- string of text
-constant
+local constant
     ASC = 5, -- text line (used for variable length 'pure' text lists/lines)
     COM = 6, -- comment
     GRP = 7  -- group
@@ -431,8 +430,7 @@ procedure setEntry(integer idx, integer datatype, sequence heading, integer flag
     VALUE[idx] = val
 end procedure
 
-global 
-procedure switchToIniGroup(object group)
+global procedure switchToIniGroup(object group)
 
     if string(group) then
         group = findGroup(group)
@@ -475,8 +473,7 @@ procedure defineIniGroup(string groupname)
 end procedure
 
 
-global 
-procedure defineIniHeading(string entryname, integer entrytype)
+global procedure defineIniHeading(string entryname, integer entrytype)
 
     integer entryIdx = findEntry(entryname)
 
@@ -502,8 +499,7 @@ procedure defineIniHeading(string entryname, integer entrytype)
 end procedure
 
 
-global 
-procedure setIniValue(sequence entryname, object val)
+global procedure setIniValue(sequence entryname, object val)
     integer entryIdx
 
     -- if heading string is null then act as if for text (ASC) line, etc..
@@ -538,13 +534,11 @@ procedure setIniValue(sequence entryname, object val)
 
 end procedure
 
-global 
-procedure setIniTextValue(object val)
+global procedure setIniTextValue(object val)
     setIniValue("", val)
 end procedure
 
-global 
-function getIniValue(string entryname, object defaultvalue)
+global function getIniValue(string entryname, object defaultvalue)
 
     -- test that heading is in current grp
     integer entryIdx = findEntry(entryname)
@@ -573,8 +567,7 @@ function getIniValue(string entryname, object defaultvalue)
 end function
 
 
-global 
-function getIniTextValues()
+global function getIniTextValues()
 
     set_groupend()
     sequence result = {}
@@ -725,10 +718,10 @@ global function decode11(string s, integer i)
     return res
 end function
 
-function mini(sequence Name, integer Type, object Default)
-    defineIniHeading(Name, Type)
-    return getIniValue(Name, Default)
-end function
+--function mini(sequence Name, integer Type, object Default)
+--  defineIniHeading(Name, Type)
+--  return getIniValue(Name, Default)
+--end function
 
 sequence prevfiles, prevcursel
 integer newcurrfile
@@ -739,7 +732,10 @@ global procedure loadINI(string configname=completeinipath)
     loadIniFile(inipathname)
     defineIniGroup("Main")
 --trace(1)
-    newcurrfile = mini("currfile", INT, 0)
+--  newcurrfile = mini("currfile", INT, 0)
+--function mini(sequence Name, integer Type, object Default)
+    defineIniHeading("currfile", INT)
+    newcurrfile = getIniValue("currfile", 0)
 --?{"newcurrfile = ",newcurrfile}
 --X currfile = mini("currfile", INT, 0)
 

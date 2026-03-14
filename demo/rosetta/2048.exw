@@ -6,7 +6,7 @@
 --  ported to pGUI July 2017
 --  made p2js compatible September 2021
 --   (just 4 tiny tweaks: with js, one deep_copy, two platform()=JS)
---  ported to xpGUI Oct 2023
+--  ported to theGUI Oct 2023
 --
 --  Faithful desktop gui reproduction of https://gabrielecirulli.github.io/2048/
 --  Now I just got figure out how to win...
@@ -14,10 +14,15 @@
 --/!*
 with javascript_semantics
 requires("1.0.3")
-include xpGUI.e
+include theGUI.e
+--include ..\theGUI\hGUI.e -- mainly good:
+--gUseGTK() -- wrong sizes on GTK/hGUI...
+--include ..\theGUI\tg_xpm.e
+--include ..\theGUI\backup\theGUI.4916.e -- better
+--include ..\theGUI\backup\theGUI.4919.e -- better
+-- aw bollocks, tg_WinAPI_get_pen did not fix.... nor did killing off CXCF_REPEN...
+--include backup\theGUI.4919.e -- bad (UGH, GOTTA CACHE PENS!) [FOR NOW FIXED BY IGNORING CXCF_REPEN]
 
-gdx canvas, dialog
---cdCanvas cddbuffer, cdcanvas
 
 constant tile_colours = {#CCC0B4,   -- blank
                          #EEE4DA,   -- 2
@@ -37,8 +42,9 @@ constant tile_colours = {#CCC0B4,   -- blank
 --  (merging two eights is not 8+8->16 but 4+1->5, internally)
 sequence board
 
-integer newgame = 1,
-        valid = 0, 
+atom newgame = 0 -- (delberate delay of 2s to allow gomsg to be read)
+string gomsg = ""
+integer valid = 0, 
         prev, nxt
 
 procedure add_rand(integer count)
@@ -186,14 +192,9 @@ procedure redraw(gdx canvas)
     ts = floor((os-10)/4-7)
     ts2 = floor(ts/2+5)-10
 
-    if newgame then
-        board = repeat(repeat(1,4),4)
-        add_rand(2)
-        newgame = 0
-    end if
-
     gSetAttribute(canvas, "FGCLR", #BBADA0)
-    gCanvasRect(canvas, ox+5, ox+os-5, oy+5, oy+os-5, true, 20)
+--  gDrawRect(canvas, ox+5, ox+os-5, oy+5, oy+os-5, true, 20)
+    gDrawRect(canvas, ox+5, oy+5, ox+os-5, oy+os-5, true, 20)
 
 --?board
     integer tx = ox+15
@@ -203,81 +204,67 @@ procedure redraw(gdx canvas)
 --          integer bxy = board[x][y]
             integer bxy = board[5-x][y]
             gSetAttribute(canvas, "FGCLR", tile_colours[bxy])
-            gCanvasRect(canvas, tx, tx+ts-10, ty, ty+ts-10, true, 10)
+--          gDrawRect(canvas, tx, tx+ts-10, ty, ty+ts-10, true, 10)
+            gDrawRect(canvas, tx, ty, tx+ts-10, ty+ts-10, true, 10)
             if bxy>1 then
                 gSetAttribute(canvas, "FGCLR", iff(bxy<=3?#776E65:#F9F6F2))
                 gSetAttribute(canvas, "FONT", "Calibri, bold %d", {iff(bxy>10?32:40)})
-                gCanvasText(canvas, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), sprint(power(2,bxy-1)),XPG_S)
+--              gCanvasText(canvas, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), sprint(power(2,bxy-1)),TG_S)
+                gDrawText(canvas, tx+ts2, ty+ts2-25-iff(bxy<11?7:0), "%d",{power(2,bxy-1)},TG_S)
             end if
             ty += ts+5
         end for
         tx += ts+5
     end for
-    --cdCanvasFlush(cddbuffer)
---  return XPG_DEFAULT
+    if newgame then
+        gDrawText(canvas,dw/2,dh/2,gomsg,{},TG_C,style:="Calibri, bold 20")
+    end if
 end procedure
 
---function map_cb(gdx ih)
---  cdcanvas = cdCreateCanvas(CD_IUP, ih)
---  cddbuffer = cdCreateCanvas(CD_DBUFFER, cdcanvas)
---  gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](cddbuffer, XPG_SOUTH) 
---  return XPG_DEFAULT
---end function
+gdx canvas, dialog
+--cdCanvas cddbuffer, cdcanvas
 
-function key_cb(gdx dlg, integer c)
---  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
---  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
-    if find(c,valid_keys) then
+procedure reset()
+    board = repeat(repeat(1,4),4)
+    add_rand(2)
+    newgame = 0
+    gomsg = ""
+end procedure
+
+function key_cb(gdx canvas, integer c)
+--  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+    if newgame then
+        if time()>newgame then
+            reset()
+            gRedraw(canvas)
+        end if
+    elsif find(c,valid_keys) then
         if move(c) then
             gRedraw(canvas)
-            string mbmsg = ""
             if game_won() then
-                mbmsg = "!!!YOU WON!!!\n\nAnother Go?"
+                gomsg = "!!!YOU WON!!!  Another Go?"
+                newgame = time()+2
             else
                 add_rand(1)
                 gRedraw(canvas)
                 if no_valid_moves() then
-                    mbmsg = "You Lost.\n\nAnother Go?"
+                    gomsg = "You Lost.  Another Go?"
+                    newgame = time()+2
                 end if
-            end if
-            if length(mbmsg) then
---              if platform()=JS then
---                  IupMessage("Game Over",mbmsg);
-                    gMsgBox(dlg,"Game Over",mbmsg);
-                    newgame=1
---              else
---                  if IupAlarm("Game Over",mbmsg,"Yes","No")=1 then
---                      newgame=1
---                  else
---                      return XPG_CLOSE
---                  end if
---              end if
             end if
         end if
         gRedraw(canvas)
     end if
-    return XPG_DEFAULT
+    return TG_DEFAULT
 end function
 
 procedure main()
-
-    
-
-    canvas = gCanvas("SIZE=520x540")
---  gSetHandler(canvas, ?MAP_CB?[DEAD], map_cb)
-    gSetHandler(canvas, "REDRAW", redraw)
---  gCanvasSetBackground(canvas, #FAF8EF)
-    gSetAttribute(canvas,"BGCLR",#FAF8EF)
-
-
---  dialog = gDialog(canvas,"MINSIZE[*charsize]=440x450")
-    dialog = gDialog(canvas,"SIZE=440x450")
-    gSetAttribute(dialog,"TITLE","2048");
-    gSetHandler(dialog, `KEY`, key_cb);
-
-    gShow(dialog)
---  gSetAttribute(canvas, "SIZE", NULL)
-    gMainLoop()
+    reset()
+    canvas = gCanvas(redraw,"SIZE=520x540, BGCLR=#FAF8EF")
+    dialog = gDialog(canvas,"2048","SIZE=440x450")
+    gSetHandler(canvas, `KEY`, key_cb);
+    gMainLoop(dialog)
 end procedure
 main()
 --*!/

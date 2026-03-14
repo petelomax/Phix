@@ -19,11 +19,21 @@ Ihandln ext_dlg = NULL
 
 Ihandle matrix, extname, erunwith, bt_help, bt_save, bt_okc
 
-constant titles = {"Extension", "Run With"}
+--1/10/24 quick hack to silence the warnings...
+--constant titles = {"Extension", "Run With"}
+sequence titles
 
-sequence extensions={},
+--sequence extensions={},
+sequence extensions,
          runwiths,
          tags
+
+bool ext_init = false
+procedure init_ext()
+    titles = {"Extension", "Run With"}
+    extensions = {}
+    ext_init = true
+end procedure
 
 procedure set_extname_dropdown()
     IupSetAttribute(extname,"1",NULL)   -- clear
@@ -90,6 +100,8 @@ function get_interpreter()
 end function
 
 global procedure save_extensions()
+--if not ext_init then init_ext() end if
+if not ext_init then ?9/0 end if
 if not find("exw",extensions) then ?9/0 end if
 if length(extensions)!=length(runwiths) then ?9/0 end if
     switchToIniGroup("Extensions")
@@ -445,6 +457,7 @@ end procedure
 procedure extensions_dialog()
     -- Aside: it is intentional that Options/Extensions, delete all, close,
     --        Options/Extensions will reset to the standard defaults.
+    if not ext_init then init_ext() end if
     if extensions={} then load_extensions() end if
     if ext_dlg=NULL then
         create_ext_dialog()
@@ -460,6 +473,7 @@ end function
 global constant cb_ext = Icallback("ext_cb")
 
 global function getExtRunWith(string ext)
+    if not ext_init then init_ext() end if
     if extensions={} then load_extensions() end if
     string res
 --1/10/18:

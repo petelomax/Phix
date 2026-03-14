@@ -1,0 +1,1595 @@
+﻿--
+-- demo\edita\theEditor.exw
+-- ========================
+--
+-- Port of Edita to the cross platform theGUI library, from arwen (32 bit windows only).
+-- Author Pete Lomax, November 2023.
+--
+-- Next up: 
+--  syntax colouring (loading, nested, document bCfwds properly, etc)
+--
+-- Aims: 
+--  * Refactor as many components of Edix/ta as possible so they can be used in both.
+--      (simply MOVE any code to be shared into NEW gui-agnostic source files!!)
+--      (written in demo\edix esp for sharing such, and the syntax/help files)
+--  * Fast startup, better backups from Edix (which I accept has failed).
+--      (likewise nick the far better find in files from Edix)
+--  * Rock-solid anti-crash: reboot/re-open the gui part without loss (see below).
+--  * Run online! 
+--      see pwa\js\poc\simple_syntax_highlighter.html for the basics, and
+--          pwa\js\poc\cheter.html for using local storage (php wd be better..)
+--      and E:/downloads/misc/js/highlight-text-inside-a-textarea/dist/index.html
+--  * Mixed syntax highlighting!! (HTML + CSS + JavaScript + PHP), (Phix + ilASM)
+--      DOH: implement as per/part of bCfwd[]!!! (including [ilASM] guards)
+--      [x86], [x64], [arm] as speciality/pseudo-extensions, ignore pe/elf aka win/lnx.
+--       ^^^    ^^^    ^^^  erm, just create new syntax files for those extensions.
+--      [in other words, *.syn files do/should not contain any nested syntax info] -- BLUFF!
+--      others include html with js/css/php, ...
+--  * Syntax checking (aka periodic quiet background compile)
+--  * Spell checking (with "" to augment the spelling dictionary?)
+--  * At some point I expect to remove/rename demo/Edix as demo/theEditor, but as
+--      long as both still exist they will be left in the same shared directory.
+--      (sharing any read-only files but writeable ones => somewhere sensible)
+--  * Better handling of files modified by someone/something else
+--      (quickly re-test all that in Edita, just to be sure?)
+--  * Completely replace ini file handling, see what I did with p2js_keywords.e, 
+--      p2js_auto.e, p2js_depend.e, and also think about recovery/restore.
+--      [see builtins/ini.e and docs(Other libs/programming/ini)]
+--  * Add: overpaste: if it recognises the selected text, paste in a substitution for
+--      that specific thing rather than the clipboard. List with active, temp chkbxs,
+--      in datetime order, and quietly collect (inactive) suitables, if you can.
+--      Likewise keep a clipboard history [aka monitor all Ctrl C/X/V keystokes]
+--  * Drop[?]: bookmarks, ftp, 
+--
+-- Stages:
+--  ini file handling deserves a complete rewrite, with a decent "fast lookup". [DONE]
+--  tab load/switch [IDLE_ACTION]
+--  synld might be worth cribbing, but synclr is totally different and deserves a
+--  complete rewrite. bCfwd wants extending with nested syntax (eg):
+--
+--      #ilASM {
+--      }
+--      <?php
+--      ?>
+--      <script type="text/javascript">
+--      </script>
+--      <script>
+--      </script>
+--      <style>
+--      </style>
+--
+--  The first is obviously a bCfwd entry with an extra syntax override, second is
+--  more of a maybe, last three are "fake" bCfwd with just "". Nick the tokeniser
+--  from p2js and stick it in builtins/tokeniser.e and document it?
+--
+-- Anti-crash:
+--  Use Opera/Chrome approach of multiple processes, ie "xxx has crashed, reload?"
+--  - admittedly will be more "if crash move code" than "get it right first time".
+--Erm, better:
+--  Own window manager not on PGUI's flawed one, esp. restart on unexpected close.
+--  - based on some kind of "desired state" table, methinks...
+--  - or just shut windows asap, and move any lengthy ops to b/g task (disabling tab)...
+--  Own settings manager in preference to IupConfig()/rewrite ini.e properly
+--
+--DEV/SUG: (settings) Don't backup broken files [ ]. By default (unchecked), a backup
+--  is made of every file before it is overwritten. When this is checked it does not
+--  make backups of files it knows don't run properly, for instance demo\test.exw is
+--  is saved as demo\backup\test.2655.exw, then .2656.exw, etc. At the start of every 
+--  session it assumes all files do work, but if F5 signals some error that file is
+--  marked as not worth saving, which can make <a href="??">delta debugging</a> much 
+--  easier, but of course risks losing some work. If the file has not been saved for
+--  over half an hour, it will make a demo\backup\test.broken.2657.exw just in case.
+--  Note however that since you don't actually run say demo\theGUI\theGUI.e, that file
+--  is never marked as "broken" and hence always saved...
+-- Try 2: Trash broken backup files [ ]. A backup is made of every file before it is
+--  saved, for instance demo\test.exw is is saved as demo\backup\test.2655.exw, then 
+--  demo\backup\test.2656.exw, etc. Should any file be already earmarked for purging
+--  (see below) then the previous unwanted backup is simply overwritten, obviously 
+--  that is only when this option is checked. When F5 signals some error, that file
+--  and in fact everything in it's (auto-generated) project tree is earmarked for
+--  subsequent trashing, and should no error be detected all earmarks are cleared.
+--  Note that save/overwrite leaves all earmarks unchanged, only an F5 changes them.
+--  Any and all such earmarks are simply discarded between edit sessions, so there
+--  may be some broken backups, should the previous edit session have been exited
+--  with any still outstanding. This can make <a href="??">delta debugging</a> much 
+--  easier, but of course potentially risks losing some work.
+-- Delta debugging: (TIP for users of theEditor)
+--  Sometimes I create a new file that only contains "include backup\test.2655.exw"
+--  and run that to see whether it contains some bug recently introduced, and then
+--  maybe try backup\test.2100.exw (whatever I see in file explorer, driven by the
+--  dates) and hopefully "binary chop" until say test.2352.exw works and 2353 does
+--  not, at which point a diff of those two is probably the quickest possible way
+--  to determine where the error lies. Obviously it is not wise to edit any files
+--  in a backup directory and much better to copy their contents into the working
+--  directory, otherwise some subsequent "binary chop" may prove very confusing.
+--  You can of course in a similar vein also just change say "include theGUI.e" to 
+--  instead "include backup\theGUI.1743.e", maybe with a more detailed path. Note
+--  the only way to marry up compatible backups of test.exw and theGUI.e would be
+--  a judgement call based on the dates seen in file explorer. It is probably 
+--  fair to say that delta debugging is unlikely to be the best approach for any
+--  bugs introduced more than 3 or 4 days ago, apart perhaps for the more mature
+--  components where changes are relatively few and far between, and sometimes
+--  you may be wiser to use github tools rather than your local backup dir.
+-- Support for delta debugging in theEditor might take the form of saving points
+--  when something seemed to run OK, perhaps also keyed on say "--gUseGTK()" vs
+--  not that. A log of "last ten runs" ("") would be a good starting point...?
+-- Getting the compiler to talk to theEditor saying "set clean" would also help,
+--  ie "this set of [ten] files all compiled cleanly / save as a delta point".
+--  (An ipc block with a warning if byte[1] not 0 would seem to be in order.)
+
+-- TODO:
+--  Menus (with icons, and fixed backgrounds under WinAPI)
+--  Toolbar
+--  Tabs (with a single gList)
+--  A brand new ini file handling routine...
+--  syntax colouring (mixed mode!)
+--  gSplit (or maybe not/use popups or ipc'd standalones instead?)
+--  run/p2js etc                        (""?)
+--  project tree
+--  status bar
+--  layout designer
+-- Finding any of f("table"), f('table'), or f(`table`) should find the other two 
+--      [similar to/with case insensitive searching]
+-- Make OVR mode much harder to turn on, maybe a toolbar button, or hold Insert for >=5s, 
+--      and much more visible: cursor->invert-blink the char about to be trashed.
+-- Add a "confirm close" messagebox!!! (and make Esc not quit)
+-- Add an "insert file(s)" option, eg open all 13 *.cs files from 
+--  demo\HFDP\orig\HeadFirstDesignPatternsInCSharp\Strategy.Duck
+-- Add a restore facility: save a list of edit actions and optionally re-apply on load...
+--  better: restore the "undo" stack ("Crash recovery: includes 47 unsaved changes")
+--  Normal shutdown, or more precisely save, would [probably] of course clear the stack.
+-- Suppose filelinelengths[4] = {11,2,84'T',84'T',26,30,69'E',51'3',84'T',4}. It should be
+--  possible to right-click on that in the debugger, and when viewing an ex.err, and strip
+--  out (or replace) all those annoying character codes. Somewhere it should keep a fancy
+--  db of file/routine/variable with all those settings preserved. Probably not worthwhile
+--  trying to make p.exe honor such when writing an ex.err, instead just theEditor and
+--  theDebugger (if that's a thing/what it's called).
+--
+--DEV Edix does not search for these properly:
+--"£one two three"
+--`£"one two three`
+--
+-- Longest line: I think we can do better than linelengths...
+--  If not editing the longest line, we only need to know when we exceed it, and prev:=2nd longest.
+--  When editing the longest line, we only need to compare with the 2nd longest, and flip: as long
+--  as we are still on that line we can "pretend" we know the top two, however whenever we /start/
+--  to edit the longest line we should always do a (single) re-scan.
+--  (Our 2nd longest only needs to become invalid when we /leave/ a modified non-longest line..)
+--  2nd := largest(linelengths,true,1st) pencilled in for this.
+--  
+
+
+
+--puts(1,"") -- (temp [warning child not used])
+puts(1,"") -- until key_handler() and menus sorted out, at least... [DEV]
+--with javascript_semantics --DEV (bCfwd)
+--include ../theGUI/theGUI.e
+--requires(64,true)
+--include hll_stubs.e -- DEV needed for 64bit [FIXME]
+--without debug
+--with trace
+include builtins\VM\pprntfN.e
+include builtins\cffi.e
+include builtins\VM\pcfunc.e
+include builtins\scanf.e
+include builtins\ubits.e
+include builtins\VM\pTime.e
+include builtins\dict.e
+include builtins\pdates.e
+include builtins\pdate.e
+include builtins\syswait.ew
+include builtins\VM\pcmdlnN.e
+include theGUI.e
+with debug
+--include ..\theGUI\tg_xpm.e
+--include ..\theGUI\backup\tg_xpm.2899.e
+--include ..\theGUI\backup\theGUI.2897.e    -- good (include tg_xpm taken out)
+--include ..\theGUI\backup\theGUI.5176.e    -- good
+--include ..\theGUI\backup\theGUI.5400.e    -- good
+--include ..\theGUI\backup\theGUI.5522.e    -- good
+--include ..\theGUI\backup\theGUI.5582.e    -- good
+--include ..\theGUI\backup\theGUI.5594.e    -- good
+--include ..\theGUI\backup\theGUI.5599.e    -- bad (length) -- hmm requires(64)???
+--include ..\theGUI\backup\theGUI.5600.e    -- good (gList)
+--include ..\theGUI\backup\theGUI.5603.e    -- good
+--include ..\theGUI\backup\theGUI.5623.e    -- good
+--include ..\theGUI\backup\theGUI.5980.e    -- good
+--include ..\theGUI\backup\theGUI.6021.e    -- good
+--include ..\theGUI\backup\theGUI.6024.e    -- good
+--include ..\theGUI\backup\theGUI.6042.e    -- bad (black) [FIXED]
+--include ..\theGUI\backup\theGUI.6052.e    -- bad (black)
+--gUseGTK() -- lots of (runtime) warnings...:
+--{"gtk_window_resize line 6460 (disabled...?)",71401200}
+--gSetAttribute[GTK](Canvas,"SIZE",{65,70})
+--"line 5885: stop using gtk_widget_set_size_request, use gtk_widget_size_allocate instead"
+
+include builtins\ini.e
+
+--/*
+constant ini_defaults = """
+-- this is a comment
+visits = 0
+"""
+ini_load("test",ini_defaults)
+--...
+    ini_restore("test")
+    integer v = ini_setting("visits")
+    printf(1,"visited %d times\n",v)
+--  ini_set(sprintf("visited %d times",v),"",false)
+    ?ini_keynames("test")
+--...
+--  -- reload files if any from the previous session:
+--  for prev in ini_keys("session") do
+--      text = get_text(prev)
+--      {{x,y}} = scanf(ini_settings(prev),"{%d,%d}")
+--  end for
+--...
+--  -- add a new file to the session when opened:
+--  -- (override bMustExist when it likely won't)
+--  ini_restore("session") -- (it costs very little to play safe)
+    ini_set("visits",v+1)
+--...
+--  -- remove from session when file is closed:
+--  ini_restore("session") -- (ditto)
+--  ini_delete_name(filepath)
+--...
+--  ini_save("session")
+--...
+ini_save("test")
+-- delete_file(ini_filename("test"))
+--*/
+
+
+global  -- for eaini.e
+sequence filenames,  filepaths, -- self explanatory
+         filetext, -- initially get_text(GT_LF_STRIPPED), may/not be post-utf8_to_utf32() [should that simplify anything] [DEV]
+--       unicodefile = {},  
+         filelinelengths,   -- initially apply(filetext[i],length), then manually maintained
+         filemaxlen,        -- initially largest(filelinelengths[i],return_index:=true), ""
+                            -- if linelen increased, check /and replace filemaxlen, if
+                            --            decreased and maxlen then re-invoke largest().
+         filecursel,    -- {{...}}
+--DEV document this properly
+         bCfwds,        -- 
+         filedt         -- 
+
+global
+integer currfile
+,CursorX
+,CursorY
+
+global bool isAutoComplete
+
+constant THE_EDITOR = "theEditor",
+         THE_SESSION = THE_EDITOR&"_session",
+     ini_defaults = """
+isAutoComplete = 1
+""",
+--/*
+width = 240
+height = 80
+--*/
+ -- see [file]cursel for rhs meaning
+--DEV Temp! (no ini_save() as yet, so this remains "live", btw)
+ session_defaults = """
+currfile = 0
+C:\Program Files (x86)\Phix\builtins\ini.e
+C:\Users\Pete\theEditor.ini
+C:\Users\Pete\edix.cfg = {0,0,0,0,0,0,0,0,0,0,0}
+C:\Program Files (x86)\Phix\demo\edix\phix.syntax.test.exw = {0,0,0,0,0,0,0,0,0,0,0}
+C:\Program Files (x86)\Phix\builtins\puts1h.e = {0,0,0,0,0,0,0,0,0,0,0}
+C:\Program Files (x86)\Phix\pwa\js\poc\edit0.php = {0,0,0,0,0,0,0,0,0,0,0}
+C:\Program Files (x86)\Phix\pwa\js\poc\simple_syntax_highlighter.html = {0,0,0,0,0,0,0,0,0,0,0}
+E:\downloads\misc\wren\julia-1.8.2-win64\julia-1.8.2\test.jl
+""",
+    session_fmt = "{%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d}"
+--  default_cursel = {0,0,0,0,0,0,0,0,0,0,0}
+-- I also want decent #ilASM and html+(php/script/style) test files...(done)
+
+procedure load_previous_session()
+--DEV not ini_save()'d anywhere yet...
+    ini_load(THE_EDITOR,ini_defaults)
+    isAutoComplete = ini_setting("isAutoComplete")
+-- ...
+--  ini_restore(THE_EDITOR) -- (be sure session isn't active)
+--  integer w = ini_setting("width")
+-- ...
+    -- reload files if any from the previous session:
+    ini_load(THE_SESSION,session_defaults)
+    currfile = ini_setting("currfile")
+    filenames = ini_keynames(THE_SESSION)
+    assert(filenames[1]=="currfile")
+    filenames = filenames[2..$]
+    integer l = length(filenames)
+    currfile = min(max(currfile,1),l)
+    filepaths = repeat(0,l)
+--  filetext = repeat("loading...",l)
+    filetext = repeat(0,l)
+    filelinelengths = repeat(0,l)
+--  filemaxlen = repeat(1,l)
+    filemaxlen = repeat(0,l)
+    filecursel = repeat(0,l)
+    bCfwds = repeat(0,l)
+    filedt = repeat(0,l)
+    for i,file in filenames do
+--defer:
+--      string text = get_text(file)
+--      integer {{x,y}} = scanf(ini_setting(file),"{%d,%d}")
+--      sequence x11 = scanf(ini_setting(file),session_fmt)
+        sequence x11 = ini_setting(file)
+                 x11 = scanf(x11,session_fmt)
+        if length(x11)=1 then 
+            x11 = x11[1]
+        else
+            x11 = repeat(0,11)
+        end if
+        filecursel[i] = x11
+        filepaths[i] = get_file_path(file)
+        filenames[i] = get_file_name(file)
+        filetext[i] = {"loading " & filenames[i] & "..."}
+    end for
+--? switch_to(currfile)
+---- ...
+--  -- add a new file to the session when opened:
+--  -- (override bMustExist when it likely won't)
+--  ini_restore(THE_SESSION) -- (it costs very little to play safe)
+--  ini_set(filepath,cursel,false)
+---- ...
+--  -- remove from session when file is closed:
+--  ini_restore(THE_SESSION) -- (ditto)
+--  ini_delete_key(filepath)
+---- ...
+--  ini_save(THE_SESSION)
+-- ...
+--ini_save(THE_EDITOR) -- see eg C:\Users\Pete\theEditor.ini
+end procedure
+load_previous_session()
+
+
+--global string src -- for next (each one of GT_LF_STRIPPED lines)
+--include builtins\tokeniser.e
+--?NEW yep^^ (erm,..)
+-- DOH this is what bCfwd does:
+-- Aside: theEditor needs to keep/restore settings from TOPITEM-1, 
+--        or perhaps CURSORX-1 if just re-showing that [onwards]
+
+--next:
+-- load files and bcfwd from an idle routine... More delayed/deferred than edita/edix...
+-- bcfwd with nested syntax colouring ... -- some examples of \?9/0'd bcfwd perhaps...
+--Ah, I need to implement IDLE_ACTION
+--this is what edix does...
+include src\auto.e
+--CD_BLACK...
+--DEV... (may as well just use/re-interpret these... no theGUI equivalents exist, see FONT) BLUFF!: TG_NORMAL, TG_ITALIC...
+global constant CD_PLAIN = 0,   -- == TG_NORMAL
+                CD_BOLD = 1,    -- == TG_BOLD
+                CD_ITALIC = 2,  -- == TG_ITALIC
+                CD_BOLD_ITALIC = 3,
+                CD_UNDERLINE = 4
+global string initialcurrentdir = current_dir()
+--global integer IupMessage
+global procedure Error_Message(string title, msg)
+    --- simple wrapper...
+--  IupMessage(title,msg)
+    ?{title,msg}
+end procedure
+include src\synld.e
+-- DEV ^ write stasyn.e
+global integer isTabWidth
+include src\tabs.e
+include src\bcfwd.e -- (new home for syntax_colour())
+--/*
+--include src/synclr.e as synclr -- (no namespaces under p2js)
+global integer isTabWidth = 4
+global sequence bCfwd -- DEV document properly... (aka let the fun begin!)
+global integer paintLast
+global integer K_ESC
+global integer isMarginSpace, marginRqd
+global integer selON, selX, selY
+global integer curb
+include src/synclr.e
+--*/
+--include src/dateadj.e
+--include src/eaedb.e
+--include src/tabs.e
+
+-- file open...
+-- file:///C:/Program%20Files%20(x86)/Phix/pwa/js/poc/drop.html
+-- builtins\fileopenN.ew (ugh)
+--/*
+ChatGPT:
+Write a file open dialog demo in Phix using WinAPI. There should be a "Choose File" button,
+with a text label next to it that shows the selected file path and name, and below both a 
+simple textarea to display the file contents.
+--*/
+
+
+include src\xpm_icons.e
+
+local constant MCTRL=#100, MSHIFT=#200, MALT=#400
+-- Note: fake keycodes on submenus are for the statusbar hover hints only, 
+--       eg actually keying ALt K is //NOT// expected to popopen Edit/Case
+local constant MAIN_MENU = {{"&File",MALT+'F',
+                                     {{"&New\tCtrl N",xpm("new"),MCTRL+'N'},
+                                      {"&Open\tCtrl O",xpm("open"),MCTRL+'O'},
+                                      {"&ReOpen\tCtrl Shift O",xpm("reopen"),MCTRL+MSHIFT+'O'},
+                                      {"&Save\tCtrl S",xpm("save"),MCTRL+'S'},
+                                      {"Save&As\tCtrl Shift A",xpm("saveas"),MCTRL+MSHIFT+'A'}, // (and Ctrl Shift S?)
+                                      {"FileLis&t\tCtrl T",MCTRL+'T'},
+                                      {"&Close\tCtrl F4",xpm("close"),MCTRL+VK_F4},
+                                      "|",
+--DEV disabled colours? (for now)
+                                      {"Print Pre&view\tCtrl P",xpm("preview"),MCTRL+'P'},
+                                      {"&Print\tCtrl Shift P",xpm("print"),MCTRL+MSHIFT+'P'},
+                                      "|",
+--DEV disable while empty:
+--                                    {"Recent&Files\tCtrl R",MCTRL+'R',{}},
+                                      {"Recent Files",MCTRL+'R',{}}, -- (fake keycode)
+                                      {"E&xit\tAlt F4",xpm("exit"),MALT+VK_F4}}},
+--                          {"&Edit",EDIT_MENU:=$,
+                            {"&Edit",MALT+'E',
+                                     {{"Undo\tCtrl Z",xpm("undo"),MCTRL+'Z'},
+                                      {"Redo\tCtrl Y",xpm("redo"),MCTRL+'Y'},
+                                      "|",
+                                      {"Case",MALT+'K', -- (fake keycode)
+                                                   {{"Upper\tAlt U",MALT+'U'},
+                                                    {"Lower\tAlt L",MALT+'L'},
+                                                    {"Invert\tAlt I",MALT+'I'},
+                                                    {"Capitalise\tAlt Shift U",MALT+MSHIFT+'U'},
+                                                    {"Sentence\tAlt Shift L",MALT+MSHIFT+'L'},
+                                                    {"Show As Binary\tCtrl B",MCTRL+'B'},
+                                                    {"Show As Octal\tCtrl Shift B",MCTRL+MSHIFT+'B'},
+                                                    {"Show As Hex\tCtrl H",MCTRL+'H'},
+                                                    {"Show As Seq/Str\tCtrl J",MCTRL+'J'},
+                                                    {"Show As Decinal\tCtrl K",MCTRL+'K'}}},
+                                      {"Clipboard",MALT+'C', -- (fake keycode)
+                                                   {{"Cu&t\tCtrl X",xpm("cut"),MCTRL+'X'},
+                                                    {"Cut Append\tCtrl Shift X",xpm("cuta"),MCTRL+MSHIFT+'X'},
+                                                    {"Cut Prepend\tAlt Shift X",xpm("cutp"),MALT+MSHIFT+'X'},
+                                                    {"&Copy\tCtrl C",xpm("copy"),MCTRL+'C'},
+                                                    {"Copy Append\tCtrl Shift C",xpm("copya"),MCTRL+MSHIFT+'C'},
+                                                    {"Copy Prepend\tAlt Shift C",xpm("copyp"),MALT+MSHIFT+'C'},
+                                                    {"Paste\tCtrl V",xpm("paste"),MCTRL+'V'},
+                                                    {"Copy Filename",COPYN:=$}}},
+                                      {"&Delete\tDelete",xpm("delete"),VK_DEL},
+                                      "|",
+                                      {"&Find\tCtrl F",xpm("find"),MCTRL+'F'},
+                                      {"Find Next\tF3",xpm("find_next"),VK_F3},
+                                      {"Find Prev\tShift F3",xpm("find_prev"),MSHIFT+VK_F3},
+--,{"Find First Selected\t(Ctrl F3)",   E_FndM,E_Ffs,0,0,V,0,{VK_F3,1,0}}
+--,{"Find Next Selected\t(Ctrl Shift F3)",E_FndM,E_Fns,0,0,V,0,{VK_F3,1,1}}
+--,{"Next Difference\t(F4)",                E_FndM,E_F4, 0,0,V,0,{VK_F4,0,0}}
+--,{"Prior Difference\t(Shift F4)",     E_FndM,E_sF4,0,0,V,0,{VK_F4,0,1}}
+                                      "|",
+                                      {"Next Control Structure\tCtrl ]",MCTRL+']'},
+                                      {"Prev Control Structure\tCtrl [",MCTRL+'['},
+                                      "|",
+--,{"Folds",                M_Edit,E_Fold,0,"Show/Hide text blocks"}
+--,{"Fold selection or control block\t(Ctrl - )", E_Fold,E_Fone,0,0,PROC,r_Fold,{'-',0}}
+--,{"Expand fold\t(Ctrl + )",                   E_Fold,E_Fexp,0,0,PROC,r_Fold,{'+',0}}
+--,{"Fold all routines\t(Alt - )",              E_Fold,E_Fall,0,0,PROC,r_setFolds,{'-'}}
+--,{"Expand all folds\t(Alt + )",               E_Fold,E_Fxpa,0,0,PROC,r_setFolds,{'+'}}
+--,{"Re-fold last expansion\t(Ctrl Shift - )",  E_Fold,E_Frfd,0,0,PROC,r_Fold,{'-',1}}
+--
+--,{"Select",           M_Edit,E_SelM,0,0}
+--,{"Select All\t(Ctrl A)", E_SelM,E_SelA,0,0,C,0,{ 1,1,0}}
+--,{"Select Word\t(Ctrl W)",    E_SelM,E_SelW,0,0,C,0,{23,1,0}}
+--
+--,{"-",M_Edit,0,0,0,0}
+--,{"Comment\t(Ctrl > )",   M_Edit,E_Cmm,0,0, V,0,{'>'+128,1,0}}
+--,{"Uncomment\t(Ctrl < )", M_Edit,E_UCmm,0,0,V,0,{'<'+128,1,0}}
+--,{"-",M_Edit,0,0,0,0}
+--,{"Indent\t(Alt > )",     M_Edit,E_Ind,0,0, V,0,{VK_TAB,1,0}} -- Ctrl Tab (handled in virtualKey)
+--,{"Unindent\t(Alt < )",   M_Edit,E_UInd,0,0,C,0,{VK_TAB,0,1}} -- Shift Tab (handled in charInput)
+--,{"-",M_Edit,0,0,0,0}
+                                      {"Zoom In\tCtrl +",xpm("zoomin"),MCTRL+'+'},
+                                      {"Zoom Out\tCtrl -",xpm("zoomout"),MCTRL+'-'},
+                                      "|",
+                                      {"&Goto\tCtrl G",xpm("goto"),MCTRL+'G'},
+                                      "|",
+                                      {"Select &All\tCtrl A",MCTRL+'A'}}},
+                            {"&Tools",{{"Run\tF5",xpm("run"),VK_F5},
+                                       {"Parameterised Run\tCtrl F5",xpm("prun"),MCTRL+VK_F5},
+                                       {"Jump to error\tF12",xpm("error"),VK_F12},
+                                       {"&Compare",xpm("compare"),COMPARE:=$},
+                                       {"&Directory Compare",xpm("dircomp"),DIRCOMP:=$},
+                                       {"&Find In Files\tCtrl Shift F",xpm("fif"),MCTRL+MSHIFT+'F'},
+                                       {"&Htmlise eucode",xpm("htmlise"),HTMLISE:=$},
+                                       {"Re-&Indent source",xpm("reindent"),REINDENT:=$},
+                                       {"Co&mmon Code Analysis",xpm("cca"),CCA:=$},
+                                       {"&Quick Jump\tCtrl Q",xpm("qjmp"),MCTRL+'Q'},
+--Recovery and perhaps delta debugging?
+                                       {"&Layout Designer",xpm("design"),DESIGN:=$},
+                                       {"Show Formatting\tCtrl Shift H",xpm("pilcrow"),MCTRL+MSHIFT+'H'},
+                                       "|",
+                                       {"Crash",xpm("crash"),MALT+MCTRL+MSHIFT+'Q'}}},
+                            {"&Macro",{{"Record F6\tCtrl F6",xpm("record"),MCTRL+VK_F6},
+                                       {"Record F7\tCtrl F7",xpm("record"),MCTRL+VK_F7}, 
+                                       {"Record F8\tCtrl F8",xpm("record"),MCTRL+VK_F8}, 
+                                       {"Record F9\tCtrl F9",xpm("record"),MCTRL+VK_F9}, 
+                                       {"Play F6\tF6",xpm("play"),PLAY6:=VK_F6},
+                                       {"Play F7\tF7",xpm("play"),PLAY7:=VK_F7},
+                                       {"Play F8\tF8",xpm("play"),PLAY8:=VK_F8},
+                                       {"Play F9\tF9",xpm("play"),PLAY9:=VK_F9},
+                                       {"Macro Management\tShift F8",MM:=MSHIFT+VK_F8}}},
+--Autocomplete?
+                            {"&Options",{{"&Backups",                   xpm("backups"),MALT+MCTRL+'B'}, -- (fake keycode)
+                                         {"&Colours",                   xpm("colours"),MALT+MCTRL+'C'}, -- (fake keycode)
+                                         {"&Fonts",                     xpm("fonts"),  MALT+MCTRL+'F'}, -- (fake keycode)
+--Wordwrap??
+                                         {"&Display Options",           xpm("display"),MALT+MCTRL+'D'}, -- (fake keycode)
+                                         {"&Edit Options",              xpm("editopt"),MALT+MCTRL+'E'}, -- (fake keycode)
+                                         {"&Keyboard Settings\tCtrl F1",xpm("keybrd"), MCTRL+VK_F1},
+                                         {"File E&xtensions",           xpm("extopt"), MALT+MCTRL+'X'}, -- (fake keycode)
+--NB needs en/disabling and paneloff...
+                                         {"File Pane&l\tCtrl L",xpm("panelon"),MCTRL+'L'},
+                                         {"?Message Area\tCtrl M",MCTRL+'M'}}},
+                            {"&Help",{{"&Context Help\tF1",xpm("help"),VK_F1},
+                                      "|",
+                                      {"phix.chm",xpm("phix"),H_PHIX:=$},
+                                      {"mini.chm",xpm("phix"),H_MINI:=$},
+                                      "|",
+                                      {"Phix Home Page",xpm("home"),H_HOME:=$},
+                                      {"Phix Licence",xpm("phix"),H_LICENCE:=$},
+                                      {"theEditor Manual",xpm("phix"),H_MAN:=$},
+                                      {"OpenEuphoria Forum",xpm("forum"),H_FORUM:=$},
+                                      {"Check for &Upgrades",xpm("upgrade"),H_UPGRADE:=$},
+                                      {"&About",xpm("about"),ABOUT:=$}}}}
+
+--DEV/SUG: (put zeroes in the above definition)
+--,     MAIN_MENU = add_menu_icons(MAIN_MEN0)
+
+--constant file_new_hl_xpm = tg_WinAPI_replace_colour(xpm("file_new"),TG_RED)
+
+function toolbar_item(atom action, string image, string tip, integer active, id=0)
+--  gdx item = gButton(NULL, action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton(NULL, action, "CANFOCUS=NO, FLAT=YES,SIZE=20x20")
+    gdx item = gButton(NULL, action, "CANFOCUS=NO, SIZE=20x20")
+--  gdx item = gButton(NULL, action, "CANFOCUS=NO, FLAT=YES,MAXSIZE=20x20")
+--  gdx item = gButton("", action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton(tip, action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gButton(" ", action, "CANFOCUS=NO, FLAT=YES")
+--  gdx item = gCanvas(action, "CANFOCUS=NO, FLAT=YES") -- erm, no...
+    gSetAttribute(item, "IMAGE", image)
+    gSetAttribute(item, "USER_DATA", id)
+    integer k = find('(',tip)
+    if k!=0 then
+        k += 1
+        integer l = find(')',tip,k)-1
+--      tip[k..l] = keybd:mapkeytext(tip[k..l])
+    end if
+    gSetAttribute(item, "TIP", tip)
+--  gSetAttribute(item, "SIZE", {20,20})
+    gSetAttribute(item, "SIZE", {24,24})
+--  gSetAttribute(item, "SIZE", {16,16})
+    gSetInt(item, "ACTIVE", active)
+    return item
+end function
+
+gdx watch_window,
+    message_area
+
+function toggle_chk(gdx dlg, window, menu, integer id)
+if id=MCTRL+'L' then
+  ?"PANEL..." -- (no such thing exists yet...) [or make wwdw 3-way...]
+end if
+    bool chk = not gMenuGetAttribute(menu,id,"CHECKED")
+    gMenuSetAttribute(menu,id,"CHECKED",chk)
+    gSetAttribute(window,"VISIBLE",chk)
+    gRedraw(dlg)
+    return TG_IGNORE
+end function
+
+procedure got_txt(string filename, sequence contents, gdx dlg)
+    ?{"got_txt",filename,length(contents)}
+--  gSetAttribute(lbl,"TITLE",filename)
+--  data = contents
+--  maxlen = largest(apply(data,length),return_index:=true)
+--  gRedraw(gGetDialog(lbl))
+end procedure   
+    
+procedure got(object file, gdx dlg)
+    -- (You'll need a loop here if bMulti was true)
+    gGetText(file,GT_LF_STRIPPED,got_txt,dlg)
+end procedure
+
+function toggle_watch(gdx dlg, menu)
+-- and set [planned] 3-way to "watch"..?
+-- add matching menu entry? [DEV yep]
+    gToggleInt(watch_window,"VISIBLE")
+    gRedraw(dlg)
+    return TG_IGNORE
+end function
+
+function key_handler(gdx dlg, integer c, bool ctrl, shift, alt) 
+    gdx vbox = gGetChild(dlg,1),
+        menu = gGetChild(vbox,1)
+    integer u = upper(c)
+--  if u=VK_UP
+--  or u=VK_DOWN
+--  or u=VK_LEFT
+--  or u=VK_RIGHT then              return move(u,shift)
+--  elsif ctrl then
+    if ctrl then
+        if shift then
+            if alt then -- ctrl shift alt
+                switch u do
+                    case 'Q': crash("Tools/Crash")
+                end switch
+            else        -- ctrl shift
+--              switch u do
+--                  case 'A': return save_as()
+--                  case 'B': return show_as(OCTAL)
+--                  case 'C': return copy(APPEND)
+--                  case 'E': return enlarge_font()
+--                  case 'F': return find_in_files()
+--                  case 'H': return toggle_formatting(menu)
+--                  case 'O': return re_open()
+--                  case 'P': return print_file()
+--                  case 'R': return reduce_font()
+--                  case 'X': return cut(APPEND)
+--                  case '[': return control_structure(PREV,shift)
+--                  case ']': return control_structure(NEXT,shift)
+--                  case VK_F3: return find_next_selected()
+--              end switch
+            end if
+        elsif alt then  -- ctrl alt
+--          switch u do
+--          end switch
+        else            -- plain ctrl
+            switch u do
+--              case 'A': return select_all()
+--              case 'B': return show_as(BINARY)
+--              case 'C': return copy()
+--              case 'D': return duplicate_line()
+--              case 'F': return find_popup()
+--              case 'G': return goto_line()
+--              case 'H': return show_as(HEX)
+--              case 'J': return show_as(SEQSTR)
+--              case 'K': return show_as(DECIMAL)
+                case 'L': return toggle_chk(dlg,watch_window,menu,MCTRL+u)
+                case 'M': return toggle_chk(dlg,message_area,menu,MCTRL+u)
+--              case 'N': return new_file()
+                case 'O': gGetOpenFileName(dlg,got,dlg); return TG_CONTINUE
+--              case 'P': return print_preview()
+--              case 'Q': return quick_jump()
+--              case 'S': return save_file()
+--              case 'T': return file_list()
+--              case 'V': return paste()
+--              case 'W': return select_word()
+--              case 'X': return cut()
+--              case 'Y': return redo()
+--              case 'Z': return undo()
+--              case '[': return control_structure(PREV)
+--              case ']': return control_structure(NEXT)
+--              case '+': return zoom(IN)
+--              case '-': return zoom(OUT)
+--              case '>': return comment()
+--              case '<': return uncomment()
+--              case VK_F1: return keyboard_settings()
+--              case VK_F3: return find_first_selected()
+--              case VK_F4: return close_file()
+--              case VK_F5: return run_popup()
+--              case VK_F6,
+--                   VK_F7,
+--                   VJ_F8,
+--                   VK_F9: return record_macro(u-VK_F5)
+            end switch
+        end if
+    elsif alt then
+        if shift then   -- alt shift
+--          switch u do
+--              case 'C': return copy(PREPEND)
+--              case 'L': return convert_case(SENTENCE)
+--              case 'U': return convert_case(CAPITAL)
+--              case 'X': return cut(PREPEND)
+--          end switch
+        else            -- plain alt
+            switch u do
+--              case 'B': return move_line_up()
+--              case 'D': return move_line_down()
+--              case 'I': return convert_case(INVERT)
+--              case 'L': return convert_case(LOWER)
+--              case 'U': return convert_case(UPPER)
+                case 'W': return toggle_watch(dlg,menu)
+--              case '>': return indent()
+--              case '<': return unindent()
+                case VK_F4: return TG_CLOSE
+            end switch
+        end if
+        return TG_CONTINUE
+-- [shift], maybe, but not ctrl or alt:
+--  elsif u=VK_DEL and not shift then   return delete_char() // TG_CONTINUE
+--  elsif u=VK_F1 then                  return context_help()
+--  elsif u=VK_F3 then                  return find_next(shift)
+--  elsif u=VK_F4 then                  return next_difference(shift)
+--  elsif u=VK_F5 then                  return run(shift)
+--  elsif u=VK_F8 and shift then        return macro_management()
+--  elsif u>=VK_F6 and u<=VK_F9 then    return play_macro(u-VK_F5)
+--  elsif u=VK_F12 then                 return jump_to_error()
+    elsif u>=' ' and u<=#7E then
+        ?"graphical insert" -- DEV next up!
+--/*
+--Edix:
+--      if iup_isprint(c) then
+--E:\downloads\misc\Phix\demo\libxlsxwriter\iup-3.24_Sources\iup\include\iupkey.h:111 #define iup_isprint(_c) ((_c) > 31 && (_c) < 127) [127==#7F], so same
+            if deleteSelection() then end if
+            addAction(INSERTCHAR,c)
+            InsertChar(c,insertMode)
+            update_toolbar()
+--          return IUP_CONTINUE
+--Edita:
+        elsif keycode<=#FF or unicodefile[currfile] then
+--        if not control then           -- [eg] ctrl backspace is 127 [???]
+            if deleteSelection() then
+                addAction(INSERTCHAR,keycode)
+                InsertChar(keycode,True)
+            else
+                oneline = filetext[currfile][CursorY+1]
+                k = MapToByte(oneline,CursorX)
+                if k and not insertMode then
+                    if not extendOverStrike(keycode,oneline[k]) then
+                        addAction(INSERTCHAR,keycode)
+                        CursorX += 1    -- it cannot be a tab
+                        addAction(DELETECHAR,oneline[k])
+                        CursorX -= 1
+                    end if
+--                  addAction(INSERTCHAR,keycode)   --this bug introduced in 0.1.8
+                    InsertChar(keycode,insertMode)
+                elsif not skipAutoComplete(keycode) then
+                    synclr:stripacchar(keycode)
+                    addAction(INSERTCHAR,keycode)
+                    InsertChar(keycode,insertMode)
+                    if isAutoComplete then
+                        AutoComplete(keycode,oneline,k)
+                    end if
+                end if
+            end if
+            forceCursorOnscreen()
+            res = {1}
+--        end if
+            shift = 0       -- for macro recording, show eg AaBbCc as one string.
+        end if
+        if MacroLearn then
+            MacroKeys[MacroLearn] = append(MacroKeys[MacroLearn],{MR_CHAR,{keycode,control,shift}})
+        end if
+--*/
+        return TG_CONTINUE
+    end if
+---DEV temp:
+    if not find(c,{VK_LCTRL,VK_RCTRL,VK_LSHIFT,VK_RSHIFT,VK_LALT,VK_RALT,
+                   VK_CAPSLOCK,VK_NUMLOCK,VK_PAUSE,VK_SCROLL,VK_ESC}) then
+        ?{"key_handler[unhandled]", gGetKeyName(c), ctrl, shift, alt}
+    end if
+--[DEV] disables alt handling on menus... [smells like a bug to me... but I've put a note in the [KEY] docs instead]
+--  return TG_DEFAULT
+--?9/0
+    return TG_CONTINUE
+end function
+
+local function click_handler(gdx id, integer key)
+--  string btn_string = ""
+    sequence csa = {false,false,false}
+--  for i,fp in {{MCTRL,"Ctrl "},{MSHIFT,"Shift "},{MALT,"Alt "}} do
+--      {integer flag, string prefix} = fp
+    for i,flag in {MCTRL,MSHIFT,MALT} do
+        if and_bits(key,flag) then
+            key -= flag
+--          btn_string &= prefix
+            csa[i] = true
+        end if
+    end for
+--  btn_string &= gGetKeyName(key)
+--  ?{"btn_click",btn_string}
+    gdx dlg = gGetDialog(id)
+    bool {ctrl,shift,alt} = csa
+    return key_handler(dlg,key,ctrl,shift,alt)
+end function
+
+function btn_click(gdx btn)
+-- quite possibly/probably what this should do is trigger the keyboard handler...
+-- (and then they are all just btn_click, not toolb_new etc)
+--  ?{"btn_click",gGetAttribute(btn,"TIP")}
+--  ?{"btn_click",gGetAttribute(btn,"TITLE")}
+    return click_handler(btn,gGetAttribute(btn,"USER_DATA"))
+--?9/0
+--?gGetAttribute(gGetDialog(btn),"CLIENTSIZE")
+--gDrawDraw(canvas,
+--  return TG_IGNORE
+--  return iff(id=CLOSE?TG_CLOSE:TG_IGNORE)
+end function
+
+procedure rtn_changed(gdx id)
+-- (we should have stashed away where the routines are...)
+    ?{"rtn_changed",gGetAttribute(id,"VALINT")}
+end procedure
+
+--procedure cross(gdx canvas, integer w,h)
+--  gDrawLine(canvas,0,0,w-1,h-1)
+--  gDrawLine(canvas,w-1,0,0,h-1)
+--end procedure
+
+function make_toolbar()
+integer cb_new = btn_click,
+        cb_open = btn_click,
+        cb_save = btn_click,
+        cb_close = btn_click,
+        cb_preview = btn_click,
+        cb_print = btn_click,
+        cb_cut = btn_click,
+        cb_copy = btn_click,
+        cb_paste = btn_click,
+        cb_undo = btn_click,
+        cb_redo = btn_click,
+        fdlg_cb_find = btn_click,
+        fdlg_cb_findnext = btn_click,
+        fdlg_cb_findprev = btn_click,
+        cb_zoomin = btn_click,
+        cb_zoomout = btn_click,
+--      cb_backoff = btn_click,
+        cb_run = btn_click
+
+--gdx toolb_new   = toolbar_item(cb_new,            xpm("new"),       "New (Ctrl N)",           1, NEW),
+gdx toolb_new     = toolbar_item(cb_new,            xpm("new"),       "New (Ctrl N)",           1, MCTRL+'N'),
+    toolb_open    = toolbar_item(cb_open,           xpm("open"),      "Open (Ctrl O)",          1, MCTRL+'O'),
+    toolb_save    = toolbar_item(cb_save,           xpm("save"),      "Save (Ctrl S)",          1, MCTRL+'S'),
+    toolb_close   = toolbar_item(cb_close,          xpm("close"),     "Close (Ctrl F4)",        0, MCTRL+VK_F4),
+--  toolb_sep1    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_sep1    = gLabel(" ","EXPAND=N"),
+    toolb_prntp   = toolbar_item(cb_preview,        xpm("preview"),   "Print Preview (Ctrl P)", 0, MCTRL+'P'),
+    toolb_print   = toolbar_item(cb_print,          xpm("print"),     "Print (Ctrl Shift P)",   0, MCTRL+MSHIFT+'P'),
+--  toolb_sep2    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_sep2    = gLabel(" ","EXPAND=N"),
+    toolb_cut     = toolbar_item(cb_cut,            xpm("cut"),       "Cut (Ctrl X)",           1, MCTRL+'X'),
+    toolb_copy    = toolbar_item(cb_copy,           xpm("copy"),      "Copy (Ctrl C)",          1, MCTRL+'C'),
+    toolb_paste   = toolbar_item(cb_paste,          xpm("paste"),     "Paste (Ctrl V)",         1, MCTRL+'V'),
+--  toolb_sep3    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_sep3    = gLabel(" ","EXPAND=N"),
+    toolb_undo    = toolbar_item(cb_undo,           xpm("undo"),      "Undo (Ctrl Z)",          0, MCTRL+'Z'),
+    toolb_redo    = toolbar_item(cb_redo,           xpm("redo"),      "Redo (Ctrl Y)",          0, MCTRL+'Y'),
+    toolb_find    = toolbar_item(fdlg_cb_find,      xpm("find"),      "Find (Ctrl F)",          0, MCTRL+'F'),
+    toolb_fnxt    = toolbar_item(fdlg_cb_findnext,  xpm("find_next"), "Find Next (F3)",         0, VK_F3),
+    toolb_fprv    = toolbar_item(fdlg_cb_findprev,  xpm("find_prev"), "Find Prev (Shift F3)",   0, MSHIFT+VK_F3),
+--  toolb_sep4    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_sep4    = gLabel(" ","EXPAND=N"),
+    toolb_zoomin  = toolbar_item(cb_zoomin,         xpm("zoomin"),    "Zoom In (Ctrl +)",       0, MCTRL+'+'),
+    toolb_zoomout = toolbar_item(cb_zoomout,        xpm("zoomout"),   "Zoom Out (Ctrl -)",      0, MCTRL+'-'),
+--  toolb_sep5    = gLabel(" ", "SEPARATOR=VERTICAL"),
+    toolb_sep5    = gLabel(" ","EXPAND=N"),
+--SUG: make the traffic lights blink if you want...
+--  toolb_back    = toolbar_item(cb_backoff,        "PNG_rotate1",    "Background Processing",  0),
+    toolb_run     = toolbar_item(cb_run,            xpm("run"),       "Run (F5)",               0, VK_F5),
+    toolb_sep6    = gLabel(" ","EXPAND=N"),
+
+--?DEV in windows the control will still get the focus when clicked 
+--  [the DEV part being that we need some extra code to re-focus]
+--Ihandle
+--htlbl = IupLabel("&D")
+
+--DEV does not expand properly/fully.. (don't want any extra gaps between buttons when fullscreen) [FIXED, with ,"EXPAND=N" on the gLabel]
+--  toolb_rtns = gDropDown({},rtn_changed,"CANFOCUS=NO, EXPAND=HORIZONTAL, ACTIVE=NO"),
+    toolb_rtns = gDropDown({"one","two"},rtn_changed,"CANFOCUS=NO, EXPAND=HORIZONTAL"),
+--  toolb_rtns = gCanvas(cross,"CANFOCUS=NO, EXPAND=HORIZONTAL"), -- (same hz expansion issue...)
+--  toolb_rtns    = gDropDown({"one","two"},rtn_changed,"CANFOCUS=NO, EXPAND=BOTH"),
+--  toolb_sep6    = gLabel(" xxxxxxxxx", "SEPARATOR=VERTICAL"),
+--  toolb_lbl     = gLabel("xxxxxxx..."),
+    toolbar = gHbox({toolb_new,
+                     toolb_open,
+                     toolb_save,
+--                   toolb_saveas,
+                     toolb_close,
+                     toolb_sep1,
+-- print/page setup
+                     toolb_prntp,
+                     toolb_print,
+                     toolb_sep2,
+                     toolb_cut,
+                     toolb_copy,
+                     toolb_paste,
+                     toolb_sep3,
+                     toolb_undo,
+                     toolb_redo,
+                     toolb_find,
+                     toolb_fnxt,
+                     toolb_fprv,
+                     toolb_sep4,
+                     toolb_zoomin,
+                     toolb_zoomout,
+                     toolb_sep5,
+--                   toolb_back,
+                     toolb_run,
+                     toolb_sep6,
+--htlbl,
+--                   toolb_rtns}, "GAP=2, MARGIN=2x2, SIZE=200x40")
+--                   toolb_rtns}, "GAP=2, SIZE=800x40")
+--                   toolb_rtns}, "GAP=2")
+--                   toolb_rtns}, "GAP=0") -- good... (so gap not yet handled correctly)
+                     toolb_rtns}, "GAP=0,EXPAND=H,MARGIN=0x2") -- good... (so gap not yet handled correctly)
+--                   toolb_rtns,
+--                   toolb_sep6}, "GAP=2")
+--                   toolb_rtns}, "GAP=2,MARGIN=20x20")
+    return toolbar
+end function
+
+--DEV/temp...
+--constant jstext = `
+--function f(object o)
+--  return o
+--end function
+--`
+constant jstext = substitute("""
+#!/bin/bash
+#[
+  echo Phix ignores all text between #[ and #] in exactly the same way as /* and */ 
+  echo (both "and" are nested comments), allowing arbitrary shell code, for example:
+  cd /user/project/working
+  exec /path/to/phix "$0" "$@"
+  exit # may be needed for the shell to ignore the rest of this file.
+# comments(/shebang) ignored by Phix end here -> #]
+-- aside: few files have [multiline] shebangs like above, but this *is* a test file.
+/*  
+    Standard
+    /*
+    **  Nested
+    **  /*
+    **      Block
+    *//*    /*
+    **          Comments, of which Phix has quite a few [ok, six] varieties...
+    **      */
+    *****/
+    **/
+*/
+--/*
+    Euphoria-compatibility-style nestable multiline comments/code
+--*/
+// This program should be runnable (C-style line comments, btw, too!)
+with javascript_semantics
+string pe, te := iff(platform()==JS?"JavaScript/browser":"Phix/desktop")
+ifdef PHIX then 
+    pe = "Phix" 
+elsedef 
+    pe = "Euphoria" -- not that this file is compatible with that..
+end ifdef 
+printf(1,"This is %s (%s)\n",{pe,te}); -- the ; is entirely optional
+assert("\n\r\b\t\\\"\'\0\e"=join({"",10,13,8,9,#5C,#22,#27,#00,#1B},""))
+assert("\#42\x43\u4445\U00105678"="B"&'C'&"\xE4\x91\x85\xF4\x85\x99\xB8")
+
+-- triplequote, triplequote indented, backtick, and doublequote strings:
+constant tqs = "X"
+this
+string\thing"X",
+
+tqis = "X"
+_____this
+     string\thing"X",
+
+bts = `this
+string\thing`,
+
+dqs = "this\nstring\\thing"
+assert(tqs==tqis and tqis==bts and bts==dqs and dqs==tqs)
+assert(x"1 2 34 5678_AbC"=={0x01, 0x02, 0x34, 0x56, 0x78, 0xAB, 0x0C})
+
+-- Beyond comments and strings, not much in Phix bothers a syntax colourer.
+-- Originally I had another 380+ lines in here, that didn't prove anything.
+
+function merge_sort(sequence x)
+    -- put x into ascending order using a recursive merge sort
+     if length(x)<=1 then
+         return x  -- trivial case
+     end if
+     integer midpoint = floor(length(x)/2)
+     sequence merged = {},
+          first_half = merge_sort(x[1..midpoint]),
+         second_half = merge_sort(x[midpoint+1..$])
+     -- merge the two sorted halves into one
+     while length(first_half)>0 
+       and length(second_half)>0 do
+         if first_half[1]<=second_half[1] then
+             merged = append(merged, first_half[1])
+             first_half = first_half[2..$]
+         else
+             merged = append(merged, second_half[1])
+             second_half = second_half[2..$]
+         end if
+     end while
+     -- result is the merged data plus any leftovers
+     return merged & first_half & second_half
+end function
+
+?merge_sort({9, 10, 3, 1, 4, 5, 8, 7, 6, 2})
+?{1,0(2)10,0b11,0d4,0t5,0(6)10,0(7)10,0o10,0x9,#A} -- [the same 1..10 but with extra weirdness]
+
+wait_key()
+""",`"X"`,`"""`)
+
+function load_file()
+--  if platform()=JS then
+        return split(jstext,'\n')
+--  end if
+--- return get_text("theEditor.exw",GT_LF_STRIPPED)[1..5]
+--  return get_text("theEditor.exw",GT_LF_STRIPPED)
+end function
+
+--include hll_stubs.e --DEV length
+
+--sequence src = get_text("theEditor.exw",GT_LF_STRIPPED)
+sequence one_src = load_file()
+integer maxl = largest(apply(one_src,length),return_index:=true)
+
+--function get_data([gdx id,] integer item)
+function get_data(integer item)
+--  ?{"get_data",item}
+--  if item=0 then return 1 end if
+    if currfile=0 then return 0 end if
+--  if item=0 then return length(one_src) end if
+--sequence filenames = {},  filepaths = {},  filetext = {},  --unicodefile = {},    
+--       filelinelengths = {},  filemaxlen, filecursel = {},  bCfwds = {},  filedt = {}
+--
+--integer currfile
+
+    if item=0 then return length(filetext[currfile]) end if
+--  if item=-1 then return 0 end if
+--  if item=-1 then return maxl end if
+    if item=-1 then return filemaxlen[currfile] end if
+--  return 0
+--  return "gList"
+--  return one_src[item]
+--  return filetext[currfile][item]
+    if newSyntax=0 then
+        set_syntax(currfile)
+    end if
+--  return fake_colour(filetext[currfile][item],item)
+--global function syntaxColour(sequence text, integer lineno, integer marginWidth, integer firstch)
+    return syntaxColour(filetext[currfile][item],item,0,0)
+end function
+
+sequence msgs = {"Message","Area"}
+integer maxm = largest(apply(msgs,length),return_index:=true)
+
+function get_msgs(integer item)
+    if item=0 then return length(msgs) end if
+    if item=-1 then return maxm end if
+    return msgs[item]
+end function
+
+sequence wmsg = {}
+integer maxw = 0 -- largest(apply(wmsg,length),return_index:=true)
+
+function get_wmsg(integer item)
+    if item=0 then return max(1,length(wmsg)) end if
+    if item=-1 then return maxw end if
+    if length(wmsg)=0 then
+        return {{"Watch window (empty)",TG_GREY,TG_ITALIC}}
+        --                      ^ or "not running" [DEV]
+    end if
+    return wmsg[item]
+end function
+
+--sequence tabslist = {"First","Second"}
+
+function tabitems(integer item)
+--  if item=0 then return length(tabslist)
+--  return tabslist[item]
+--  return iff(item=0?length(tabslist):tabslist[item])
+    return iff(item=0?length(filenames):filenames[item])
+end function
+
+procedure tabchanged(gdx tabs, integer old_posn, new_posn)
+    ?{"tabchanged",old_posn,new_posn}
+    currfile = new_posn
+    set_syntax(currfile)
+    gdx edit = gGetAttribute(tabs,"USER_DATA")
+    gRedraw(edit)
+end procedure
+
+gdx tbar = make_toolbar(),
+--  tabs = gTabs(),
+--Notes: user sizes and those returned from gGetTextExtent() may already be massaged by theGUI.e
+--       min size picked such that a) not ignored and b) selecting rhs tab does not crop/hard-right 
+--                the selection outline (which eventually we want to suppress, in theEditor anyway).
+--m=30, p=12, x=19
+--  tabs = gTabs({"First"},"SIZE=49x25"), -- 24x15: real size is 46x24, text size is 25x9 (no y etc?), 
+--                                      margins(trbl) of {3,13,6,8} aka +{} see gtabs.winapi.first.png
+--                                                           4   5
+--  tabs = gTabs({"First","Second"},"SIZE=103x25"), --"",42x15:   97x24              42x9
+--  tabs = gTabs({"First","Second","Third"},"SIZE=145x25"), -- "",28x15
+--  tabs = gTabs({"First","Second","Thirdy"},"SIZE=148x25"), --   33x15
+--  tabs = gTabs({"First","Second","i"},"SIZE=145x25"),            3x15
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=192x25"),    -- 35x15
+--  tabs = gTabs({"i","Second","Third","Fourth"},"SIZE=192x25"),
+--  tabs = gTabs({"Fiftieth","Second","Third","Fourth"},"SIZE=198x25"), -- 36x15
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=234x25"), -- 23x15
+--  tabs = gTabs({"Second"},"SIZE=61x25"),
+--  tabs = gTabs({"Second","Third"},"SIZE=103x25"), -- 28
+--  tabs = gTabs({"Second","Thiord"},"SIZE=108x25"), -- 35
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=150x25"),
+--GTK2: (might very well want to set a height of 30/31 for >1 tab...) 
+--       {0,10,13 seems the best we can do...)
+--  tabs = gTabs({"First"},"SIZE=37x30"), -- {22}
+--  tabs = gTabs({"First","Second"},"SIZE=89x30"), -- {22,41}
+--  tabs = gTabs({"First","Second","Third"},"SIZE=129x30"), -- {22,41,28}
+--  tabs = gTabs({"i","Second","Third"},"SIZE=107x30"), -- {2,41,28} -- ah, there's always +1 here...?
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=113x30"),    -- {4x9,43x10,36x12} -- ""
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=113x30"),    -- {2x14,41x14,34x14} -- ""
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=176x30"), -- {22,41,28,36}
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=211x30"),    -- {22,41,28,36,24}
+--  tabs = gTabs({"Second"},"SIZE=54x30"), -- {41}
+--  tabs = gTabs({"Second","Third"},"SIZE=94x30"), -- {41,28}
+--  tabs = gTabs({"Second","Thiord"},"SIZE=101x30"), -- {41,35}
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=141x30"), -- {41,28,36}
+--GTK3: -- 32,30,40 is spot on.
+--  tabs = gTabs({"First"},"SIZE=72x39"),
+--  tabs = gTabs({"First","Second"},"SIZE=145x39"),
+--  tabs = gTabs({"First","Second","Third"},"SIZE=207x39"),
+--  tabs = gTabs({"i","Second","Third"},"SIZE=207x30"), -- {2,41,28}
+--  tabs = gTabs({"i","Second","Thirdy"},"SIZE=211x30"), -- {2,41,28}
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=275x39"),
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=337x39"),
+--  tabs = gTabs({"Second"},"SIZE=83x39"),
+--  tabs = gTabs({"Second","Third"},"SIZE=145x39"),
+--  tabs = gTabs({"Second","Thiord"},"SIZE=150x39"),
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=213x39"),
+--/* ditty for estimating gTabs() width: (DEV where should I keep this??)
+--  function tabw(sequence s, integer m, p, x, e)
+--      integer res = x+(length(s)-1)*p
+--      for si in s do
+--          res += max(si,m)
+--      end for
+--  --  res = abs(res-e)
+--      return res
+--  --  return e-res
+--  end function
+--win32:
+--/*
+constant tests  = {{{24},49},
+                   {{24,42},103},
+                   {{24,42,28},145},
+                   {{24,42,33},148},
+                   {{24,42,3},145},
+                   {{24,42,28,35},192},
+                   {{3,42,28,35},192},
+                   {{36,42,28,35},198},
+                   {{24,42,28,35,23},234},
+                   {{42},61},
+                   {{42,28},103},
+                   {{42,35},108},
+                   {{42,28,35},150}}
+--*/
+--GTK2:
+--/*
+constant tests  = {{{22},37},
+                   {{22,41},89},
+                   {{22,41,28},129},
+                   {{2,41,28},107},
+                   {{22,41,28,36},176},
+                   {{22,41,28,36,24},211},
+                   {{41},54},
+                   {{41,28},94},
+                   {{41,35},101},
+                   {{41,28,36},141}}
+--*/ -- using ink rect:
+--/*
+constant tests  = {{{24},37},
+                   {{24,43},89},
+                   {{24,43,30},129},
+                   {{4,43,30},107},
+                   {{4,43,36},113},
+                   {{24,43,30,38},176},
+                   {{24,43,30,38,26},211},
+                   {{43},54},
+                   {{43,30},94},
+                   {{43,37},101},
+                   {{43,30,38},141}}
+--*/
+--  tabs = gTabs({"First"},"SIZE=37x29"), -- {22}
+--  tabs = gTabs({"First","Second"},"SIZE=89x31"), -- {22,41}
+--  tabs = gTabs({"First","Second","Third"},"SIZE=129x28"), -- {22,41,28}
+--  tabs = gTabs({"i","Second","Third"},"SIZE=107x30"), -- {2,41,28} -- ah, there's always +1 here...?
+--  tabs = gTabs({"First","Second","Third","Fourth"},"SIZE=176x28"), -- {22,41,28,36}
+--  tabs = gTabs({"First","Second","Third","Fourth","Fifth"},"SIZE=211x28"),    -- {22,41,28,36,24}
+--  tabs = gTabs({"Second"},"SIZE=54x28"), -- {41}
+--  tabs = gTabs({"Second","Third"},"SIZE=94x28"), -- {41,28}
+--  tabs = gTabs({"Second","Thiord"},"SIZE=101x28"), -- {41,35}
+--  tabs = gTabs({"Second","Third","Fourth"},"SIZE=141x28"), -- {41,28,36}
+--GTK3:
+constant tests  = {{{24},72},
+                   {{24,43},145},
+                   {{24,43,30},207},
+                   {{4,43,30},207},
+                   {{4,43,36},211},
+                   {{24,43,30,38},275},
+                   {{24,43,30,38,26},337},
+                   {{43},83},
+                   {{43,30},145},
+                   {{43,37},150},
+                   {{43,30,38},213}}
+
+
+--ppOpt({pp_IntCh,false})
+integer be = 999999, me = 99999
+sequence bs, ms
+for m=0 to 65 do
+    for p=4 to 60 do
+        for x=4 to 51 do
+--?{"mpx",m,p,x}
+            integer te = 0, ne = 0
+            for t in tests do
+                integer e = t[2]
+                t = t[1]
+                integer r = tabw(t,m,p,x,e)
+--if {m,p,x} = {30,12,19} then
+if {m,p,x} = {32,30,40} then
+--if find({m,p,x},{{0,10,13},{0,10,11},{26,9,12},{4,10,11}}) then
+--if e=37 then pp({"=",{m,p,x}}) end if
+----                pp({{t,m,p,x},e,r,abs(e-r)})
+                pp({{t,m,p,x},e,r,r-e})
+end if
+                te += abs(e-r)
+                if e!=r then ne += 1 end if
+            end for
+            if te<be then
+                be = te
+                bs = {m,p,x}
+            end if
+            if ne<me then
+                me = ne
+                ms = {m,p,x}
+            end if
+        end for
+    end for
+end for
+pp({"be",be,bs})
+pp({"me",me,ms})
+--/*
+"="
+{{{24}, 0,10,11}, 37,35,2}
+{{{24,43}, 0,10,11}, 89,88,1}
+{{{24,43,30}, 0,10,11}, 129,128,1}
+{{{4,43,30}, 0,10,11}, 107,108,1}
+{{{4,43,36}, 0,10,11}, 113,114,1}
+{{{24,43,30,38}, 0,10,11}, 176,176,0}
+{{{24,43,30,38,26}, 0,10,11}, 211,212,1}
+{{{43}, 0,10,11}, 54,54,0}
+{{{43,30}, 0,10,11}, 94,94,0}
+{{{43,37}, 0,10,11}, 101,101,0}
+{{{43,30,38}, 0,10,11}, 141,142,1}
+"="
+{{{24}, 4,10,11}, 37,35,2}
+{{{24,43}, 4,10,11}, 89,88,1}
+{{{24,43,30}, 4,10,11}, 129,128,1}
+{{{4,43,30}, 4,10,11}, 107,108,1}
+{{{4,43,36}, 4,10,11}, 113,114,1}
+{{{24,43,30,38}, 4,10,11}, 176,176,0}
+{{{24,43,30,38,26}, 4,10,11}, 211,212,1}
+{{{43}, 4,10,11}, 54,54,0}
+{{{43,30}, 4,10,11}, 94,94,0}
+{{{43,37}, 4,10,11}, 101,101,0}
+{{{43,30,38}, 4,10,11}, 141,142,1}
+"="
+{{{24}, 26,9,12}, 37,38,1}
+{{{24,43}, 26,9,12}, 89,90,1}
+{{{24,43,30}, 26,9,12}, 129,129,0}
+{{{4,43,30}, 26,9,12}, 107,129,22}
+{{{4,43,36}, 26,9,12}, 113,135,22}
+{{{24,43,30,38}, 26,9,12}, 176,176,0}
+{{{24,43,30,38,26}, 26,9,12}, 211,211,0}
+{{{43}, 26,9,12}, 54,55,1}
+{{{43,30}, 26,9,12}, 94,94,0}
+{{{43,37}, 26,9,12}, 101,101,0}
+{{{43,30,38}, 26,9,12}, 141,141,0}
+{`be`, 8, {0,10,11}}
+{`me`, 5, {26,9,12}}
+
+<:
+{"be",8,{0,10,11}}
+{"me",5,{26,9,12}}
+<=:
+{"be",8,{4,10,11}}
+{"me",5,{26,9,12}}
+
+
+--*/
+
+--*/
+
+
+--  tabs = gTabs({"First","Second"}),
+--DEV from ini*5:
+    tabs = gTabs(tabitems,tabchanged,"SHOWCLOSE=YES"),
+--  tabs = gTabs({"First","Second"},"EXPAND=NO"),
+--  tabs = gTabs({"First","Second"},"EXPAND=NO,SIZE=x20"),
+--  edit = gList(get_data,"SIZE=100x100"),
+--  edit = gList(get_data), -- x1 taken over by the scrollbar!
+--  edit = gList(get_data,"EXPAND=BOTH"),   --DEV should be the default? [DONE]
+--  edit = gList(get_data,"EXPAND=BOTH, SIZE=100x100"),
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=x145`),
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=1035x145`),
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=1035x145, EXPAND=BOTH`),
+--  edit = gList(get_data,`FONT="Consolas, 12", EXPAND=BOTH`),
+--  edit = gList(get_data,`FONT="Consolas, 12", EXPAND=BOTH, SHOWDRAG=NO`),
+--  edit = gList(get_data),
+--DEV we need to save/restore these widths/heights too...
+--  edit = gList(get_data,"SIZE=65x70,BGCLR=SILVER,BGHOV=SILVER"), -- GRR/DEV
+    edit = gList(get_data,"SIZE=65x70"),
+--  edit = gList(get_data,"EXPAND=BOTH"),
+--  msga = gList(get_msgs,`FONT="Consolas, 12", EXPAND=BOTH, SHOWDRAG=NO`),
+--  msga = gList(get_msgs,`FONT="Consolas, 12", EXPAND=BOTH, SHOWDRAG=NO, VISIBLE=NO`),
+--  msga = gList(get_msgs),
+    msga = gList(get_msgs,"SIZE=x30"),
+--  msga = gList(get_msgs,"EXPAND=HORIZONTAL"),
+--  splt = gSplit(edit,msga),
+--  wwdw = gList(get_wmsg,`FONT="Consolas, 12", EXPAND=BOTH, SHOWDRAG=NO, VISIBLE=NO`),
+--  wwdw = gList(get_wmsg)
+    wwdw = gList(get_wmsg,"SIZE=35x")
+--  wwdw = gList(get_wmsg,"EXPAND=VERTICAL")
+    gSetAttributes({edit,msga,wwdw},`FONT="Consolas, 12", EXPAND=BOTH`)
+    gSetAttribute(tabs,"USER_DATA",edit)
+    gSetAttribute(edit,{`BGCLR`,`BGHOV`},TG_SILVER) --GRR/DEV [FIXED!]
+--  gSetAttributes(edit,`==`,{{`BGCLR`,TG_SILVER},{`BGHOV`,TG_SILVER}})
+--Maybe:
+--  gSetAttributes(edit,`@=`,{{`BGCLR`,`BGHOV`},TG_SILVER})
+--  gSetAttribute(edit,`BGCLR`,TG_SILVER)
+--  gSetAttribute(edit,`BGHOV`,TG_SILVER)
+    -- note: for obvious reasons this stops the editor going idle:
+    -- DEV: it should do the (exact) same timeout thing as hText.
+    gSetAttribute(edit,`CARET`,true)
+--erm, should be overidden/set by idle/new instead? (and switch tabs)
+    gSetAttribute(edit,`CURSORX`,1)
+    gSetAttribute(edit,`CURSORY`,1)
+    gSetAttribute(edit,`SELECTED`,1)
+    gSetAttributes({msga,wwdw},`VISIBLE=NO`)
+--DEV:
+watch_window = wwdw
+message_area = msga
+
+--gdx   emsp = gSplit(edit,msga,"FIX=2"),
+--gdx   splt = gSplit(gSplit(edit,msga,"FIX=2"),wwdw,"HORIZONTAL","FIX=2"),
+gdx splt = gSplit(gSplit(edit,msga),wwdw,"HORIZONTAL"),
+
+--  edit = gList(get_data,`FONT="Consolas, 12", SIZE=1035x550`),
+--  edit = gList(get_data,"EXPAND=VERTICAL"),
+--DEV deserves a wee bit of padding on the lhs? [hLabel?]
+--  stab = gLabel(" Line n of n, column n (status bar)","EXPAND=H, MARGIN={15,0,0,0}")
+--  stab = gLabel(" Line n of n, column n (status bar)","EXPAND=H, MARGIN={0,15,0,0}")
+--  stab = gLabel(" Line n of n, column n (status bar)","EXPAND=H, MARGIN=15")
+    stab = gLabel(" Line n of n, column n (status bar)","EXPAND=H")
+--  stab = gLabel("status bar","EXPAND=H, VISIBLE=NO"), -- crash (ah, it's not-yet-implemented, blanketwise) [DEV]
+--  stab = gLabel("status bar","SIZE=200x20"), 
+    -- ^more probably gHbox({lc,sep,move,sep,dt,sep,msg},"VISIBLE=%t",{visible})
+--  hbox = gVbox({tbar,tabs,edit}),
+--  vbox = gVbox({menu,hbox}),
+--  vbox = gVbox({menu,tbar,tabs,edit,stab}),
+
+--gdx status_bar
+function menu_handler(gdx menu, integer id, bool bHighlight)
+--DEV
+    if not bHighlight then
+        return click_handler(menu,id)
+    end if
+    string msg = ""
+    switch id do
+        -- aside: a few of these are "fake keycodes", eg
+        --        Alt K doesn't popopen the Case submenu,
+        --        or in fact do anything other than bell.
+        case MCTRL+'N':         msg = "Create a new empty file"
+        case MCTRL+'O':         msg = "Open an existing file"
+        case MCTRL+MSHIFT+'O':  msg = "Reopen the current file"
+        case MCTRL+'S':         msg = "Save the current file"
+        case MCTRL+MSHIFT+'A':  msg = "Save in a different/new file/directory"
+        case MCTRL+'T':         msg = "List open file tabs"
+        case MCTRL+VK_F4:       msg = "Close the current file"
+        case MCTRL+'P':         msg = "Print Preview the current file"
+        case MCTRL+MSHIFT+'P':  msg = "Print the current file"
+--"Report Painter",     M_File,F_RPaint,0,"WYSIWYG layout editor"
+--"Code Publisher",     M_File,F_Cpub,0,"Print/html-ise code"
+        case MALT+VK_F4:        msg = "Close/Shutdown the editor"
+        case MCTRL+'Z':         msg = "Undo the previous editing action"
+        case MCTRL+'Y':         msg = "Redo the last undone editing action"
+--,{"Bookmarks",            M_Edit,E_Book,0,"Bookmark functions"}
+        case MALT+'K':          msg = "Convert case of selected text"
+        case MALT+'U':          msg = "Convert to upper case"
+        case MALT+'L':          msg = "Convert to lower case"
+        case MALT+'I':          msg = "Invert case"
+        case MALT+MSHIFT+'U':   msg = "Capitalise each word"
+        case MALT+MSHIFT+'L':   msg = "Convert to sentence case"
+        case MALT+'C':          msg = "Clipboard functions"
+        case MCTRL+'X':         msg = "Delete current selection and place on clipboard"
+        case MCTRL+MSHIFT+'X':  msg = "Delete current selection and append to clipboard"
+        case MALT+MSHIFT+'X':   msg = "Delete current selection and prepend to clipboard"
+        case MCTRL+'C':         msg = "Copy the current selection to the clipboard"
+        case MCTRL+MSHIFT+'C':  msg = "Append the current selection to the clipboard"
+        case MALT+MSHIFT+'C':   msg = "Prepend the current selection to the clipboard"
+        case MCTRL+'V':         msg = "Insert the clipboard contents at the current location"
+        case MCTRL+'F':         msg = "Find (or replace) a specified string"
+        case VK_F3:             msg = "Find the next occurence of the last search string"
+        case MSHIFT+VK_F3:      msg = "Find the previous occurence of the last search string"
+        case MCTRL+'+':         msg = "Zoom In (Ctrl +)"
+        case MCTRL+'-':         msg = "Zoom Out (Ctrl -)"
+        case VK_F5:             msg = "Run (F5)"
+        case MCTRL+VK_F5:       msg = "Paramaterised Run (Ctrl F5)"
+        case MCTRL+'G':         msg = "Goto line number, or longest"
+        case MCTRL+'A':         msg = "Select the whole file"
+        case VK_F12:            msg = "Jump to error"
+--                                     {"&Compare",xpm("compare"),COMPARE:=$},
+--                                     {"&Directory Compare",xpm("dircomp"),DIRCOMP:=$},
+        case MCTRL+MSHIFT+'F':  msg = "Find In Files"
+--                                     {"&Htmlise eucode",xpm("htmlise"),HTMLISE:=$},
+--                                     {"Re-&Indent source",xpm("reindent"),REINDENT:=$},
+--                                     {"Co&mmon Code Analysis",xpm("cca"),CCA:=$},
+        case MCTRL+'Q':         msg = "Quick Jump"
+--                                     {"&Layout Designer",xpm("design"),DESIGN:=$},
+        case MCTRL+MSHIFT+'H':  msg = "Show spaces, tabs, and returns"
+        case MALT+MCTRL+MSHIFT+'Q': msg = "[Development aid]"
+        case MCTRL+VK_F6, 
+             MCTRL+VK_F7,
+             MCTRL+VK_F8,
+             MCTRL+VK_F9:       msg = "Save keystrokes"
+        case VK_F6,VK_F7,
+             VK_F8,VK_F9:       msg = "Replay keystrokes"
+        case MSHIFT+VK_F8:      msg = "Macro management"
+        case MALT+MCTRL+'B':    msg = "Set the backup configuration"
+        case MALT+MCTRL+'C':    msg = "Set the syntax highlighting colours"
+        case MALT+MCTRL+'F':    msg = "Set the font"
+        case MALT+MCTRL+'D':    msg = "Set the display options"
+        case MALT+MCTRL+'E':    msg = "Set the edit options"
+        case MCTRL+VK_F1:       msg = "Set the keyboard options"
+        case MCTRL+'L':         msg = "Toggle the file panel"
+--,{"File Panel\t(Ctrl L)", "Project/Directory/Recovery", watch window? [DEV - all trees?]
+        case MCTRL+'M':         msg = "Toggle the message area"
+        case MALT+MCTRL+'X':    msg = "Set up file extensions"
+
+--/*
+                            {"&Help",{{"&Context Help\tF1",xpm("help"),VK_F1},
+                                      {"phix.chm",xpm("phix"),H_PHIX:=$},
+                                      {"mini.chm",xpm("phix"),H_MINI:=$},
+                                      "|",
+                                      {"Phix Home Page",xpm("home"),H_HOME:=$},
+                                      {"Phix Licence",xpm("phix"),H_LICENCE:=$},
+                                      {"theEditor Manual",xpm("phix"),H_MAN:=$},
+                                      {"OpenEuphoria Forum",xpm("forum"),H_FORUM:=$},
+                                      {"Check for &Upgrades",xpm("upgrade"),H_UPGRADE:=$},
+                                      {"&About",xpm("about"),ABOUT:=$}}}}
+,{"Options",M_Main,M_Opts,0}
+,{"Auto Complete",  M_Opts,O_AutoC,0,"Auto Complete",                           PROC,r_toggleAutoComplete,{}}
+,{"Background Processing",M_Opts,O_BackG,0,"Housekeeping (keep on if possible)",PROC,r_toggleBackGround,{}}
+,{"Wordwrap\t(Alt W)",      M_Opts,O_Wwrap,0,"Wordwrap",PROC,r_toggleWordWrap,{}}
+,{"Reformat ex.err",        M_Opts,O_err,0,0,PROC,r_toggleErrFormat,{}}
+    
+,{"Context Help\t(F1)",         M_Help,H_Cntxt,0,"Context Help",V,0,{VK_F1,0,0}}
+,{"Keyboard Help\t(Ctrl F1)",   M_Help,H_Keys,0,"Keyboard Help",V,0,{VK_F1,1,0}}
+,{"Folds",      M_Ctxt,M_Fold,0,"Fold functions"}
+--*/
+    end switch
+    --DEV clobbers "Line n of n"...
+    gSetAttribute(stab,"TITLE"," "&msg)
+    return TG_IGNORE
+end function
+
+gdx menu = gMenu(MAIN_MENU,menu_handler),
+    vbox = gVbox({menu,tbar,tabs,splt,stab}),
+--  vbox = gVbox({tbar,tabs,edit,stab}),
+--  vbox = gVbox({menu,gVbox({tbar,tabs,edit,stab},"MARGIN=10")}),
+--  vbox = gVbox({menu,tbar,tabs,edit}),
+--  vbox = gVbox({menu,tbar,tabs}),
+--  vbox = gVbox({menu,tabs}),
+--  vbox = gVbox({menu}),
+--   dlg = gDialog(vbox,`theEditor`,`SIZE=500x300`,false)
+--   dlg = gDialog(vbox,`theEditor`,`SIZE=500x300`)
+--   dlg = gDialog(vbox,`theEditor`,`SIZE=600x300`) -- 602x312!? [DEV, below was x175, really...]
+--   dlg = gDialog(vbox,`theEditor`,`SIZE=600x300, MINSIZE=475x125`)
+     dlg = gDialog(vbox,`theEditor`,`SIZE=600x300, MINSIZE=560x200`)
+--   dlg = gDialog(vbox,`theEditor`,`SIZE=600x300, MINSIZE=560x200`,bEsc:=false)
+--Step 1: can we do this at all? - YES!
+--gMenuSetAttribute(menu,NEW,"IMAGE",fonts_xpm)
+gMenuSetAttribute(menu,MCTRL+VK_F1,"ACTIVE",platform()!=JS) -- keyboard options
+--DEV PREVIEW inactive is temp, others needed
+gMenuSetAttribute(menu,{MCTRL+'Z',MCTRL+'Y',MCTRL+'P'},"ACTIVE",false)
+
+gSetHandler(dlg,"KEY",key_handler)
+
+--function idle_action(gdx canvas)
+--function idle_action()
+function idle_action(gdx dlg)
+--?{"idle_action",gVersion(),time()}
+--  update_rxyz(canvas)
+--/* any, or >1 of these should do:
+    filepaths = repeat(0,l)
+--  filetext = repeat("loading XXX...",l)
+    filelinelengths = repeat(0,l)
+    filecursel = repeat(0,l)
+    bCfwds = repeat(0,l)
+    filedt = repeat(0,l)
+--*/
+    integer fdx = iff(currfile and bCfwds[currfile]=0?currfile:find(0,bCfwds))
+    if fdx then
+        if filedt[fdx]=0 then
+            string filename = join_path({filepaths[fdx],filenames[fdx]})
+            if get_file_type(filename)==FILETYPE_FILE then
+                filetext[fdx] = get_text(filename,GT_LF_STRIPPED)
+                filedt[fdx] = get_file_date(filename)
+            else
+                filetext[fdx] = {filenames[fdx] & ": no such file"}
+                filedt[fdx] = -1
+                bCfwds[fdx] = {}
+            end if
+        elsif filelinelengths[fdx]=0 then
+            filelinelengths[fdx] = apply(filetext[fdx],length)
+        elsif filemaxlen[fdx]=0 then
+            filemaxlen[fdx] = largest(filelinelengths[fdx],return_index:=true)
+        else
+--DEV (wrong place...?)
+            set_syntax(fdx)
+--</DEV>
+            rebuild_bcfwd(fdx)
+            newSyntax = 0 -- [force a reset in get_data()]
+        end if
+        if fdx=currfile then
+            gRedraw(dlg)
+        end if
+    else
+--?"idle done"
+        return TG_IGNORE -- all done, remove idle
+    end if
+    return TG_CONTINUE
+end function
+
+gShow(dlg)
+--?gGetGlobal("SCREENSIZE") -- {1920,1080}
+--?gGetAttribute(tabs,"ACTIVE") -- 1
+--  gSetGlobal("IDLE_ARGS",{canvas})
+--gSetGlobal("IDLE_ARGS",{dlg})
+--gSetGlobal("IDLE_ACTION",idle_action)
+gSetGlobal("IDLE_ACTION",{idle_action,{dlg}})
+
+gMainLoop()
+--?"done"
+--wait_key()
+
+--Need demos for: menus, taskbar/dropdown, tabs, canvas, splitter, treeview, listview(table), statusbar,
+--                file open/save, and I think that's just about it. Check pwa/p2js at each & every step.
+--Split eg eamenus.ew into eamenus.ew and xpmenus.e, both of which include menus.e, iyswim.
+--          In other words .ew starts to mean arwen-only, xp* means uses theGUI, others gui-agnostic.
+--          also start shifting whatever we can into edita.e
+
+--DEV:
+--gSetAttribute(BUTTON,"FLAT") not yet implemented
+--gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+--"tg_add_tabs"
+--WinAPI:
+--26 Tabs       0   0   0   0   0   0  99  25 29  {}         CF_MAPPED+CF_CONTAINER+CF_DECORATED
+
+--/*
+
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute(LABEL,"SEPARATOR","VERTICAL")...
+gSetAttribute(BUTTON,"FLAT") not yet implemented
+gSetAttribute[GTK](Box,"SIZE",{800,40})
+{"created button",79131008}
+{"realise",79131008}
+{"gtk_window_resize line 4592",79131008}
+
+
+--shame...
+--  Expediter: n. One employed to ensure the steady progress to completion of a project.
+
+--*/

@@ -1,0 +1,98 @@
+--
+-- demo\edix\theDebugger.exw
+-- -------------------------
+--
+--  A prototype debugger. The (fake) program being "debugged" is simply (say)
+--
+--      constant fake_src = split("""
+--      integer j               -- 1
+--      for i=1 to 2 do         -- 2
+--        j = i                 -- 3
+--      end for                 -- 4
+--      """)
+--
+--      procedure fake_run()
+--          create_var("j",NO_VALUE)
+--          create_var("i",1)
+--          for i in {2,3,4,3,4} do
+--              diag(i)
+--              -- and optionally eg/as messy as you need:
+--              if i=3 then set_var("j",get_var("i"))
+--              elsif i=4 then set_var("i",get_var("i")+1)
+--              end if
+--          end for
+--          diag(-9) -- (terminate fake run [maybe])
+--      end procedure
+--
+--  Ideally that should be extended with fake includes and fake scope... (somehow!)
+--      [quite probably literally scattered add_scope() and drop_scope() calls]
+--  create/get/set_var() are just trivial hll local table (fake-)lookup routines.
+--  There's no parsing/AST/il/asm etc here at all (yet). Yep, no asm, all in plain hll.
+--  The debugger relies on (and always has) embedded opLnt calling a hll diag() routine.
+--  Focus on (faking) reverse execution aka time travel debugging, and restart/restore.
+--  Each diag() causes a "stall" in the gui, not returning until advance/F7/F8/etc.
+--  Note that is incompatible with JavaScript, you'd have to re-jig it into a callback
+--                                of some kind that delivers the next diag() on demand.
+--      (realistically, very little chance any of this will ever work in a browser,
+--       certainly at least not without some ridiculously over-engineered pointless
+--       fetch source and save/fetch restore points mechanism to bypass CORS et al)
+--
+--  Clearly reverse execution is actually impossible, however imitating it is pretty 
+--  trivial, as long as there are some reasonably sensible and practical limitations:
+--      * you cannot step back where you've never been, or more than say 1000 times.
+--      * you have to restart to trap on a line earlier than where it first stopped.
+--      * you can show new variables at the execution tip, but not history not kept.
+--      * you have to restart to capture any variables not displayed the first time.
+--  The debugger keeps a suitably short mini-history of what it has displayed, and
+--    uses that to pretend, with the real program left stalled exactly where it is.
+--  Restart, especially after "editing the source", should be as slick as possible,
+--  restoring the watch window setup and similar automatically, however skipping the
+--  ~300 single-steps just done is a matter of commenting-out the existing trace(1)
+--  and inserting a new [conditional] one somewhere else, perhaps and only perhaps
+--  with the debugger helping out with those source code changes where it can.
+--  There isn't actually any "editing the source" feature in this prototype, o/c.
+--  Obviously when you're at the execution tip you can display any new variables you
+--  like, but after even a single reverse-step anything not already in the variable 
+--  history is shown as "n/a", and probably with a restart button flashing.
+--  In this program, the "execution tip" is simply "not yet returned from diag(i)",
+--  and program termination is quite simply "no diag()" === "no stall", though it
+--  does need an explict gHide() to close down the now-non-resposive debug window,
+--  assuming that is, it actually disables all inputs between steps, as it should.
+--
+--  First job: display syntax-coloured source code (why I'm doing it in demo\edix)
+--              (get theEditor.exw/src\synld.e to write stasyn.e, mainly for js)
+--
+include theGUI.e
+--include src\syasyn.e
+global sequence filetext, filenames, blockComment, lineComments, charMap, SynNames, Escapes,
+                EscapeLeadIns, bCfwds, ColourTab, wordChar, StyleTab, WordLists,
+                urlChar, Extensions, ExtensionNos, LineComments, BlockComments, charMaps,
+                colourTabs, styleTabs, NestedSyntax, BraceLevels, Sections, OperatorSets
+--C:\Program Files (x86)\Phix\demo\edix\src\synld.e:36 
+global constant Background=1, Comments=2, Highlight=3, HighLine=4, Strings=5, 
+                Illegals=6, Operators=7, URLs=8, Other=9,
+                Marginbg=10, Linenos=11, BookMarks=12
+global constant TokenStart = 1,
+                TokenChar   = 2,
+                TokenFirst = 3,
+                TokenLast   = 4,
+                OpenBrace   = 5,
+                CloseBrace = 6,
+                Whitespace = 7,
+                Delimiter   = 8,
+                Operator    = 9,
+                String  = 10,
+                Illegal = 11,
+                Comment = 12
+global integer newSyntax, nestedSyntax, CursorX, CursorY, currfile
+--DEV... (may as well just use/re-interpret these... no theGUI equivalents exist, see FONT) BLUFF!: TG_NORMAL, TG_ITALIC...
+global constant --CD_PLAIN = 0, -- == TG_NORMAL
+--              CD_BOLD = 1,    -- == TG_BOLD
+                CD_ITALIC = 2,  -- == TG_ITALIC
+--              CD_BOLD_ITALIC = 3
+--              CD_UNDERLINE = 4
+$
+global integer isTabWidth
+include src\tabs.e
+include src\bcfwd.e -- (new home for syntax_colour())
+

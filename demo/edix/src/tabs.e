@@ -1,5 +1,5 @@
 --
--- eatabs.e
+-- edix\src\tabs.e
 --
 -- ExpandTabs, ExpLength, MapToByte, CursorLeft, WordLeft, CursorRight, WordRight, initT, packTabs
 -- DEV ConvertTabs

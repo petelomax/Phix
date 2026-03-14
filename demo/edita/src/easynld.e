@@ -16,6 +16,7 @@ global sequence SynNames,       -- eg "Euphoria" (nb Phix uses "Euphoria")
                 LineComments,   -- eg {"--"}
                 BlockComments,  -- eg {"<!--","-->"}
                 AutoCompletes,  -- see eauto.e
+                NestedSyntax,   -- ???
                 EscapeLeadIns,  -- eg \         (quotes omitted for clarity)
                 Escapes,        -- eg nrt\'"    (           ""             )    
                 BraceLevels,    -- 1..9
@@ -289,6 +290,69 @@ integer lidx
     -- leave the remainder for Expect("#end AutoComplete")
 end procedure
 
+local function opening_set(string ebnf)
+--  if find('[',ebnf) then
+        if ebnf=`<script[_type="text/javascript"]>` then
+            return {`<script>`, `<script type="text/javascript">`}
+        end if
+--      ?9/0 -- unknown/unhandled enbf
+--  end if
+    assert(find(ebnf,{"#ilASM{","[ARM]","<?php","<style>"})) -- (those known)
+    return {ebnf} -- (assume just the one single exact terminal token)
+end function
+
+local function closing_set(string ebnf)
+    if find('[',ebnf) then
+        if ebnf="[[PE|ELF][32|64]]" then
+            -- just do it the easy way for now...
+            -- NB outer [] are literals, inner are BNF-like "optional", but
+            --     in practice this closing value is hard-coded in synld.e:
+            return {"[]","[32]","[64]",
+                    "[PE]","[PE32]","[PE64]",
+                    "[ELF]","[ELF32]","[ELF64]"}
+        elsif ebnf=`<script[_type="text/javascript"]>` then
+            return {`<script>`, `<script type="text/javascript"]>`}
+        end if
+        ?9/0 -- unknown/unhandled enbf
+    end if
+    assert(find(ebnf,{"?>","</script>","</style>","}"})) -- (those known)
+    return {ebnf} -- (assume just the one single exact terminal token)
+end function
+
+procedure loadNestedSyntax()
+    -- for now just stash everything, until we hit a '*', as string triplets
+    string line = ""
+    skipSpaces()
+    while 1 do
+        if ch='\n' then
+            sequence triplet = split(line,' ')
+            if length(triplet)!=3 then
+                fatal("bad Nested Syntax:`"&line&"`")
+                return
+            end if
+            line = ""
+--          triplet[2] = substitute(triplet[2],'_',' ')
+            triplet[2] = opening_set(triplet[2])
+--          triplet[3] = substitute(triplet[3],'_',' ')
+            triplet[3] = closing_set(triplet[3])
+            nestedSyntax = append(nestedSyntax,triplet)
+            skipSpaces()
+        end if
+        if ch='*' then exit end if
+        if ch=-1 then
+            fatal("**end NestedSyntax missing")
+            return
+        elsif ch!='\r' then
+            line &= ch
+        end if
+        ch = getc(f)
+    end while
+--DEV...
+    -- .. should end up with something like this:
+    --  css <style> </style>
+    --  nestedSyntax == {{"css","<style>","</style>"}}
+    -- leave the remainder for Expect("**end NestedSyntax")
+end procedure
 
 function Expect(sequence txt)
     if errorAlready then return (newSyntax!=1) end if
@@ -484,6 +548,7 @@ integer TokenType
     indentset = repeat({},4)
     newSections = standardThings
     autoComplete = {}
+    nestedSyntax = {}
     ColourTab = {}
 --defaultColourTab()    -- 4/7  StyleTab is left tiddly
     newWordLists = {}
@@ -638,6 +703,11 @@ integer TokenType
             if ch!='F' then exit end if
             if not ifItReallyIs("FileExtensions") then exit end if
         end while
+        if ch='N' then
+            if not Expect("NestedSyntax") then close(f) return end if
+            loadNestedSyntax()
+            if not Expect("**end NestedSyntax") then close(f) return end if
+        end if
 --      indentset=repeat({},4)
         if ch='I' then
             if not Expect("Indents") then close(f) return end if
@@ -741,6 +811,7 @@ if sectionNo<=0 then fatal("not allowed") close(f) return end if
         LineComments = append(LineComments,linecomment)
         BlockComments = append(BlockComments,blockcomment)
         AutoCompletes = append(AutoCompletes,autoComplete)
+        NestedSyntax = append(NestedSyntax,nestedSyntax)
         EscapeLeadIns = append(EscapeLeadIns,escapeLeadIn)
         Escapes = append(Escapes,escapes)
         BraceLevels &= bracelevel
@@ -871,6 +942,7 @@ integer len
     LineComments = {}
     BlockComments = {}
     AutoCompletes = {}
+    NestedSyntax = {}
     charMaps = {}
 
     colourTabs = {}

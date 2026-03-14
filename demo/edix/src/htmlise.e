@@ -214,7 +214,8 @@ integer wasSelON, offset, ch
                 elsif ch='<' and toClipBoard!=2 then addpCode("&lt;")
                 elsif ch='>' and toClipBoard!=2 then addpCode("&gt;")
                 elsif ch='~' and toClipBoard!=2 then addpCode("&tilde;")
-                elsif ch=''' and toClipBoard!=2 then addpCode("&rsquo;")
+--              elsif ch=''' and toClipBoard!=2 then addpCode("&rsquo;")
+                elsif ch=''' and toClipBoard!=2 then addpCode("&apos;")
                 else
 --                  if toClip then
                         r &= ch
@@ -595,6 +596,7 @@ procedure hemismatch(integer lineno, integer fileno)
 --                    sprintf("eucode/pre tag mismatch [line %d]",lineno),
 --                    0)
     IupMessage("Error","eucode/pre tag mismatch [line %d]",{lineno})
+--?9/0
     hEstate = -1
 end procedure
 

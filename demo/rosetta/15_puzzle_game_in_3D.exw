@@ -18,9 +18,50 @@
 --
 --/!*
 with javascript_semantics
-without debug
-requires("1.0.3")
-include xpGUI.e
+
+--without debug
+--requires("1.0.3")
+--requires(64,true) -- funny window size under GTK...
+--/* -- bad path (still xpGUI) caused this (on GTK3):
+'C:\Program Files (x86)\Phix\demo\theGUI\win_gtk64\lib\gio\modules\libgiognutls.dll': The specified module could not be found.
+Failed to load module: C:\Program Files (x86)\Phix\demo\theGUI\win_gtk64\lib\gio\modules\libgiognutls.dll
+The specific offenders were (maybe try loading them first...):
+C:\Program Files (x86)\Phix\demo\xpGUI\win_gtk32\libp11-kit-0.dll
+C:\Program Files (x86)\Phix\demo\xpGUI\win_gtk64\libgnutls-30.dll
+--*/
+puts(1,"")
+--include theGUI.e
+include ..\theGUI\hGUI.e -- fine!! (except for lm_dump_ctrls())
+gUseGTK()
+--constant use_pixbuf = false
+--constant use_pixbuf = true -- much better!! (but only WinAPI, not GTK2...)
+constant use_pixbuf = gVersion(-1)==TG_WINAPI -- that's it!
+
+--include ..\theGUI\xpg_xpm.e
+--include ..\theGUI\theGUI2.e -- no gCanvasPolygon, BGCLR, FGCLR, but FAST
+--include ..\theGUI\theGUI3.e -- no gCanvasPolygon, BGCLR, FGCLR, but FAST
+--include F:\misc\porn\2\13\backup.0002\theGUI.8759.e -- fast??
+-- AH! it is gCanvasPolygon() which has become unbearably slow...  UH, probably always was...
+--include F:\misc\porn\2\13\backup.0002\theGUI.6207.e -- SLOW, no BGCLR (and that's your lot!)
+--include F:\misc\porn\2\13\backup.0002\theGUI.6294.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup.0002\theGUI.7155.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup.0002\theGUI.8012.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup.0002\theGUI.8357.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup.0002\theGUI.8759.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.0003.e -- SLOW, no BGCLR, no gQuit?
+--include F:\misc\porn\2\13\backup\theGUI.0004.e -- SLOW, no BGCLR --X
+--include F:\misc\porn\2\13\backup\theGUI.0015.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.0017.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.0080.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.0318.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.0682.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.1147.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.2651.e -- SLOW, no BGCLR
+--include F:\misc\porn\2\13\backup\theGUI.3870.e -- SLOW
+--include ..\theGUI\backup\theGUI.0003.e -- SLOW
+--include ..\theGUI\backup\theGUI.0767.e -- SLOW
+--include ..\theGUI\backup\theGUI.2540.e -- SLOW
+
 include builtins\VM\pcmdlnN.e
 include builtins\pcurrdir.e
 include builtins\pgetpath.e
@@ -33,13 +74,13 @@ include builtins\scanf.e
 include builtins\pdir.e
 include builtins\penv.e
 with debug
---gUseGTK()
 
 constant title = "8 puzzle game in 3D",
          iterations_per_timeslice = 100_000 -- too low ==> too slow, but (obviously)
                                             -- too high ==> responsiveness:=sluggish
                                             -- 100K gives me around 20% CPU usage,
                                             -- that is, when in "thinking" mode.
+--DEV see if we can move these...
 gdx dlg, canvas
 --cdCanvas cd_canvas
 
@@ -68,29 +109,29 @@ constant corners = {{+l,+l,+l},     -- 1 (front top right)
 -- those match the above diagram, but of course they would be
 -- swapped were you looking "at" the face/rotated it by 180.
 
-constant faces = {{XPG_RED,          1,2,3,4},   -- right
-                  {XPG_YELLOW,       1,5,6,2},   -- top
-                  {XPG_DARK_GREEN,   1,4,8,5},   -- front
-                  {XPG_BLUE,         2,3,7,6},   -- back
-                  {XPG_WHITE,        3,4,8,7},   -- bottom
-                  {XPG_ORANGE,       8,7,6,5}}   -- left
+constant faces = {{TG_RED,           1,2,3,4},   -- right
+                  {TG_YELLOW,        1,5,6,2},   -- top
+                  {TG_DARK_GREEN,    1,4,8,5},   -- front
+                  {TG_BLUE,          2,3,7,6},   -- back
+                  {TG_WHITE,         3,4,8,7},   -- bottom
+                  {TG_ORANGE,        8,7,6,5}}   -- left
 
 -- <this bit not from DrawRotatingCube>
-constant colours = {XPG_TEAL,
-                    XPG_DARK_YELLOW,
-                    XPG_LIGHT_BLUE,
-                    XPG_INDIGO,
-                    XPG_ORANGE,
-                    XPG_PURPLE,
-                    XPG_MAGENTA,
-                    XPG_OLIVE,
-                    XPG_CYAN,
-                    XPG_YELLOW,
-                    XPG_BLUE,
-                    XPG_VIOLET,
-                    XPG_LIGHT_GREEN,
-                    XPG_NAVY,
-                    XPG_DARK_RED}
+constant colours = {TG_TEAL,
+                    TG_DARK_YELLOW,
+                    TG_LIGHT_BLUE,
+                    TG_INDIGO,
+                    TG_ORANGE,
+                    TG_PURPLE,
+                    TG_MAGENTA,
+                    TG_OLIVE,
+                    TG_CYAN,
+                    TG_YELLOW,
+                    TG_BLUE,
+                    TG_VIOLET,
+                    TG_LIGHT_GREEN,
+                    TG_NAVY,
+                    TG_DARK_RED}
 
 constant m = l/2, n = l/4, k = l/8
 -- (ps: the 6 has a curved/hooked top, whereas the 9 has a flat bottom.)
@@ -128,7 +169,7 @@ function rotate(sequence points, atom angle, integer axis)
 --
 -- rotate points by the specified angle about the given axis
 --
-    atom radians = angle*XPG_DEG2RAD,
+    atom radians = angle*TG_DEG2RAD,
          sin_t = sin(radians),
          cos_t = cos(radians)
     integer {nx,ny} = naxes[axis]
@@ -164,7 +205,10 @@ end function
 -- (this has has a scale added, which DrawRotatingCube.exw does not,
 --  plus the drawing of the digits on the faces is also new here.)
 
+gdp pid 
 procedure draw_cube(atom cx, cy, scale, integer digit)
+--DEV:
+--procedure draw_cube(gcp canvas, atom cx, cy, scale, integer digit)
     -- {cx,cy} is the centre point of the canvas
     -- A scale of 100 should draw ~2.5"/6cm cube on a 480x480 canvas
     -- digit can (now in fact) be 0..15, 0 draws a 1..6 standard dice
@@ -196,28 +240,42 @@ procedure draw_cube(atom cx, cy, scale, integer digit)
         integer fn = faceset[i][2]
         sequence face = faces[fn]
         integer clr = iff(digit?colours[digit]:face[1])
-        gSetAttribute(canvas,"FGCLR",clr)
---      gCanvasSetBackground(canvas,XPG_BLACK)
         -- first fill sides (with bresenham edges), then
         -- redraw edges, but anti-aliased aka smoother
 --      sequence modes = {CD_FILL,CD_CLOSED_LINES}
 --      for m=1 to length(modes) do
 --      for bFill in {true,false} do
 --          cdCanvasBegin(cd_canvas,modes[m])
-            sequence poly = {}
+            sequence poly = {}, pt
+--          sequence pt = points[face[5]]
+--          atom nx,ny,px = cx+pt[X],
+--                     py = cy+pt[Y]
+
             for fdx=2 to 5 do
-                sequence pt = points[face[fdx]]
+                pt = points[face[fdx]]
 --              cdCanvasVertex(cd_canvas,cx+pt[X],cy-pt[Y])
                 poly = append(poly,{cx+pt[X],cy-pt[Y]})
+--{nx,ny} = {cx+pt[X],cy-pt[Y]}
+--              gDrawLine(canvas,px,py,nx,ny)
+--{px,py} = {nx,ny}
             end for
 --          cdCanvasEnd(cd_canvas)
+if use_pixbuf then
+            gDrawPolygon(pid,poly,true,clr)
+            gDrawPolygon(pid,poly,false,TG_BLACK)
+else
+        gSetAttribute(canvas,"FGCLR",clr)
         for bFill in {true,false} do
-            gCanvasPolygon(canvas,poly,bFill)
---          gCanvasSetBackground(canvas,clr)
+--      for bFill in {false} do
+--          gDrawPolygon(canvas,poly)
+            gDrawPolygon(canvas,poly,bFill)
             gSetAttribute(canvas,"BGCLR",clr)
-            gSetAttribute(canvas,"FGCLR",XPG_BLACK)
+            gSetAttribute(canvas,"FGCLR",TG_BLACK)
         end for
+end if
 -- </DrawRotatingCube.exw>
+--          gSetAttribute(canvas,"FGCLR",TG_BLACK) -- nope! (but maybe, (if gdx)..)
+
         -- now draw the number(s) on the face
         integer d = iff(digit?digit:fn), skip_point = 0
         sequence dp, d2
@@ -246,11 +304,20 @@ procedure draw_cube(atom cx, cy, scale, integer digit)
         for l=2 to length(dp) do
             atom {x2,y2} = dp[l]
             if l!=skip_point then
-                gCanvasLine(canvas,cx+x1,cy-y1,cx+x2,cy-y2)
+if use_pixbuf then
+                gDrawLine(pid,cx+x1,cy-y1,cx+x2,cy-y2)
+else
+                gDrawLine(canvas,cx+x1,cy-y1,cx+x2,cy-y2)
+end if
             end if
             {x1,y1} = {x2,y2}
         end for
     end for
+end procedure
+
+procedure draw_cubeP(gdp piD, atom cx, cy, scale, integer digit)
+    pid = piD
+    draw_cube(cx, cy, scale, digit)
 end procedure
 
 -- <copied from demo\pGUI\r3d.exw>:
@@ -262,6 +329,7 @@ constant num = 90,  -- number of lines
 sequence stars = repeat({0,0,eye+1},num)
 
 procedure draw_stars(integer w, h)
+--procedure draw_stars(gdp pid integer w, h)
     atom w2 = w/2, h2 = h/2
     for i=1 to num do
         atom {x,y,z} = stars[i],
@@ -273,12 +341,33 @@ procedure draw_stars(integer w, h)
             stars[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
         else
             stars[i][Z] = z-dz
-            gSetAttribute(canvas,"FGCLR",iff(odd(i)?XPG_WHITE:XPG_YELLOW))
-            gCanvasLine(canvas,px,py,px2,py2)
+            gSetAttribute(canvas,"FGCLR",iff(odd(i)?TG_WHITE:TG_YELLOW))
+            gDrawLine(canvas,px,py,px2,py2)
+--          atom clr = iff(odd(i)?TG_WHITE:TG_YELLOW)
+--          gDrawLine(pid,px,py,px2,py2,clr)
+        end if
+    end for
+end procedure
+
+procedure draw_starsP(gdp pid, integer w, h)
+    atom w2 = w/2, h2 = h/2
+    for i=1 to num do
+        atom {x,y,z} = stars[i],
+             px = (eye/z*x)+w2,
+             py = (eye/z*y)+h2,
+             px2 = (eye/(z+250)*x)+w2,
+             py2 = (eye/(z+250)*y)+h2
+        if z<eye or abs(px)>w or abs(py)>h then
+            stars[i] = {(rnd()-0.5)*w*2,(rnd()-0.5)*h*2,rand(dist)}
+        else
+            stars[i][Z] = z-dz
+            atom clr = iff(odd(i)?TG_WHITE:TG_YELLOW)
+            gDrawLine(pid,px,py,px2,py2,clr)
         end if
     end for
 end procedure
 --</r3d.exw>
+
 
 --<from demo/rosetta/Solve15puzzle_simple.exw>
 enum left, down, up, right  -- (nb 5-move flips it, as in down===5-up, etc)
@@ -466,6 +555,7 @@ procedure reset()
 end procedure
 
 procedure canvas_redraw(gdx canvas)
+--?"redraw"
 --  cdCanvasActivate(cd_canvas)
 --  cdCanvasClear(cd_canvas)
 --  integer {w, h} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
@@ -475,7 +565,14 @@ procedure canvas_redraw(gdx canvas)
          cy = h/2,
          dxy = min(w,h)/N,
          size = dxy/4.5
-    draw_stars(w,h)
+--  gdp pid = gPixbuf(w,h,TG_BLACK)
+    gdp pid
+    if use_pixbuf then
+        pid = gPixbuf(w,h,TG_BLACK)
+        draw_starsP(pid,w,h)
+    else
+        draw_stars(w,h)
+    end if
 --?board
     for i=1 to N2 do
         integer bi = board[i]
@@ -487,35 +584,26 @@ procedure canvas_redraw(gdx canvas)
             rz = mod(rz+0.75*r,360)
             rxyz[bi] = {rx,ry,rz,r}
 --          draw_cube(cx+dx*dxy,cy-dy*dxy,size,bi)
+if use_pixbuf then
+            draw_cubeP(pid,cx+dx*dxy,cy+dy*dxy,size,bi)
+else
             draw_cube(cx+dx*dxy,cy+dy*dxy,size,bi)
+end if
         end if
     end for
+    if use_pixbuf then
+        gdm image = gImage_from_Pixbuf(pid)
+        gDrawImage(image,canvas)
+        {} = gImageDestroy(image) 
+    end if
     --cdCanvasFlush(cd_canvas)
     gSetAttribute(dlg,"TITLE",set_title())
+--?"<redraw"
 end procedure
 
---function canvas_map_cb(gdx canvas)
---  IupGLMakeCurrent(canvas)
---  if platform()=JS then
---      cd_canvas = cdCreateCanvas(CD_IUP, canvas)
---  else
---      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---      cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
---  end if
---  gCanvasSetBackground(cd_canvas, XPG_BLACK)
---  return XPG_DEFAULT
---end function
-
---function canvas_resize_cb(gdx /*canvas*/)
---  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
---  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---  cdCanvasSetAttribute(cd_canvas, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
---  return XPG_DEFAULT
---end function
-
 function key_handler(gdx ih, integer c)
---  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
---  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+--  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
     --
     -- aside: the precise mapping of enums/VK_XXX/"ludr" is semi-ad-hoc,
     --        aka I'm not wasting any effort enforcing strict coherence
@@ -539,32 +627,28 @@ function key_handler(gdx ih, integer c)
     end if
     move(k)     -- (move(0) does nowt)
     gRedraw(ih)
---  return XPG_IGNORE
-    return XPG_DEFAULT
+--  return TG_IGNORE
+    return TG_DEFAULT
 end function
 
 procedure timer_cb(gdx /*ih*/)
-?{"timer",time()}
     if solve_state!=SOLVED then
         iterative_solve()
     end if
     gRedraw(canvas,0)
---  return XPG_IGNORE
 end procedure
 
 procedure main()
     
     reset()
     canvas = gCanvas("SIZE=640x480")
---  gCanvasSetBackground(canvas, XPG_BLACK)
-    gSetAttribute(canvas,"BGCLR",XPG_BLACK)
+    gSetAttribute(canvas,"BGCLR",TG_BLACK)
+--DEV try using a pixbuf instead... [DONE]
+--  gSetAttribute(canvas,"WU_BLEND",true)
     gSetHandlers(canvas, {"REDRAW", canvas_redraw,
---                           ?MAP_CB?[DEAD], canvas_map_cb,
---                           "RESIZE[*charsize]_CB", canvas_resize_cb,
                           "KEY", key_handler})
     dlg = gDialog(canvas,title)
     gShow(dlg)
---  gSetAttribute(canvas, "SIZE", NULL)
     gdx hTimer = gTimer(timer_cb, 30, true)
     gMainLoop()
 end procedure

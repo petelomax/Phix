@@ -23,19 +23,19 @@ So the aim is 21 (doh), and before that 17, 13, 9, 5, and 1. Anything else loses
 integer total = 0
 
 requires("1.0.3")
-include xpGUI.e
+include theGUI.e
 gdx dlg, vbox, lbl, frame, radios, playstate
 sequence radioset, buttons
 
 function show_help()
 --  IupMessage(title,help_text)
     ?{"IupMessage",title,help_text}
-    return XPG_IGNORE -- (don't open browser help!)
+    return TG_IGNORE -- (don't open browser help!)
 end function
 
 function play(integer n)
     if n!=0 then
-        if n=6 then return XPG_CLOSE end if
+        if n=6 then return TG_CLOSE end if
         string title
         if n>3 then
             -- concede or new_game
@@ -54,7 +54,7 @@ function play(integer n)
             title = sprintf("Total is %d",total)
             if total=21      -- (from key_cb)
             or total+n>21 then -- (invalid)
-                return XPG_DEFAULT
+                return TG_DEFAULT
             end if
             total += n
             title &= sprintf(", you play %d (-> %d),",{n,total})
@@ -83,32 +83,36 @@ function play(integer n)
         end if      
 --DEV??
 --      gSetFocus(dlg) -- (stops inactive button beeping)
+?title
         gSetAttribute(playstate,"TITLE",title)
+        gRedraw(playstate)
     end if
 --gRedraw(dlg) -- (no help)
-    return XPG_DEFAULT
+    return TG_DEFAULT
 end function
 
 function button_cb(gdx ih)
     string title = gGetAttribute(ih,"TITLE")
+?title
     return play(find(title,button_text))
 end function
 constant cb_button = button_cb
 
 function key_cb(gdx /*dlg*/, integer c)
-    if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
-    if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+    if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+    if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
     if c=VK_F1 then return show_help() end if
     return play(find(upper(c),"123CNQ"))
 end function
 
 
 --playstate = gLabel("","EXPAND=HORIZONTAL, PADDING=10x10")
-playstate = gLabel("","EXPAND=HORIZONTAL, MARGIN=10x10")
+playstate = gLabel("asdpij","EXPAND=HORIZONTAL, MARGIN=10x10")
 --radioset = apply(true,gCheckbox,{radio_texts,{"RIGHTBUTTON=YES, CANFOCUS=NO"}})
 --radioset = apply(true,gCheckbox,{radio_texts,{"RIGHTBUTTON=YES"}})
 radioset = apply(true,gCheckbox,{radio_texts})
-buttons = apply(true,gButton,{button_text,cb_button,{"PADDING=5x5"}})
+--buttons = apply(true,gButton,{button_text,cb_button,{"PADDING=5x5"}})
+buttons = apply(true,gButton,{button_text,cb_button,{"MARGIN=5x5"}})
 radios = gHbox(radioset,"GAP=45")
 gRadio(radioset)
 --frame = gHbox({gLabel(`First Player:`),radios},"NORMALIZESIZE[*charsize]=VERTICAL")

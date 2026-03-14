@@ -59,6 +59,8 @@
 
 global sequence autoComplete        -- set by changeTo() and below
 
+global sequence nestedSyntax        -- [wrong place, but unused anyway...]
+
 global constant acWHITESPACE=-3,
                 acCOMMA=-2,                 -- actually, ( or ,
                 acEOL=-1,
