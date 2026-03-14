@@ -46,7 +46,7 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
         //  though factors(0|1,-9) can be used to change that behaviour)
         crash("argument to %s() exceeds maximum precision",["sequence",called_from],3);
     }
-}
+} $check_limits.$sig="PNS";
 //include primes.e
 
 //global function prime_factors(atom n, bool duplicates=false, integer maxprime=100)
@@ -105,7 +105,7 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
     }
     if (duplicates===3) { return fc; }
     return pfactors;
-}
+} prime_factors.$sig="FNII,1";
 
 /*global*/ function prime_powers(/*atom*/ n) {
 //
@@ -155,7 +155,7 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
     end if
     return res
 */
-}
+} prime_powers.$sig="FN";
 
 /*global*/ function factors(/*atom*/ n, /*object*/ include1=0) {
 //
@@ -236,11 +236,11 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
     }
     lfactors = $conCat(lfactors, hfactors, false);
     return lfactors;
-}
+} factors.$sig="FNO,1";
 
 /*global*/ function factor_count(/*atom*/ n) {
     return prime_factors(n,3,-1);
-}
+} factor_count.$sig="FN";
 
 /*global*/ function factor_sum(/*atom*/ n) {
     // credit: https://mathschallenge.net/index.php?section=faq&ref=number/sum_of_divisors
@@ -254,7 +254,7 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
         res *= (power(p,q+1)-1)/(p-1);
     }
     return res;
-}
+} factor_sum.$sig="FN";
 
 /*global*/ function square_free(/*atom*/ n, /*integer*/ maxprime=100) {
 // returns true if prime_factors(n,duplicates:=true,maxprime) would contain no duplicates
@@ -276,7 +276,7 @@ function $check_limits(/*atom*/ n, /*string*/ called_from) {
         p = get_prime(pn);
     }
     return true;
-}
+} square_free.$sig="FNI,1";
 /* 29/10/22 merged with is_prime2(), for best of both
 --global function is_prime(atom n)
 --  if n<2 then return false end if

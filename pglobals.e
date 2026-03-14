@@ -37,7 +37,8 @@ global constant newEBP = 04 -- 4=on, 0=off(ie old style/working)
 --global constant pxversion = {1,0,2},  -- 1.0.2    -- 26/02/23
 --global constant pxversion = {1,0,3},  -- 1.0.3    -- 07/08/23
 --global constant pxversion = {1,0,4},  -- 1.0.4    -- 23/12/23
-global constant phixversion = {1,0,5},  -- 1.0.5    -- 01/06/24
+--global constant pxversion = {1,0,5},  -- 1.0.5    -- 01/06/24
+global constant phixversion = {1,0,6},  -- 1.0.6    -- 01/12/25
                 phixverstr = sprintf("%d.%d.%d",phixversion)
 sequence phixver = phixversion  -- (debug aid, otherwise unused)
 if sequence(phixver) then end if
@@ -430,7 +431,7 @@ global constant gType = 1,  -- T_integer..T_object, or 0 for "we don't know yet"
 --  For builtin types, this is 1..15, see T_integer..T_object below,
 --   and/or psym.e/syminit(). Note these are carefully arranged as a
 --   bit-pattern so that or_bits/and_bits/not_bits can be used on them.
---  For user defined types, this is the routine no of the type check
+--  For user defined types, this is the routine no of the typecheck
 --   routine, typically say 385..20,000. Use rootType() to discover
 --   the underlying builtin type.
 --
@@ -440,7 +441,7 @@ global constant gType = 1,  -- T_integer..T_object, or 0 for "we don't know yet"
 --      3.0 (for example) is stored as the integer 3 for performance,
 --          eg find(3,blah) does not have to check for 3 or 3.0, and
 --          "if f=3" can just cmp rather than cmp/fld/fcomp/fnstsw.
---      1.5+1.5 ought to type check if stored in a T_N variable.
+--      1.5+1.5 ought to typecheck if stored in a T_N variable.
 --  Likewise other dummy internal types are not available since they
 --   would cause far more confusion than be of any help.
 --
@@ -701,6 +702,7 @@ global integer T_ptr = 0,
                T_platform = 0,
                T_machine_bits = 0,
                T_machine_word = 0,
+               T_source_line = 0,
                Z_version = 0,       -- (T_version used in format)
 --             Z_requires = 0,      -- (consistent with T_version)
                T_min = 0,
@@ -717,6 +719,14 @@ global integer T_ptr = 0,
                T_extend_struct = 0,
 --             T_field_type = 0,
                T_fetch_field = 0,
+               T_set_ignore_atom = 0,
+               T_add_member = 0,
+               T_add_members = 0,
+               T_remove_member = 0,
+               T_remove_members = 0,
+               T_union = 0,
+               T_intersect = 0,
+               T_difference = 0,
                T_store_field = 0,
                T_store_field_element = 0,
                Z_struct = 0,

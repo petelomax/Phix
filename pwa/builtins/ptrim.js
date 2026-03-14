@@ -44,9 +44,11 @@
         } else if ((lpos!==1) || (!equal(rpos,length(source)))) {
             source = $subss(source,lpos,rpos);
         }
+    } else if (return_index) {
+        return 0;
     }
     return source;
-}
+} trim.$sig="FOOI,1";
 
 /*global*/ function trim_head(/*object*/ source, /*object*/ what=" \t\r\n", /*bool*/ return_index=false) {
 //global function trim_head(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
@@ -58,9 +60,11 @@
         } else if (lpos!==1) {
             source = $subss(source,lpos,-1);
         }
+    } else if (return_index) {
+        return 0;
     }
     return source;
-}
+} trim_head.$sig="FOOI,1";
 
 /*global*/ function trim_tail(/*object*/ source, /*object*/ what=" \t\r\n", /*bool*/ return_index=false) {
 //global function trim_tail(object source, object what={' ','\t','\r','\n'}, bool return_index=false)
@@ -74,9 +78,11 @@
         } else if (compare(rpos,length(source))<0) {
             source = $subss(source,1,rpos);
         }
+    } else if (return_index) {
+        return 0;
     }
     return source;
-}
+} trim_tail.$sig="FOOI,1";
 
 /*global*/ function shorten(/*sequence*/ s, /*string*/ what="digits", /*integer*/ ml=20, /*string*/ fmt="") {
     let /*integer*/ l = length(s), 
@@ -118,4 +124,4 @@
         }
     }
     return s;
-}
+} shorten.$sig="FPSIS,1";

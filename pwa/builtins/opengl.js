@@ -13,7 +13,7 @@ function glSimpleA7texcoords(/*integer*/ faces) {
     // (nb expressly ask flatten for a dword-sequence, not a string)
 //  return flatten(repeat(["sequence", 1,0, 1,1, 0,0,  1,1, 0,1, 0,0],faces),["sequence"]);     // (desktop)
     return flatten(repeat(["sequence", 1,1, 1,0, 0,1,  1,0, 0,0, 0,1],faces),["sequence"]);     // (browser)
-}
+} glSimpleA7texcoords.$sig="FI";
 
 
 /*

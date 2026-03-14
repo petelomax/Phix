@@ -1,4 +1,4 @@
-﻿<head>
+<head>
  <body>
   <toc>
    <these>
@@ -13,12 +13,13 @@
           <b>Definition:</b>
          </td>
          <td>
-          include xpGUI.e
+          include theGUI.e
           <br>
           <br>
-          gSetAttribute(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name, 
-                                                      <a href="object.htm">object</a> v,
-                                                      <a href="sequence.htm">sequence</a> args={})
+          gSetAttribute(<a href>gdx</a> id, <a href>sequence</a> name, 
+                                            <a href>object</a> v,
+                                            <a href>sequence</a> args={}<small>,
+                                            <a href>integer</a> nFrames=1</small>)
          </td>
         </tr>
         <tr>
@@ -26,13 +27,15 @@
           <b>Description:</b>
          </td>
          <td>
-          Sets an interface element attribute.
+          Set a single attribute on one or more interface elements, or several attributes to the same value.
           <br>
           <br>
-          id: Identifier(s) of the interface element, may <i>not</i> be NULL, or contain any embedded NULLs.<br>
-          name: name of the attribute, usually a literal string such as "SIZE", several more examples below.<br>
-          v: value of the attribute. If NULL the default setting will be used (at least in most cases).<br>
-          args: (optional) if not {} then <nobr>v = <a href="sprintf.htm">sprintf</a>(v,args)</code></nobr> is performed.
+          id: Identifier(s) of the interface element, may <i>not</i> be <a href>NULL</a>, or contain any embedded nulls.<br>
+          name: name of the attribute[s], usually a literal string such as "SIZE", several more examples below.<br>
+          v: value of the attribute. If <a href>NULL</a> the default setting will be used (at least in most cases).<br>
+          args: (optional) if not {} then <nobr>v = <a href>sprintf</a>(v,args)</code></nobr> is performed.<br>
+          <small>nFrames: Fine grained control for error handling, intended for internal use.</small>
+          <br>
          </td>
         </tr>
         <tr>
@@ -41,7 +44,7 @@
           <span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Supported.
+          Supported <small>(except for nFrames which is simply ignored)</small>.
           <!--
 //       Note that under pwa/p2js there is no distinction between IupSetAttribute() and IupSetStrAttribute(), largely due to the
           fact that everything is mapped to JavaScript attributes and CSS style settings. I suppose that means there could be some desktop/Phix
@@ -53,7 +56,7 @@
 //        IupSet[Str]Attribute(), and IupGetAttributePtr() will crash rather than fail should there have been no prior corresponding 
 //        invocation of IupSetAttributePtr(), or perhaps gSetHandler() and similar. Said crash may or may not be replaced with (say)
 //
-          <code>return NULL;</code>, as further implementation and refinement of pGUI.js progresses, and as needs demand.
+//        <code>return NULL;</code>, as further implementation and refinement of pGUI.js progresses, and as needs demand.
 -->
          </td>
         </tr>
@@ -63,24 +66,33 @@
          </td>
          <td>
           Note that, unlike say <a href="gSetHandler.htm">gSetHandler[s]</a>(), the "with-s" version of this routine, ie
-          <a href="gSetAttributes.htm">gSetAttributes</a>(), has a different purpose/api, being multiple attributes in one string, 
-          the common implementation of inlined attributes as part of most interface element creation routines, and in fact invokes 
-          this routine multiple times, whereas this "without-s" version sets a single attribute, potentially to a non-string value, 
-          and with both being able to apply said to one or more elements.
+          <a href>gSetAttributes</a>(), has a different purpose/api, being multiple attributes with a different
+          value for each in one call, the common implementation of inlined attributes as part of most interface element creation routines, 
+          and in fact invokes this routine multiple times, whereas this "without-s" version sets one or more attributes to the same
+          value, with both being able to apply said to one or more elements. It is also fair to say this routine&apos;s second parameter 
+          should <i>not</i> contain any '=', whereas that of <a href="gSetAttributes.htm">gSetAttribute<i><b>s</b></i></a>() <i>must</i>.
+<!--
+          If names is not a string but instead a (flat) sequence of them, each is set to the same value, as specified in v.
+-->
           <br>
           <br>
           When args is not {}, the implicit sprintf obviously crashes when v is not string, contains bad format specifiers, etc.<br>
-          Otherwise v can be anything, including integer, atom, string, [nested] sequence, or an equivalent string representation, eg:
+          Otherwise v can be anything, including integer, atom, string, [nested] sequence, or an equivalent string, eg:
           <br>
+          <br>
+            <small>
 <!--eucode>
         integer w = 100, h = 180
         gSetAttribute(id,"SIZE",{w,h})
         gSetAttribute(id,"SIZE","%dx%d",{w,h})
         gSetAttributes(id,"SIZE=%dx%d",{w,h})
         gSetAttribute(id,"SIZE",{100,180})
-        gSetAttribute({id},"SIZE",{100,180})
         gSetAttribute(id,"SIZE","100x180")
         gSetAttribute(id,"SIZE","{100,180}")
+        gSetAttribute(id,{"SIZE"},{100,180})
+        gSetAttribute({id},"SIZE",{100,180})
+        gSetAttribute({id},{"SIZE"},{100,180})
+        gSetAttributes(id,"==",{"SIZE",{100,180}})
         gSetAttributes(id,"SIZE={100,180}")
         gSetAttributes(id,"SIZE=100x180")
 </eucode-->
@@ -90,40 +102,47 @@
 <font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"%dx%d"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE=%dx%d"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
-<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">id</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"100x180"</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008000">"{100,180}"</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"SIZE"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">id</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">id</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"SIZE"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"=="</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#000000">180</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE={100,180}"</font><font color="#0000FF">)</font>
 <font color="#7060A8">        gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"SIZE=100x180"</font><font color="#0000FF">)</font>
 </pre>
-          <small><i>(obviously that&rsquo;s nine slightly different ways to achieve exactly the same thing,
-           <br>
-           the first being the fastest, inlined like the last generally the neatest overall code.)</i>
+            </small>
+          <br>
+          <small><i>(obviously that&apos;s twelve slightly different ways to achieve exactly the same thing, <br>
+               &nbsp;the first being the fastest, inlined like the last generally the neatest overall code, <br>
+               &nbsp;and the aim is to nit-pick over the petty details as little as possible, not confuse, <br>
+               &nbsp;or in other words let you code[/store] things in the way that feels most natural)</i>
           </small>
+          <br><a name=gSetInt></a><a name=gSetDouble></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Aliases:</b>
+         </td>
+         <td>
+            The following aliases can be used for a clearer statement of intent and to make the code a little more self-documenting:
           <br>
           <br>
-          You can also use the following near-aliases:
+          <b>gSetInt</b>(<a href>gdx</a> id, <a href>string</a> name, <a href>integer</a> i)
           <br>
-          <a name=gSetInt></a>
-          <br>
-          <b>gSetInt</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name, <a href="integer.htm">integer</a> i)
-          <br>
-          <a name=gSetDouble></a>
-          <b>gSetDouble</b>(<a href="gdx.htm">gdx</a> id, <a href="string.htm">string</a> name, <a href="atom.htm">atom</a> a)
+          <b>gSetDouble</b>(<a href>gdx</a> id, <a href>string</a> name, <a href>atom</a> a)
           <br>
           <br>
           Apart from the tighter validation of the third parameter (on desktop/Phix only), and perhaps more crucially a clearer declaration 
           of intent which can help make the code a bit more self-documenting, they behave identically to gSetAttribute().
           <!-- [DEV I might yet change my mind about this...] -->
           Since JavaScript is a <a href="glossary.htm#typeless">typeless</a> language, under 
-          <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, there isn&rsquo;t 
-          actually any additional validation (not that I&rsquo;d struggle to add some), and 
-          for now they really are just pure aliases.
-          <small>[While there <i>is</i> a <a href="gGetAttribute.htm#gGetIntInt">gGetIntInt</a>(), there is no gSetIntInt(), as yet.]</small>
+          <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>, there isn&apos;t 
+          actually any additional validation (not that I&apos;d struggle to add some), and 
+          for now they really are just pure aliases. Similar aliases exist for <a href="gGetAttribute.htm#gGetInt">gGetAttribute</a>.
+          <small>[While there <i>is</i> a <a href>gGetIntInt</a>(), there is no gSetIntInt(), as yet.]</small>
           <br>
-          <a name=gToggleInt></a>
-          <br>
-          For boolean attributes <b>gToggleInt</b>(id,"NAME") can be used instead of <nobr>gSetInt(id,"NAME",not gGetInt(id,"NAME"))</nobr>.
          </td>
         </tr>
         <tr>
@@ -158,17 +177,34 @@ gSetAttribute({b_cut,b_copy,m_cut,m_copy}, "ACTIVE", selected_text!={})
         </tr>
         <tr>
          <td>
+          <b>Example 3:</b>
+         </td>
+         <td>
+<!--eucode>
+-- Set several attributes (on one or more controls) to the same value
+gSetAttribute(list, {"ACTIVE","CANFOCUS","CARET","MULTIPLE"}, false)
+</eucode-->
+<pre>
+<font color="#000080"><i>-- Set several attributes (on one or more controls) to the same value</i></font>
+<font color="#7060A8">gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#008000">"ACTIVE"</font><font color="#0000FF">,</font><font color="#008000">"CANFOCUS"</font><font color="#0000FF">,</font><font color="#008000">"CARET"</font><font color="#0000FF">,</font><font color="#008000">"MULTIPLE"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600"> false</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>See Also:</b>
          </td>
          <td>
-          <a href="gSetHandler.htm">gSetHandler</a>,
-          <a href="gGetAttribute.htm">gGetAttribute</a>,
-          <a href="gSetAttributes.htm">gSetAttributes</a>,
-          <!--          <a href="IupGetAllAttributes.htm">IupGetAllAttributes</a>,-->
-          <a href="gSetGlobal.htm">gSetGlobal</a>,
-          <a href="gGetGlobal.htm">gGetGlobal</a>
-          <br>
-          <a name=COMMON></a>
+          <a href>gSetHandler</a>,
+          <a href>gGetAttribute</a>,
+          <a href>gSetAttributes</a>,
+          <!--          <a href>IupGetAllAttributes</a>,-->
+          <a href>gSetGlobal</a>,
+          <a href>gGetGlobal</a>,
+          <a href>GAP</a>,
+          <a href>SPACE</a>, or the full list <a href="#All" onclick="opentech()">here</a>.
+
+          <br><a name=COMMON></a>
          </td>
         </tr>
         <tr>
@@ -178,8 +214,7 @@ gSetAttribute({b_cut,b_copy,m_cut,m_copy}, "ACTIVE", selected_text!={})
          <td>
           The following attributes are common to several controls/interface element types.<br>
           See also <a href="gGetAttribute.htm#COMMON">gGetAttribute</a> for some other common read-only attributes.
-          <br>
-          <a name=ACTIVE></a>
+          <br><a name=ACTIVE></a>
          </td>
         </tr>
         <tr>
@@ -187,24 +222,28 @@ gSetAttribute({b_cut,b_copy,m_cut,m_copy}, "ACTIVE", selected_text!={})
           ACTIVE
          </td>
          <td>
-          (inherited) Activates or inhibits user interaction. Value <a href="logicops.htm#tf">true</a>/"YES" (active), 
-          <a href="logicops.htm#tf">false</a>/"NO" (inactive). Default: <a href="logicops.htm#tf">true</a>.
+<!--          (not inherited, but parent-dependant) -->
+          (inherited) Activates or inhibits user interaction. Value <a href>true</a>/"YES" (active/default), 
+          <a href>false</a>/"NO" (inactive). <!--Default: <a href>true</a>.-->
+          <br>
+          An interface element is only active if all parents up to and including the dialog are also active.<br>
+<!--
+          Setting this to false on a container does <i>not</i> (actually) override the setting of any children,
+          in order for everything to be restored as expected, should said container later be made active again,
+          however fetching it performs the appropriate parent-scan for you.<br>
+          ACTIVE c-->
+          Can also be set for non-interactive controls and may affect their visual feedback.
           <br>
           <!--
-//          Alternatively, <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>() and <a href="IupGetAttribute.htm#utility">IupGetInt</a>()
-//          can be used with true/false, or <a href="IupSetStrAttribute.htm#utility">IupToggleInt</a>().
+//          Alternatively, <a href>IupSetInt</a>() and <a href>IupGetInt</a>()
+//          can be used with true/false, or <a href>IupToggleInt</a>().
           <br>
 -->
-          An interface element is only active if its native parent is also active.
-          <br>
-          ACTIVE can also be set for non-interactive controls and may affect their visual feedback.
-          <br>
           <!-- ??
             In GTK the inactive dialogs will still be able to move, resize and change their Z-order.<br>
 -->
           Affects: All controls that have visual representation.
-          <br>
-          <a name=BGCLR></a>
+          <br><a name=BGCLR></a>
          </td>
         </tr>
         <tr>
@@ -212,71 +251,85 @@ gSetAttribute({b_cut,b_copy,m_cut,m_copy}, "ACTIVE", selected_text!={})
           BGCLR
          </td>
          <td>
-          The interface element&rsquo;s background color, eg <a href="gCanvas.htm#XPG_colours">XPG_WHITE</a>.<br>
-          If not specified, the native colour from the underlying backend (GTK/WinAPI/HTML) is used.<br>
-          On a <a href="gCanvas.htm">gCanvas</a> this is used to clear before each <a href="gCanvas.htm#REDRAW">REDRAW</a>, and
-          hence should be set outside that handler.<br>
-          The aliases BGCOLOR and BGCOLOUR can also be used.
-          <!--
-//          <br>
-//
-          <br>
-//Maybe this should replace that...
-//          On a <a href="gCanvas.htm">gCanvas</a>, and hence <a href="gGraph.htm">gGraph</a>, <a href="gList.htm">gList</a>, and 
-//          <a href="gTable.htm">gTable</a>, equivalent to <a href="gCanvas.htm#gCanvasSetBackground.htm">gCanvasSetBackground</a>().
+          (container-inherited) The interface element&apos;s background colour, eg <a href>TG_WHITE</a>.<br>
+<!--          If not specified, an appropriate colour to match underlying backend (GTK/WinAPI/HTML) is used.<br>-->
+          Not inherited by 
+          <a href>gButton</a>,
+          <a href>gDatePick</a>,
+          <a href>gDropDown</a>,
+          <a href>gList</a>,
+          <a href>gMenu</a>,
+          <a href>gProgressBar</a>,
+          <a href>gSpin</a>, or
+          <a href>gText</a>, but the containers
+          <a href>gHbox</a>,
+          <a href="gBox.htm">gVBox</a>,
+          <a href>gFrame</a>, and technically speaking
+          <a href>gSplit</a>, along with
+          <a href>gCanvas</a>,
+          <a href>gCheckbox</a>,
+          <a href>gGraph</a>,
+          <a href>gLabel</a>,
+          <a href>gRadio</a>,
+          <a href>gSlider</a>,
+          <a href>gTabs</a>, and
+          <a href="gTabs.htm">gTree</a>
+<!--
+gButton, gDatePick, gDropdown, gList, gMenu, gProgressBar, gSpin, or gText, any leaf nodes, all of which are given an appropriate default, however the containers <a href>gHbox</a>,
+          Not inherited by any leaf nodes, all of which are given an appropriate default, however the containers <a href>gHbox</a>,
+          <a href>gVbox</a>, <a href>gFrame</a> and technically speaking <a href>gSplit</a> 
 -->
-          <!--
-//          <br>
-//
-          <br>
-//          Value: The RGB components, eg #FF0080 or equivalently "255 0 128" (three numbers 0..255).
-//
-          <br>
-//
-          <br>
-//
-//          Values should be between 0 and 255, separated by a blank space. For example "255 0 128", red=255 blue=0 green=128.
-//
-          <br>
-//
-          <br>
-//          Default: The <a href="gGetGlobal.htm#DLGBGCOLOR">DLGBGCOLOR</a> global attribute, or inherited from the parent.
-//
-//
-          <br>
-//          Hexadecimal notation in the format "#RRGGBB" is also accepted, eg "255 0 128" can also be written as "#FF0080".
-//
-//          -- DEV test me
-//          Note that double quotes are still required when using <a href="IupSetAttributes.htm">IupSetAttributes</a>(), and therefore the inline string attributes 
-//          of control creation, eg IupSetAttributes(ih,`BGCOLOR="#FF0080"`).
--->
+          scan up the hierarchy all the way to the containing gDialog if necessary, which gets a TG_WHITE default. 
+          Since a gSplit has no margin or space itself, the only potential use is inheritance purposes.<br>
+          On a <a href>gCanvas</a> this is used to clear before each <a href>REDRAW</a>, and
+          hence should be set outside that handler. Technically can also be set on a <a href>gImage</a> and a
+          <a href>gPixbuf</a>, but since you must specify something appropriate at creation time and 
+          they are not regularly blanked, it is not actually used anywhere, unless you fetch/use it yourself.
           <br>
           <br>
           <!--            Affects: All controls that have visual representation, but with some restrictions. <br>-->
-          Affects: Currently only <a href="gCanvas.htm">gCanvas</a> and <a href="gText.htm">gText</a>.
+<!--          Affects: Currently only <a href>gCanvas</a> and <a href>gText</a>.-->
+<!--
+<small><br>[erm, gLabel currently WinAPI only, but I&apos;m working on that.. (replacing it with a gCanvas)]</small>-->
+<!--
           <br>
+          TODO: try and get this working on other elements/containers. Maybe inherit?<br>
+          <b>NB</b>: Not supported on a <a href>gLabel</a> - it actually works under WinAPI but <i>not</i> GTK, should you
+          <i>really</i> need to, use a <a href>gCanvas</a> with <a href>gDrawText</a>() instead,
+          plus that way you could set it on either, which would quite likely achieve quite different results.
+-->
+<!--
+          <small><br>[Works on a gLabel but only under WinAPI. GTK would need it set on the parent container, but I failed with that.]</small>
+          <small><br>[My current plan is to re-implement gLabel as a gCanvas, and that way reclaim full and complete control over it.]</small>-->
+<!--
+          Not normally inherited, but <a href>gHbox</a> and <a href>gVbox</a> do.
           <br>
-          See also: <a href="#FGCLR">FGCLR</a>
-          <br>
-          <!--
-//          <br>
-//
-          <br>
-//          Several controls have transparent parts that are not affected by the BGCOLOR.
-//
-          <br>
-//
-          <br>
-//          Run demo\pGUI\sample.exw and use the menu to toggle the dialog BACKGROUND, the dialog BGCOLOR and the children BGCOLOR. 
-//
-          <br>
-//
-          <br>
-//          See Also: <a href="#FGCOLOR">FGCOLOR</a>, <a href="gGetGlobal.htm#DLGBGCOLOR">DLGBGCOLOR</a> 
-//
           <br>
 -->
-          <a name=CANFOCUS></a>
+          See also: <a href>BGSEL</a>, <a href>BGHOV</a>, <a href>FGCLR</a>
+          <br><a name=BGSEL></a><a name=BGHOV></a> 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          BGSEL,<br>
+          BGHOV
+         </td>
+         <td>
+            Similar to <a href>BGCLR</a> (set same as that to disable) but for selected and hover effects. <br>
+            Defaults <span style="background-color:#CCE8FF;">#CCE8FF</span>,
+                     <span style="background-color:#E5F3FF;">#E5F3FF</span>, as nicked from Windows Explorer (W11).
+            <br>
+            <br>
+            Affects: <a href>gList</a>, <a href>gTable</a>, <a href>gTree</a>.
+            <br>
+            <br>
+            Background colour can also be specified on each text fragment returned by the gList <a href="gList.htm#DATA">DATA</a> 
+            fetch function, and of course that will not extend all the way across like these do, plus on a gTree,
+            <a href>SELFULL</a> has some say in the matter <small>(for selected but not hover)</small>.<br>
+            BGSEL (but not BGHOV) can also be set on a gTree (only) as {fg,bg} as per <a href>gDrawText</a>
+            <small>(there is no separate FGSEL attribute)</small>.
+          <br><a name=CANFOCUS></a>
          </td>
         </tr>
         <tr>
@@ -324,74 +377,145 @@ style="word-wrap:normal; white-space: normal; width: 99%; display: block; overfl
 text-align:justify;
 }-->
 <!--
-          <div style="display:flex;">
-           <div>Defaults:&nbsp;
-           </div>
-           <div>
-            <div style="display:flex;">
-             <div><a href="logicops.htm#tf">true</a> for&nbsp;
-             </div>
-             <div style="display:flex; text-align:justify; text-wrap: wrap;">
-              <wbr><a href="gButton.htm">gButton</a>,&nbsp;
-              <wbr><a href="gCheckbox.htm">gCheckbox</a>,&nbsp;
-              <wbr><a href="gDatePick.htm">gDatePick</a>,&nbsp;
-              <wbr><a href="gDropDown.htm">gDropDown</a>,&nbsp;
-              <wbr><a href="gList.htm">gList</a>,&nbsp;
-              <wbr><a href="gSlider.htm">gSlider</a>,&nbsp;
-              <wbr><a href="gSpin.htm">gSpin</a>,&nbsp;
-              <wbr><a href="gText.htm">gText</a>,&nbsp;
-              <wbr><a href="gTreeView.htm">gTreeView</a>,
-             </div>
-            </div>
-            <div style="display:flex;">
-             <div><a href="logicops.htm#tf">false</a> for&nbsp;
-             </div>
-             <div style="display:flex; text-align:justify; text-wrap: wrap;">
-              <wbr><a href="gCanvas.htm">gCanvas</a>,&nbsp;
-              <wbr><a href="gGraph.htm">gGraph</a>,&nbsp;
-              <wbr><a href="gLabel.htm">gLabel</a>,&nbsp;
-              <wbr><a href="gProgressBar.htm">gProgressBar</a>,&nbsp;
-              <wbr><a href="gTable.htm">gTable</a>, and&nbsp;
-              <wbr><a href="gDialog.htm">gDialog</a>,&nbsp;
-              <wbr><a href="gBox.htm">gH/Vbox</a>,&nbsp;
-              <wbr><a href="gFrame.htm">gFrame</a>,&nbsp;
-              <wbr><a href="gFrame.htm">gFucktrhisshitmanrame</a>,&nbsp;
-              <wbr><a href="gSplit.htm">gSplit</a>,&nbsp;
-              <wbr><a href="gTabs.htm">gTabs</a>.
-             </div>
-            </div>
-           </div>
-          </div>
+//        <div style="display:flex;">
+//         <div>Defaults:&nbsp;
+//         </div>
+//         <div>
+//          <div style="display:flex;">
+//           <div><a href>true</a> for&nbsp;
+//           </div>
+//           <div style="display:flex; text-align:justify; text-wrap: wrap;">
+//            <wbr><a href>gButton</a>,&nbsp;
+//            <wbr><a href>gCheckbox</a>,&nbsp;
+//            <wbr><a href>gDatePick</a>,&nbsp;
+//            <wbr><a href>gDropDown</a>,&nbsp;
+//            <wbr><a href>gList</a>,&nbsp;
+//            <wbr><a href>gSlider</a>,&nbsp;
+//            <wbr><a href>gSpin</a>,&nbsp;
+//            <wbr><a href>gText</a>,&nbsp;
+//            <wbr><a href>gTree</a>,
+//           </div>
+//          </div>
+//          <div style="display:flex;">
+//           <div><a href>false</a> for&nbsp;
+//           </div>
+//           <div style="display:flex; text-align:justify; text-wrap: wrap;">
+//            <wbr><a href>gCanvas</a>,&nbsp;
+//            <wbr><a href>gGraph</a>,&nbsp;
+//            <wbr><a href>gLabel</a>,&nbsp;
+//            <wbr><a href>gProgressBar</a>,&nbsp;
+//            <wbr><a href>gTable</a>, and&nbsp;
+//            <wbr><a href>gDialog</a>,&nbsp;
+//            <wbr><a href="gBox.htm">gH/Vbox</a>,&nbsp;
+//            <wbr><a href>gFrame</a>,&nbsp;
+//            <wbr><a href="gFrame.htm">gFuckthisshitmanrame</a>,&nbsp;
+//            <wbr><a href>gSplit</a>,&nbsp;
+//            <wbr><a href>gTabs</a>.
+//           </div>
+//          </div>
+//         </div>
+//        </div>
 -->
-            Defaults: <a href="logicops.htm#tf">true</a> for <a href="gButton.htm">gButton</a>,
-                                                             <a href="gCheckbox.htm">gCheckbox</a>, 
-                                                             <a href="gDatePick.htm">gDatePick</a>, 
-                                                             <a href="gDropDown.htm">gDropDown</a>,
-                                                             <a href="gList.htm">gList</a>,
-                                                             <a href="gSlider.htm">gSlider</a>,
-                                                             <a href="gSpin.htm">gSpin</a>,
-                                                             <a href="gText.htm">gText</a>,
-                                                             <a href="gTreeView.htm">gTreeView</a>, <br>
+<!--
+//        <div style="display:flex;">
+//         <div>Defaults:&nbsp;
+//         </div>
+//         <div>
+//          <div style="display:flex;">
+//           <div><a href>true</a> for&nbsp;
+//           </div>
+//           <div style="display:flex; text-align:justify; text-wrap: wrap;">
+//            <a href>gButton</a>,
+//            <a href>gCheckbox</a>,
+//            <a href>gDatePick</a>,
+//            <a href>gDropDown</a>,
+//            <a href>gList</a>,
+//            <a href>gSlider</a>,
+//            <a href>gSpin</a>,
+//            <a href>gText</a>,
+//            <a href>gTree</a>,<br>
+//           </div>
+//          </div>
+//          <div style="display:flex;">
+//           <div><a href>false</a> for&nbsp;
+//           </div>
+//           <div style="display:flex; text-align:justify; text-wrap: wrap;">
+//            <a href>gCanvas</a>,
+//            <a href>gGraph</a>,
+//            <a href>gLabel</a>,
+//            <a href>gProgressBar</a>,
+//            <a href>gTable</a>, and
+//            <a href>gDialog</a>,
+//            <a href="gBox.htm">gH/Vbox</a>,
+//            <a href>gFrame</a>,
+//            <a href="gFrame.htm">gFuck_this_shit_man_rame</a>,
+//            <a href>gSplit</a>,
+//            <a href>gTabs</a>.<br>
+//           </div>
+//          </div>
+//         </div>
+//        </div>
+-->
+            Defaults: <a href>true</a> for <a href>gButton</a>,
+                                              <a href>gCheckbox</a>, 
+                                              <a href>gDatePick</a>, 
+                                              <a href>gDropDown</a>,
+                                              <a href>gList</a>,
+                                              <a href>gSlider</a>,
+                                              <a href>gSpin</a>,
+                                              <a href>gText</a>,
+                                              <a href>gTree</a>, <br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-            &nbsp;<a href="logicops.htm#tf">false</a> for <a href="gCanvas.htm">gCanvas</a>,
-                                                          <a href="gGraph.htm">gGraph</a>,
-                                                          <a href="gLabel.htm">gLabel</a>,
-                                                          <a href="gProgressBar.htm">gProgressBar</a>,
-                                                          <a href="gTable.htm">gTable</a>,
-                                                      and <a href="gDialog.htm">gDialog</a>, 
-                                                          <a href="gBox.htm">gH/Vbox</a>,
-                                                          <a href="gFrame.htm">gFrame</a>,
-                                                          <a href="gSplit.htm">gSplit</a>,
-                                                          <a href="gTabs.htm">gTabs</a>. <br>
+            &nbsp;<a href>false</a> for <a href>gCanvas</a>,
+                                           <a href>gGraph</a>,
+                                           <a href>gLabel</a>,
+                                           <a href>gProgressBar</a>,
+                                           <a href>gTable</a>,
+                                       and <a href>gDialog</a>, 
+                                           <a href="gBox.htm">gH/Vbox</a>,
+                                           <a href>gFrame</a>,
+                                           <a href>gSplit</a>,
+                                           <a href>gTabs</a>. <br>
+
           Obviously there should be no problem disabling anything in the first set, but no official support for enabling it on
-          anything in the second set, except for <a href="gTable.htm">gTable</a>. It is assumed that most tables are likely to be
+          anything in the second set.
+<!-- DEV revisit this once gTabs are working...
+, except perhaps for <a href>gTable</a>. 
+<a href>gTabs</a> [DEV] and possibly
+          On a <a href>gTabs</a> control it acts like <a href>TABCOUNT</a> controls, though 
+          (for instance) you would not want the tab key in theEditor to switch between files. bouncing along the main It is assumed that most tables are likely to be
           read-only and there is no generic practical way to use the keyboard to perform things like column resize or column sort.
           Using specially designated/dedicated keystrokes such as &lt;Ctrl [Shift] PgUp/Down&gt; to switch between tabs is always 
           going to be better than trying to use the keyboard on the control itself, likewise for said actions on a table.
+-->
           <br>
-          This setting has no influence whatsoever on an explicit <a href="gSetFocus.htm">gSetFocus</a>() call.
+          This setting has no influence whatsoever on an explicit <a href>gSetFocus</a>() call.
+          <br><a name=CURSOR></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CURSOR
+         </td>
+         <td>
+          (non inheritable, write-only) Defines the element&apos;s cursor.
           <br>
-          <a name=EXPAND></a>
+          <br>
+          Value: Name of a cursor. Supports the following stock cursors: "RESIZE_NS", "RESIZE_WE", along with the aliases
+          "NS_RESIZE", "WE_RESIZE", "EW_RESIZE", "RESIZE_EW", and lower-case versions, and that currently rather short list will 
+          be extended as and when needed, and only after suitable compatible cursors for WinAPI/GTK/JavaScript are identified. 
+          <a href>NULL</a> restores the default cursor, usually an arrow. Cursors are handled <i>very</i> 
+          differently by each backend; it makes no sense either to try and decipher/re-constitute, or save the input just in 
+          case you want to read it back.
+          One day in the probably quite distant future it should be possible to create a cursor from an xpm/gImage (and that
+          would probably give <i>both</i> of us even more headaches were you allowed to read it back).
+          <br>
+          <br>
+          There is also a legacy console graphics <a href="cursor.htm">cursor</a>() routine, were you looking for that.
+<!--      has been removed from the chm index to
+          avoid clashing with this (as in causing an ugly select pop-up when the chm is opened) -->
+<!-- none? arrow? hand? busy? move? no_entry?-->
+          <br><a name=EXPAND></a>
          </td>
         </tr>
         <tr>
@@ -399,25 +523,25 @@ text-align:justify;
           EXPAND
          </td>
          <td>
-            Allows the element to expand, fulfilling empty spaces inside its container.
+            Allows the element to expand, taking all or a fair share of any spare space inside the parent container.
           <br>
           <br>
             It is a non inheritable attribute, but fairly obviously the overall behaviour depends on the expansion settings of both
             a container and its children. If expansion is disabled on a container then it gets a (fixed) minumum width/height that
             accomodates the largest of its children, none of the other children (including any sub-containers) being able to expand 
             into anything beyond that. Should none of the children of a <a href="gBox.htm">gH/Vbox</a> expand in a given direction 
-            it can still expand but uses the <a href="gBox.htm#SPACE">SPACE</a> attribute to distribute any excess and reposition 
-            the children appropriately. See also <a href="xplayout.htm#SoleChild">sole child</a>.
+            it can still expand but uses the <a href>SPACE</a> attribute to distribute any excess and reposition 
+            the children appropriately. See also <a href="tglayout.htm#SoleChild">sole child</a>.
           <!--
             if at least one of its children 
-            can also expand in that direction, except when the container itself is a <a href="xplayout.htm#SoleChild">sole child</a>,
-            namely being the single child of a <a href="gDialog.htm">gDialog</a>, <a href="gFrame.htm">gFrame</a>, or a direct child 
-            of <a href="gTabs.htm">gTabs</a>, in which case it still expands but 
+            can also expand in that direction, except when the container itself is a <a href="tglayout.htm#SoleChild">sole child</a>,
+            namely being the single child of a <a href>gDialog</a>, <a href>gFrame</a>, or a direct child 
+//          of <a href>gTabs</a>, in which case it still expands but 
             , with RIGHT/BOTTOM/NONE perhaps effectively completely 
             disabling expansion.-->
           <!--Note that a fatal error may trigger on attempts to completely disable expansion on such 
-            <a href="xplayout.htm#SoleChild">sole child</a> containers, that is when you should instead be disabling resizing on the 
-            dialog or expansion on the gFrame/gSplit/gTabs. The otherwise meaningless XPG_SPACE_NONE may also effectively disable 
+            <a href="tglayout.htm#SoleChild">sole child</a> containers, that is when you should instead be disabling resizing on the 
+            dialog or expansion on the gFrame/gSplit. The otherwise meaningless TG_SPACE_NONE may also effectively disable 
             EXPAND=YES on a container when none of its children can expand, but that is officially unsupported, with EXPAND=NO (or
             on a dialog better yet <a href="gDialog.htm#RESIZE">RESIZE</a>=NO) being the recommended alternative/quick-fix.-->
           <!--
@@ -459,7 +583,7 @@ text-align:justify;
           <br>
             the children will simply expand to the available free space at the container.
           <br>
-            See <a href="xplayout.htm">Layout Management</a> for more details on sizes.
+            See <a href="tglayout.htm">Layout Management</a> for more details on sizes.
           <br>
 -->
           <!--<wbr>"HORIZONTALFREE",
@@ -467,22 +591,22 @@ text-align:justify;
           <div style="display:flex;">
            <div>Value:&nbsp;
            </div>
-           <div>       "NONE"<small>[/"N"/"NO"/"FALSE"/'N'/'F'/<a href="logicops.htm#tf">false</a>/0]</small>,<br>
-                       "BOTH"<small>[/"B"/"YES"/"TRUE"/'B'/'Y'/'T'/<a href="logicops.htm#tf">true</a>/1]</small>,<br>
+           <div>       "NONE"<small>[/"N"/"NO"/"FALSE"/'N'/'F'/<a href>false</a>/0]</small>,<br>
+                       "BOTH"<small>[/"B"/"YES"/"TRUE"/'B'/'Y'/'T'/<a href>true</a>/1]</small>,<br>
                        "HORIZONTAL"<small>[/"H"/'H'/2]</small>, or<br>
                        "VERTICAL"<small>[/"V"/'V'/4]</small>&nbsp;
            </div>
           </div>
           <br>
           <!--DEV make this 0/1/2/4 for NBHV; and_bits(0b011)!=0 means it is horizonatally expandable, and_bits(0b101) means it is vertically expandable...<br>-->
-          <a href="gGetAttribute.htm">gGetAttribute</a>(id,"EXPAND") returns one of the above (first) four strings, whereas<br>
+          <a href>gGetAttribute</a>(id,"EXPAND") returns one of the above (first) four strings, whereas<br>
 <!--
           gGetInt(id,"EXPAND") returns 0/1/2/4, with<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bits 0b011!=0 indicating horizontal expansion and<br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;bits 0b101!=0 indicating vertical expansion.
 -->
           <div style="display:flex;">
-           <div><a href="GGetAtribute.htm#gGetInt">gGetInt</a>(id,"EXPAND") returns 0/1/2/4:&nbsp;<br>
+           <div><a href>gGetInt</a>(id,"EXPAND") returns 0/1/2/4:&nbsp;<br>
                                                                <span style="float:right">and&nbsp;</span>
            </div>
            <div>
@@ -490,7 +614,10 @@ text-align:justify;
             bits 0b101!=0 indicates vertical expansion.
            </div>
           </div>
-          <small><i>(ie 0b000 is N-one, 0b001 is B-oth, 0b010 is H-only, 0b100 is V-only, it is <b>not</b> a std bit-fld)</i></small><br>
+          <small><i>(ie 0b000 is N-one, 0b001 is B-oth, 0b010 is H-only, 0b100 is V-only, it is <b>not</b> a standard bit-field, 3/5/6/7 are illegal|meaningless)</i></small><br>
+<!-- (surely someone would say something...)
+          <small><i>[I would happily provide TG_NONE/BOTH/HORIZONTAL/VERTICAL constants, should anyone think that is actually a sensible/useful thing]</i></small><br>
+-->
 
           <!--
              gSetInt(id,"EXPAND") accepts 0..3 and the characters N[/F]HVB[/Y/T],
@@ -503,53 +630,54 @@ text-align:justify;
 -->
           <br>
           <!--
-??          "HORIZONTAL" for <a href="gLabel.htm">gLabel</a>,
-                             <a href="gText.htm">gText</a>,
+??          "HORIZONTAL" for <a href>gLabel</a>,
+                             <a href>gText</a>,
           <br>
 -->
-          Defaults: "NONE" for <a href="gButton.htm">gButton</a>,
-                               <a href="gCheckbox.htm">gCheckbox</a>, 
-                               <a href="gDatePick.htm">gDatePick</a>, 
-                               <a href="gDropDown.htm">gDropDown</a>,
-                               <a href="gLabel.htm">gLabel</a>,
-                               <a href="gProgressBar.htm">gProgressBar</a>,
-                               <a href="gSlider.htm">gSlider</a>,
-                               <a href="gSpin.htm">gSpin</a>,
-                               <a href="gText.htm">gText</a>,
+          Defaults: "NONE" for <a href>gButton</a>,
+                               <a href>gCheckbox</a>, 
+                               <a href>gDatePick</a>, 
+                               <a href>gDropDown</a>,
+                               <a href>gLabel</a>,
+                               <a href>gProgressBar</a>,
+                               <a href>gSlider</a>,
+                               <a href>gSpin</a>,
+                               <a href>gText</a>,
           <br>
           &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-          &nbsp;"BOTH" for <a href="gCanvas.htm">gCanvas</a>,
-                           <a href="gGraph.htm">gGraph</a>,
-                           <a href="gList.htm">gList</a>,
-                           <a href="gTable.htm">gTable</a>,
-                           <a href="gTreeView.htm">gTreeView</a>, 
+          &nbsp;"HORIZONTAL" for <a href>gTabs</a>,
+          <br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          &nbsp;"BOTH" for <a href="gCanvas.htm#EXPAND">gCanvas</a>,
+                           <a href>gGraph</a>,
+                           <a href>gList</a>,
+                           <a href>gTable</a>,
+                           <a href>gTree</a>, 
                        and [<a href="gDialog.htm#EXPAND">gDialog</a>], 
                            <a href="gBox.htm">gH/Vbox</a>,
-                           <a href="gFrame.htm">gFrame</a>,
-                           <a href="gSplit.htm">gSplit</a>,
-                           <a href="gTabs.htm">gTabs</a>.
+                           <a href>gFrame</a>,
+                           <a href>gSplit</a>.
           <br>
           <br>
           Note that the natural size of a gCanvas, and hence all the (next three) canvas-based controls, is just the size of one 
-          character, and a gTreeView, with a natural size of {0,0}, is even smaller. Hence should you disable expansion on any 
-          of them you will almost certainly need to specify an explicit <a href="gGetAttribute.htm#SIZE">SIZE</a>, that is unless 
-          the <a href="xplayout.htm#SoleChild">sole child</a> rules prohibit/override the attempt to disable expansion.
+          character, and a gTree, with a natural size of {0,0}, is even smaller. Hence should you disable expansion on any 
+          of them you will almost certainly need to specify an explicit <a href>SIZE</a>, that is unless 
+          the <a href="tglayout.htm#SoleChild">sole child</a> rules prohibit/override the attempt to disable expansion.
           <br>
           <br>
           Affects: All elements, except menus and the <a href="gDialog.htm#EXPAND">gDialog</a> itself.
           <br>
           <br>
-          See also: <a href="#MARGIN">MARGIN</a>, 
-<!--                    <a href="#PADDING">PADDING</a>,-->
-                    <a href="gBox.htm#GAP">GAP</a>,
-                    <a href="gBox.htm#SPACE">SPACE</a>,
-                    <a href="#MINSIZE">MINSIZE</a>,
-                    <a href="#MAXSIZE">MAXSIZE</a>,
-                    <a href="gDialog.htm#RESIZE">RESIZE</a>,
-                    <a href="xplayout.htm">Layout Management</a>.
-          <br>
+          See also: <a href>MARGIN</a>, 
+<!--                    <a href>PADDING</a>,-->
+                    <a href>GAP</a>,
+                    <a href>SPACE</a>,
+                    <a href>MINSIZE</a>,
+                    <a href>MAXSIZE</a>,
+<!--??                  <a href="gDialog.htm#RESIZE">RESIZE</a>,-->
+                    <a href="tglayout.htm">Layout Management</a>.
           <!--            <a href="#SHRINK">SHRINK</a>-->
-          <a name=FGCLR></a>
+          <br><a name=FGCLR></a>
          </td>
         </tr>
         <tr>
@@ -557,20 +685,21 @@ text-align:justify;
           FGCLR
          </td>
          <td>
-          The interface element&rsquo;s forground color, default <a href="gCanvas.htm#XPG_colours">XPG_BLACK</a>.<br>
-          On a <a href="gCanvas.htm">gCanvas</a> this can be (transiently) overidden on each drawing operation instead.<br>
-          The aliases FGCOLOR and FGCOLOUR can also be used.
+          The interface element&apos;s forground colour, default <a href>TG_BLACK</a>.<br>
+          On a <a href>gCanvas</a> and <a href>gImage</a> this can be (transiently) overidden 
+          on each drawing operation instead.
           <br>
           <br>
           <!--            Affects: All controls that have visual representation, but with some restrictions. <br>-->
-          Affects: Currently only <a href="gCanvas.htm">gCanvas</a>
+          Affects: Currently only <a href>gCanvas</a> and <a href>gLabel</a> 
 <!-- DEV
-         and <a href="gText.htm">gText</a>.-->
+         and <a href>gText</a>.-->
+          <br>
+          TODO: try and get this working on other elements.
           <br>
           <br>
-          See also: <a href="#BGCLR">BGCLR</a>
-          <br>
-          <a name=FONT></a>
+          See also: <a href>BGCLR</a>
+          <br><a name=FONT></a>
          </td>
         </tr>
         <tr>
@@ -578,7 +707,8 @@ text-align:justify;
           FONT
          </td>
          <td>
-          (inherited) A string defining the font, in the format "&lt;face&gt;, &lt;styles&gt; &lt;size&gt;". Default: "Helvetica, 9".
+          (inherited, except for <a href>gImage</a>) 
+          A string defining the font, in the format "&lt;face&gt;, &lt;styles&gt; &lt;size&gt;". Default: "Helvetica, 9".
           <br>
           <br>
           Since face names are not a standard between Windows and GTK, a few are specially handled to improve application portability:
@@ -628,8 +758,14 @@ text-align:justify;
           <!--inherited, and--> cached/pooled to minimise resource usage - note that gGetAttribute() returns the post-mapped platform-specific version.
           <br>
           <br>
-          The font style can be omitted (aka normal) or a combination of: bold and italic (underline and strikeout are yet to be properly supported, but
-          I can tell you they won&rsquo;t ever be supported on a <a href="gCanvas.htm">gCanvas</a>). Optionally capitalised, ie/eg "bold" or "Bold".
+          The font style can be omitted (aka normal) or a combination of bold and italic (case insensitive).<br>
+          (underline and strikeout are yet to be properly supported).<br>
+<!--
+        , but I can tell you they won&apos;t ever be supported on a 
+          <a href="gCanvas.htm#gDrawText">gCanvas</a>).<br>
+-->
+          <small>[UPDATE: I may have got that the wrong way round: it may be fundamentally impossible on a font and easy-peasy (to emulate) on a canvas.]</small>
+
           <!--Note the font string should only ever contain at most a single comma, to separate the face name from the rest, and
             if the latter is present it should all be single-space separated.-->
           <!--
@@ -640,7 +776,7 @@ text-align:justify;
           <br>
             &lt;big&gt;, &lt;small&gt;, &lt;sub&gt;, &lt;sup&gt;, and &lt;tt&gt; should also be re-considered (iff WinAPI will comply).
           <br>
-            [NB: I am only thinking of "whole fragment" in the <a href="gList.htm">gList</a>/<a href="gCanvas.htm#gCanvasText">gCanvasText</a> sense, for now,
+--?         [NB: I am only thinking of "whole fragment" in the <a href>gList</a>/<a href>gDrawText</a> sense, for now,
           <br>
             &nbsp;a (for instance) gLabel of "This
           <del>was</del> is
@@ -649,9 +785,9 @@ text-align:justify;
 -->
 <!--
             Note that Underline and Strikeout are <i>not</i> supported by pango/GTK (and cairo fonts are indeed pretty hideous) and hence those styles
-            are not supported by xpGUI either. 
+            are not supported by theGUI either. 
 -->
-<!-- it might be possible to fake it with gCanvasLine(), there is probably some hideous CSS hack for that -->
+<!-- it might be possible to fake it with gDrawLine(), there is probably some hideous CSS hack for that -->
 <!--
 erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set those attributes there, but implement them via some internal REDRAW. Better:
             Note that Underline and Strikeout are are not directly supported by pango/GTK (and cairo fonts are indeed pretty hideous) and hence in fact 
@@ -662,13 +798,10 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
           <br>
             Unsupported values raise an error. The , whereas in contrast "bold" 
             and "italic" (for no particularly good reason) are actually perfectly acceptable and automatically mapped to their capitalised equivalents.
-          <br>
+          <br><a name=mru></a>
           <br>
             Fonts are automatically inherited at the point of mapping/display, and cached/pooled to minimise 
-            <a name=mru></a>resource usage
-          <small>
-           <sup><a href="#mru1">1</a></sup>
-          </small>.
+            resource usage<small><sup><a href="#mru1">1</a></sup></small>.
 -->
           <!--
 //          Note that means if you gSetAttribute(id1,"FONT","Helvetica, 9") and gSetAttribute(id2,"FONT","Sans, 9"), then gGetAttribute(id2,"FONT")
@@ -738,22 +871,21 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
             <td>CHARSIZE</td>
             <td>(read-only, non inheritable) Returns the average character size of the current FONT attribute. 
 [DEV]...
-            This is the factor used by the <a href="gGetAttribute.htm#SIZE">SIZE</a> attribute to convert its units to pixels.
+            This is the factor used by the <a href>SIZE</a> attribute to convert its units to pixels.
             </td>
            </tr>
           </table>
 -->
           <br>
-          Affects: All, except menus. See also JavaScript&rsquo;s <a href="javaScript.htm#style"><i>elem</i>.style.fontXxx</a>
-          and <a href="javascript.htm#ctx_font"><i>ctx</i>.font</a> settings.
-          <br>
+          Affects: All, except menus and pixbufs. See also JavaScript&apos;s <a href="javaScript.htm#style"><i>elem</i>.style.fontXxx</a>
+          and <a href="javascript.htm#ctx_font"><i>ctx</i>.font</a> settings.<br>
+          <small>Aside: for inheritance reasons, theGUI needs to take special care to use/set the font on the dialog elements rather than 
+                        (/ as well as) on any (private) images it may or may not be using.</small>
           <!--
-            Affects: All, except <a name=em></a>menus
-          <small>
-           <sup><a href="#em2">2</a></sup>.
+            <br><a name=em></a>
+            Affects: All, except menus<small><sup><a href="#em2">2</a></sup></small>.
+            <br><a name=mru1></a>
            <br>
-           <br>
-            <a name=mru1></a>
            <small>
             <sup><a href="#mru">1</a></sup>
             That means for example under WinAPI after setting the font to "Sans, italic 9", gGetAttribute() returns "Arial, Italic 9", which is quite
@@ -762,9 +894,8 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
             You can of course experiment with other fonts, but there is no guarantee they will be portable, and should you find any other (useful) 
             sets that seem consistent/equivalent between WinAPI, GTK, and JavaScript I will happily add them to the internal code and above table.
            </small>
+           <br><a name=em2></a>
            <br>
-           <br>
-            <a name=em2></a>
            <small>
             <sup><a href="#em">2</a></sup> Note that any attempt to set the font on a menu triggers an error, especially under 
             WinAPI, hence that is not supported, and probably never will be.
@@ -772,7 +903,7 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
            </small>
           </small>
 -->
-          <a name=MARGIN></a>
+          <br><a name=MARGIN></a>
          </td>
         </tr>
         <tr>
@@ -780,17 +911,17 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
           MARGIN
          </td>
          <td>
-          (not inherited) Specifies the initial spacing around any content. See <a href="xplayout.htm">Layout Management</a>.
+          (not inherited) Specifies the initial spacing around any content. See <a href="tglayout.htm">Layout Management</a>.
           <br>
           <br>
           <!--
-          While there is a fairly clear distinction between them on (say) a <a href="gButton.htm">gButton</a>, where the
+          While there is a fairly clear distinction between them on (say) a <a href>gButton</a>, where the
           MARGIN is outside the button border and the PADDING is inside, on most controls the difference is a little more
           subtle. In some senses a containing <a href="gBox.htm">gH/Vbox</a> "owns" the child margins but "applies" the
           child padding a bit more selectively, and of course "owns" its own padding, but actually does nothing with its
           own margins, since that is a parental responsibility. The lines are indeed often a little blurred, for instance
-          a <a href="gButton.htm">gButton</a> absolutely must deal with its own PADDING, but it just makes more sense for
-          a container to deal with that of a <a href="gLabel.htm">gLabel</a> and several other similar controls, rather 
+          a <a href>gButton</a> absolutely must deal with its own PADDING, but it just makes more sense for
+          a container to deal with that of a <a href>gLabel</a> and several other similar controls, rather 
           than duplicate the exact same code on <i>every</i> single control type. With a few obvious exceptions, it is
           probably fair to say that any given layout could be achieved using only MARGIN, or only PADDING, or any one of
           several dozen different mixtures of the two. The only unbreakable rule is that margins are always dealt with by
@@ -798,91 +929,108 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
           advice is to favour using MARGIN whenever you can, and PADDING only when you must.
           <br>
           <br>
-          Technically a <a href="gDialog.htm">gDialog</a> cannot have a MARGIN, but it quietly sets the PADDING instead,
+          Technically a <a href>gDialog</a> cannot have a MARGIN, but it quietly sets the PADDING instead,
           since that is almost certainly what you meant.
 -->
-          Note margins are always handled by the parent container, and cannot be set on a <a href="gDialog.htm">gDialog</a>
+<!--
+          Note margins are always handled by the parent container, and cannot be set on a <a href>gDialog</a>
           <small>(but can on the sole child)</small>.
           <br>
           <br>
-          Specified as between one and four values:<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;m or {m} or "m" =&gt; {m,m,m,m},<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;{tb,lr} or "tbxlr" =&gt; {tb,lr,tb,lr},<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;{t,lr,b} or "txlrxb"=&gt; {t,lr,b,lr}, or<br>
-          &nbsp;&nbsp;&nbsp;&nbsp;{t,r,b,l} or "txrxbxl"<small><i>[unchanged]</i></small><br>
-          The 1..4 integer values correspond to top, right, bottom, and left margins<!--(/padding)--> respectively/clockwise.
+-->
+          Specified as between one and four integer values:<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;m or {m} or "m" or "{m}" &rArr; {m,m,m,m},<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;{tb,rl} or "tbxrl" or "{tb,rl}" &rArr; {tb,rl,tb,rl},<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;{t,rl,b} or "txrlxb" or "{t,rl,b}" &rArr; {t,rl,b,rl}, or<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;{t,r,b,l} or "txrxbxl" or "{t,r,b,l}" &rArr; {t,r,b,l} <small><i>(unchanged)</i></small>.<br>
+          The final four values correspond to top, right, bottom, and left margins respectively / clockwise.<br>
+          Memory aid: margins spell trouble <img src="images/sml-smile.png" alt="smile" />!
+          <small>&nbsp;(Also note how {l, b} "hop" in the ficticious {4 &rArr; 3, 3 &rArr; 2} back-steps.)</small><br>
+          <small>Aside: although it may not look like it above, in practice eg 10x15 is easier to type/read/parse than {10,15}.</small>
           <br>
           <br>
           Default: 0 (no margin).
           <!-- [DEV that may not be quite true...]-->
           <br>
-          Returns: a sequence of length 1..4, or the atom 0 if not set.
+          Returns: a sequence of length 1..4, or an atom, 0 if not set.<br>
+          There is also a read-only MARGINS version which always returns a sequence of length 4, effectively defaulted to {0,0,0,0}.
           <!--
 [DEV]
-//          <b><a href="gSetAttribute.htm#PADDING">PADDING</a></b>:
-//          For <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> (only), is seamlessly added to the MARGIN of 
+//          <b><a href>PADDING</a></b>:
+//          For <a href>gHbox</a> and <a href>gVbox</a> (only), is seamlessly added to the MARGIN of 
 //          any child element.
 //
-          <br>
-//          <a name=GAP></a>
+//        <br><a name=GAP></a>
 //
           <br>
-//          <b><a href="gSetAttribute.htm#GAP">GAP</a></b>: Specifies the initial spacing between any content. Applies to 
-//          <a href="gBox.htm">gHbox</a> and <a href="gBox.htm">gVbox</a> only, an error occurs on attempting to set this 
+//          <b><a href>GAP</a></b>: Specifies the initial spacing between any content. Applies to 
+//          <a href>gHbox</a> and <a href>gVbox</a> only, an error occurs on attempting to set this 
 //          on any other control. As with PADDING this is seamlessly added to the MARGIN of any child element.
 //
           <br>
 //
           <br>
-//          <b><a href="gSetAttribute.htm#MARGIN">MARGIN</a></b>: It is illegal to specify a margin on any element that is 
-//          not the immediate child of either a <a href="gBox.htm">gHbox</a> or <a href="gBox.htm">gVbox</a>, and that 
+//          <b><a href>MARGIN</a></b>: It is illegal to specify a margin on any element that is 
+//          not the immediate child of either a <a href>gHbox</a> or <a href>gVbox</a>, and that 
 //          <i>includes</i> any such top-level container, which must instead use the PADDING and GAP attributes instead.
+          <br>
+          <br>
+          Future releases may permit margins to be specified on other elements, which the containing gH/Vbox, gFrame, gSplit, or gDialog
+          will have to take care of, and if it does all responsibilities will shift and SIZE change accordingly(/subtly), but for now you 
+          may need additional nesting of gH/Vbox, just to specify some additional margins.
 -->
           <br>
           <br>
-          Affects: All elements except <a href="gDialog.htm#MARGIN">gDialog</a> and <a href="gMenu.htm">menus</a>.
+          Affects: All elements except <a href="gDialog.htm#MARGIN">gDialog</a>, <a href>gSplit</a>, and <a href>gMenu</a>.<br>
+          Actually, I tell a bit of a lie, MARGINS (only/read-only) <i>can</i> be used on a <a href="gDialog.htm#MARGIN">gDialog</a> to 
+          obtain the window decoration sizes, as influenced by <a href>FULLSCREEN</a>, <a href>HDR</a>, <a href>MNZ</a>, <a href>RST</a>, 
+          and <a href>CLX</a>, as well of course as potentially being different on different backends, and not that many programs will 
+          or should need it.<br>
+          Instead of trying to set margins on a dialog, what you really want and in fact must do is set them on its sole child.
           <br>
           <br>
           <!--
-          Aside: Under pGUI/IUP, these and similar attributes <i>are</i> inherited, which meant that often I would look
-          at a layout and say "I just need an extra 5 pixels there", and BOOM, I got an extra 525 pixels with everything
-          now completely out of place, and/or it has explicitly non-inheritable versions of dozens of such things, which 
-          is fine in a way I guess, but not exactly elegant either. There may be some cases where inheritable versions
-          get the first prototype up and running a tiny bit quicker, but having to avoid them for the rest of eternity 
-          after that point just seems completely wrong, and I would much rather do it the other way: add explicitly
-          inherited versions should they ever be useful, instead of explicitly non-inherited ones of <i>everything</i>
-          to get around the inevitable issues that would occur (hindsight always has 20/20 vision and all that). Or I
-          could perhaps just have "gApplyAttributeRecursivelyIfNotSet()", with (inlined) gSetAttributes using "*="...
+//        Aside: Under pGUI/IUP, these and similar attributes <i>are</i> inherited, which meant that often I would look
+//        at a layout and say "I just need an extra 5 pixels there", and BOOM, I got an extra 525 pixels with everything
+//        now completely out of place, and/or it has explicitly non-inheritable versions of dozens of such things, which 
+//        is fine in a way I guess, but not exactly elegant either. There may be some cases where inheritable versions
+//        get the first prototype up and running a tiny bit quicker, but having to avoid them for the rest of eternity 
+//        after that point just seems completely wrong, and I would much rather do it the other way: add explicitly
+//        inherited versions should they ever be useful, instead of explicitly non-inherited ones of <i>everything</i>
+//        to get around the inevitable issues that would occur (hindsight always has 20/20 vision and all that). Or I
+//        could perhaps just have "gApplyAttributeRecursivelyIfNotSet()", with (inlined) gSetAttributes using "*="...
           <br>
           <br>
 -->
-          See also: <!--<a href="#PADDING">PADDING</a>,-->
-                    <a href="gBox.htm#GAP">GAP</a>,
-                    <a href="gBox.htm#SPACE">SPACE</a>,
-                    <a href="xplayout.htm">Layout Management</a>.
-          <br>
-          <a name=MAXSIZE></a>
-          <a name=MINSIZE></a>
+          See also: <!--<a href>PADDING</a>,-->
+                    <a href>GAP</a>,
+                    <a href>EXPAND</a>,
+                    <a href>SPACE</a>,
+                    <a href="tglayout.htm">Layout Management</a>.<br>
+          Javascript also has an <a href="javascript.htm#style">elem.style.margin</a>, in case you were looking for that.
+          <br><a name=MAXSIZE></a><a name=MINSIZE></a>
          </td>
         </tr>
         <tr>
          <td>
-?         MAXSIZE,
+          MINSIZE,
           <br>
-          MINSIZE
+          MAXSIZE
          </td>
          <td>
           (non inheritable) Specifies the element maximum/minimum size in pixels during the layout process.
+<!--
           <br>
-??        Default: 0x0 (None), except for <a href="gDialog.htm">gDialog</a>() and <a href="gFrame.htm">gFrame</a>(),
-          which get a default MINSIZE based on their <a href="#TITLE">TITLE</a> at creation time.
+??        Default: 0x0 (None), except for <a href>gDialog</a>() and <a href>gFrame</a>(),
+          which get a default MINSIZE based on their <a href>TITLE</a> at creation time.
+-->
 <!-- wishful thinking...
           <br>
           Note that for many elements the <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a> also acts as a MINSIZE.
 -->
           <br>
           <br>
-          See <a href="xplayout.htm">Layout Management</a> for more details on sizes.
+          See <a href="tglayout.htm">Layout Management</a> for more details on sizes.
           <br>
           <br>
           Value; "widthxheight", where width and height are integer values corresponding to the horizontal and vertical size, respectively, in pixels.
@@ -903,7 +1051,7 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
 -->
           <br>
           <br>
-          On a <a href="gDialog.htm">gDialog</a> also limits the interactive resize of the dialog, but does <i>not</i> override any explicit SIZE settings.<br>
+          On a <a href>gDialog</a> also limits the interactive resize of the dialog, but does <i>not</i> override any explicit SIZE settings.<br>
 <!--
 //??          and if less than the natural size will allow/cause some elements to be cropped, and/or introduce automatic scrollbars[?].
 //        <br>
@@ -911,78 +1059,186 @@ erm, lets not promise vapourware, and `invoked via "FONT"` must have meant set t
 //?       On a dialog (only), limits the manual resizing by mouse but does <i>not</i> override the NATURALSIZE or any explicit SIZE settings.
 //        <br>
 -->
-          <small>See demo/xpGUI/gtk_fixed.exw for a [dialog] poc, same code does not currently work in xpGUI.e (with gUseGTK) presumably because
-          it messes about with gtk_window_set_default_size and friends a bit too much or completely wrongly [fixes/suggestions welcome!]</small><br>
-          <small>[MAXSIZE on a dialog does not work at all on GTK2, but you should not be using that in anger anyway.]</small>
           <br>
+          <small>
+           <div style="display:flex;">
+            <div>Aside:&nbsp;
+            </div>
+            <div>      A bug in the MAXSIZE handling on Windows was fixed (way back in 2013) in 2.24.23, but I&apos;m using 2.24.10. <br>
+                       Works fine on non-dialogs and in my newer GTK3.dlls, and should never have affected any Linux version.
+            </div>
+           </div>
+          </small>
           <br>
-          See Also: <a href="gGetAttribute.htm#SIZE">SIZE</a>
+          See Also: <a href>SIZE</a>
           <!--
-//          <a href="#MAXSIZE">MAXSIZE</a>,
+//          <a href>MAXSIZE</a>,
             The windowing system will not be able to change the size beyond this limit. Default: 65535x65535.
-            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>
+            <a href>MINSIZE</a>
 DEV: needs testing, then the apppropriate comment adding here...
             Some systems define a very minimum size greater than this, for instance in Windows the horizontal minimum size includes the window decoration buttons.
 -->
-          <br>
-          <a name=PADDING></a>
+<!--
+//        <br><a name=NATIVE></a>
          </td>
         </tr>
         <tr>
          <td>
-          <span class="illegal">PADDING</span>
+//??          NATIVE
          </td>
          <td>
-          <!--            DEV <b>NB</b> PADDING seems to be doing the job of MARGIN at the moment, that will probably get "fixed".
-          <br>-->
-          <i><b>Not yet implemented:</b> the natural sizes of the four affected controls should be perfectly adequate for the first release.</i><br>
-          <i>It may be that making <a href="gGetAttribute.htm#SIZE">SIZE</a> center the contents is a better approach for those controls anyway.</i><br>
-          (not inherited, creation only) Similar in some respects to <a href="#MARGIN">MARGIN</a>, but only applicable to controls 
-          with a visible border (as listed below) and inside rather than outside that.
-          <br>
-          <br>
-          Setting the padding automatically recalculates the <a href="#USER_SIZE">USER_SIZE</a>, and vice-versa in which case when
-          PADDING is NULL
-          <small>(or {0,0,0,0})</small> it automatically centres the content, as per {tb,lr}.
-          <!--
-          Note that (unlike <a href="#MARGIN">MARGIN</a>) if both PADDING and <a href="gGetAttribute.htm#SIZE">SIZE</a> are set on a control, 
-          in the <a href="xplayout.htm#BoxModel">box model</a> the former is subtracted from the latter when setting the 
-          inner content size. In other words when set <a href="gGetAttribute.htm#SIZE">SIZE</a> always directly controls the border position 
-          and changing the padding (impossible values aside) does not alter that, however padding when no usersize is set 
-          <i>can and does</i> change the border position.
-          <br>
-          Should you set <a href="gGetAttribute.htm#SIZE">SIZE</a> but not PADDING, expect the content to be jammed up top left.
+//          <span class="illegal">(not implemented)</span><br>
+            Originally all controls were implemented natively, except <a href>gGraph</a> which did not have any native 
+            equivalents in the first place. However it became increasingly difficult to iron out differences and proved much easier
+            to fully emulate them from scratch, in particular <a href>gTable</a>, <a href>gList</a>, 
+            <a href>gTabs</a>, and <a href>gTree</a>, being far easier, more elegant, and inherently identical 
+            on all backends. <br>
+            The process of writing non-native aka "full fake" replacements is far from complete, each taking at least two weeks, but 
+            of course with gradually improving opportunities to copy/share code.
+            There will no doubt be some things missed, such as accessibility and themes support, however cross-platform/backend
+            consistency is pretty much a given, and emulating mouse and keyboard input is downright tricky on a native control but 
+            relatively speaking utterly trivial on an emulated control, and within a browser that difference is between completely
+            prohibited and perfectly safe. Also, <a href="tglayout.htm">Layout Management</a> promises to become a thousand times
+            simpler.
+[!--
+//          cease being a flurry 
+//          of increasingly desperate messages and pleas with the totally different and often quite obstinate backends: you can 
+//          just make one control 5 pixels wider and the next 5 pixels narrower and your&apos;e done, without those changes
+//          rippling up/down/across the dialog hierarcy and all the countless/pointless/bug-inducing size update notifications.
+--]
+            <br>
+            <br>
+            <div style="display: table;">
+              <div style="display: table-row;">
+                <div style="display: table-cell; text-align: right;">
+                  <nobr>Defaults: true (only):&nbsp;</nobr>
+                </div>
+                <div style="display: table-cell;">
+                 <a href>gCanvas</a>,
+                 <a href>gImage</a>,
+                 <a href>gMenu</a>,<br>
+                 <a href>gDialog</a>,
+                 <a href="gBox.htm">gH/Vbox</a>,
+                 <a href>gFrame</a>,<br>
+                 <a href="gCheckBox.htm">gCheckBox</a>,
+                 <a href>gDatePick</a>,
+                 <a href>gDropDown</a>,<br>
+                 <a href>gLabel</a>,
+                 <a href="gProgress.htm">gProgress</a>,
+                 <a href>gSlider</a>,
+                 <a href>gSpin</a>
+                </div>
+              </div>
+              <div style="display: table-row;">
+                <div style="display: table-cell; text-align: right;">
+                  true (todo):&nbsp;
+                </div>
+                <div style="display: table-cell;">
+                 <a href>gButton</a>,
+                 <a href="gGraph.htm">gText</a>,
+                 <a href>gSplit</a>
+                </div>
+              </div>
+              <div style="display: table-row;">
+                <div style="display: table-cell; text-align: right;">
+                  false:&nbsp;
+                </div>
+                <div style="display: table-cell;">
+                 <small>(none yet)</small>
+                </div>
+              </div>
+              <div style="display: table-row;">
+                <div style="display: table-cell; text-align: right;">
+                  false (only):&nbsp;
+                </div>
+                <div style="display: table-cell;">
+                 <a href>gPixbuf</a>, 
+                 <a href>gGraph</a>,<br>
+                 <a href>gMsgBox</a>,
+                 <a href="gGraph.htm">gList</a> <small>(both need further work)</small>,<br>
+                 <a href="gRadio.htm">gRadio</a>,
+                 <a href="gGraph.htm">gTree</a>,
+                 <a href>gTabs</a>
+                </div>
+              </div>
+            </div>
+            <br>
+            Eventually everything except canvas and image should become false, ultimately the native code removed, and this
+            attribute made to disappear.
 -->
+<!--
+            It is a non inheritable attribute, but fairly obviously the overall behaviour depends on the expansion settings of both
+            a container and its children. If expansion is disabled on a container then it gets a (fixed) minumum width/height that
+            accomodates the largest of its children, none of the other children (including any sub-containers) being able to expand 
+            into anything beyond that. Should none of the children of a <a href="gBox.htm">gH/Vbox</a> expand in a given direction 
+            it can still expand but uses the <a href>SPACE</a> attribute to distribute any excess and reposition 
+            the children appropriately. See also <a href="tglayout.htm#SoleChild">sole child</a>.
           <br>
           <br>
-          Default: 0 (no padding). [DEV that may not be quite true...]
+          <div style="display:flex;">
+           <div>Value:&nbsp;
+           </div>
+           <div>       "NONE"<small>[/"N"/"NO"/"FALSE"/'N'/'F'/<a href>false</a>/0]</small>,<br>
+                       "BOTH"<small>[/"B"/"YES"/"TRUE"/'B'/'Y'/'T'/<a href>true</a>/1]</small>,<br>
+                       "HORIZONTAL"<small>[/"H"/'H'/2]</small>, or<br>
+                       "VERTICAL"<small>[/"V"/'V'/4]</small>&nbsp;
+           </div>
+          </div>
           <br>
-          Returns: a sequence of length 1..4 (see <a href="#MARGIN">MARGIN</a>), or the atom 0 if not set.
+          <a href>gGetAttribute</a>(id,"EXPAND") returns one of the above (first) four strings, whereas<br>
+          <div style="display:flex;">
+           <div><a href>gGetInt</a>(id,"EXPAND") returns 0/1/2/4:&nbsp;<br>
+                                                               <span style="float:right">and&nbsp;</span>
+           </div>
+           <div>
+            bits 0b011!=0 indicates horizontal expansion<br>
+            bits 0b101!=0 indicates vertical expansion.
+           </div>
+          </div>
+          <small><i>(ie 0b000 is N-one, 0b001 is B-oth, 0b010 is H-only, 0b100 is V-only, it is <b>not</b> a standard bit-field, 3/5/6/7 are illegal|meaningless)</i></small><br>
+          <br>
+          Defaults: true (only): <a href>gButton</a>,
+                               <a href>gCheckbox</a>, 
+                               <a href>gDatePick</a>, 
+                               <a href>gDropDown</a>,
+                               <a href>gLabel</a>,
+                               <a href>gProgressBar</a>,
+                               <a href>gSlider</a>,
+                               <a href>gSpin</a>,
+                               <a href>gText</a>,
+          <br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          &nbsp;"HORIZONTAL" for <a href>gTabs</a>,
+          <br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+          &nbsp;"BOTH" for <a href="gCanvas.htm#EXPAND">gCanvas</a>,
+                           <a href>gGraph</a>,
+                           <a href>gList</a>,
+                           <a href>gTable</a>,
+                           <a href>gTree</a>, 
+                       and [<a href="gDialog.htm#EXPAND">gDialog</a>], 
+                           <a href="gBox.htm">gH/Vbox</a>,
+                           <a href>gFrame</a>,
+                           <a href>gSplit</a>.
           <br>
           <br>
-?         Affects: <a href="gButton.htm">gButton</a>, 
-                   <a href="gDatePick.htm">gDatePick</a>,
-                   <a href="gDropDown.htm">gDropDown</a>,
-          <!--?                    <a href="gFrame.htm">gFrame</a>,-->
-          <!--?                    <a href="gProgressBar.htm">gProgressBar</a>,-->
-                   <a href="gText.htm">gText</a>. <small><i>(only)</i></small>
-<!--                   <small>[I might yet be persuaded to allow it on a <a href="gDialog.htm#PADDING">gDialog</a>]</small>-->
+          Note that the natural size of a gCanvas, and hence all the (next three) canvas-based controls, is just the size of one 
+          character, and a gTree, with a natural size of {0,0}, is even smaller. Hence should you disable expansion on any 
+          of them you will almost certainly need to specify an explicit <a href>SIZE</a>, that is unless 
+          the <a href="tglayout.htm#SoleChild">sole child</a> rules prohibit/override the attempt to disable expansion.
           <br>
           <br>
-          Since padding with no margin would behave exactly the same as margin with no padding on a <a href="gBox.htm">gH/Vbox</a>(), to keep 
-          itself simple xpGUI requires <a href="#MARGIN">MARGIN</a> be used. Likewise there is no padding on any container and hence the same 
-          (<a href="#MARGIN">MARGIN</a>) must instead be specified on the sole child of a <a href="gDialog.htm#MARGIN">gDialog</a>() and 
-          <a href="gFrame.htm#MARGIN">gFrame</a>(), while <a href="gSplit.htm#MARGIN">gSplit</a>() and <a href="gTabs.htm#PADDING">gTabs</a>()
-          both fairly adamantly opt out of all this. The error messages generated should very clearly indicate precisely what to do.
+          Affects: All elements, except menus and the <a href="gDialog.htm#EXPAND">gDialog</a> itself.
           <br>
           <br>
-          See also: <a href="#MARGIN">MARGIN</a>,
-                    <a href="gBox.htm#GAP">GAP</a>,
-                    <a href="gBox.htm#SPACE">SPACE</a>,
-                    <a href="gGetAttribute.htm#SIZE">SIZE</a>,
-                    <a href="xplayout.htm">Layout Management</a>.
-          <br>
-          <a name=TIP></a>
+          See also: <a href>GAP</a>,
+                    <a href>MARGIN</a>, 
+                    <a href>SPACE</a>,
+                    <a href>MINSIZE</a>,
+                    <a href>MAXSIZE</a>,
+                    <a href="tglayout.htm">Layout Management</a>.
+-->
+          <br><a name=TIP></a>
          </td>
         </tr>
         <tr>
@@ -994,8 +1250,7 @@ DEV: needs testing, then the apppropriate comment adding here...
           <br>
           <br>
           Value: Text.
-          <br>
-          <a name=TITLE></a>
+          <br><a name=TITLE></a>
          </td>
         </tr>
         <tr>
@@ -1004,47 +1259,77 @@ DEV: needs testing, then the apppropriate comment adding here...
          </td>
          <td>
           The textual title/description of the interface element, often used to modify otherwise static text, such as that on a 
-          <a href="gButton.htm">gButton</a>, <a href="gCheckbox.htm">gCheckbox</a>, <a href="gDialog.htm">gDialog</a>, 
-          <a href="gFrame.htm">gFrame</a>, <a href="gLabel.htm">gLabel</a>, and maybe more. 
+          <a href>gButton</a>, <a href>gCheckbox</a>, <a href>gDialog</a>, 
+          <a href>gFrame</a>, <a href>gLabel</a>, and maybe more. 
 <!-- DEV.. -->
           In most cases (except gDialog) the natural size is made large enough to include all the text in the selected font, even using multiple 
           lines, plus things like the button/frame borders or the check box, if any.
           <br>
           <br>
-          There is a completely unrelated GTITLE attribute on a <a href="gGraph.htm">gGraph</a>, similar things are handled quite differently
-          on <a href="gTable.htm">gTable</a> and <a href="gTabs.htm">gTabs</a> (see links for detals), and the static text on menus is handled 
-          by <a href="gMenu.htm#MenuAttr">gMenuSetAttribute</a>() rather than this routine.
+          There is a completely unrelated GTITLE attribute on a <a href>gGraph</a>, similar things are handled quite differently
+          on <a href>gTable</a> and <a href>gTabs</a> (see links for details), and the static text on menus is handled 
+          by <a href>gMenuSetAttribute</a>() rather than this routine.
           <br>
           <br>
           Value: Text.
           <br>
           <br>
           Default: ""
-          <br>
+          <br><a name=mnemonics></a>
           <br>
           Notes
           <br>
-          The '\n' character usually is accepted for line change (except for menus, but they&rsquo;re not handled here anyway).<br>
-          The "&" character can be used to define a MNEMONIC, use "&&" to show the "&" character instead of defining a mnemonic.<br>
-          If a mnemonic is defined such as "&File" then the 'F' is underlined and pressing &lt;Alt F&gt; activates the control.<br>
-          In some cases/platforms/backends the underline only appears while the Alt key is being held down.
+          The '\n' character is usually accepted for line change (except for menus, but they&apos;re not handled here anyway).<br>
+          The "&" character can be used to define a mnemonic, use "&&" to show the "&" character itself.<br>
+          If a mnemonic is defined such as "&Close" then the 'C' is underlined and pressing &lt;Alt C&gt; activates the control.<br>
+<!--DEV bluff/no longer true? -->
+          In some cases/platforms/backends the underline only appears while the Alt key is being held down.<br>
+          You certainly shouldn&apos;t even be attempting to put mnemonics or line breaks on (say) a gDialog or gFrame title.
           <br>
           <br>
-          An automatic mapping of "&&","&","_" to "&","_","__" occurs under GTK, since that does mnemonics differently.<br>
-          Likewise HTML/JS/CSS uses (eg) &lt;span class="malt"&gt;F&lt;/span&gt;ile, though that is stripped when read back.
+          An automatic mapping of "&&","&","_" to "&","_","__" occurs under GTK, since that does mnemonics differently.
           <br>
-          Hence <a href="gGetAttribute.htm">gGetAttribute</a>(id,"TITLE") might not perfectly match that previously set, that is 
+          <br>
+<!--
+          Likewise HTML/JS/CSS uses (eg) &lt;span class="malt"&gt;C&lt;/span&gt;lose, though that is stripped when read back.<br>-->
+<!--
+            An automatic mapping occurs between the '&' that Windows uses (and you should too) and the '_' that Linux uses.<br>
+-->
+          Mnemonics are not formally supported under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>: I&apos;ve done
+          what I can, &amp;<i>&lt;x&gt;</i> is replaced with &lt;u&gt;<i>&lt;x&gt;</i>&lt;/u&gt; and elem.accesskey is set, 
+          &amp;&amp; is replaced with &amp;amp;, and \n is replaced with &lt;br&gt;. Beyond that, it is down to your operating
+          system and browser, and I can tell you they <i>will</i> all be different. Alt (aka Options) and <i>key</i>, sometimes
+          plus Ctrl, or Shift, or both, normally activates the control, or at least sets focus on it. Should your browser treat 
+          (say) Alt P as "start printing", I am not about to, and in fact it would be extremely foolish of me to even try and 
+          stop it, system-wide, but <i>you might</i> have some success with a <a href>KEY</a> handler.
+<!--
+         <small>Further no attempt has yet been made to "undo" those browser mappings, aka the following statement 
+          does <i>not</i> apply when running in a browser.</small>
+-->
+          <br>
+          <br>
+          Be warned there is no guarantee of consistency of retrieved titles on different backends - WinAPI may return "&amp;post", 
+          GTK "_post", and p2js "post", but at least <a href>match</a>("post",title) w/should always be non-zero.
+          Replacing a title with a modifed retrieved one is a whole different kettle of fish, and I&apos;m not even going there.
+<!--
+          Note that retrieved titles are mnemonic-less, eg "&Close" &rArr; "Close", in a consistent/backend-agnostic fashion.
+        <br>
+          <small><i>(Hence <nobr>gSetAttribute(id,"TITLE",gGetAttribute(id,"TITLE"))</nobr> could have detrimental effects.)</i></small>
+-->
+<!--
+          Hence <a href>gGetAttribute</a>(id,"TITLE") might not perfectly match that previously set, that is 
           consistently between platforms/backends, and <nobr>gSetAttribute(id,"TITLE",gGetAttribute(id,"TITLE"))</nobr> or similar 
           may have detrimental effects, on some. 
           However, it should be fairly rare to ever fetch a static title, I would hope, since that cannot possibly ever be manually 
           modified by the user anyway, but if you must, use say match("File",txt) rather than txt=="&File".
+-->
           <br>
           <br>
-          Aside: I am not sure what this ever meant, and I&rsquo;ve not deliberately put anything like this in, but I shall reproduce 
+          Aside: I am not sure what this ever meant, and I&apos;ve not deliberately put anything like this in, but I shall reproduce 
           the following quote from the original IUP documentation: <i>&ldquo;For the benefit of GTK, should you define a mnemonic using 
           "&" and the string has an underscore, then make sure that the mnemonic comes before the underscore&rdquo;</i>. 
-          I suspect but cannot be sure it is an outdated remark, from before "_"-&gt;"__", or some subtle buglette I have hopefully 
-          <i>not</i> accidentally managed to replicate.
+          I suspect but cannot be sure it is an outdated remark, from before "_"-&gt;"__", or perhaps some subtle buglette of IUP that
+          I have hopefully <i>not</i> accidentally managed to replicate.
           <br>
           <br>
           <!--
@@ -1053,12 +1338,12 @@ DEV: needs testing, then the apppropriate comment adding here...
             <br>
           <br>
 -->
-          Note that <a href="gRedraw.htm">gRedraw</a>() may be required after changing the title for all characters to be shown.
+          Note that <a href>gRedraw</a>() may be required after changing the title for all characters to be shown.
           <br>
 <!--
           <br>
           The following generally applies <small><i>(named parameters used for illustrative purposes, but probably best avoided on 
-          xpGUI&rsquo;s <a href="g_paranormal.htm">paranormalised</a> routines)</i>:
+          theGUI&apos;s <a href="g_paranormal.htm">paranormalised</a> routines)</i>:
            <br>
            <br>
 [--eucode]
@@ -1075,9 +1360,8 @@ DEV: needs testing, then the apppropriate comment adding here...
           Affects: All elements with an associated text.
           <br>
           <br>
-          See Also: <a href="#FONT">FONT</a>. Note that JavaScript&rsquo;s <a href="javascript.htm#title"><i>elem</i>.title</a> implements <a href="#TIP">TIP</a>.
-          <br>
-          <a name=USER_DATA></a>
+          See Also: <a href>FONT</a>. Note that JavaScript&apos;s <a href="javascript.htm#title"><i>elem</i>.title</a> implements <a href>TIP</a>.
+          <br><a name=USER_DATA></a>
          </td>
         </tr>
         <tr>
@@ -1086,51 +1370,63 @@ DEV: needs testing, then the apppropriate comment adding here...
          </td>
          <td>
           A general storage slot: anything and everything which might be useful, especially in a handler routine, should and can 
-          safely be stored here. Can be set directly via the optional fourth parameter of a <a href="gTimer.htm">gTimer</a>() on 
+          safely be stored here. Can be set directly via the optional fourth parameter of a <a href>gTimer</a>() on 
           creation, as for other controls it should be set independently. Fairly obviously a leading '=' invocation of [inline]
-          <a href="gSetAttributes.htm">gSetAttributes</a>() would be needed to set a non-string value. One word of caution: to
-          avoid p2js violations an explicit nullification after fetch may be rqd/save a <a href="deep_copy.htm">deep_copy</a>().
-          Default: NULL.
-          <br>
-          <a name=USER_SIZE></a>
+          <a href>gSetAttributes</a>() would be needed to set a non-string value. One word of caution: to
+          avoid p2js violations an explicit nullification after fetch may be rqd/save a <a href>deep_copy</a>(),
+<!-- DEV maybe process that USER_DATA[7]? -->
+          and there is [as yet] no facility to update, say, USER_DATA[7] in-situ.
+          Default: <a href>NULL</a>.
+          <br><a name=USER_SIZE></a>
          </td>
         </tr>
         <tr>
          <td>
-?         USER_SIZE
+          USER_SIZE
          </td>
          <td>
-          (implicit) Most applications should just do everything via <a href="gGetAttribute.htm#SIZE">SIZE</a>, and pretend that 
+          (implicit) Most applications should just do everything via <a href>SIZE</a>, and pretend that 
           USER_SIZE does not even exist.<br>
-          <small>[There is indeed a valid argument this should not be made public, then.]</small>
+          <small>[There is indeed a valid argument this should not be made public, then, but that would probably confuse things even more.]</small>
           <br>
           <br>
-          Setting the <a href="gGetAttribute.htm#SIZE">SIZE</a> attribute actually sets this instead, whereas reading that returns the 
+          Setting the <a href>SIZE</a> attribute actually sets this instead, whereas reading that returns the 
           actual size, though obviously reading <i>this</i> gets whatever was explicitly set (via SIZE or USER_SIZE), or {0,0} if not 
           ever set, irrespective of whatever real size it might end up with.
           <br>
           <br>
+          Setting the size of an element to say 150x75 then placing it in a container with a size of 175x50 leads to formally undefined results, 
+          which may even differ between different backends. The layout manager has to deal with those sort of conflicts all the time, in particular 
+          the natural size of most containers is tiny or even zero, and it does not raise any special error when a conflict has arisen from 
+          user-specified sizes rather than natural sizes, instead it simply overrides them as best it can/as it sees fit. It tries hardest of all 
+          to honour the dialog size, except when outside any <a href="gSetAttribute.htm#MAXSIZE">MINSIZE/MAXSIZE</a>, since that is the one thing
+          every end user can, unless explicitly disabled, physically drag about on-screen at run-time or effectively manage the same by maximising 
+          or restoring the window. Such actions implicitly stomp all over (the dialog&apos;s) USER_SIZE, except for retaining the restore size.
+          <br>
+          <br>
+<!--
+DEV: methinks this deserves a rewrite..<br>
           Note that both are affected by physically resizing or maximising/restoring the window, which automatically sets them to the 
           same value, on a dialog anyway, whereas child elements typically get a SIZE based on the user|natural size <i>after</i> 
-          applying <a href="#EXPAND">EXPAND</a>, etc.
-          Setting this is in fact indistinguishable from setting SIZE, and used by the <a href="xplayout.htm">layout manager</a> as a 
+          applying <a href>EXPAND</a>, etc.
+          Setting this is in fact indistinguishable from setting SIZE, and used by the <a href="tglayout.htm">layout manager</a> as a 
           starting point for recaclulating that. It should be obvious that we absolutely need a permanent copy of any value explicitly 
-          set, otherwise things couldn&rsquo;t possibly ever "shrink" back properly, and likewise quite helpful to stash whatever it 
+          set, otherwise things couldn&apos;t possibly ever "shrink" back properly, and likewise quite helpful to stash whatever it 
           actually ended up setting, somewhere, rather than trying to re-figure it out whenever asked/needed.
           <br>
           <br>
-          In short, the <a href="xplayout.htm">layout manager</a> takes the max(user,natural,min) size, possibly then normalised, and 
+          In short, the <a href="tglayout.htm">layout manager</a> takes the max(user,natural,min) size, possibly then normalised, and 
           finally expanded (if applicable) to fill the parent container, and/or ignoring anything blatently far too small, in order 
-          to obtain the actual size. Hence this can (initially) behave somewhat like a <a href="#MINSIZE">MINSIZE</a>, but without 
-          the permanent restrictions, and does not in contrast ever act remotely like a <a href="#MAXSIZE">MAXSIZE</a>.
+          to obtain the actual size. Hence this can (initially) behave somewhat like a <a href>MINSIZE</a>, but without 
+          the permanent restrictions, and does not in contrast ever act remotely like a <a href>MAXSIZE</a>.
           <br>
           <br>
-          Returns: integer {width,height}. For more details see <a href="xplayout.htm">Layout Management</a>.
+-->
+          Returns: integer {width,height}. For more details see <a href="tglayout.htm">Layout Management</a>.
           <br>
           <br>
-          See Also: <a href="gGetAttribute.htm#SIZE">SIZE</a>
-          <br>
-          <a name=VALUE></a>
+          See Also: <a href>SIZE</a>
+          <br><a name=VALUE></a>
          </td>
         </tr>
         <tr>
@@ -1141,368 +1437,244 @@ DEV: needs testing, then the apppropriate comment adding here...
           The current content or state of a control, see individual entries for details.
           <br>
           <br>
-          Affects: <a href="gTabs.htm#VALUE">gTabs</a> (also <a href="gTabs.htm#VALUEPOS">VALUEPOS</a>), 
+          Affects: <!--<a href="gTabs.htm#VALUE">gTabs</a> (also <a href="gTabs.htm#VALUEPOS">VALUEPOS</a>), -->
                    <a href="gCheckbox.htm#VALUE">gCheckbox</a>,
                    <a href="gDatePick.htm#VALUE">gDatePick</a>,
-                   <a href="gDropDown.htm#VALUE">gDropDown</a> (also <a href="gDropDown.htm#VALINT">VALINT</a>),
-                   <a href="gList.htm#VALUE">gList</a>,
+                   <a href="gDropDown.htm#VALUE">gDropDown</a>,
+<!--                   <a href="gList.htm#VALUE">gList</a>,-->
                    <a href="gProgressBar.htm#VALUE">gProgressBar</a>,
                    <a href="gSlider.htm#VALUE">gSlider</a>,
                    <a href="gSpin.htm#VALUE">gSpin</a>,
                    <a href="gText.htm#VALUE">gText</a>.
           <br>
-          Should you be looking for the <a href="value.htm">value</a>() builtin, obviously click on that link.<br>
-          <a name=VISIBLE></a>
+          <br>
+          Should you be looking for the <a href="value.htm">value</a>() builtin, obviously click on that link.
+          <br><a name=VISIBLE></a>
          </td>
         </tr>
         <tr>
-         <td>
-?         VISIBLE
+         <td class="techbtn">
+          VISIBLE
+          <img id="Timg" />
          </td>
          <td>
-          Shows or hides the element.
+          (not inherited, but parent-dependant) Shows or hides the element.
           <br>
           <br>
-          Value: "YES" (visible), "NO" (hidden). Default: "YES"
+          Value: <a href>true</a>/"YES" (visible), <a href>false</a>/"NO" (hidden). 
+          Default: <a href>true</a>.
           <br>
           <br>
-          Notes: An interface element is only visible if its native parent is also visible.
+          Notes: An interface element is only visible when all parents up to and including the dialog are also visible.
+<!--
+         Technically you (may) need to follow the
+          <a href>gGetParent</a>() chain, checking each, until you reach <a href>gGetDialog</a>(id),
+          and perhaps also checking that isn&apos;t <a href>MINIMISED</a>, to determine whether a
+          control is actually on-screen, though in some cases skipping straight to the dialog may suffice.
+          Conversely, of course, s-->
+          Setting this on a container does <i>not</i> (actually) override the setting of any children,
+          in order for everything to be restored as expected, should said container later be made visible again,
+          however fetching it performs the appropriate parent-scan for you.
+          Be warned this may return true when the containing dialog is <a href>MINIMISED</a>,
+          so that need checking that as well, to determine whether a control is actually on-screen.
           <br>
           <br>
-          Affects: All controls that have visual representation, except menus.
-          <br>
-          <a name=tech></a>
+          Affects: All controls that have visual representation. <!--, except menus (erm?? DEV).-->
+          <br><a name=tech></a>
          </td>
         </tr>
+
         <!--
-DEV we's gona need this... or something much simpler...
-          <a name=CURSOR></a>
-        <tr>
-         <td>
-          CURSOR
-         </td>
-         <td>
-          (non inheritable) Defines the element&rsquo;s cursor.
-          <br>
-          <br>
-          Value: Name of a cursor.
-          <br>
-          <br>
-          It will check first for the following predefined names:
-          <div id="images" class="images">
-           <table align="center" class="centered-table">
-            <tr>
-             <th width="35" height="27" class="style1">
-              <img border="0" src="images/cursors/win_logo.png"/>
-             </th>
-             <th width="35" height="27" class="style1">
-              <img border="0" src="images/cursors/x-win_logo.gif"/>
-             </th>
-             <th>Name</th>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">&nbsp;</td>
-             <td width="35" height="27" align="center">&nbsp;</td>
-             <td>&quot;NONE&quot; or &quot;NULL&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_arrow.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_arrow.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;ARROW&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_busy.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_busy.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;BUSY&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_cross.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_cross.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;CROSS&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_hand.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_hand.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;HAND&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_help.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_help.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;HELP&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_move.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_move.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;MOVE&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_pen.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_pen.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;PEN&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_ns.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_n.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_N&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_ns.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_s.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_S&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_ns.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_ns.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_NS&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_we.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_w.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_W&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_we.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_e.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_E&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_we.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_we.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_WE&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_nesw.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_ne.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_NE&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_nesw.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_sw.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_SW&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_nwse.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_nw.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_NW&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_resize_nwse.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_resize_se.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;RESIZE_SE&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_text.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_text.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;TEXT&quot;</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_appstarting.gif" width="24" height="29"/>
-             </td>
-             <td width="35" height="27" align="center">----</td>
-             <td>&quot;APPSTARTING&quot; (Windows Only)</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_no.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">----</td>
-             <td>&quot;NO&quot; (Windows Only)</td>
-            </tr>
-            <tr>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/wcursor_uparrow.gif" width="24" height="24"/>
-             </td>
-             <td width="35" height="27" align="center">
-              <img border="0" src="images/cursors/xcursor_uparrow.gif" width="24" height="24"/>
-             </td>
-             <td>&quot;UPARROW&quot;</td>
-            </tr>
-           </table>
-          </div>
-          <div class="clear"></div>
-          <br>
-          Default: "ARROW"
-          <br>
-          <br>
-          The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time.
-          <br>
-          <br>
-          The GTK cursors have the same appearance of the X-Windows cursors, although GTK cursors can have more than 2 colors depending on the X-Server.
-          <br>
-          <br>
-          If it is not a pre-defined name, then will check for other system cursors.<br>
-          In Windows the value will be used to load a cursor from the application resources. (??)<br>
-          In Motif the value will be used as a X-Windows cursor number, see definitions in the X11 header "cursorfont.h".<br>
-          In GTK the value will be used as a cursor name, see the GDK documentation on Cursors.
-          <br>
-          <br>
-          If no system cursors were found then the value will be used to try to find an IUP image with the same name.<br>
-          Use <a href="IupSetHandle.htm">IupSetHandle</a> to define a name for an <a href="IupImage.htm">IupImage</a>, 
-          however the image needs an extra attribute and some specific characteristics:
-          <br>
-          <br>
-          For an image to represent a cursor, it should have the attribute "HOTSPOT" to define the cursor hotspot (place where 
-          the mouse click is actually effective).<br>
-          The default value is "0:0".
-          <br>
-          <br>
-          Usually only color indices 0, 1 and 2 can be used in a cursor, where 0 will be transparent (must be "BGCOLOR").<br>
-          The RGB colors corresponding to indices 1 and 2 are defined just as in regular images.<br>
-          In Windows and GTK the cursor can have more than 2 colors.<br>
-          Cursor sizes are usually less than or equal to 32x32.
-          <br>
-          <br>
-//        The cursor will only change when the interface system regains control or when <a href="IupFlush.htm">IupFlush</a> is called.
-          <br>
-          <br>
-          The Windows SDK recommends that cursors and icons should be implemented as resources rather than created at run time.
-          <br>
-          <br>
-?         When the cursor image is no longer necessary, it must be destroyed through function <a href="IupDestroy.htm">IupDestroy</a>.<br>
-          Attention: the cursor cannot be in use when it is destroyed.
-          <br>
-          <br>
-          Affects: <a href="IupDialog.htm">IupDialog</a>, <a href="IupCanvas.htm">IupCanvas</a>
-          <br>
-          <br>
-          See Also <a href="IupImage.htm">IupImage</a>
-          <br>
+DEV we's gona need this... or something much simpler... (erm, what did I do for gSplit?)
          </td>
         </tr>
 -->
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
           </a>
          </td>
          <td>
-          While pGUI had all manner of convoluted restrictions on attributes, such as v being <a href="string.htm">atom_string</a> or the dire 
-          distinction between <a href="IupSetAttribute.htm">IupSetAttribute</a>() and <a href="IupSetStrAttribute.htm">IupSetStrAttribute</a>(),
-          largely because C and C-based languages cannot distinguish between an integer and a <a name=str></a>string (aka char*)
+          While pGUI had all manner of convoluted restrictions on attributes, such as v being <a href>atom_string</a> or the dire 
+          distinction between <a href>IupSetAttribute</a>() and <a href>IupSetStrAttribute</a>(),
+          largely because C and C-based languages <i>simply cannot</i> distinguish between an integer and a <a name=str></a>string (aka char*)
           <small><sup><a href="#str1">1</a></sup></small>, this one routine (gSetAttribute) covers and replaces at least 5 and probably more 
-          pGUI routines, even technically things such as <a href="IupSetStrAttribute.htm#utility">IupSetInt</a>() - while there <i>is</i> a
+          pGUI routines, even technically things such as <a href>IupSetInt</a>() - while there <i>is</i> a
           gSetInt() as noted above, you <i>can</i> pass the exact same parameters direct to gSetAttribute().
           <br>
           <br>
-          As well as not replicating that particular distinction, xpGUI either actions things immediately or makes a (reference counted) copy, 
+          As well as not replicating that particular distinction, theGUI either actions things immediately or makes a (reference counted) copy, 
           so (unlike pGUI) there is no danger here of a value "vanishing" before it can be used.
           <br>
           <br>
           <!-- (while technically true, it really adds nothing...)
-          While pGUI sometimes treated say "50x" as "set w but leave h unchanged" there is no similar facility in xpGUI, which treats that the
-          same as "50x0", and you would indeed usually have to fetch the prior values and then set them both. Specific future enhancements are 
-          always a possibility, though, for instance I would have little to say against "SIZEW" and "SIZEH", were there a genuine need.
+//        While pGUI sometimes treated say "50x" as "set w but leave h unchanged" there is no similar facility in theGUI, which treats that the
+//        same as "50x0", and you would indeed usually have to fetch the prior values and then set them both. Specific future enhancements are 
+//        always a possibility, though, for instance I would have little to say against "SIZEW" and "SIZEH", were there a genuine need.
           <br>
           <br>
 -->
           Appropriate care may still sometimes be required with some values, such as a raw memory address, which must fairly obviously
           remain valid for the entire lifetime of the interface element, or at least until all copies/references to it are replaced.
-          <br>
-          <br>
           <!-- Why offer, when a) you can't think of a use, and b) a dictionary can do it all, and quite probably far more anyway.
           Aside: I foresee little difficulty and would have no objections to providing gSetCustomAttribute() and a matching get routine,
           not that I can think of any practical use just yet, but I would consider it utter madness to have gSetAttribute() effectively 
           ignore any attribute names it does not recognise, rather than reject my many typos. By ignore I really mean <i>quietly</i> obey, 
           which is what IUP does.
-          <br>
-          <br>
 -->
-          <a name=str1></a><small><sup><a href="#str">1</a></sup> Of course Phix manages that via a combination of limiting integers to 31/63 
-          bits, storing 32/64 bit "integers" in an atom, and not having or depending on a pointer type, rather you store pointers in an atom 
-          and it becomes your sole responsibility to use them as such, for instance the language itself would not raise an eyebrow should you 
-          ask for the square root of a pointer, or for that matter use the pointer itself when you should be using whatever it points at. One 
-          Phix <i>would</i> catch is char* vs string, which are of course the exact same thing in C. Swings and roundabouts, I guess, the 
-          simple point being made is just that C and Phix have some rather fundamental differences, which certainly bleed through here.</small>
+          <br><a name=str1></a>
+          <br>
+          <small><sup><a href="#str">1</a></sup> Of course Phix manages that via a combination of limiting integers to 31/63 bits, storing 
+          32/64 bit "integers" in an atom, so it can do some bit-twiddling to distinguish an integer from a shifted ref address, where it
+          can find another byte to distinguish atom/string/dword_sequence, and not having or depending on a pointer type, rather you store 
+          pointers in an atom and it becomes your sole responsibility to use them as such, for instance the language itself would not raise 
+          an eyebrow should you ask for the square root of a pointer, or for that matter use the pointer itself when you should be using 
+          whatever it points at. One Phix <i>would</i> catch is char* vs string, which are of course literally the exact same thing in C. 
+          Swings and roundabouts, I guess, the simple point being made is just that C and Phix have some rather fundamental differences, 
+          which certainly bleed through a bit here.</small>
+          <br>
+          <br>
+          In practice id is defined as an <a href>integer</a>, but verified to be the declared <a href>gdx</a> type 
+          above once any <a href>gImage</a>/<a href>gPixbuf</a> have been dealt with.
+            <br><a name=All></a>
+
+            <h3>All attributes</h3>
+
+            FWIW, here is a clickable alphabetic list of all attributes including all aliases:
+            <a href>ACTIVE</a>,
+            <a href>ALTKEY</a>,
+            <a href>BARMODE</a>,
+            <a href>BGCLR</a>,
+            <a href>BGHOV</a>,
+            <a href>BGSEL</a>,
+            <a href>CANFOCUS</a>,
+            <a href>CARET</a>,
+            <a href>CELLMODE</a>,   <!-- (alias of SELMODE) -->
+            <a href="gMenu.htm#CHECKED">CHECKED (<a href="gMenu.htm#CHECKED">gMenu</a> and <a href="gTree.htm#CHECKED">gTree</a>)</a>,
+            <a href>CLASSNAME</a>,
+<!--            <a href="gGetAttribute.htm#CLIENT">CLIENT</a>,-->
+            <a href>CLOSE_ON_ESCAPE</a>,
+            <a href>CLX</a>,
+            <a href>COL_DRAG</a>,
+            <a href>COL_SIZE</a>,
+            <a href>COL_SORT</a>,
+            <a href>COLUMNS</a>,
+            <a href>CONTROLKEY</a>,     <!-- (alias of CTRLKEY) -->
+            <a href>COPYRIGHT</a>,
+            <a href>CTRLKEY</a>,
+            <a href>CURSOR</a>,
+            <a href>CURSORX</a>,
+            <a href>CURSORY</a>,
+            <a href="gTable.htm#DATA">DATA</a> (<a href="gTable.htm#DATA">gGraph</a>,
+                                                <a href="gTable.htm#DATA">gTable</a> and <a href="gTree.htm#DATA">gTree</a>),
+            <a href>DEFAULTENTER</a>,
+            <a href>DEFAULTESC</a>,
+            <a href>DIAGNOSTICS</a>,
+            <a href>EDITABLE</a>,
+            <a href>EXPAND</a>,
+            <a href>FGCLR</a>,
+            <a href>FONT</a>, 
+            <a href>FULLSCREEN</a>,
+            <a href>GAP</a>,
+            <a href>GRID</a>,
+            <a href>GRIDCLR</a>,
+            <a href>GTITLE</a>,
+            <a href>HDR</a>,
+<!--            <a href="gSetGlobal.htm#IDLE_ARGS">IDLE_ARGS</a>,-->
+            <a href>IMAGE</a>,
+?           <a href>INVERTED</a>,
+            <a href>LINEHT</a>,
+            <a href>LEGEND</a>,
+            <a href>LEGENDBOX</a>,
+            <a href>LEGENDPOS</a>,
+            <a href>LEGENDXY</a>,
+            <a href>LINESTYLE</a>,
+            <a href>LINEWIDTH</a>,
+            <a href>MARGIN</a>, 
+            <a href>MARKSIZE</a>,
+            <a href>MARKSTYLE</a>,
+            <a href>MAXIMISED</a>,
+            <a href>MAX</a>,
+            <a href>MAXIMIZED</a>,      <!-- (alias of MAXIMISED) -->
+            <a href>MAXSIZE</a>,
+            <a href>MIN</a>,
+            <a href>MINIMISED</a>,
+            <a href>MINIMIZED</a>,      <!-- (alias of MINIMISED) -->
+            <a href>MINSIZE</a>,
+            <a href>MNZ</a>,
+            <a href>MODAL</a>,
+            <a href>MODE</a>,
+            <a href="gGetAttribute.htm#MOUSEPOS">MOUSEPOS</a> (also <a href="gGetGlobal.htm#MOUSEPOS">gGetGlobal</a>),
+            <a href>MSECS</a>,
+            <a href>MULTIPLE</a>,
+            <a href="gDropDown.htm#OPTIONS">OPTIONS</a>,
+            <a href>ORIENTATION</a>,
+            <a href="!PADDING"><span class="illegal">PADDING</span></a>,
+            <a href="gTabs.htm#POSN">POSN</a>,
+            <a href>RANGE</a>,
+            <a href>RST</a>,
+            <a href>RUN</a>,
+            <a href>SCREENSIZE</a>, 
+            <a href>SCROLLFIX</a>,
+            <a href>SCROLLPORT</a>,         <!-- (alias of VIEWPORT) -->
+            <a href>SCROLLSIZE</a>,
+            <a href>SELECTED</a> (<a href="gList.htm#SELECTED">gList</a>, <a href="gTable.htm#SELECTED">gTable</a>, and <a href="gTree.htm#SELECTED">gTree</a>),
+            <a href>SELFULL</a>, 
+            <a href>SELMODE</a>,
+            <a href>SHIFTKEY</a>,
+            <a href>SIZE</a>,
+            <a href>SHOWCLOSE</a>,
+            <a href>SHOWLINE</a>,
+            <a href>SPACE</a>,
+            <a href="gSpin.htm#SPIN">SPIN</a>,
+            <a href>TABCOUNT</a>,
+            <a href="gClipboard.htm#TEXT">TEXT</a>,
+            <a href>TEXTAVAILABLE</a>,
+            <a href>TIP</a>,
+            <a href>TITLE</a>,
+            <a href>TOPLINE</a>,
+            <a href>USER_DATA</a>,
+            <a href>USER_SIZE</a>,
+            <a href>VALINT</a>,         <!-- (near-alias of VALUE) -->
+            <a href>VALSTR</a>,         <!-- (near-alias of VALUE) -->
+            <a href>VALUE</a>,
+            <a href>VIEWPORT</a>,
+            <a href>VISIBLE</a>,
+            <a href>XACROSS</a>,
+            <a href>XANGLE</a>,
+            <a href>XMARGIN</a>,
+            <a href>XMAX</a>,
+            <a href>XMIN</a>,
+            <a href>XNAME</a>,
+            <a href>XTICK</a>,
+            <a href>XTICKFMT</a>,
+            <a href>XYSHIFT</a>,
+            <a href>YACROSS</a>,
+            <a href>YANGLE</a>,
+            <a href>YMARGIN</a>,
+            <a href>YMAX</a>,
+            <a href>YMIN</a>,
+            <a href>YNAME</a>,
+            <a href>YTICK</a>,
+            <a href>YTICKFMT</a>,
+            <a href>YXSHIFT</a>
+            <br>
+            <br>
+            I make that 114, or just 107 if not counting aliases, and even I don&apos;t bother to learn them all by heart,
+            relying instead on F1 lookup from the editor, on either the attribute name or the control element it applies to.
+            <br>
+            <br>
+            Aside: F1 help and the chm index on attributes that apply to more than one element tend to link to the one I deem
+            to be the most likely to be useful, but there should always be a full set of cross-links to all other instances.
+            Likewise rather than have the annoying pop-up that occurs when the chm is opened should there be clashes, the index
+            now contains (say) both "VALUE" and "value()", though Edita/theEditor may not yet be savvy to that, at least there
+            is a suitable cross-link to <a href="value.htm">value</a>() from the <a href>VALUE</a> entry.
+            <br>
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
        <br>
        <br>

@@ -14,10 +14,11 @@
          </td>
          <td>
           include cffi.e<br>
-          <a href="atom.htm">atom</a> v = get_struct_field(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">atom_string</a> field)
+          <a href>atom</a> v = get_struct_field(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>atom_string</a> field,
+                                                           <small><a href>bool</a> bAsFlt=false</small>)
           <br><i>-- or --</i><br>
-          <a href="string.htm">string</a> s = get_struct_string(<a href="integer.htm">integer</a> id, <a href="atom.htm">atom</a> pStruct, <a href="string.htm">string</a> field,
-                                                                <a href="integer.htm">integer</a> len)
+          <a href>string</a> s = get_struct_string(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>string</a> field,
+                                                                <a href>integer</a> len)
          </td>
         </tr>
         <tr>
@@ -26,12 +27,14 @@
          </td>
          <td>
             get a named field from some previously allocated structure, which (ie pStruct) is most likely to be the result of 
-            an earlier call to <a href="allocate_struct.htm">allocate_struct</a>().
+            an earlier call to <a href>allocate_struct</a>().
             <br>
             <br>
-            id: a result from <a href="define_struct.htm">define_struct</a>().<br>
-            pStruct: a result from <a href="allocate_struct.htm">allocate_struct</a>().<br>
-            field: a string name or, caveat emptor, a numeric index (the latter mainly for the benefit of <a href="cstruct.htm">c-structs</a>).
+            id: a result from <a href>define_struct</a>().<br>
+            pStruct: a result from <a href>allocate_struct</a>().<br>
+            field: a string name or, caveat emptor, a numeric index.<!-- (the latter mainly for the benefit of <a href="cstruct.htm">c-structs</a>).--><br>
+            <small>bAsFlt: fudge, see notes<br></small>
+            len: length in bytes, lesser fudge, see notes<br>
          </td>
         </tr>
         <tr>
@@ -39,7 +42,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+          <a href="notp2js.htm#noclass"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -48,11 +51,19 @@
          </td>
          <td>
             The get_struct_string() routine should (only) be used when the field is TCHAR[] or similar. Note that it is your responsibility to pass in the right length, 
-            since cffi.e cannot check that for you, and likewise trim trailing zeroes (or &rsquo;\0&rsquo;) or spaces where needed. There may also be cases where some
-            unknown C code replaces say &quot;some long message&quot; with &quot;error 7\0g message&quot;, again that&rsquo;s your problem not mine. <br>
+            since cffi.e cannot check that for you, and likewise trim trailing zeroes (or &apos;\0&apos;) or spaces where needed. Should some unknown C code replace say 
+            &quot;some long message&quot; with &quot;error 7\0g message&quot;, that&apos;s your problem not mine. <br>
             Under set_unicode(1), the retrieved widestring is converted to utf8 before being returned. Also, a TCHAR[128] should still get a len of 128 (characters/16-bit 
-            unicode points), even though it will actually allocate/occupy 256 bytes.<br>
-            Lastly, since such fields are not supported by <a href="cstruct.htm">c-structs</a> the option to specify an integer field index has deliberately been removed.
+            unicode points), even though it occupies 256 bytes. <small>(no longer entirely sure about that last statement...)</small><br>
+            In truth, there should perhaps be a default for len, say -1, which means "read the lot" [and crop at first '\0', perhaps], then again it <i>is</i> a bit of a 
+            stetch to expect get_struct_string to handle the 8/16 bits per char aspects perfectly in <i>all</i> circumstances, plus the vast majority of C based string
+            interfaces explicitly yield the number of bytes or surrogate pairs they have just written to the buffer, and/or have an explict length field in the struct
+            next to each string/tchar, and whenever you have that you should always explicitly pass it along anyway. <small>(There is absolutely no sensible way for cffi 
+            to guess which length field corresponds to which string/tchar, of course.)</small><br>
+            Far less excusable, by default get_stuct_field treats <i>everything</i> as an integer except for a rare few obvious ones, currently just {double,gdouble} but 
+            the rest (when needed, esp single-precision floats) must be explicitly overridden via bAsFlt.<br>
+            That said, all use of these routines merits thorough testing, and is usually buried away from day-to-day use in a wrappper-lib.
+<!--            Lastly, since such fields are not supported by <a href="cstruct.htm">c-structs</a> the option to specify an integer field index has deliberately been removed.-->
             <br>
             <br>
             You may need to use say <a href="peek_string.htm">peek_[w]string</a>() or even get_struct_field() itself again, on some atom results, eg an lpszText.
@@ -73,11 +84,11 @@ atom pTitle = get_struct_field(idMBP,pMBP,"lpszText")
 </eucode-->
 <pre>
 <font color="#008080">include</font><font color="#000000"> cffi.e</font>
-<font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> define_struct</font><font color="#0000FF">(...)</font>
-<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#5E005E"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
+<font color="#008080">constant</font><font color="#000000"> idMBP</font><font color="#0000FF"> =</font><font color="#7060A8"> define_struct</font><font color="#0000FF">(...)</font>
+<font color="#004080">atom</font><font color="#000000"> pMBP</font><font color="#0000FF"> =</font><font color="#7060A8"> allocate_struct</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">)
 .. &lt;</font><font color="#000000">set contents of pMBP</font><font color="#0000FF">&gt;</font>
-<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#5E005E"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
-?</font><font color="#5E005E">peek_string</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
+<font color="#004080">atom</font><font color="#000000"> pTitle</font><font color="#0000FF"> =</font><font color="#7060A8"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idMBP</font><font color="#0000FF">,</font><font color="#000000">pMBP</font><font color="#0000FF">,</font><font color="#008000">"lpszText"</font><font color="#0000FF">)
+?</font><font color="#7060A8">peek_string</font><font color="#0000FF">(</font><font color="#000000">pTitle</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -86,9 +97,9 @@ atom pTitle = get_struct_field(idMBP,pMBP,"lpszText")
           <b>See Also:</b>
          </td>
          <td>
-          <a href="allocate_struct.htm">allocate_struct</a>,
-          <a href="set_struct_field.htm">set_struct_field</a>,
-          <a href="peek_string.htm">peek_string</a>
+          <a href>allocate_struct</a>,
+          <a href>set_struct_field</a>,
+          <a href>peek_string</a>
          </td>
         </tr>
        </table>

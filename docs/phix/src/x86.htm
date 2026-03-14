@@ -6,11 +6,11 @@
      <stripped>
       <h1 class="title">x86 instruction set</h1>
       <div id="mainSection">
-        As per the <a href="ARM.htm">ARM</a> notes, this is almost certainly more for my benefit than anyone else&rsquo;s, 
-        but it makes sense to at least make a (rather belated!) start on this while I&rsquo;m here, as in updating the docs 
+        As per the <a href="ARM.htm">ARM</a> notes, this is almost certainly more for my benefit than anyone else&apos;s, 
+        but it makes sense to at least make a (rather belated!) start on this while I&apos;m here, as in updating the docs 
         and porting all that x86 asssembly to ARM (~300 #ilASM{} statements in /builtins, some of which are rather big). 
-        Of course x86 is ~45 years old by now (and ARM ~40 years), just don&rsquo;t expect any of that segment addressing 
-        nonsense, and equally don&rsquo;t expect too much in the way of SSE and newer, just yet [ask when/as needed].
+        Of course x86 is ~45 years old by now (and ARM ~40 years), just don&apos;t expect any of that segment addressing 
+        nonsense, and equally don&apos;t expect too much in the way of SSE and newer, just yet [ask when/as needed].
         <br>
         <br>
         The idea is simply to remind myself of precise behaviour and/or detail any standard mappings, should
@@ -35,7 +35,7 @@ https://www.felixcloutier.com/x86/and
 //      There are 6 CPU status flags: O[di]SZAPC (Overflow,[direction,interrupt,]Sign,Zero,Adjust,Parity,Carry). Adjust is only used in BCD.
 //                                   odiszapc
         There are ?? FPU status flags: ??? 
-        Phix currently only supports a relatively limited subset of FPU instructions, those that I&rsquo;ve actually needed/used/tested. 
+        Phix currently only supports a relatively limited subset of FPU instructions, those that I&apos;ve actually needed/used/tested. 
         It would not be difficult to add, say, VFNMSUB231SS, but of course each deserves proper testing and documentation, and a small 
         FASM example that verifies correct behaviour would be ideal [with Windows PE being a bit better than Linux ELF, for me].
  
@@ -62,12 +62,12 @@ Set equal to the most-significant bit of the result, which is the sign bit of a 
  
 OF - Overfloa flag
 Set if the integer result is too large a positive number or too small a negative number (excluding the sign-bit) to fit in the destination operand; cleared otherwise. 
-This flag indicates an overflow condition for signed-integer (two&rsquo;s complement) arithmetic.
+This flag indicates an overflow condition for signed-integer (two&apos;s complement) arithmetic.
 
 todo: (inc?)
 registers: al, ah... rsi [??] - eax..esi done
 -->
-        <a name=reg></a>
+        <!--br--><a name=reg></a>
         <h3>Registers</h3>
  <div class="arm_table">
 |ah.....|high byte of ax.........................|General purpose, 8 bits.................|
@@ -103,7 +103,8 @@ registers: al, ah... rsi [??] - eax..esi done
  </div>
         <div class="clear"></div>
         <br>    
-        <h3>examples/CPU</h3>
+        <h3>examples</h3>
+        <small>
  <div class="arm_table">
 |Instruction..........|Description..........................|Encoding...................|Notes.....................|
 |[rex&#46;w]..........|use 64 bit operand size..............|#48 (prefix)...............|(also #49-#4F)............|
@@ -121,8 +122,6 @@ registers: al, ah... rsi [??] - eax..esi done
 |and r/m,r8/32........|r/m &&= r8/32........................|0o04k xrm..................|k:0/1 r8/r32, ARM reg-only|
 |and r8/32,r/m........|r8/32 &&= r/m........................|0o04k xrm..................|k:2/3 r8/r32, ARM reg-only|
 |and r/m8,imm8/32.....|reg &&= imm8/32......................|0o20k x4r i8/32............|[k:0/1/3 i8/32/8, sgn xtd]|
-|=add /0, or /1, adc /2, sbb /3, and /4, (as above) sub /5, xor /6, cmp /7.........................................|
-|=(NB take extra care when translating x86&rsquo;s sbb to ARM&rsquo;s sbc or rsc, as the carry is negated).........|
 #call# :[%]lbl........|call [global] label (or opcode)......|0o350 offset32.............|ARM: alias of bl (<32MB)..|
 |call dword[b+i*s+d8].|call [mem].("dword" is optional).....|0o377 0o124 sib d8.........|ARM: not supported........|
 |call "lib","name"....|call dll/so entry point..............|0o377 0o025 mem32..........|ARM: ?not supported? (tbc)|
@@ -188,16 +187,19 @@ registers: al, ah... rsi [??] - eax..esi done
 |test r/m,i8/32.......|flags := r/m && imm8/32..............|0o36k xr0 i8/32............|k:6/7 i8/32, ARM.reg-only.|
 |test r/m,r8/32.......|flags := r/m &&= r8/32...............|0o20k xrm..................|k:4/5 r8/r32, ""..........|
  </div>
+        </small>
         <div class="clear"></div>
         <br>
+        and/k: add /0, or /1, adc /2, sbb /3, and /4, (as above) sub /5, xor /6, cmp /7<br>
+        (NB take extra care when translating x86&apos;s sbb to ARM&apos;s sbc or rsc, as the carry is negated)<br>
         Phix does not [yet] use/support (64 bit) VEX or XOP prefixes.<br>
         Some assemblers allow sal (shift arithmetic left) as an equivalent form of and with identical behaviour to shl (shift left), but Phix does not.<br>
         The sar instruction is a signed division, ie it propagates the sign bit, whereas shr is unsigned, ie it zero-fills from the left.<br>
         [1] Note that push [ebp+reg*s] specifically needs a d8 even if it is 0.<br>
         [2] x86 allows push [gvar] but ARM (absolutely) does not: lea reg; push [reg]; would be required for the latter. (locals fine, ditto pop).<br>
-        There obviously aren&rsquo;t any "short jumps" in ARM, since every instruction is 32 bits anyway [and almost all conditional, which helps].<br>
-        Explicit sizes of byte/word/dword/qword can be used, though pilasm.e can often deduce that from the register used, eg eax means 32-bit.<br>
-        <a name=h4></a>h4 can be used for the unassigned value #40000000[00000000].<br>
+        There obviously aren&apos;t any "short jumps" in ARM, since every instruction is 32 bits anyway [and almost all conditional, which helps].<br>
+        Explicit sizes of byte/word/dword/qword can be used, though pilasm.e can often deduce that from the register used, eg eax means 32-bit.
+        <br><a name=h4></a>h4 can be used for the unassigned value #40000000[00000000].<br>
 
 <!-- When adding more instructions, see https://www.felixcloutier.com/x86/index.html (which was used for most of the above) and o/c pilasm.e -->
 <!--
@@ -437,8 +439,8 @@ MISCELLANEOUS
         Phix hll does not have unsigned integers, most hll tests map to l/g, but you still might use a/b <br>
         for, say, character comparisons, or the internal type tags (atom is #12, seq/str #80/#82).<br>
         Note the l/g tests are comparing the Sign and Overflow flags, not Sign and 0(zero).<br>
-        ARM has no parity bit (which only applies to the least significant byte on x86, I&rsquo;m told), and <br>
-        traditionally uses NCZV which correspond (in a manner of speaking) to x86&rsquo;s SCZO.<br>
+        ARM has no parity bit (which only applies to the least significant byte on x86, I&apos;m told), and <br>
+        traditionally uses NCZV which correspond (in a manner of speaking) to x86&apos;s SCZO.<br>
         There seems to be some discrepancies regarding the tests on the C and Z flags between <br>
         cs == hs (carry set == unsigned higher or same), and <br>
         cc == lo (carry clear == unsigned lower), and ls/hi, versus [n]a/b/c[e] on the x86...<br>
@@ -780,7 +782,7 @@ LOOP/LOOPx      Loop control    (LOOPE, LOOPNE, LOOPNZ, LOOPZ) if (x && --CX) go
 MOVSB   Move byte from string to string  if (DF==0) *(byte*)DI++ = *(byte*)SI++; else *(byte*)DI-- = *(byte*)SI--; 0xA4
 MOVSW   Move word from string to string  if (DF==0) *(word*)DI++ = *(word*)SI++; else *(word*)DI-- = *(word*)SI--; 0xA5
 MUL     Unsigned multiply       (1) DX:AX = AX * r/m; (2) AX = AL * r/m;        0xF7/4, 0xF6/4
-//NEG   Two&rsquo;s complement negation r/m *= -1;  0xF6/3&0xF7/3
+//NEG   Two&apos;s complement negation r/m *= -1;   0xF6/3&0xF7/3
 NOP     No operation    opcode equivalent to XCHG EAX, EAX      0x90
 //NOT   Negate the operand, logical NOT r/m ^= -1;      0xF6/2&0xF7/2
 //OR        Logical OR      (1) r/m |= r/imm; (2) r |= m/imm;       0x08&0x0D, 0x80&0x81/1, 0x82&0x83/1 (since 80186)
@@ -894,7 +896,7 @@ Usually used to change between little endian and big endian representations. Whe
 CMPXCHG atomic CoMPare and eXCHanGe     See Compare-and-swap / on later 80386 as undocumented opcode available
 //INVD  Invalidate Internal Caches      Flush internal caches
 //INVLPG    Invalidate TLB Entry    Invalidate TLB Entry for page that contains data specified
-//WBINVD    Write Back and Invalidate Cache Writes back all modified cache lines in the processor&rsquo;s internal cache to main memory and invalidates the internal caches.
+//WBINVD    Write Back and Invalidate Cache Writes back all modified cache lines in the processor&apos;s internal cache to main memory and invalidates the internal caches.
 XADD    eXchange and ADD        Exchanges the first operand with the second operand, then loads the sum of the two values into the destination operand.
 Added with Pentium
 Instruction     Meaning Notes
@@ -1529,7 +1531,7 @@ PCMPISTRM xmm1, xmm2/m128, imm8 66 0F 3A 62 /r imm8     Packed comparison of str
 PCMPGTQ xmm1,xmm2/m128  66 0F 38 37 /r  Compare packed signed qwords for greater than.
 //SSE5 derived instructions
 //SSE5 was a proposed SSE extension by AMD. 
-//The bundle did not include the full set of Intel&rsquo;s SSE4 instructions, making it a competitor to SSE4 rather than a successor. 
+//The bundle did not include the full set of Intel&apos;s SSE4 instructions, making it a competitor to SSE4 rather than a successor. 
 //AMD chose not to implement SSE5 as originally proposed, however, derived SSE extensions were introduced.
 
 XOP
@@ -1662,7 +1664,7 @@ VPERM2F128      Shuffle the four 128-bit vector elements of two 256-bit source o
 VZEROALL        Set all YMM registers to zero and tag them as unused. Used when switching between 128-bit use and 256-bit use.
 VZEROUPPER      Set the upper half of all YMM registers to zero. Used when switching between 128-bit use and 256-bit use.
 AVX2
-Introduced in Intel&rsquo;s Haswell microarchitecture and AMD&rsquo;s Excavator.
+Introduced in Intel&apos;s Haswell microarchitecture and AMD&apos;s Excavator.
 
 Expansion of most vector integer SSE and AVX instructions to 256 bits
 
@@ -1702,7 +1704,7 @@ VPSRLVD Shift right logical. Allows variable shifts where each element is shifte
 VPSRLVQ
 VPSRAVD Shift right arithmetically. Allows variable shifts where each element is shifted according to the packed input.
 AVX-512
-Introduced in Intel&rsquo;s Xeon Phi x200
+Introduced in Intel&apos;s Xeon Phi x200
 
 Vector operations on 512 bit registers.
 
@@ -1853,7 +1855,7 @@ SHA256MSG2      Perform a Final Calculation for the Next Four SHA256 Message Dwo
 Undocumented instructions
 Undocumented x86 instructions
 The x86 CPUs contain undocumented instructions which are implemented on the chips but not listed in some official documents. 
-They can be found in various sources across the Internet, such as Ralf Brown&rsquo;s Interrupt List and at sandpile.org
+They can be found in various sources across the Internet, such as Ralf Brown&apos;s Interrupt List and at sandpile.org
 
 Mnemonic        Opcode  Description     Status
 AAM imm8        D4 imm8 Divide AL by imm8, put the quotient in AH, and the remainder in AL      Available beginning with 8086, documented since Pentium (earlier documentation lists no arguments)

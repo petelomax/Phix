@@ -92,10 +92,10 @@ let [,/*string*/ s, /*integer*/ i] = ...;</pre></code>
 =, :=, ==</pre></code>
             </td>
             <td>
-<code><pre>
-=, ===, equal() <small>// (depending on context, equal() is not reverted)</small>
-                <small>// (in JavaScript, [1]===[1] yields false...)</small>
-                <small>// (uses === when either side is atom or string, see note)</small></pre></code>
+<code>=, ===, equal()</code><br>
+<small>(depending on context, equal() is not reverted.<br>
+  &nbsp;in JavaScript, [1]===[1] yields false...<br>
+  &nbsp;uses === when either side is atom or string, see note)</small>
             </td>
          </tr>
          <tr>
@@ -151,9 +151,12 @@ res &= start</pre></code>
             </td>
             <td>
 <code><pre>
-a = $conCat(b, c[, true]);       <small> // ie clone rqd</small>
-res = $conCat(res, start, false);<small> // ie no clone rqd, since "res"==="res"</small>
-res = $conCat(res, start, false);<small> // (reversed to above form[?])</small></pre></code>
+a = $conCat(b, c[, true]);       <small> // [1]</small>
+res = $conCat(res, start, false);<small> // [2]</small>
+res = $conCat(res, start, false);<small> // [3]</small>
+// [1] ie clone rqd
+// [2] ie no clone rqd, since "res"==="res"
+// [3] reversed to above form[?])</pre></code>
             </td>
          </tr>
          <tr>
@@ -201,15 +204,17 @@ s[<expr>] <i>op</i>= x
 s[i+1][j+1][k+1] <i>op</i>= x</pre></code>
             </td>
             <td>
+<small>
 <code><pre>
 s = $repe(s,i,$subse(s,i) <i>op</i> x);
 { let i$dx = <expr>; s = $repe(s,i$dx,$subse(s,i$dx) <i>op</i> x); }
 { let i$dx = k+1, i2$dx = j+1, i3$dx = i+1; 
-  s = $repe(s,i$dx,$subse(s,i$dx,["sequence",i2$dx,i3$dx]) <i>op</i> x,["sequence",i2$dx,i3$dx]); }</pre></code>
+  s = $repe(s,i$dx,$subse(s,i$dx,["sequence",i2$dx,i3$dx]) <i>op</i> x,
+                                 ["sequence",i2$dx,i3$dx]); }</pre></code>
              <br>
-             <small>An additional mini-scope is needed when any index is neither plain var nor literal integer,
-             which is then used for all (rather than just those that actually need it).</small>
-             <small>Note that (eg) i$dx is calculated once only, then used twice, which is why it must exist.</small><br>
+             An additional mini-scope is needed when any index is neither plain var nor literal integer,
+             which is then used for all (rather than just those that actually need it).
+             Note that (eg) i$dx is calculated once only, then used twice, which is why it must exist.</small><br>
 <!--???
             <br>
              <small>(multiple subscripts not [yet<i>!</i>] permitted<i>!</i>)</small>
@@ -252,30 +257,26 @@ if (a === b) {
 for i=1 to 5 do end for
 for i=1 to N do end for
 for i=N to 1 by -1 do end for
-for j=1 to N by p do end for
-for k=N to 1 by -p do end for</pre></code>
+for i=a to b by step do end for</pre></code>
             </td>
             <td>
+<small>
 <code><pre>
 for (let i=1; i&lt;=5; i+=1) { }
 for (let i=1, i$lim=N; i&lt;=i$lim; i+=1) { }
 for (let i=N; i&gt;=1; i-=1) { }
-for (let j=1, j$lim=N; j&lt;=j$lim; j+=p) { }<small> // (nb assumes p>0)</small>
-for (let k=N; k&gt;=1; k-=p) { }             <small> // (   "", ie -p<0)</small></pre></code>
+for (let i=a, i$lim=b, i$sgn=sign(step);
+      compare(i,i$lim)!=i$sgn; i+=step) { }</pre></code>
+</small>
                 <br><small><br>
                 The i$lim is needed because otherwise JavaScript would re-evaluate the expression on every iteration,
-                whereas Phix does not. We can avoid introducing the i$lim variable when it is a fixed literal integer,
-                but avoiding the same for 'N' would require careful analysis not just of the loop body but also any
-                routines it might invoke, along with some messy scope considerations, and besides, anything like say
-                length(s) is faster with the $lim approach. We can be certain that i$lim is a valid non-conflicting
-                identifier as long as i was (and it checks that). The $lim versions are not (yet) reversible.
+                whereas Phix does not. For simplicity we use an i$lim variable for all but fixed literal integers.
+                We can be certain that i$lim is a valid non-conflicting identifier as long as i was (and it checks that). 
+                The $lim versions are not (yet) reversible.
                 <br>
                 <br>
-                Be advised that when faced with "for i=init to lim by step", where init/lim and in particular step 
-                are dynamically defined, desktop/phix emits generic code that copes: pwa/p2js does not and never 
-                will (cope), except perhaps to get half or maybe only a quarter of them right by sheer luck. When
-                step may or may not be negative, you <i>will</i> have to replace the construct with a more explicit
-                while loop, or duplicated inside an if -ve/else. 
+                When the sign of step is unknown we also use an i$sgn in much the same way, and in that case always 
+                use an i$lim even for fixed literal ints.<br>
                 When step is omitted, both desktop and p2js equally assume +1 and &lt;=.</small>
             </td>
          </tr>
@@ -283,6 +284,7 @@ for (let k=N; k&gt;=1; k-=p) { }             <small> // (   "", ie -p<0)</small>
             <td>
 <code><pre>
 for i,e in s do end for
+
 for i,e in <i>&lt;expr&gt;</i> do end for
 for e in <i>&lt;expr&gt;</i> do end for
 for e in s do end for
@@ -293,8 +295,9 @@ for i,e in reverse(s) do end for
 -->
             </td>
             <td>
-<code><pre>
-<small>for (let i=1, e$lim=length(s); i&lt;=e$lim; i+=1) { let e = $subse(s,i); }</small> [1]
+<small><code><pre>
+for (let i=1, e$lim=length(s); i&lt;=e$lim; i+=1)
+         { let e = $subse(s,i); } [1]
   as [1] with e$seq=<i>&lt;expr&gt;</i> and then s -> e$seq (twice) [2]
   as [2] with i -> e$idx
   as [1] with i -> e$idx
@@ -303,7 +306,7 @@ for i,e in reverse(s) do end for
 <small>for (let e$idx=length(s); e$idx&gt;=1; e$idx-=1) { let e = $subse(s,i); }</small>
 <small>for (let i=length(s); i&gt;=1; i-=1) { let e = $subse(s,i); }</small>
 -->
-                <br><small><br>
+                <br><br>
                 We consistently use e$lim since that one must always exist (without any possible name clash), 
                 and/or use a literal constant when we can. 
                 I trust it is pretty obvious that by "s" I mean "a single variable name", and that e$seq is just a 
@@ -331,12 +334,12 @@ for i ... end for</pre></code>
                 <br>
                 Be warned that desktop/Phix and pwa/p2js may have subtly different notions of [nested] scope:
                 such "predefined" behaviour is only formally supported for declarations in the immediately
-                surrounding scope. Nothing to do with JavaScript, that one&rsquo;s fairly and squarely on me. 
-                It&rsquo;s just that the older pmain.e of desktop\Phix is very conservative in calling increaseScope() 
+                surrounding scope. Nothing to do with JavaScript, that one&apos;s fairly and squarely on me. 
+                It&apos;s just that the older pmain.e of desktop\Phix is very conservative in calling increaseScope() 
                 and dropScope(), and prefers to handle the for loop variable(s) "by hand" in DoFor(), whereas 
                 the newer pwa\src\p2js_parse.e is generally much more eager to invoke add_scope() and drop_scope().
                 New/re-use <i>may</i> therefore differ.<br>
-                Obviously if you hit an issue, I&rsquo;ll happily investigate more, but I&rsquo;m not about 
+                Obviously if you hit an issue, I&apos;ll happily investigate more, but I&apos;m not about 
                 to make changes for changes sake when that perceived problem may simply never occur.
                 </small>
             </td>
@@ -360,13 +363,13 @@ end procedure</pre></code>
             <td>
 <code><pre>
 function action(gdx /*h*/, integer i)
-    return XPG_DEFAULT
+    return TG_DEFAULT
 end function</pre></code>
             </td>
             <td>
 <code><pre>
 function action(/*gdx*/ /*h*/anon1, /*integer*/ i) {
-    return XPG_DEFAULT;
+    return TG_DEFAULT;
 }</pre></code>
             </td>
          </tr>
@@ -492,17 +495,17 @@ function f() {
         Within reason, most of the above should be reversible: while obviously secondary to the primary task of transpilation,
         and often lagging some steps behind, it has actually proved quite useful for testng and debugging purposes. However,
         feeding this some random snippet of JavaScript found elsewhere, as opposed to its own output, is quite likely to crash.
-        I have some hopes for the IUP C examples (at least not crashing), but that&rsquo;s a distant tertiary consideration.
+        I have some hopes for the IUP C examples (at least not crashing), but that&apos;s a distant tertiary consideration.
         <br>
         <br>
-        The JavaScript % operator maps to the Phix <a href="remainder.htm">remainder</a>() function, rather than the 
-        <a href="remainder.htm">mod</a>() function, and both of those are defined in p2js.js. Also note that mapping 
-        <a href="remainder.htm">remainder</a>() to % would likely open up all manner of precedence issues, for instance
-        <a href="remainder.htm">remainder</a>(a-b,7) is clearly not the same as a-b%7.
+        The JavaScript % operator maps to the Phix <a href>remainder</a>() function, rather than the 
+        <a href>mod</a>() function, and both of those are defined in p2js.js. Also note that mapping 
+        <a href>remainder</a>() to % would likely open up all manner of precedence issues, for instance
+        <a href>remainder</a>(a-b,7) is clearly not the same as a-b%7.
         <br>
         <br>
         Aside: while investigating the peculiarities of the JavaScript === operator, one person said <i>&ldquo;it looks like 
-        arrays use reference equality which is what you&rsquo;d expect. It&rsquo;d be pretty awful if you couldn&rsquo;t 
+        arrays use reference equality which is what you&apos;d expect. It&apos;d be pretty awful if you couldn&apos;t 
         do that&rdquo;</i>, and it just struck me I have been coding in Phix and before that Euphoria for nearly 20 years and 
         never <i>once</i> wanted that, apart from applying that idea as a petty optimisation a couple of times in the backend. 
         It would in fact be pretty trivial for me to add a === operator to Phix, and pass it unaltered through transpilation 
@@ -518,7 +521,7 @@ function f() {
         where neither is explicitly typed as string (a literal would be), which is probably not far off 99.9% of the time.
         <br>
         <br>
-        It turns out that it&rsquo;s much more important and useful for desktop/Phix to baulk at "bad things" when under 
+        It turns out that it&apos;s much more important and useful for desktop/Phix to baulk at "bad things" when under 
         "with js" than it is for pwa/p2js.exw to "cope with everything", not entirely unlike the way the former makes it
         relatively straightforward to get ancient legacy (or 4.0+) Euphoria code (with sequence ops, etc) to work.
         <br>

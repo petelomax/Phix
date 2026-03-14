@@ -13,39 +13,39 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="atom.htm">atom</a> res = log(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = ln(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = ln(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = log(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = log10(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = log10(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = log2(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = log2(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = exp(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = exp(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = sqrt(<a href="atom.htm">atom</a> x)
+          <a href>atom</a> res = sqrt(<a href>atom</a> x)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = power(<a href="atom.htm">atom</a> x, y)
+          <a href>atom</a> res = power(<a href>atom</a> x, y)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = powmod(<a href="atom.htm">atom</a> base, exponent, modulus)
+          <a href>atom</a> res = powmod(<a href>atom</a> base, exponent, modulus)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = mulmod(<a href="atom.htm">atom</a> a, b, modulus)
+          <a href>atom</a> res = mulmod(<a href>atom</a> a, b, modulus)
          </td>
         </tr>
         <tr>
@@ -53,8 +53,9 @@
           <b>Description:</b>
          </td>
          <td>
-            log[10/2]() returns the natural or base 10/2 logarithm of x.<br>
-            exp() returns the inverse of log(), implemented trivially as power(EULER,x).<br>
+            ln() returns the natural logarithm of x.<br>
+            log10/2() returns the base 10/2 logarithm of x.<br>
+            exp() returns the inverse of ln(), implemented trivially as power(EULER,x).<br>
             sqrt() returns the square root of x. x must not be negative.<br>
             power() returns the x raised to the power y.<br>
             powmod() returns the equivalent of rmdr|mod(power(base,exponent),modulus) only much faster and more accurate.<br>
@@ -74,8 +75,8 @@
           <b>Comments:</b>
          </td>
          <td>
-            These functions may be applied to an <a href="atom.htm">atom</a> or sq_log[10/2](), sq_sqrt(), sq_power() to all 
-            elements of a <a href="sequence.htm">sequence</a>.<br>
+            These functions may be applied to an <a href>atom</a> or sq_ln(), sq_log[10/2](), sq_sqrt(), sq_power() to all 
+            elements of a <a href>sequence</a>.<br>
             The rules for <a href="seqops.htm">sequence operations</a> apply.
           <br>
           <br>
@@ -83,30 +84,28 @@
             you try to obtain one of a negative number or zero.
             <br>
             <br>
-            <b>ln</b>() is a simple alias of log(), likewise <b>sq_ln</b>() and hll_ln(), which emphasize they yield the natural logarithm; 
-            were it not for legacy code and compatibility issues, I&rsquo;d probably just deprecate/delete the [sq_|hll_]log() names.
+            <b>log</b>() is a simple alias of ln(), likewise <b>sq_log</b>() and hll_log(), but unlike ln() those names fail to emphasize
+            they yield the natural logarithm; were it not for legacy code and compatibility issues, I would just deprecate/delete them. 
             <br>
             <br>
-            <b>log10</b>() is a simple wrapper to log(), multiplied by (1/log(10)). Likewise <b>log2</b>(), which also contains 
-            some code to ensure that non-negative integer powers of 2 yeild an integer result [pre-1.0.2 log2(8) gave 3-(4.44e-16) 
-            on 32-bit, while 64-bit fared a bit better up to log2(8192) which gave 13-(8.67e-19), ie both pretty close but no cigar],
-            covering 0..31 on 32-bit, and 0..63 on 64-bit. A slightly less efficient version of that code was also added to log10(), 
-            but only guarantees 0..9 on 32-bit (aka <a href="integer.htm">integer</a> inputs of 1, 10, .. 1_000_000_000), and 0..19 
-            on 64-bit. Should the (reduced) performance of log10/2 be an issue, you would be much better off by invoking ln() and 
-            performing said multiplication by a predefined constant inline.
+            <b>log10</b>() is a simple wrapper to ln(), multiplied by (1/ln(10)). Likewise <b>log2</b>(), which also contains some code 
+            to ensure that non-negative integer powers of 2 yield an integer result, covering 0..54 on 32-bit, and 0..92 on 64-bit.
+            A slightly less efficient version of that code was also added to log10(), but only guarantees 0..16 on 32-bit (aka 
+            <a href>integer</a> inputs of 1, 10, .. 1_000_000_000), and 0..19 on 64-bit. Should the (reduced) performance 
+            of log10/2 be an issue, you might try using ln() and performing said multiplication by a predefined constant inline.
             <br>
             <br>
             log() is directly supported by the floating point hardware and as such, without any wrapper/multiplication, may prove noticeably 
             faster, and perhaps slightly more accurate.
             <br>
             <br>
-            <b>exp</b>(<a href="atom.htm">atom</a> x) is the inverse of log(), and is implemented simply as return power(EULER,x).<br>
+            <b>exp</b>(<a href>atom</a> x) is the inverse of log(), and is implemented simply as return power(EULER,x).<br>
             There is no similar builtin function for the inverse of log10(); you are expected to use power(10,x) directly, likewise log2().<br>
-            Also, there is currently no sq_exp() function, it has simply never been needed or asked for (plus it don&rsquo;t quite fit 
+            Also, there is currently no sq_exp() function, it has simply never been needed or asked for (plus it don&apos;t quite fit 
             in the <a href="seqops.htm">seqops</a> table).
             <br>
             <br>
-            Powers of 2 are calculated very efficiently.
+            Powers of 2 are calculated very efficiently for y of 0..29 on 32bit and 0..61 on 64bit.
             <br>
             <br>
             Other languages have a ** or ^ operator to perform the same action as power(), though in some languages ^ is the xor function.<br>
@@ -136,7 +135,7 @@ end function
          </td>
          <td>
 <!--eucode>
-?log(100)   -- prints 4.605170186
+?ln(100)    -- prints 4.605170186
 ?log10(100) -- prints 2 -- (exact in 1.0.2+)
 ?log2(8)    -- prints 3 --        ""
 ?sqrt(16)   -- prints 4
@@ -144,7 +143,7 @@ end function
 ?powmod(13789,722341,2345) -- prints 2029
 </eucode-->
 <pre>
-<font color="#0000FF">?</font><font color="#7060A8">log</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4.605170186</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">ln</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 4.605170186</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">log10</font><font color="#0000FF">(</font><font color="#000000">100</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 2 -- (exact in 1.0.2+)</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">log2</font><font color="#0000FF">(</font><font color="#000000">8</font><font color="#0000FF">)   </font><font color="#000080"><i> -- prints 3 --        ""</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">sqrt</font><font color="#0000FF">(</font><font color="#000000">16</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 4</i></font>
@@ -158,7 +157,7 @@ end function
           <b>Implementation:</b>
          </td>
          <td>
-            log(): via :%opLog in builtins\VM\pTrig.e (an autoinclude).<br>
+            ln(): via :%opLog in builtins\VM\pTrig.e (an autoinclude). <small>[Note %opLn is a line number thing]</small><br>
             log10() and log2(): see builtins\log10.e (an autoinclude) for details of the actual implementation.<br>
             exp(): see builtins\pmaths.e (an autoinclude) for details of the actual implementation.<br>
             sqrt(): via :%opSqrt in builtins\VM\pTrig.e (an autoinclude).<br>
@@ -176,7 +175,7 @@ end function
          </td>
         </tr>
        </table>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

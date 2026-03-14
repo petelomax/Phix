@@ -91,7 +91,7 @@
 function $sq_fatal(/*sequence*/ a, /*sequence*/ b) {
     printf(1,"sequence lengths not the same (%d!=%d)!\n",["sequence",length(a),length(b)]);
     crash("9/0");
-}
+} $sq_fatal.$sig="PPP";
 function $sq_general(/*object*/ a, b, /*integer*/ fn, /*bool*/ recursive=true) {
     if (atom(a) || !recursive) {
         if (atom(b) || !recursive) {
@@ -167,7 +167,7 @@ function $sq_general(/*object*/ a, b, /*integer*/ fn, /*bool*/ recursive=true) {
         }
     }
     return res;
-}
+} $sq_general.$sig="FOOII,1";
 function $sq_unary(/*object*/ a, /*integer*/ fn, level=1, /*bool*/ recursive=true) {
     if (atom(a) || (!recursive && level>1)) {
         switch (fn) {
@@ -235,108 +235,107 @@ function $sq_unary(/*object*/ a, /*integer*/ fn, level=1, /*bool*/ recursive=tru
         res = $repe(res,i,$sq_unary($subse(a,i),fn,level+1,recursive));
     }
     return res;
-}
+} $sq_unary.$sig="FOIII,3";
 
-/*global*/ function sq_cmp(/*object*/ a, b) { return $sq_general(a,b,0X63); }
+/*global*/ function sq_cmp(/*object*/ a, b) { return $sq_general(a,b,0X63); } sq_cmp.$sig="FOO";
 
-/*global*/ function sq_eq(/*object*/ a, b) { return $sq_general(a,b,0X3D); }
+/*global*/ function sq_eq(/*object*/ a, b) { return $sq_general(a,b,0X3D); } sq_eq.$sig="FOO";
 
-/*global*/ function sq_ne(/*object*/ a, b) { return $sq_general(a,b,0X6E); }
+/*global*/ function sq_ne(/*object*/ a, b) { return $sq_general(a,b,0X6E); } sq_ne.$sig="FOO";
 
-/*global*/ function sq_lt(/*object*/ a, b) { return $sq_general(a,b,0X3C); }
+/*global*/ function sq_lt(/*object*/ a, b) { return $sq_general(a,b,0X3C); } sq_lt.$sig="FOO";
 
-/*global*/ function sq_le(/*object*/ a, b) { return $sq_general(a,b,0X6C); }
+/*global*/ function sq_le(/*object*/ a, b) { return $sq_general(a,b,0X6C); } sq_le.$sig="FOO";
 
-/*global*/ function sq_gt(/*object*/ a, b) { return $sq_general(a,b,0X3E); }
+/*global*/ function sq_gt(/*object*/ a, b) { return $sq_general(a,b,0X3E); } sq_gt.$sig="FOO";
 
-/*global*/ function sq_ge(/*object*/ a, b) { return $sq_general(a,b,0X67); }
+/*global*/ function sq_ge(/*object*/ a, b) { return $sq_general(a,b,0X67); } sq_ge.$sig="FOO";
 
-/*global*/ function sq_add(/*object*/ a, b) { return $sq_general(a,b,0X2B); }
+/*global*/ function sq_add(/*object*/ a, b) { return $sq_general(a,b,0X2B); } sq_add.$sig="FOO";
 
-/*global*/ function sq_sub(/*object*/ a, b) { return $sq_general(a,b,0X2D); }
+/*global*/ function sq_sub(/*object*/ a, b) { return $sq_general(a,b,0X2D); } sq_sub.$sig="FOO";
 
-/*global*/ function sq_mul(/*object*/ a, b) { return $sq_general(a,b,0X2A); }
+/*global*/ function sq_mul(/*object*/ a, b) { return $sq_general(a,b,0X2A); } sq_mul.$sig="FOO";
 
-/*global*/ function sq_div(/*object*/ a, b) { return $sq_general(a,b,0X2F); }
+/*global*/ function sq_div(/*object*/ a, b) { return $sq_general(a,b,0X2F); } sq_div.$sig="FOO";
 
-/*global*/ function sq_floor_div(/*object*/ a, b) { return $sq_general(a,b,0X66); }
+/*global*/ function sq_floor_div(/*object*/ a, b) { return $sq_general(a,b,0X66); } sq_floor_div.$sig="FOO";
 //4/11/22 now properly aliased in psym.e, and in a way understood by p2js
 //global function sq_remainder(object a, b) return $sq_general(a,b,'r') end function
-/*global*/ function sq_rmdr(/*object*/ a, b) { return $sq_general(a,b,0X72); }
-let sq_remainder = sq_rmdr;
+/*global*/ function sq_rmdr(/*object*/ a, b) { return $sq_general(a,b,0X72); } sq_rmdr.$sig="FOO"; let sq_remainder = sq_rmdr;
 //global function sq_remainder(object a, b) return $sq_general(a,b,'r') end function -- achieved via psym.e/syminit()
-/*global*/ function sq_mod(/*object*/ a, b) { return $sq_general(a,b,0X6D); }
+/*global*/ function sq_mod(/*object*/ a, b) { return $sq_general(a,b,0X6D); } sq_mod.$sig="FOO";
 
-/*global*/ function sq_and(/*object*/ a, b) { return $sq_general(a,b,0X61); }
+/*global*/ function sq_and(/*object*/ a, b) { return $sq_general(a,b,0X61); } sq_and.$sig="FOO";
 
-/*global*/ function sq_or(/*object*/ a, b) { return $sq_general(a,b,0X6F); }
+/*global*/ function sq_or(/*object*/ a, b) { return $sq_general(a,b,0X6F); } sq_or.$sig="FOO";
 
-/*global*/ function sq_xor(/*object*/ a, b) { return $sq_general(a,b,0X78); }
+/*global*/ function sq_xor(/*object*/ a, b) { return $sq_general(a,b,0X78); } sq_xor.$sig="FOO";
 
-/*global*/ function sq_and_bits(/*object*/ a, b) { return $sq_general(a,b,0X41); }
+/*global*/ function sq_and_bits(/*object*/ a, b) { return $sq_general(a,b,0X41); } sq_and_bits.$sig="FOO";
 
-/*global*/ function sq_or_bits(/*object*/ a, b) { return $sq_general(a,b,0X4F); }
+/*global*/ function sq_or_bits(/*object*/ a, b) { return $sq_general(a,b,0X4F); } sq_or_bits.$sig="FOO";
 
-/*global*/ function sq_xor_bits(/*object*/ a, b) { return $sq_general(a,b,0X58); }
+/*global*/ function sq_xor_bits(/*object*/ a, b) { return $sq_general(a,b,0X58); } sq_xor_bits.$sig="FOO";
 
-/*global*/ function sq_power(/*object*/ a, b) { return $sq_general(a,b,0X70); }
+/*global*/ function sq_power(/*object*/ a, b) { return $sq_general(a,b,0X70); } sq_power.$sig="FOO";
 // 24/6/21 false removed*2, for Hourglass puzzle... (all tests pass...)
 //global function sq_max(object a, b) return $sq_general(a,b,'M',false) end function
-/*global*/ function sq_max(/*object*/ a, b) { return $sq_general(a,b,0X4D); }
+/*global*/ function sq_max(/*object*/ a, b) { return $sq_general(a,b,0X4D); } sq_max.$sig="FOO";
 //global function sq_min(object a, b) return $sq_general(a,b,'N',false) end function
-/*global*/ function sq_min(/*object*/ a, b) { return $sq_general(a,b,0X4E); }
+/*global*/ function sq_min(/*object*/ a, b) { return $sq_general(a,b,0X4E); } sq_min.$sig="FOO";
 
-/*global*/ function sq_abs(/*object*/ a) { return $sq_unary(a,0X61); }
+/*global*/ function sq_abs(/*object*/ a) { return $sq_unary(a,0X61); } sq_abs.$sig="FO";
 
-/*global*/ function sq_floor(/*object*/ a) { return $sq_unary(a,0X66); }
+/*global*/ function sq_floor(/*object*/ a) { return $sq_unary(a,0X66); } sq_floor.$sig="FO";
 
-/*global*/ function sq_ceil(/*object*/ a) { return $sq_unary(a,0X63); }
+/*global*/ function sq_ceil(/*object*/ a) { return $sq_unary(a,0X63); } sq_ceil.$sig="FO";
 
-/*global*/ function sq_even(/*object*/ a) { return $sq_unary(a,0X65); }
+/*global*/ function sq_even(/*object*/ a) { return $sq_unary(a,0X65); } sq_even.$sig="FO";
 
-/*global*/ function sq_sign(/*object*/ a) { return $sq_unary(a,0X73); }
+/*global*/ function sq_sign(/*object*/ a) { return $sq_unary(a,0X73); } sq_sign.$sig="FO";
 
-/*global*/ function sq_trunc(/*object*/ a) { return $sq_unary(a,0X74); }
+/*global*/ function sq_trunc(/*object*/ a) { return $sq_unary(a,0X74); } sq_trunc.$sig="FO";
 
-/*global*/ function sq_rand(/*object*/ a) { return $sq_unary(a,0X72); }
+/*global*/ function sq_rand(/*object*/ a) { return $sq_unary(a,0X72); } sq_rand.$sig="FO";
 
-/*global*/ function sq_uminus(/*object*/ a) { return $sq_unary(a,0X75); }
+/*global*/ function sq_uminus(/*object*/ a) { return $sq_unary(a,0X75); } sq_uminus.$sig="FO";
 
-/*global*/ function sq_not(/*object*/ a) { return $sq_unary(a,0X6E); }
+/*global*/ function sq_not(/*object*/ a) { return $sq_unary(a,0X6E); } sq_not.$sig="FO";
 
-/*global*/ function sq_not_bits(/*object*/ a) { return $sq_unary(a,0X4E); }
+/*global*/ function sq_not_bits(/*object*/ a) { return $sq_unary(a,0X4E); } sq_not_bits.$sig="FO";
 
-/*global*/ function sq_odd(/*object*/ a) { return $sq_unary(a,0X6F); }
+/*global*/ function sq_odd(/*object*/ a) { return $sq_unary(a,0X6F); } sq_odd.$sig="FO";
 
-/*global*/ function sq_cos(/*object*/ a) { return $sq_unary(a,0X43); }
+/*global*/ function sq_cos(/*object*/ a) { return $sq_unary(a,0X43); } sq_cos.$sig="FO";
 
-/*global*/ function sq_sin(/*object*/ a) { return $sq_unary(a,0X53); }
+/*global*/ function sq_sin(/*object*/ a) { return $sq_unary(a,0X53); } sq_sin.$sig="FO";
 
-/*global*/ function sq_tan(/*object*/ a) { return $sq_unary(a,0X54); }
+/*global*/ function sq_tan(/*object*/ a) { return $sq_unary(a,0X54); } sq_tan.$sig="FO";
 
-/*global*/ function sq_arccos(/*object*/ a) { return $sq_unary(a,0X44); }
+/*global*/ function sq_arccos(/*object*/ a) { return $sq_unary(a,0X44); } sq_arccos.$sig="FO";
 
-/*global*/ function sq_arcsin(/*object*/ a) { return $sq_unary(a,0X52); }
+/*global*/ function sq_arcsin(/*object*/ a) { return $sq_unary(a,0X52); } sq_arcsin.$sig="FO";
 
-/*global*/ function sq_arctan(/*object*/ a) { return $sq_unary(a,0X55); }
+/*global*/ function sq_arctan(/*object*/ a) { return $sq_unary(a,0X55); } sq_arctan.$sig="FO";
 
-/*global*/ function $sq_ln(/*object*/ a) { return $sq_unary(a,0X6C); }
+/*global*/ function sq_ln(/*object*/ a) { return $sq_unary(a,0X6C); } sq_ln.$sig="FO";
 
-/*global*/ function sq_log(/*object*/ a) { return $sq_unary(a,0X6C); }
+/*global*/ function sq_log(/*object*/ a) { return $sq_unary(a,0X6C); } sq_log.$sig="FO";
 
-/*global*/ function sq_log10(/*object*/ a) { return $sq_unary(a,0X31); }
+/*global*/ function sq_log10(/*object*/ a) { return $sq_unary(a,0X31); } sq_log10.$sig="FO";
 
-/*global*/ function sq_log2(/*object*/ a) { return $sq_unary(a,0X32); }
+/*global*/ function sq_log2(/*object*/ a) { return $sq_unary(a,0X32); } sq_log2.$sig="FO";
 
-/*global*/ function sq_sqrt(/*object*/ a) { return $sq_unary(a,0X71); }
+/*global*/ function sq_sqrt(/*object*/ a) { return $sq_unary(a,0X71); } sq_sqrt.$sig="FO";
 
-/*global*/ function sq_int(/*object*/ a) { return $sq_unary(a,0X49,false); }
+/*global*/ function sq_int(/*object*/ a) { return $sq_unary(a,0X49,false); } sq_int.$sig="FO";
 
-/*global*/ function sq_atom(/*object*/ a) { return $sq_unary(a,0X41,false); }
+/*global*/ function sq_atom(/*object*/ a) { return $sq_unary(a,0X41,false); } sq_atom.$sig="FO";
 
-/*global*/ function sq_str(/*object*/ a) { return $sq_unary(a,0X47,false); }
+/*global*/ function sq_str(/*object*/ a) { return $sq_unary(a,0X47,false); } sq_str.$sig="FO";
 
-/*global*/ function sq_seq(/*object*/ a) { return $sq_unary(a,0X51,false); }
+/*global*/ function sq_seq(/*object*/ a) { return $sq_unary(a,0X51,false); } sq_seq.$sig="FO";
 // If sq_atom()/sq_seq() used recursion, you would just get a 
 // "tree of 1's"/"tree of 0's" of the exact same size/shape.
 // [ie sum(sq_atom(x)) would be === length(flatten(x)), and
@@ -414,4 +413,4 @@ end function
         }
     }
     return res;
-}
+} sq_round.$sig="FOO,1";

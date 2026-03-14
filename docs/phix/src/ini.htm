@@ -1,0 +1,531 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">ini</h1>
+      <div id="mainSection">
+        Simple ini/config file handling, implemented in builtins\ini.e (<i>not</i> an auto-include, but could easily be made one).
+        <br>
+        <br>
+        Such files keep important settings and other info in plain text, which can easily be read and manually edited in emergency cases. <br>
+        Their contents should change as infrequently as possible, to wit this encourages the use of multiple ini files, instead of/in preference 
+        to allowing multiple groups/sections <small>(with overloaded keynames)</small> within a single ini file <small>(with different lifespans 
+        and corruption consequences)</small>.<br>
+        Multiple ini files may improve robustness simply by the fact that should a catastrophe occur it might only corrupt a subset of the 
+        settings and/or make restoring just the clobbered part significantly easier, plus unchanged files aren&apos;t overwritten, further 
+        reducing the risk of damage. <br>
+        For instance it is not generally wise to mix, say, secure digital authentication keys with more transient things like recent files or 
+        usage stats: the latter are fairly frequently updated and should they be corrupted there is a reasonable probability of only some minor 
+        irritation, whereas key loss could lead to a far more serious and prolonged interruption.<br>
+        Note that ini.e makes no attempt to make any backups itself, but does at least provide <a href>ini_filename</a>() 
+        so you know what to save, and <a href>ini_dirty</a>() so you know when and ideally not have to wade through thousands 
+        of identically-corrupted backups looking for an earlier one that still works, not that I can promise that won&apos;t ever happen.
+        Aside: while there is inevitably a small risk that ini.e still contains a few bugs, the far bigger risk is that an application will
+        tell it to store garbage, along with hardware failure, malware, acts of god, terrorism, and user error.
+        <br>
+        <br>
+        Each line in the ini file is either a comment line, blank or with line[1] in "-/;=" 
+        <small>(caring not whether doubled as in "--" or "//")</small>, or<br>
+        a <i>&lt;keyname&gt;</i> = <i>&lt;setting&gt;</i> line, with an implied ' = ""' when no '=' is present
+        <small>(and with <a href>trim</a>() applied to both halves)</small>.<br>
+        Technically a comment <small>(nb whole line only)</small> is effectively held internally as `"" = "<i>text</i>"`
+        <small>(including the comment marker)</small>, just so you know.<br>
+<!--
+         keyword withsetting keyname must be a (trim()-able) string name without any embedded '=' char(s).<br>
+        Each setting keyname must be a (trim()-able) string name without any embedded '=' char(s).<br>
+        Lines without any '=' char are simply treated as a keyname with a setting of "" (the empty string).<br>
+        Likwise any keyname with a setting of the empty string is written by <a href>ini_save</a>() in the shorthand form.<br>
+-->
+        Individual settings can be integer or string: other content (inc/esp floats) should be explicitly managed
+        (at the point of call) via <a href>sprintf</a>() and <a href>scanf</a>().<br>
+        <small>[I might reconsider handling floats via "%g", but the "random precision" aspect rather deters me from doing that
+                without a pretty good cause, which hasn&apos;t arisen yet.]</small><br>
+        No settings can exceed a single line, but you should be able to manage your own '\n' embedding easily enough.<br>
+        <small>(Tip: ini.e would treat say "text[01]".."text[10]" as ten distinct keynames, so [I suppose] you <i>could</i> 
+                     even split/stitch on that sort of basis manually.)</small><br>
+        Note that ini.e also doesn&apos;t attempt any escape character or quote handling itself: that&apos;s all on you as well.<br>
+        Likewise an ini file cannot hold say "123" as an unquoted <i>string</i>, you may have to quote-strip/add manually.<br>
+<!--
+         [See theEditor.exw for more examples.]<br>
+--]
+        Line comments (--, //, or ;) are recognised/preserved, but there are NO block comments,
+        and line means the whole of it, eg "-- comment", NOT "keyname = setting -- comment", since
+        the latter simply sets "keyname" to "setting -- comment". Aka line[1] in "-/;" only.<br>
+[!-- went the "aka" way just mentioned instead...
+        In practice, "-- comment" is preserved as name=="" plus that and no '=', whereas (say)
+        "--name = previous" is preserved as "--name" plus "previous" (with an implicit '='), and 
+        of course would rely on the application simply never querying/updating "--name". <br>
+-->
+        Duplicate keynames are overwritten, but it displays some hopefully helpful warnings on the console if any such 
+        are detected. It should be difficult and perhaps impossible to accidentally create duplicate keynames, except 
+        when they occur in the ini_default string, over which these routines have no direct control whatsoever, fairly
+        obviously, about what an application decides to supply in that parameter.
+        <br>
+        <br>
+        These routines are supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>, except that
+        <a href>ini_load</a>() relies almost entirely on the ini_default as given and <a href>ini_save</a>() does nothing. 
+        I split the latter to create <a href>ini_as_string</a>(), in the probably vain hope you may be able to do something with 
+        (say) local storage from that.
+        <br>
+       <h3>Example:</h3>
+       <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+        <div class="codeSnippetContainerCodeContainer">
+         <div class="codeSnippetToolBar">
+          <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_37c83j93-4567-1778-1441-8b2483c92321');">Copy</a>
+          </div>
+         </div>
+         <div id="CodeSnippetContainerCode_37c83j93-4567-1778-1441-8b2483c92321" class="codeSnippetContainerCode" dir="ltr">
+          <div style="color:Black;">
+<!--eucode>
+include builtins\ini.e
+
+constant TED = "theEditor",
+     SESSION = TED&"_session",
+ini_defaults = """
+width = 240
+height = 80
+mainwin = {50,50}
+""",
+session_defaults = """
+C:\Program Files (x86)\Phix\builtins\ini.e
+C:\Users\Pete\theEditor.ini
+"""
+ini_load(TED,ini_defaults)
+-- ...
+    ini_restore(TED) -- (be sure "session" isn't active)
+    integer w = ini_setting("width"),
+            h = ini_setting("height"),
+      {{x,y}} = scanf(ini_setting("mainwin"),"{%d,%d}")
+-- ...
+    -- reload files if any from the previous session:
+    ini_load(SESSION,session_defaults) -- (optional here)
+    for key in ini_keynames(SESSION) do
+        object setting = ini_setting(key)
+        if integer(setting) or length(setting) then
+            ?{"dunno what this is",key,setting}
+        elsif string(setting) then
+            string text = get_text(key)
+        else
+            -- setting can only be integer or string
+            crash("this should never actually happen")
+        end if
+    end for
+-- ...
+    ini_restore(SESSION) -- (it costs very little to play safe)
+    -- add a new file to the session when opened:
+    -- (override bMustExist when it likely won't)
+    ini_set(filepath,"",false)
+-- ...
+    -- remove from session when file is closed:
+    ini_restore(SESSION) -- (ditto)
+    ini_delete_key(filepath)
+-- ...
+    -- update window placement if/when moved:
+    ini_restore(TED) -- (ditto)
+    ini_set("mainwin",sprintf("{%d,%d}",{x,y}))
+    ini_set("width",w)
+    ini_set("height",h)
+-- ...
+    ini_save(SESSION)
+-- ...
+ini_save(TED) -- see eg C:\Users\Pete\theEditor.ini
+              -- (use ini_filename(TED) to be sure)
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> builtins\ini.e
+</font>
+<font color="#008080">constant</font><font color="#000000"> TED</font><font color="#0000FF"> =</font><font color="#008000"> "theEditor"</font><font color="#0000FF">,</font>
+<font color="#000000">     SESSION</font><font color="#0000FF"> =</font><font color="#000000"> TED</font><font color="#0000FF">&amp;</font><font color="#008000">"_session"</font><font color="#0000FF">,</font>
+<font color="#000000">ini_defaults</font><font color="#0000FF"> =</font><font color="#008000"> """
+width = 240
+height = 80
+mainwin = {50,50}
+"""</font><font color="#0000FF">,</font>
+<font color="#000000">session_defaults</font><font color="#0000FF"> =</font><font color="#008000"> """
+C:\Program Files (x86)\Phix\builtins\ini.e
+C:\Users\Pete\theEditor.ini
+"""</font>
+<font color="#7060A8">ini_load</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">,</font><font color="#000000">ini_defaults</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (be sure "session" isn&apos;t active)</i></font>
+<font color="#004080">    integer</font><font color="#000000"> w</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"width"</font><font color="#0000FF">),</font>
+<font color="#000000">            h</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"height"</font><font color="#0000FF">),
+      {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#7060A8"> scanf</font><font color="#0000FF">(</font><font color="#7060A8">ini_setting</font><font color="#800000">(</font><font color="#008000">"mainwin"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"{%d,%d}"</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...
+    -- reload files if any from the previous session:</i></font>
+<font color="#7060A8">    ini_load</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">,</font><font color="#000000">session_defaults</font><font color="#0000FF">)</font><font color="#000080"><i> -- (optional here)</i></font>
+<font color="#008080">    for</font><font color="#000000"> key</font><font color="#008080"> in</font><font color="#7060A8"> ini_keynames</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#004080">        object</font><font color="#000000"> setting</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> or</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#0000FF">            ?{</font><font color="#008000">"dunno what this is"</font><font color="#0000FF">,</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">setting</font><font color="#0000FF">}</font>
+<font color="#008080">        elsif</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#004080">            string</font><font color="#000000"> text</font><font color="#0000FF"> =</font><font color="#7060A8"> get_text</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font>
+<font color="#008080">        else</font>
+<font color="#000080"><i>            -- setting can only be integer or string</i></font>
+<font color="#7060A8">            crash</font><font color="#0000FF">(</font><font color="#008000">"this should never actually happen"</font><font color="#0000FF">)</font>
+<font color="#008080">        end if
+    end for</font>
+<font color="#000080"><i>-- ...</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (it costs very little to play safe)
+    -- add a new file to the session when opened:
+    -- (override bMustExist when it likely won&apos;t)</i></font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#000000">filepath</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...
+    -- remove from session when file is closed:</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
+<font color="#7060A8">    ini_delete_key</font><font color="#0000FF">(</font><font color="#000000">filepath</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...
+    -- update window placement if/when moved:</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"mainwin"</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#800000">(</font><font color="#008000">"{%d,%d}"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"width"</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"height"</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...</i></font>
+<font color="#7060A8">    ini_save</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- ...</i></font>
+<font color="#7060A8">ini_save</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- see eg C:\Users\Pete\theEditor.ini
+              -- (use ini_filename(TED) to be sure)</i></font>
+</pre>
+          </div>
+         </div>
+        </div>
+       </div>
+        Using constants for ini_names is recommended to reduce the risk of typos getting past the compiler undetected.<br>
+        The programmer is entirely responsible for ensuring that all ini_names are not just application but system-unique.
+       <br>
+       <br>
+       <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:8em;}
+       </style>
+       <div id="nopad" class="nopad" align="center">
+        <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_load></a>
+            <br>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_load</b>(string ini_name, ini_default="")
+             <br>
+            </dt>
+            <dd class="pad">
+            Fairly obviously, must generally speaking be invoked before anything else.<br>
+            In the above sample, <code>ini_load(SESSION,session_defaults)</code> is only needed should you want to 
+            pre-populate it, should an empty file suffice the SESSION as passed to ini_keynames() would too.<br>
+            In other words, you don&apos;t actually have to invoke ini_load(), however that would mean that 
+            bMustExist needs to be overridden for absolutely everything in that particular file.<br>
+            If ini_name does not begin with '$' the file is stored in %HOME%/.ini_name on Linux, and 
+            <nobr>%HOMEDRIVE%%HOMEPATH%\ini_name.ini</nobr> on Windows <small>(eg C:\Users\Pete\test.ini)</small>.<br>
+            If ini_name <i>does</i> begin with '$' it is dropped and settings are stored in a system-wide location.<br>
+            If there is a second '$' it is treated as $ini_name$configname otherwise configname is the
+            literal constant "config". On Windows the file is stored in %ALLUSERSPROFILE%\ini_name\configname.ini,
+            <small>(eg C:\ProgramData\theEditor\config.ini)</small>
+            but currently Linux crashes since I have simply not decided where best to put it yet. 
+            Likewise this could be a good candidate for any initial p2js experiments, as next. [DEV]<br>
+            Under p2js, relies entirely on ini_default with no attempt to read/write anything to disk.<br>
+            <small>[LocalStorage and/or some form of PHP API on a server remain untested options there.]</small><br>
+            Invokes <a href>ini_filename</a>() internally, ini_default is completely ignored once the file already exists.<br>
+            The internal "structure" of ini_default, if you can call it that, is preserved indefinitely, including
+            any comments, unless you really go to town with <a href>ini_delete_key</a>(). 
+            The only way you could reorganise things (for your aesthetic reasons, the application should simply not care) 
+            or add comments, other than manually editing the file (at a time when it is <i>not</i> due to be overwritten, 
+            of course) would be to grab any details needed, <a href>ini_close</a>(), physically delete the 
+            file, and re-create with a "nicer" ini_default.<br>
+            Multiple invocations with the same ini_name, without an intervening <a href>ini_close</a>(), will
+            trigger a fatal error.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_restore></a>
+            <br>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_restore</b>(string ini_name)
+             <br>
+            </dt>
+            <dd class="pad">
+            Only ever needed when there (may) have been multiple <a href>ini_load</a>() calls, but sensible and not at all expensive 
+            to call just in case additional ini files start getting used, for instance by some library component you 
+            later decide to start using. <small>[The alternative would be to force ini_name to be provided on every fetch 
+            and set, which didn&apos;t feel right.]</small>
+            In other words, ini_restore() is "re-specify where we&apos;re storing things", rather than any form of recover 
+            or undo, and I suppose typically belongs at the start of a/each section/loop. 
+            For internal reasons, ini_restore("") does nothing, except prove at least one <a href>ini_load</a>() has occurred, and
+            is still "active" aka not <a href>ini_close</a>()&apos;d.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_save></a>
+            <br>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_save</b>(string ini_name="")
+             <br>
+            </dt>
+            <dd class="pad">
+            Note there are no checks whatsoever that ini_save() is ever actually called, except via <a href>ini_close</a>().<br>
+            Can be invoked multiple times per session with no side effects other than the ini file itself being overwritten.<br>
+            Does nothing unless <a href>ini_dirty</a>() indicates it that needs/ought to (and then clears the dirty flag).<br>
+            Invokes <a href>ini_as_string</a>() automatically and writes the result to disk (but not under p2js).<br>
+            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
+            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_close></a>
+            <br>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_close</b>(string ini_name="", bool bIgnoreDirty=false)
+             <br>
+            </dt>
+            <dd class="pad">
+            (optional) 
+            Completely removes the specified entry from the internal tables and sets the active index to 0.<br>
+            An error occurs if there are any pending updates, aka <a href>ini_save</a>() missing, unless bIgnoreDirty is overidden.<br>
+            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
+            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.<br>
+            Provided for completeness only: there is no real benefit from ever bothering with this, other than verify-saved
+            or you are for some strange reason attempting the awkward/longhand re-creation method mentioned in <a href>ini_load</a>().
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_set></a>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_set</b>(string keyname, object setting, bool bMustExist=true)
+             <br>
+            </dt>
+            <dd class="pad">
+            Individual settings can be integer or string: other content should be explicitly managed
+            (at the point of call) via <a href>sprintf</a>() and <a href>scanf</a>()
+            as shown above for the integer {x,y} position pairing.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_setting></a>
+            object res =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_setting</b>(string keyname, object dflt=0, bool bMustExist=true)
+             <br>
+            </dt>
+            <dd class="pad">
+            Result will be integer, string, or (when bMustExist is false) whatever type dflt was.<br>
+            When bMustExist is true, dflt is not actually used/returned, and an error occurs instead.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_delete_key></a>
+            <br>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_delete_key</b>(string keyname, bool bMustExist=<a href>true</a>) -- remove keyname.
+             <br>
+            </dt>
+            <dd class="pad">
+            Probably better suited to (say) recent files than proper/permanant settings.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_keynames></a>
+            <nobr>sequence res =&nbsp;</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_keynames</b>(string ini_name="")
+             <br>
+            </dt>
+            <dd class="pad">
+            Returns a list of all keynames currently stored.<br>
+            Probably more useful for, say, recent files than actual/proper/permanant settings.<br>
+            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
+            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_filename></a>
+            <nobr>string res =&nbsp;</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_filename</b>(string ini_name)
+             <br>
+            </dt>
+            <dd class="pad">
+            Made available in case it proves useful, used internally by <a href>ini_load</a>().<br>
+            Returns the filename corresponding to ini_name, as described above.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_dirty></a>
+            <nobr>bool res =&nbsp;</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_dirty</b>(string ini_name)
+             <br>
+            </dt>
+            <dd class="pad">
+            Made available in case it proves useful, used internally by <a href>ini_save</a>() and <a href>ini_close</a>().<br>
+            Returns whether any pending <a href>ini_set</a>() or <a href>ini_delete_key</a>() have yet to be saved.<br>
+            Note that ini.e makes no attempt to create any backups, so you might use this 
+            to decide when to make backups and/or periodically make them anyway.
+            No files are left open between <a href>ini_load</a>() and <a href>ini_save</a>(), so copying is not a problem.
+            Currently always returns false under p2js, since a browser might struggle to write backup files.
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_as_string></a>
+            string res =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_as_string</b>(string ini_name)
+             <br>
+            </dt>
+            <dd class="pad">
+            Made available in case it proves useful, used internally by <a href>ini_save</a>().<br>
+            Returns the keynames and settings as a single text string (with embedded '\n').<br>
+            May possibly be useful in a JavaScript context, but probably not.<br>
+            Alternatively you might want to use <a href>ini_filename</a>() and this to hunt for 
+            and provide a suitable ini_default.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+
+        </table>
+       </div>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+        The bMustExist parameter is intended to help by shouting out missing <a href>ini_restore</a>().
+        Should you override it to false, and/or fail to mention something in the ini_default as passed to 
+        <a href>ini_load</a>(), it becomes the application&apos;s sole responsiblity to ensure the correct ini file 
+        is open/active. However some keynames, especially for instance filepaths, almost always need it to be overidden.
+       <br>
+       <br>
+        Should you want, for instance, to save the width and height of ten different windows, then rather than have ten
+        "sections" with those fields duplicated in each, you&apos;ll want to have a unique details_width, etc.
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          throw(<a href="object.htm">object</a> e, <a href="object.htm">object</a> user_data={})
+          throw(<a href>object</a> e, <a href>object</a> user_data={})
          </td>
         </tr>
         <tr>
@@ -25,9 +25,10 @@
             terminate the program if no such handler exists.
             <br>
             <br>
-            e: typically an <a href="integer.htm">integer</a> or <a href="string.htm">string</a>, but it can also be a complete exception in the re-throw case.<br>
-            user_data: if user_data is a non-empty sequence and e is a string that contains at least one '%' character, then e:=sprintf(e,user_data) is
-            performed and user_data subsequently treated as {}, otherwise if user_data is not not {} (or 0), e must be an <a href="atom.htm">atom</a>.<br>
+            e: typically an <a href>integer</a> or <a href>string</a>, but it can also be a complete exception in the re-throw case.<br>
+            user_data: if user_data is a non-empty sequence and e is a string that contains at least one '%' character, then 
+            e:=<a href>sprintf</a>(e,user_data) [NB not pwa/p2js] is performed and user_data subsequently treated as {}, otherwise 
+            if user_data is not not {} (or 0), e must be an <a href>atom</a>.<br>
             Between them, e and user_data can contain anything that you might find helpful in the handler(/logfile, etc).
             <br>
             <br>
@@ -41,7 +42,16 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Supported, note however the differences in output for Example 1 below.
+          Supported, note however the differences in output for Example 1 below, and that it uses the native JavaScript throw() directly, hence the only formal 
+          support is for a plain throw("string") [as above, <i>without</i> an implicit sprintf(), should you want said just do it explicitly/nestedly], and 
+          perhaps re-throwing some previously caught exception (usually unaltered, and in no way guaranteed to perfectly match desktop/Phix, at least that is 
+          without one or two <code>if platform()=JS</code> tests).
+          <br>
+          <br>
+          While the object-obsessed masses might dictate (say) <code>throw new Error("Required");</code>, there is nothing even slightly wrong or amiss with 
+          <code>throw("Required");</code>, or even (prior in Phix|JS, next JS only) <code>throw "Required";</code>, just so you know, and at least as it 
+          currently stands, a <code>new Error()</code> is something else entirely, desktop/Phix only and assuming you have explicitly defined a suitable
+          <code>class Error</code> somewhere, and makes pwa/p2js (which does not support class either) display a clear no-nonsense error.
          </td>
         </tr>
         <tr>
@@ -54,26 +64,27 @@
             <br>
             The short version is:
             <blockquote>
-                An exception is a <a href="sequence.htm">sequence</a> of run-time diagnostic information, 
+                An exception is a <a href>sequence</a> of run-time diagnostic information, 
                 with the offending instruction address converted to a human-readable source file and line number.
             </blockquote>
             The long version is:
             <blockquote>
                 The following constants (automatically defined in psym.e/syminit) can be used to examine the contents of an exception:<br>
-                1   E_CODE (<a href="atom.htm">atom</a>) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. <br>
-                2   E_ADDR (<a href="atom.htm">atom</a>) a machine address indicating where the exception ocurred.<br>
-                3   E_LINE (<a href="integer.htm">integer</a>, optional) the source code line matching E_ADDR in E_RTN.<br>
-                4   E_RTN (<a href="integer.htm">integer</a>, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.<br>
-                5   E_NAME (<a href="string.htm">string</a>|<a href="integer.htm">integer</a>, optional) the human-readable name of E_RTN.<br>
-                6   E_FILE (<a href="string.htm">string</a>|<a href="integer.htm">integer</a>, optional) the source filename containing E_NAME.<br>
-                7   E_PATH (<a href="string.htm">string</a>|<a href="integer.htm">integer</a>, optional) the directory containing E_FILE.<br>
-                8   E_USER (<a href="object.htm">object</a>, optional) user defined/application specific content in e[8..$].
+                1   E_CODE (<a href>atom</a>) hardware and operating system exceptions usually have bit #800000000 set, user exceptions can be any atom value, even 0. <br>
+                2   E_ADDR (<a href>atom</a>) a machine address indicating where the exception ocurred.<br>
+                3   E_LINE (<a href>integer</a>, optional) the source code line matching E_ADDR in E_RTN.<br>
+                4   E_RTN (<a href>integer</a>, optional) equivalent to routine_id(), an index to the symbol table identifying the routine.<br>
+                5   E_NAME (<a href>string</a>|<a href>integer</a>, optional) the human-readable name of E_RTN.<br>
+                6   E_FILE (<a href>string</a>|<a href>integer</a>, optional) the source filename containing E_NAME.<br>
+                7   E_PATH (<a href>string</a>|<a href>integer</a>, optional) the directory containing E_FILE.<br>
+                8   E_USER (<a href>object</a>, optional) user defined/application specific content in e[8..$].
                 <br>
                 <br>
-                When user_data is a non-empty sequence and e is a string containing at least one '%' character, <code>e:=sprintf(e,user_data); user_data:={}</code> is performed and then:<br>
-                if user_data!={} then e must be <a href="atom.htm">atom</a> and throw(e,user_data) is equivalent to throw({e,-1,-1,-1,-1,-1,-1,user_data}), modified as below.<br>
-                else if e is an <a href="atom.htm">atom</a>, throw(e) is equivalent to throw({e,-1,-1,-1,-1,-1,-1}) [ie length 7], modifed as below.<br>
-                else if e is a <a href="string.htm">string</a>, throw(e) is <a name=equiv></a>equivalent<small><sup><a href="#equiv2" onclick="opentech()">[2]</a></sup></small> 
+                When user_data is a non-empty sequence and e is a string containing at least one '%' character, 
+                <code>e:=<a href>sprintf</a>(e,user_data); user_data:={}</code> is performed and then:<br>
+                if user_data!={} then e must be <a href>atom</a> and throw(e,user_data) is equivalent to throw({e,-1,-1,-1,-1,-1,-1,user_data}), modified as below.<br>
+                else if e is an <a href>atom</a>, throw(e) is equivalent to throw({e,-1,-1,-1,-1,-1,-1}) [ie length 7], modifed as below.<br>
+                else if e is a <a href>string</a>, throw(e) is <a name=equiv></a>equivalent<small><sup><a href="#equiv2" onclick="opentech()">[2]</a></sup></small> 
                 to throw({0,-1,-1,-1,-1,-1,-1,e}), modified as below.<br>
                 else e must be a sequence containing at least the first two elements, E_CODE and E_ADDR, type safe as above and any user-defined data in e[8..$], <br>
                 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; which is padded with -1 to be at least length 7 and then modified as below.<br>
@@ -84,21 +95,21 @@
                 if e[E_RTN] is -1 it is replaced with a routine number from the current call stack. <br>
                 if e[E_LINE] is -1 and e[E_RTN] is valid, then the (new) value of e[ADDR]<a href="glossary.htm#era">-1</a> is mapped to a line number 
                                     in e[E_RTN] and stored in e[E_LINE]. <br>
-                if e[E_NAME] is -1 the name is retrieved from the symbol table (the <a href="string.htm">string</a> "-1" for top-level subroutines).<br>
+                if e[E_NAME] is -1 the name is retrieved from the symbol table (the <a href>string</a> "-1" for top-level subroutines).<br>
                 Likewise e[E_FILE] and e[E_PATH] of -1 are replaced with the expected strings.
             </blockquote>
 
-            Traditional fatal runtime errors are mapped as follows (with E_ADDR..E_LINE also pre-populated, and E_NAME..E_PATH -1&rsquo;d as above):
+            Traditional fatal runtime errors are mapped as follows (with E_ADDR..E_LINE also pre-populated, and E_NAME..E_PATH -1&apos;d as above):
             <br>
             <br>
 <!--eucode>
-    throw(1,"type check error, %s is %s")
+    throw(1,"typecheck error, %s is %s")
     throw(2,"attempt to divide by 0")
     ...
     throw(122,"invalid poke size")
 </eucode-->
 <pre>
-<font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"type check error, %s is %s"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"typecheck error, %s is %s"</font><font color="#0000FF">)</font>
 <font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#0000FF">)
     ...</font>
 <font color="#7060A8">    throw</font><font color="#0000FF">(</font><font color="#000000">122</font><font color="#0000FF">,</font><font color="#008000">"invalid poke size"</font><font color="#0000FF">)</font>
@@ -176,7 +187,10 @@ Obviously the latter may drift over time (or be wrong on day 1), just like a put
             Should you compare the performance overhead of <code>throw("failure")</code> with <code>return false</code> then unfortunately you 
             are in for a very big shock.
             Building detailed run-time diagnostic information and converting a machine address into a human-readable line number, file, and 
-            routine name, is simply always going to take considerably longer than a single <code>"mov eax,ebx"</code> instruction!
+            routine name, is simply always going to take considerably longer than a single <code>"mov eax,ebx"</code> instruction! The latter is 
+            a single clock cycle and can be paired with another instruction, which can effectively make it completely free, whereas a hardware
+            exception typically takes several hundred clock cycles (all by itself a context switch record is several hundred bytes of CPU and FPU
+            registers) before it even gets to any of the internal low-level code or the high-level catch clause written to deal with it.
             <br>
             <br>
             Should you need to process 10,000 items, but 2 of them trigger an exception, the savings of simplified code (such as not checking
@@ -230,14 +244,14 @@ Output under pwa/p2js:
 <font color="#008080">    and</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_FILE</font><font color="#800000">]</font><font color="#0000FF">)</font>
 <font color="#008080">    and</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#800000">[</font><font color="#004600">E_LINE</font><font color="#800000">]</font><font color="#0000FF">)</font>
 <font color="#008080">    and</font><font color="#000000"> e</font><font color="#0000FF">[</font><font color="#004600">E_LINE</font><font color="#0000FF">]!=-</font><font color="#000000">1</font><font color="#008080"> then</font>
-<font color="#5E005E">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s (%s line %d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_USER</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_FILE</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#800080">[</font><font color="#004600">E_LINE</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s (%s line %d)\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">e</font><font color="#008080">[</font><font color="#004600">E_USER</font><font color="#008080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#008080">[</font><font color="#004600">E_FILE</font><font color="#008080">]</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#008080">[</font><font color="#004600">E_LINE</font><font color="#008080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#008080">    else</font>
 <font color="#0000FF">        ?{</font><font color="#008000">"oops... (test.exw line 13)"</font><font color="#0000FF">,</font><font color="#000000">e</font><font color="#0000FF">}</font>
 <font color="#008080">    end if
 end try</font>
 <font color="#000000">Output</font><font color="#0000FF">:
 {</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">8249772</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">21</font><font color="#0000FF">,</font><font color="#008000">"-1"</font><font color="#0000FF">,</font><font color="#008000">"test.exw"</font><font color="#0000FF">,</font><font color="#008000">`C:\Program Files (x86)\Phix\`</font><font color="#0000FF">,</font><font color="#008000">"attempt to divide by 0"</font><font color="#800000">}</font><font color="#0000FF">}</font>
-<font color="#000000">attempt</font><font color="#008080"> to</font><font color="#000000"> divide</font><font color="#008080"> by</font><font color="#000000"> 0</font><font color="#0000FF"> (</font><font color="#000000">test</font><font color="#0000FF">.</font><font color="#000000">exw line 2</font><font color="#0000FF">)</font>
+<font color="#000000">attempt</font><font color="#008080"> to</font><font color="#000000"> divide</font><font color="#008080"> by</font><font color="#000000"> 0</font><font color="#0000FF"> (</font><font color="#7060A8">test</font><font color="#0000FF">.</font><font color="#000000">exw line 2</font><font color="#0000FF">)</font>
 <font color="#000000">Output under pwa</font><font color="#0000FF">/</font><font color="#000000">p2js</font><font color="#0000FF">:</font>
 <font color="#000000">9</font><font color="#0000FF">/</font><font color="#000000">0</font>
 <font color="#0000FF">{</font><font color="#008000">"raw:"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#008000">"9/0"</font><font color="#800000">}</font><font color="#0000FF">}</font>
@@ -252,7 +266,7 @@ end try</font>
             <br>
             <br>
             Note that under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> the <code>?9/0</code> is mapped to
-            <code><a href="crash.htm">crash</a>("9/0");</code> and as documented in <a href="crash.htm">crash</a>() that
+            <code><a href>crash</a>("9/0");</code> and as documented in <a href>crash</a>() that
             message ("9/0") is (always) displayed <i>before</i> invoking any catch clause - you would need to use an explict
             throw() instead, to avoid that initial display. Admittedly mapping it to throw("9/0") might have been a better
             choice, and might yet happen.
@@ -272,23 +286,24 @@ throw("Negative %age")
 <font color="#7060A8">throw</font><font color="#0000FF">(</font><font color="#008000">"Negative %age"</font><font color="#0000FF">)</font>
 </pre>
             <br>
-            You can use the built-in <a href="sprintf.htm">sprintf</a>() functionality of throw() in a natural way, but you can also pass a string 
+            You can use the built-in <a href>sprintf</a>() functionality of throw() in a natural way, but you can also pass a string 
             without any additional arguments and not worry about escaping any '%' characters.
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
           <a href="try.htm">try/catch</a>,
-          <a href="crash_file.htm">crash_file</a>,
-          <a href="crash_message.htm">crash_message</a>,
-          <a href="crash_routine.htm">crash_routine</a>,
+          <a href>crash_file</a>,
+          <a href>crash_message</a>,
+          <a href>crash_routine</a>,
           <a href="glossary.htm#era">era</a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -296,8 +311,8 @@ throw("Negative %age")
          </td>
          <td>
             Implemented in builtins\VM\pDiagN.e in order to use the existing code for converting a machine address into a source code line number, etc.<br>
-            Hence any use of throw(), like <a href="crash_file.htm">crash_file</a>, <a href="crash_message.htm">crash_message</a>, and 
-            <a href="crash_routine.htm">crash_routine</a>, makes the (rarely used) command line option -nodiag completely ineffective.<br>
+            Hence any use of throw(), like <a href>crash_file</a>, <a href>crash_message</a>, and 
+            <a href>crash_routine</a>, makes the (rarely used) command line option -nodiag completely ineffective.<br>
             <small>(Said option is normally only used after a bug in the compiler has been painstakingly pared down to the absolute bare minimum.)</small>
             <br>
             <br>
@@ -318,7 +333,7 @@ throw("Negative %age")
             This occurs because of the way it is implemented, via :%pThrow (in pDiagN.e), rather than as a normal hll routine.
             <br>
             <br>
-            Likewise, <a href="routine_id.htm">routine_id</a>("throw") yields -1, instead you would have to write a mini-shim.
+            Likewise, <a href>routine_id</a>("throw") yields -1, instead you would have to write a mini-shim.
             <br>
             <br>
             <small>
@@ -335,7 +350,9 @@ throw("Negative %age")
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
        <br>
        <br>
        <br>

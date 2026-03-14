@@ -62,11 +62,11 @@
 //      assert(integer(res)) -- (explicitly enforce a final typecheck)
 //  end if
     return res;
-}
+} to_integer.$sig="FSII,1";
 
 /*global*/ function is_integer(/*string*/ s, /*integer*/ base=10) {
     let /*integer*/ r = -power(2,machine_bits()-2);
     // (r is -1073741824 or -4611686018427387904)
     return !equal(to_integer(s,r,base),r);
 //  return to_integer(s, r, base, true) != r
-}
+} is_integer.$sig="FSI,1";

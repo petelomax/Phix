@@ -20,7 +20,7 @@ let /*sequence*/ s123 = ["sequence",1,2,3];
 function multitext_valuechanged_cb(/*Ihandle*/ /*multitext*/anon1) {
 //DEV update syntax colouring... (on a timer?)
     return IUP_DEFAULT;
-}
+} multitext_valuechanged_cb.$sig="FN";
 if (a || b || c || d) { }
 if ((a || b) && (c || d)) { }
 if ((a && b) || (c && d)) { }

@@ -6,7 +6,7 @@
      <stripped>
       <h1 class="title">Scope</h1>
       <div id="mainSection">
-        A symbol&rsquo;s <i>scope</i> is the portion of the program where that symbol&rsquo;s
+        A symbol&apos;s <i>scope</i> is the portion of the program where that symbol&apos;s
         declaration is in effect, i.e. where that symbol is <i>visible</i>.
        <br>
        <br>
@@ -14,18 +14,19 @@
         without encountering any variables (or constants) that get defined later.
        <br>
        <br>
-        You can explicitly declare a forward routine that will be defined later, or just invoke it implicitly.
+        You can explicitly declare a <a href>forward</a> routine that will be defined later, 
+        or just invoke it implicitly.
         Most of the builtin routines, excepting those with an include statement in the Definition section, are 
         in fact effectively declared as explicit forward global routines, in psym.e/syminit(), and a similar
         thing occurs for <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> via p2js_keywords.e,
         however note that transpilation generally requires explicit over implicit (more notes below).
        <br>
        <br>
-        Implicit forward routine calls are assumed to be local and generate a compilation error 
-        if still unresolved at the end of file. If the routine is actually global (and not a
-        typo) there must be an explicit forward global routine statement, and that must occur 
-        before the first (implicit) call. If the compiler can unambiguously resolve an implicit 
-        local routine to a global routine, it will, but at the same time also issue a warning.
+        Implicit forward routine calls are assumed to be local and generate a compilation error should they still be 
+        unresolved at the end of the main/toplevel file. If the routine is actually global (and not a typo) there must 
+        be an explicit forward global routine statement, and that must occur before the first (implicit) call. 
+        If the compiler can unambiguously resolve an implicit local routine to a global routine, it will, but at the 
+        same time also issue a warning.
        <br>
        <br>
         Procedures, functions and types can call themselves <i>recursively</i>. Mutual recursion, 
@@ -33,14 +34,13 @@
        <br>
        <br>
         It is also possible to call a routine that comes later in the source using the special 
-        functions <a href="routine_id.htm">routine_id</a>(), and either
-        <a href="call_func.htm">call_func</a>() or
-        <a href="call_proc.htm">call_proc</a>(), see
+        functions <a href>routine_id</a>(), and either
+        <a href>call_func</a>() or
+        <a href>call_proc</a>(), see
         <a href="dcall.htm">Library Routines - Dynamic Calls</a>. 
         This mechanism was the only means of making a forward call in RDS Eu, and may
         therefore be quite prevalent in legacy code.
-       <br>
-       <a name=scope></a>
+       <br><a name=scope></a>
        <br>
          A symbol is defined from the point where it is declared to the end of its
         <b>scope</b>.<br>
@@ -78,19 +78,38 @@
        <br>
        <br>
         The <b>global</b> keyword makes it clear which symbols can be used externally, and which symbols are 
-        strictly for internal use within the include file.<br>
-        This information may be helpful when maintaining or enhancing the file, or when learning how to use the file.<br>
+        strictly for internal use within the include file.
+        This information may be helpful when maintaining or enhancing the file, or when learning how to use the file.
 <!--        For compatibility reasons the <b>public</b> keyword is a simple alias of global.  -->
-        <a name=local></a>
-        Optionally the <b>local</b> keyword can be used as the logical counterpart to global, but it does not actually 
-        change anything, it is for clarification of intent only, and noting that local means file rather than routine level, 
-        and there is <i><b>no</b></i> similar private (compatability) alias like there is for public (see next).
+        <br><a name=local></a>
+        Optionally the <b>local</b> keyword (or private if you prefer) can be used as the logical counterpart to global, but it does not actually 
+        change anything, it is for clarification of intent only, and noting that local means file rather than routine level. 
+<!--        and there is <i><b>no</b></i> similar private (compatability) alias like there is for public (see next).-->
+        Sometimes I like to use (say) <code><font color="#000080"><i>/*local*/ </i></font><font color="#008080">function</font></code> 
+        rather than <code><font color="#008080">local function</font></code> to more visually distinguish local from global,
+        while still being explicit.
        <br>
        <blockquote>
         <b>Compatibility Note:</b> Euphoria has public and export qualifiers as well as global. 
-        Phix simply treats all three identically, except for export in the top-level file when building a .dll or .so. 
+        Phix (1.x) simply treats all three identically, except for export in the top-level file when building a .dll or .so. 
         The "priorities" handling as documented in psym.e addresses pretty much the same concerns (that Euphoria uses 
-        global/public/export to distinguish between) but in a completely different manner.
+        global/public to distinguish between) but in a completely different manner. In Euphoria, afaict, there is or was 
+        an import keyword that I know absolutely nothing about, and export is completely identical to public, which seems 
+        to be like global except that public symbols "expire" at the end of the including file, except for "public include" 
+        in which case their visibility/lifetimes are extended into their including file, and I assume that is nestable to 
+        any depth. Version 2.x may adopt a (partly) similar or perhaps slightly more intuitive scheme, though I am still
+        by no means convinced "public include" has any merit whatsoever over putting the include statement in the correct
+        place in the first instance,<!--, at least that is for application code, though I concede there may be a place for it
+        to ease the lives of multi-file lib writers--> perhaps requiring extra level(s) of include nesting. <br>
+        However my current thinking is an "import" statement that is almost identical to a copy/paste: <br>
+        <i>no</i> namespace allowed, <br>
+        it <i>can</i> see previous file-locals, <br>
+        the rest of the file <i>can</i> see import-locals, and <br>
+        should you "import" it twice you <i>will</i> get two copies, albeit with the exact same names so they&apos;d 
+        have to be in separate parts of a separately thought-out include hierarchy, along with a BIG warning that 
+        (unintended) duplicate imports <i>will</i> cause BIG problems, or maybe something like 
+        <code>import as {"tag","rep"} filename</code> which substitutes tag(s) with rep(s) and triggers an error
+        should the same tag-rep set ever be re-attempted on that same file. For now just thoughts.
         <br>
         <br>
         JavaScript is essentially a function-scoped language, with block scope added as a bit of an afterthought, hence 
@@ -124,7 +143,7 @@
         to solve a conflict, or simply to make things clearer. 
         A namespace identifier has local scope. It is known only within the file that declares it, i.e. the file that contains the 
         include statement. Different files might define different namespace identifiers to refer to the same included file. 
-        See also <a href="include.htm">include</a>.
+        See also <a href>include</a>.
        <br>
        <br>
         Phix encourages you to restrict the scope of symbols. If all symbols were automatically global to the whole program, you 
@@ -142,8 +161,11 @@
        <br>
        <br>
         <b>Constant</b> declarations must be outside of any subroutine. <br>
+        Constants can be global or local, but not [yet] routine-specific.<br>
+<!--
         Constants can be global or local, but not <b>private</b>.<br>
         Update: no longer true, this part of the docs needs rewriting... See <a href="constants.htm">constants</a>.
+-->
        <br>
        <br>
         Historically, variable declarations inside a subroutine had to appear at the beginning,

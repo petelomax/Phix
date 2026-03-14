@@ -202,7 +202,7 @@ global procedure tokenise()
                 if i<lt then
                     integer cn = src[i+1]
                     if cn=tok_ch then
-                        -- comment
+                        -- comment (-- or //)
                         string t4 = iff(i+3<=lt?src[i..i+3]:"")
                         if t4="--/*" then
                             if phix_only(i+3) then return end if
@@ -254,9 +254,15 @@ global procedure tokenise()
                     and src[i..i+4]="ilASM" then
                         i += 4
                     else
-                        if not is_C() -- allow "#include"
-                        or i+6>lt 
-                        or src[i..i+6]!="include" then
+                        bool ok = is_C()
+                        if ok then
+                            ok = (i+6<=lt and src[i..i+6]="include") or
+                                 (i+5<=lt and src[i..i+5]="ifndef")
+                        end if
+--                      if not is_C() -- allow "#include"
+--                      or i+6>lt 
+--                      or src[i..i+6]!="include" then
+                        if not ok then
                             {} = tok_error("unrecognised")
                             return
                         end if
@@ -285,8 +291,14 @@ global procedure tokenise()
                     i -= 1
                     if i<=tokstart
                     or find(charset[tok_ch],{'#','\'','"','`',DIGIT,LETTER}) then
+--if ext!=4 then
+--                            {C    :=4, {"c"}}}
+--global function is_C()      return ext==C                 end function
+if not is_C() then
+
                         {} = tok_error("unrecognised",i+1)
                         return
+end if
                     end if
                     std_token()
                 end if

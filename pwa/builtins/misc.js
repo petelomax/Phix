@@ -37,8 +37,7 @@ end procedure
 */
 
 /*global*/ function reverse(/*sequence*/ s) {
-// reverse the top-level elements of a sequence.
-// Thanks to Hawke' for helping to make this run faster.
+    // reverse the top-level elements of a sequence.
     let /*integer*/ l = length(s);
     let /*sequence*/ r = repeat(((string(s)) ? 0X20 : 0),l);
     // aside: midpoint written twice for odd-length s
@@ -47,7 +46,7 @@ end procedure
         r = $repe(r,-i,$subse(s,i));
     }
     return r;
-}
+} reverse.$sig="FP";
 /* Not required for Phix (defined in psprint.e):
 global
 function sprint(object x)
@@ -289,7 +288,7 @@ global constant PI = 3.141592653589793238
         //  values passed to arccos and arcsin must be [-1,+1]
  /**/ return x>=-1 && x<=1;
 /**/
-} //
+} $trig_range.$sig="TN"; //
  /*    -- Original for RDS Eu:
 type $trig_range(object x)
 --  values passed to arccos and arcsin must be [-1,+1]
@@ -310,9 +309,14 @@ end type
 //  returns angle in radians
 //  return PI_HALF-2*arctan(x/(1.0+sqrt(1.0-x*x)))
     return PI/2-2*arctan(x/(1.0+sqrt(1.0-x*x)));
-}
+} arccos.$sig="FN";
 
 /*global*/ function arcsin(/*$trig_range*/ x) {
 //  returns angle in radians
     return 2*arctan(x/(1.0+sqrt(1.0-x*x)));
-}
+} arcsin.$sig="FN";
+/* maybe?
+--function sinh(atom x) return (exp(x)-exp(-x))/2 end function
+--function cosh(atom x) return (exp(x)+exp(-x))/2 end function
+--function tanh(atom x) return sinh(x)/cosh(x)  end function
+-*/

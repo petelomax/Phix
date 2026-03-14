@@ -6,7 +6,36 @@
   <meta name="viewport" content="width=device-width"/>
   <meta name="description" content="Test drop/paste/edit file"/>
   <title>Drop Test</title>
+<!--
   <link rel="stylesheet" href="drop.css"/>
+-->
+  <style>
+#textArea {
+    width: 100%;
+    overflow: auto;
+    height: 650px;
+}
+label {
+    display: inline-block;
+    padding: 2px 8px 2px 8px;
+    margin: 4px 4px;
+    font: 400 13.3333px Arial;
+    border: 1px solid #FFF;
+}
+.filelabel {
+    padding: 5px;
+    position: relative;
+    vertical-align: middle;
+    display: inline-block;
+}
+.button {
+    background: #dfdfdf;
+    border: 1px solid #444;
+}
+.button:hover {
+    background: #A6F4FF;
+}
+  </style>
  </head>
  <body>
   <!--
@@ -14,21 +43,67 @@
         or maybe even an IupSyntaxColouredText(LANG=exw/js/html/css)...)
   -->
   <h1>Test drop/paste/edit file</h1>
-  <span class="template-2col">
-   <div>
-    <input type="file" name="fileElem" id="fileElem" accept=".exw,.htm,.html,.js,.css"/>
-    <label class="button" for="fileElem">Choose File</label>
-    <div type="text" class="label truncate" id="filename">(&#8656; NB: Choosing the <i>same</i> file twice does not reload/reset it, <i>even after</i> drop/paste, picking another first however does)</div>
-    <div id="drop-area">
-     <textarea id="input" placeholder="Type, paste, drag and drop a file here, or click the button above..."></textarea>
-    </div>
-   </div>
-   <div>
-    <label><b>Output</b></label>
-    <textarea id="output"></textarea>
-   </div>
-  </span>
-  <script src="drop.js"></script>
+<!-- Ah! simply create this on demand, newGetOpenFileName(), gtk_file_chooser_dialog_new(), File/Open, Ctrl O invoke click()... -->
+<!--
+-->
+  <input type="file" style="display:none;" id="fileElem" accept=".exw,.htm,.html,.js,.css"/>
+<!--
+  <input type="file" style="display:none;" id="fileElem" accept=".pdf"/>
+  <label class="button" for="fileElem" id="cfbtn">Choose File</label>
+-->
+  <label class="button" id="cfbtn">Choose File</label>
+  <div type="text" class="filelabel" id="filename"></div>
+  <div id="drop-area">
+   <textarea id="textArea" placeholder="Type, paste, drag and drop a file here, or click the button above..."></textarea>
+  </div>
+  <script>
+const infile = document.querySelector('#fileElem'),
+      filename = document.querySelector('#filename'),
+      dropArea = document.querySelector('#drop-area'),
+      textArea = document.querySelector('#textArea'),
+      cfbtn = document.querySelector('#cfbtn');
+
+function previewFile(file) {
+    if (file) {
+        filename.innerHTML = file.name;
+        let reader = new FileReader();
+        reader.readAsText(file);
+        reader.onloadend = function() {
+            //DEV syntax colour...
+            textArea.value = reader.result;
+        } // onloadend
+    } // file!=NULL
+} // end previewFile()
+
+function changeHandler(e) {
+    previewFile(e.target.files[0]);
+}
+infile.addEventListener('change', changeHandler);
+
+//function clickHandler() {
+//  infile.value = null;
+//}
+//infile.addEventListener('click', clickHandler);
+
+function cfbtnclickHandler() {
+    infile.click();
+}
+cfbtn.addEventListener('click', cfbtnclickHandler);
+
+function preventDefaults(e) {
+    e.preventDefault(); // otherwise browser opens the file.
+    e.stopPropagation();
+}
+dropArea.addEventListener('dragenter', preventDefaults, false);
+dropArea.addEventListener('dragleave', preventDefaults, false);
+dropArea.addEventListener('dragover', preventDefaults, false);
+
+function handleDrop(e) {
+    previewFile(e.dataTransfer.files[0]);
+    preventDefaults(e);
+}
+dropArea.addEventListener('drop', handleDrop, false);
+  </script>
  </body>
 </html>
 <!--

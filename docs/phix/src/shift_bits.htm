@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-            <a href="object.htm">object</a> res = shift_bits(<a href="object.htm">object</a> n, <a href="integer.htm">integer</a> shift_distance)
+            <a href>object</a> res = shift_bits(<a href>object</a> n, <a href>integer</a> shift_distance)
          </td>
         </tr>
         <tr>
@@ -29,11 +29,11 @@
             <br>
             <br>
             Returns: atom(s) containing a 32-bit integer. A single atom in n yields a single atom result, otherwise the 
-            result is a <a href="sequence.htm">sequence</a> with the same shape as n, consisting of 32-bit integers.
+            result is a <a href>sequence</a> with the same shape as n, consisting of 32-bit integers.
             <br>
             <br>
             Note the builtin &lt;&lt; and &gt;&gt; operators are nothing to do with this routine, more strictly atom-only, implemented as 
-            lhs*power(2,rhs) and floor(lhs/power(2,rhs)) respectively, don&rsquo;t impose any 32-bit limits, and inlined for efficiency. 
+            lhs*power(2,rhs) and floor(lhs/power(2,rhs)) respectively, don&apos;t impose any 32-bit limits, and inlined for efficiency. 
             By inlined I just mean the front-end emits the exact same IL it would were the longhand versions found in the source code.
          </td>
         </tr>
@@ -50,7 +50,7 @@
           <b>Comments:</b>
          </td>
          <td>
-            If n is a <a href="sequence.htm">sequence</a>, each element is shifted.<br>
+            If n is a <a href>sequence</a>, each element is shifted.<br>
             The value(s) in n are first truncated to a 32-bit integer.<br>
             The output is truncated to a 32-bit integer.<br>
             Vacated bits are replaced with zero.<br>
@@ -62,22 +62,28 @@
         </tr>
         <tr>
          <td>
-          <b>Auxillary functions:</b>
+          <b>Auxiliary functions:</b>
          </td>
          <td>
-            <a name=count_bits></a>
-            <a href="object.htm">object</a> result = <b>count_bits</b>(<a href="object.htm">object</a> n[, integer nFrame=2])<br>
-            A simple implementation of Kernigans bit counter, eg count_bits(0b00100001) returns 2, with just the two iterations of the loop,
+            <!--br--><a name=count_bits></a>
+            <a href>object</a> result = <b>count_bits</b>(<a href>object</a> n<small>[, integer nFrame=2]</small>)<br>
+            A simple implementation of Kernighans bit counter, eg count_bits(0b00100001) returns 2, with just the two iterations of the loop,
             although while n exceeds the limits of a native integer/and_bits() it resorts to a slightly slower single-bit test/shift method,
-            which it also does when presented with any fractional values (for example 1/256 has a bit count of exactly 1).<br>
-            The nFrame parameter is intended for internal/recursive use, on sequences and eg 256.00390625, and should be ignored.<br>
-            As per shift_bits, a single atom yields an integer result, otherwise the result is a <a href="sequence.htm">sequence</a> with the 
+            which it also does when presented with any fractional values (for example 1/256 has a bit count of exactly 1).
+            <br>
+            <br>
+            As per shift_bits, a single atom yields an integer result, otherwise the result is a <a href>sequence</a> with the 
             same shape as n, consisting of small integers (0..53/63). Note that the checking to ensure the parameter(s) have not exceeded native 
-            53/63 bit precision limits, which w/could of course make the results pretty much meaningless, may yet need some further improvement.
-            See also <a href="mpfr.htm#mpz_popcount">mpz_popcount</a>(), which has no such limits and quite effectively disuades me from wanting 
-            to try anything clever with negative parameter(s), other than deliberately crash. As far as I am aware there is no such function as 
-            mpfr_popcount(), though you might be able to do something with an mpq of 1/256 (etc), that is by using mpz_popcount on the numerator
-            and denominator, not that I&rsquo;ve tried. Lastly note that count_bits() specifically returns -1 for [-]inf/nan.
+            53/63 bit precision limits, which w/could of course make the results pretty much meaningless, may yet need some further improvement
+            - as it stands, count_bits({#1F_FFFF_FFFF_FFFF,#3F..}) yields {53,1} on 32-bit while count_bits({#7FFF_FFFF_FFFF_FFFF,#FF..,#1FF..}) 
+            yields {63,63,1} on 64-bit <small>[<i>not</i> {63,64,1} nor {63,1,1}]</small>, and it no doubt gets a bit more complicated/confusing 
+            when there&apos;s any fractions involved, plus just because a number is big it doesn&apos;t mean it&apos;s actually thrown any bits away.
+            See also <a href>mpz_popcount</a>(), which has no such limits, though as far as I am aware there is no such 
+            function as mpfr_popcount(). Lastly note that count_bits() specifically returns -1 for -ve/inf/nan.
+            <br>
+            <br>
+            <small>The nFrame parameter is intended for internal/recursive use, on sequences and eg 256.00390625, and should be ignored.</small>
+            <br>
          </td>
         </tr>
 
@@ -103,7 +109,7 @@
 ?shift_bits(0xFE427AAC, 7)          --==> 33326325 (==0x01FC84F5)
 ?shift_bits(-7,3)                   --==> 536870911 (==0x1FFFFFFF)
 ?shift_bits({48,121},2)             --==> {12,30}
-?count_bits(0.00390625)             --==> 1
+?count_bits(0.00390625)             --==> 1 (==1/256)
 ?count_bits(256)                    --==> 1
 ?count_bits(256.00390625)           --==> 2
 ?count_bits(power(2,1000))          --==> 1
@@ -125,6 +131,10 @@
 <font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#000000">0xFE427AAC</font><font color="#0000FF">,</font><font color="#000000"> 7</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 33326325 (==0x01FC84F5)</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(-</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">)                  </font><font color="#000080"><i> --==&gt; 536870911 (==0x1FFFFFFF)</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">shift_bits</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">48</font><font color="#0000FF">,</font><font color="#000000">121</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)            </font><font color="#000080"><i> --==&gt; {12,30}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#000000">0.00390625</font><font color="#0000FF">)            </font><font color="#000080"><i> --==&gt; 1 (==1/256)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#000000">256</font><font color="#0000FF">)                   </font><font color="#000080"><i> --==&gt; 1</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#000000">256.00390625</font><font color="#0000FF">)          </font><font color="#000080"><i> --==&gt; 2</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">count_bits</font><font color="#0000FF">(</font><font color="#7060A8">power</font><font color="#800000">(</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1000</font><font color="#800000">)</font><font color="#0000FF">)         </font><font color="#000080"><i> --==&gt; 1</i></font>
 </pre>
          </td>
         </tr>
@@ -137,6 +147,38 @@
          </td>
         </tr>
        </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

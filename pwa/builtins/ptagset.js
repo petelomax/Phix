@@ -18,7 +18,7 @@
         start += step;
     }
     return res;
-}
+} tagset.$sig="FIII,3";
 
 /*global*/ function tagstart(/*integer*/ start, len, step=1) {
 //
@@ -27,4 +27,4 @@
 // tagstart(1,26) is just more natural than tagset(26,1).
 //
     return tagset(start+(len-1)*step,start,step);
-}
+} tagstart.$sig="FIII,5";

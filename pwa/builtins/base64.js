@@ -61,7 +61,7 @@ function $init_base64() {
         $ccha = $repe($ccha,$subse($aleph,i),i-1);
     }
     $base64_init = true;
-}
+} $init_base64.$sig="P";
 
 /*global*/ function encode_base64(/*sequence*/ src, /*integer*/ wrap_column=0) {
 //
@@ -135,7 +135,7 @@ function $init_base64() {
         }
     }
     return result;
-}
+} encode_base64.$sig="FPI,1";
 
 /*global*/ function decode_base64(/*sequence*/ src) {
 //
@@ -187,7 +187,7 @@ function $init_base64() {
         case3 = $subse(nc3,case3);
     }
     return result;
-}
+} decode_base64.$sig="FP";
 /*
 just some quick tests:
 sequence s, e, d

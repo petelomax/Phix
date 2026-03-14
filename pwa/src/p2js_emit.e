@@ -26,9 +26,9 @@ constant html_headerf = """
   <scr!ipt>
 """,
         pGUIcs = "\n"&`  <link type="text/css" rel="stylesheet" media="screen" href="pGUI.css" />`,
-       xpGUIcs = "\n"&`  <link type="text/css" rel="stylesheet" media="screen" href="xpGUI.css" />`,
+      theGUIcs = "\n"&`  <link type="text/css" rel="stylesheet" media="screen" href="theGUI.css" />`,
         pGUIjs = "\n"&`  <scr!ipt src="pGUI.js"></scr!ipt>`,
-       xpGUIjs = "\n"&`  <scr!ipt src="xpGUI.js"></scr!ipt>`,
+      theGUIjs = "\n"&`  <scr!ipt src="theGUI.js"></scr!ipt>`,
         OpenGL = "\n"&`  <scr!ipt src="builtins/glmath.js"></scr!ipt>`&
                  "\n"&`  <scr!ipt src="builtins/opengl.js"></scr!ipt>`,
         use_strict = """
@@ -55,6 +55,7 @@ constant html_headerf = """
                       {"break",         "break;"},
                       {"continue",      "continue;"},
                       {"fallthrough",   "/*fallthrough*/"},
+                      {" with fallthrough", " /*with fallthrough*/"},
                       {"end switch",    "}"},
                       {"function",      "function"},
                       {"end function",  "}"},
@@ -69,7 +70,7 @@ constant html_headerf = """
 global bool testing = false     -- set to true in p2js.exw/
 
 bool bGUI = false,
-     bxpGUI = false,
+     btheGUI = false,
      bOpenGL = false,
      bMPFR = false,
      bSHA256 = false,
@@ -81,6 +82,9 @@ integer initp = 0,
 --      massN = 0
 --sequence massn = {}
 string output = "", oneline = ""
+
+string sig
+integer minarg
 
 function xl(string s)
 --  if not is_phix() then
@@ -109,6 +113,8 @@ end function
 
 procedure flush_oneline()
     if length(oneline) then
+--?sequence res = }, start = }
+--?oneline
         if oneline[$]!=nl then
             oneline &= nl
         end if
@@ -136,6 +142,19 @@ procedure softdent(object s, integer indent)
     -- prevline must be set before call...
 --  if filter_comments then s = substitute_all(s,{"/*","*/"},{"/!*","*!/"}) end if
     if length(oneline) then
+--if oneline="sequence res = }, " then ?9/0 end if
+--/*
+"sequence "
+"sequence res = }, "
+"sequence res = }, start = }"
+"res = res&start"
+sequence res = }, start = }
+sequence res = {}, start = {}
+mismatch: C:\Program Files (x86)\Phix\pwa\src\test.js.exw line 27
+see C:\Program Files (x86)\Phix\pwa\src\actual.exw
+
+--*/
+--?oneline
         if tokline=prevline
 --      and (length(oneline)=0 or not find(oneline[$],"};")) then
         and (length(oneline)=0 or oneline[$]!='}') then
@@ -728,6 +747,11 @@ if fname=`~` then fname = "length" end if
                 res = "(" & emit_expr(expr[2],12) & " ? " &
                             emit_expr(expr[3],0) & " : " &
                             emit_expr(expr[4],0) & ")"
+            elsif fttidx=T_source_line then
+--              -- non-reversible:
+--              res = sprintf("%d",{expr[1][TOKLINE]})
+                -- reversible:
+                res = sprintf("%s(%d)",{fname,expr[1][TOKLINE]})
             else
                 res = fname & "("
                 expr = expr[2..$]
@@ -833,6 +857,10 @@ procedure do_args(sequence args)
 --                  if length(args)!=3 then ?9/0 end if -- placeholder?
 --  if args[1][1]!=LETTER then ?9/0 end if -- placeholder?
     string typeid = emit_expr(args[1],0)
+    integer tt = args[1][TOKALTYPE]
+--  sig &= iff(tt?"I2N4567S9abcdeO"[tt]:'?')
+--  sig &= iff(tt?"I2N4567S9abPdeO"[tt]:'?')
+    integer sigch = iff(tt?"I2N4567S9abPdeO"[tt]:'?')
 --  if not is_phix() then typeid = "/*" & typeid & "*/" end if
     if is_phix() then
         if typeid[1..2]="/*" then
@@ -854,6 +882,7 @@ procedure do_args(sequence args)
     integer adx = 2
     string cs = ""
     while true do
+        sig &= sigch
         sequence aan = args[adx]
         if not string(aan) then
 --          integer {toktype, tokstart, tokfinish, line, col} = args[adx]
@@ -909,6 +938,7 @@ procedure do_args(sequence args)
         typeid = ""
         adx += 1
         if args[adx]!={} then
+            if minarg=0 then minarg = adx end if
             oneline &= "=" & emit_expr(args[adx],0)
         end if
         adx += 1
@@ -980,9 +1010,10 @@ procedure emit_exprn(string prev, sequence expr, integer indent)
                 if prev[$]!=',' then ?9/0 end if -- sanity
                 prev = prev[1..$-1]
             end if
-            oneline &= prev
+--          oneline &= prev
         end if
-        oneline &= xl("}")
+--      oneline &= xl("}")
+        oneline &= prev & xl("}")
 --  elsif length(prev)=0 then
 --      softdent(prev & emit_expr(expr,0),indent+1)
     else
@@ -1135,8 +1166,13 @@ constant {ibctypes,ibtypes} = columnize({{"/*atom*/","atom"},
 --                                       {"/*Ihandle*/","Ihandle"},
 --                                       {"/*Ihandln*/","Ihandln"}})
 
+--with trace
 procedure emit(sequence nodes, integer indent=0, bool bNested=false)
+--trace(1)
     integer toktype, tokstart, tokfinish, line, col, wastokline
+--if length(nodes) and nodes[1]={5,1,2,1,0} then ?"bing" end if
+--string wasoneline = oneline
+--sequence wasnodes = deep_copy(nodes)
 --  bool bNested = false
     for i=1 to length(nodes) do
         sequence node = nodes[i]
@@ -1154,15 +1190,16 @@ procedure emit(sequence nodes, integer indent=0, bool bNested=false)
                 and cmt[1..10]="/*include " then
                     string cs = strip_builtin(cmt[11..-3])
 --                  integer k = find(cmt,{"pGUI.e", `..\pGUI\opengl.e`, "mpfr.e", "sha256.e", "timedate.e"})
-                    integer k = find(cmt,{"pGUI.e", "xpGUI.e", "opengl.e", "mpfr.e", "sha256.e", "timedate.e"})
+                    integer k = find(cmt,{"pGUI.e", "theGUI.e", "opengl.e", "mpfr.e", "sha256.e", "timedate.e", "hGUI.e"})
                     if k then
                         cmt = cmt[3..-3]
                         if k=1 then bGUI = true end if
-                        if k=2 then bxpGUI = true end if
+                        if k=2 then btheGUI = true end if
                         if k=3 then bOpenGL = true end if
                         if k=4 then bMPFR = true end if
                         if k=5 then bSHA256 = true end if
                         if k=6 then bTIMEDATE = true end if
+                        if k=7 then btheGUI = true end if
                     end if
                 end if
                 cdent(cmt,nodetype,line,col)
@@ -1287,6 +1324,7 @@ if node[2][1][2][1][TOKTTIDX]=T_for then -- (traditional)
                     lim = lim[2][2]
                 end if
                 string l2 = emit_expr(lim,0)
+                bool bKnownStepSign = (step={} or step[1]=DIGIT or (find(step[1],"-+") and step[2][1][1]=DIGIT))
                 if is_phix() then
 --  ctrl = {{4,281,283,11,0,984},`n`,{3,292,292,11,11}}
                     dent("for " & c2 & "=" & c3,indent)
@@ -1308,7 +1346,7 @@ if node[2][1][2][1][TOKTTIDX]=T_for then -- (traditional)
                     end if
                     oneline &= " do"
                     bPreDef = false
-                else
+                elsif bKnownStepSign then
                     string cmpop = iff(length(step)=2 and step[1]='-' and length(step[2])=1 ? ">=" : "<=")
                     string forlet = iff(bPreDef?"for (":"for (let ")
 --10/11/21 or ??? (constant)
@@ -1340,7 +1378,7 @@ if node[2][1][2][1][TOKTTIDX]=T_for then -- (traditional)
                     elsif step[1]='-' and length(step[2])=1 then
 --                      if length(step[2])=1 and step[2][1][TOKTYPE]=DIGIT then
 --                      if length(step[2])=1 then
---  step = {45'-',{{3,3806,3806,125'}',33'!'}}}
+--  step = {45'-',{{3,3806,3806,125,33}}}
 --                          oneline &= c2 & "-=" & ident(step[2][1]) & ") {"
                         oneline &= c2 & "-=" & emit_expr(step[2][1],0) & ") {"
 --                      else
@@ -1351,6 +1389,23 @@ if node[2][1][2][1][TOKTTIDX]=T_for then -- (traditional)
                         oneline &= c2 & "+=" & emit_expr(step,0) & ") {"
 --                      ?9/0 -- placeholder
                     end if
+                else -- unknown step sign (added 13/11/25)
+                    //   (lets just not bother simplifying an integer limit here.. if c2=j, c3=lo, l2=hi:)
+                    // {let j$lim=hi, j$sgn=sign(sstep); for (j=lo; compare(j,j$lim)!=j$sgn; j+=sstep) {..}}
+                    //  for (let j=lo, j$lim=hi, j$sgn=sign(sstep); compare(j,j$lim)!=j$sgn; j+=sstep) {..}
+                    //       ceq ^^^^  ^---------- jsl ----------^       jlim ^^^^^   ^^^^^ jsgn
+                    string jlim = c2 & "$lim",
+                           jsgn = c2 & "$sgn",
+                          sstep = emit_expr(step,0),
+                            jls = jlim & "=" & l2 & ", " & jsgn & "=sign(" & sstep &")",
+                            ceq = c2 & "=" & c3
+                    if bPreDef then
+                        dent("{let " & jls & "; for (" & ceq,indent)
+                    else
+                        dent("for (let " & ceq & ", " & jls,indent)
+                    end if
+                    oneline &= "; compare(" & c2 & "," & jlim & ")!=" & jsgn 
+                    oneline &= "; " & c2 & "+=" & sstep & ") {"
                 end if
 else -- for [i,]e in s do: (19/4/22)
 --  nodes[1][1] = 1192 -- T_for
@@ -1358,7 +1413,7 @@ else -- for [i,]e in s do: (19/4/22)
 --                              {123'{',{{3,11,11,1,10},{3,13,13,1,12}}}} -- s (in this case {3,5})
 --  nodes[1][2][2] = {696,{{`?`,{{4,20,20,1,1,36868}}}}}                  -- T_block,block
                 {ctrl,block} = node[2]
-                string vardef, ival = "1", tval = ""
+                string vardef, ival = "1", tval = "", bval = "1"
                 object ivar
                 sequence tin, evar, expr
                 integer predefined
@@ -1369,16 +1424,21 @@ else -- for [i,]e in s do: (19/4/22)
                 if ivar!=0 and ivar[1]!=LETTER then ?9/0 end if
                 if evar[1]!=LETTER then ?9/0 end if
 --28/10/22:
-                if length(ctrl[2])>=5 then
-                    if ctrl[2][5][1]=T_from then
-                        ival = emit_expr(ctrl[2][5][2],0)
-                        if length(ctrl[2])=6 then
-                            assert(ctrl[2][6][1]=T_to)
-                            tval = emit_expr(ctrl[2][6][2],0)
-                        end if
-                    else
-                        assert(ctrl[2][5][1]=T_to)
-                        tval = emit_expr(ctrl[2][5][2],0)
+                integer lc2 = length(ctrl[2])
+                if lc2>=5 then
+                    integer ftb = 5
+                    if ctrl[2][ftb][1]=T_from then
+                        ival = emit_expr(ctrl[2][ftb][2],0)
+                        ftb += 1
+                    end if
+                    if lc2>=ftb
+                    and ctrl[2][ftb][1]=T_to then
+                        tval = emit_expr(ctrl[2][ftb][2],0)
+                        ftb += 1
+                    end if
+                    if lc2>=ftb then
+                        assert(ctrl[2][ftb][1]=T_by)
+                        bval = emit_expr(ctrl[2][ftb][2],0)
                     end if
                 end if
 --              if predefined!=0 then ?9/0 end if -- (placeholder)
@@ -1433,7 +1493,8 @@ else -- for [i,]e in s do: (19/4/22)
                     end if
                     string lword = iff(and_bits(predefined,0b01)?"":" let")
 --                  oneline &= sprintf("; %s+=1) { let %s = $subse(%s,%s);",{cvar,evar,svar,cvar})
-                    oneline &= sprintf("; %s += 1) {%s %s = $subse(%s,%s);",{cvar,lword,evar,svar,cvar})
+--                  oneline &= sprintf("; %s += 1) {%s %s = $subse(%s,%s);",{cvar,lword,evar,svar,cvar})
+                    oneline &= sprintf("; %s += %s) {%s %s = $subse(%s,%s);",{cvar,bval,lword,evar,svar,cvar})
                 end if
 --/*
 --for i,e in s do end for
@@ -1459,7 +1520,7 @@ end if
             elsif nodetype=T_function
                or nodetype=T_procedure
                or nodetype=T_type then
-
+--trace(1)
 --              massn &= massN
 --              massN = 0
                 sequence name,args,body,statics
@@ -1506,8 +1567,15 @@ end if
                 if name[1]!=LETTER then ?9/0 end if
                 prevline = tokline
                 name = emit_expr(name,0)
+--?name
+--if name="tg_tree_key_handler" then trace(1) end if
+
 --              bool jst = is_js() and nodetype=T_type
-                string fp = xl(tok_name(nodetype))
+                string tn = tok_name(nodetype),
+                       fp = xl(tn)
+                sig = upper(tn[1..1])   --- ie F/P/T for func/proc/type
+                assert(find(sig,{"F","P","T"}))
+                minarg = 0
 --                     oc = iff(jst?"/*":""),
 --                     cc = iff(jst?"*/":"")
 --              if find(oneline,{"/*global*/","global"}) then
@@ -1541,11 +1609,14 @@ end if
 --trace(1)
                 anonn = 0
 --?args
+--trace(1)
                 for j=1 to length(args) do
                     if j>1 then oneline &= ", " end if
                     do_args(args[j])
                 end for
                 oneline &= ")"
+---DEV (sip) save now in case of nested functions...
+                string thissig = sig
 --DEV forward function expr(integer p, skip=0)
 if body={} then
                 if not is_phix() then   
@@ -1558,10 +1629,25 @@ else
 --if name="main_menu" then trace(1) end if
 --              emit(body[2],indent+4,bNested2)
                 emit(body[2],indent+4,true)
+--trace(1)
                 prevline = wastokline
 --              filter_comments = false
 --              softdent(xl("end " & fp) & cc,indent)
                 softdent(xl("end " & fp),indent)
+--?{oneline,{wasext,PHIX},{ext,HTML,JSS},fp,name,sig,thissig}
+--20/4/25:
+--?{oneline,ext,{PHIX,HTML,JSS},thissig,fp,name}
+--              if oneline = `}`
+                if oneline[$] = '}'
+                and wasext = PHIX
+                and   (ext = HTML or
+                       ext = JSS) then
+--                  if minarg then sig &= sprintf(",%d",minarg-2) end if
+                    if minarg then thissig &= sprintf(",%d",minarg-2) end if
+--                  oneline &= sprintf(` %s.sig="%s";`,{name,sig})
+                    oneline &= sprintf(` %s.$sig="%s";`,{name,thissig})
+--?">>>"&oneline
+                end if
                 if not is_phix() and bBuiltinAliases then
                     string a = get_builtin_aliases(name)
                     if length(a) then
@@ -1611,8 +1697,10 @@ end if
                 string n21 = strip_builtin(node[2][1])
                 if n21="pGUI.e" then
                     bGUI = true
-                elsif n21="xpGUI.e" then
-                    bxpGUI = true
+                elsif n21="theGUI.e" then
+                    btheGUI = true
+                elsif n21="hGUI.e" then
+                    btheGUI = true
 --              elsif n21=`..\pGUI\opengl.e` then
                 elsif match("opengl.e",n21) then
                     bOpenGL = true
@@ -1636,6 +1724,7 @@ end if
                 end if
 
             elsif nodetype=T_without
+               or nodetype=T_withpop
                or nodetype=T_with then
 
                 string withline = tok_name(nodetype) & " " & node[2][1] 
@@ -1772,14 +1861,16 @@ end if
 --               {T_block,{{1788,{{4,15456,15459,404,22,5012},{T_block,{{131,{{4,15484,15484,405,20,5152},{3,15489,15489,405,25}}},{61,{{4,15511,15512,406,20,5156},{91,{{4,15516,15519,406,25,5592},{4,15521,15521,406,30,5152}}}}},{61,{{4,15544,15550,407,20,5244},{91,{{4,15554,15560,407,30,5948},{4,15562,15563,407,38,5156}}}}},{1088,{{161,{{4,15589,15595,408,23,5244},{4,15598,15602,408,32,6208}}},{1608,{{5,15609,15634,409,0},{1088,{{520,{{520,{{61,{{4,15663,15664,410,27,5156},{39,15666,15668,410,30}}},{61,{{4,15674,15674,410,38,5152},{43,{{4,15676,15683,410,40,5224},{3,15685,15685,410,49}}}}}}},{61,{{91,{{4,15691,15694,410,55,5592},{4,15696,15703,410,60,5224}}},{39,15706,15708,410,70}}}}},{1608,{{5,15743,15765,411,28},{1788,{{4,15801,15804,412,34,5012},{T_block,{{131,{{4,15841,15841,413,32,5152},{3,15846,15846,413,37}}},{61,{{4,15880,15881,414,32,5156},{91,{{4,15885,15888,414,37,5592},{4,15890,15890,414,42,5152}}}}},{1088,{{1300,{{"PROC",{{4,15932,15935,415,39,1992},{4,15937,15938,415,44,5156},{34,15940,15944,415,47}}}}},{1608,{{828}}}}}}}}},{133,{{4,16030,16030,417,28,5152},{3,16035,16035,417,33}}},{1088,{{60,{{4,16068,16068,418,31,5152},{43,{{4,16070,16077,418,33,5224},{3,16079,16079,418,42}}}}},{1608,{{"MASS",{{201,{}},{"PROC",{{4,16123,16131,419,37,5540},{34,16133,16146,419,47}}}}},{1480}}}}},{5,16223,16266,422,0},{61,{{4,16296,16302,423,28,5244},{39,16306,16308,423,38}}},{5,16312,16326,423,44},{"PROC",{{4,16356,16364,424,28,5432}}},{596}}}}},{968,{{"vardef",{{4,16457,16459,427,24,968},"x",{3,16463,16463,427,30}}},{3,16468,16468,427,35},{},{T_block,{{"vardef",{{4,16501,16507,428,28,300},"xc",{91,{{34,16514,16517,428,41},{4,16519,16519,428,46,6272}}}}},{1088,{{520,{{61,{{"PROC",{{4,16553,16557,429,31,6296},{4,16559,16560,429,37,5156}}},{4,16563,16564,429,41,6280}}},{1308,{{61,{{4,16571,16571,429,49,6272},{3,16573,16573,429,51}}},{161,{{91,{{4,16578,16581,429,56,5592},{43,{{4,16583,16583,429,61,5152},{3,16585,16585,429,63}}}}},{39,16589,16591,429,67}}}}}}},{1608,{{"vardef",{{4,16631,16637,430,32,300},"i0",{4,16644,16644,430,45,5152}}},{1788,{{4,16684,16687,431,38,5012},{T_block,{{131,{{4,16728,16728,432,36,5152},{3,16733,16733,432,41}}},{61,{{4,16771,16772,433,36,5156},{91,{{4,16776,16779,433,41,5592},{4,16781,16781,433,46,5152}}}}},{61,{{4,16820,16826,434,36,5244},{91,{{4,16830,16836,434,46,5948},{4,16838,16839,434,54,5156}}}}},{1088,{{520,{{161,{{4,16881,16887,435,39,5244},{4,16890,16894,435,48,6208}}},{1308,{{161,{{4,16938,16938,436,42,5152},{43,{{4,16941,16942,436,45,6304},{3,16944,16944,436,48}}}}},{1300,{{"PROC",{{4,16954,16957,436,58,1992},{4,16959,16960,436,63,5156},{34,16962,16965,436,66}}}}}}}}},{1608,{{1088,{{61,{{4,17017,17017,437,43,5152},{43,{{4,17019,17020,437,45,6304},{3,17022,17022,437,48}}}}},{1608,{{5,17073,17090,438,44},{"MASS",{{201,{}},{"PROC",{{4,17141,17149,439,49,5540},{34,17151,17166,439,59}}}}},{1480}}}}},{828}}}}}}}}}}}}}}}}},{828}}}}}}}}},{133,{{4,17562,17562,450,16,5152},{3,17567,17567,450,21}}},{61,{{4,17585,17591,451,16,5244},{4,17595,17599,451,26,6208}}},{"PROC",{{4,17617,17625,452,16,5432}}}}},
 --               {T_case,{{4,17646,17651,453,17,6048}}},
 --               {T_block,{{1788,{{4,17676,17679,454,22,5012},{T_block,{{131,{{4,17704,17704,455,20,5152},{3,17709,17709,455,25}}},{61,{{4,17731,17732,456,20,5156},{91,{{4,17736,17739,456,25,5592},{4,17741,17741,456,30,5152}}}}},{61,{{4,17764,17770,457,20,5244},{91,{{4,17774,17780,457,30,5948},{4,17782,17783,457,38,5156}}}}},{5,17786,17859,458,0},{1088,{{520,{{520,{{161,{{4,17884,17890,459,23,5244},{4,17893,17898,459,32,6048}}},{161,{{4,17904,17910,459,43,5244},{4,17913,17917,459,52,6208}}}}},{1308,{{161,{{4,17924,17930,459,63,5244},{39,17933,17935,459,72}}},{1300,{{"PROC",{{4,17944,17948,459,83,6020}}}}}}}}},{1608,{{828}}}}}}}}},{61,{{4,18012,18018,461,16,5244},{4,18022,18027,461,26,6048}}},{133,{{4,18045,18045,462,16,5152},{3,18050,18050,462,21}}},{"PROC",{{4,18068,18076,463,16,5456}}}}},{752,{}},{T_block,{{5,18101,18122,464,21},{"MASS",{{201,{}},{"PROC",{{4,18145,18153,465,21,5540},{34,18155,18168,465,31}}}}},{1480}}}}}?
+                bool with_fallthrough = node[3]
                 node = node[2]
 --              sequence ctrl = node[1]
 --              string expr = emit_expr(ctrl,initp)
 --              dent("switch " & expr & xl(" do"),indent)
-                dent("switch " & emit_expr(node[1],initp) & xl(" do"),indent)
+                string wfd = iff(with_fallthrough?xl(" with fallthrough"):"") & xl(" do")
+                dent("switch " & emit_expr(node[1],initp) & wfd,indent)
                 bool bBreak = true
                 for j=2 to length(node) by 2 do
-                    if j>2 and is_js() and bBreak then
+                    if j>2 and is_js() and bBreak and not with_fallthrough then
                         dent("break;",indent+8)
                     end if
                     sequence nj = node[j]
@@ -1976,6 +2067,10 @@ end if
 --*/
                 if length(node)!=2 then ?9/0 end if
                 node = node[2]
+-->>>
+--sequence wasnode = deep_copy(node)
+--if node[1]={4,828,830,27,21,1448} then trace(1) end if
+
 --              if length(node)!=3 then ?9/0 end if
                 prevline = tokline
                 string vartype = emit_expr(node[1],0)
@@ -2417,7 +2512,7 @@ function add_includes(sequence ai, axtra)
     return ai
 end function
 
-global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, xpGUI, pMPFR, pSHA256, pTIMEDATE)
+global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, theGUI, pMPFR, pSHA256, pTIMEDATE)
 --global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI, pOpenGL?, pMPFR, pSHA256, pTIMEDATE)
     wasext = ext    -- save input language
     ext = oxt       -- set output language, so we can use is_phix() etc.
@@ -2425,10 +2520,11 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
 --  massN = 0
 --  massn = {}
 --?initp
+--trace(1)
     output = ""
     tokline = src_offset+1
     bGUI = false
-    bxpGUI = false
+    btheGUI = false
     bOpenGL = false
     bMPFR = false
     bSHA256 = false
@@ -2448,11 +2544,11 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
                 hdr_args = {pGUIcs,pGUIjs}
             end if
         end if
-        if bxpGUI or xpGUI then
+        if btheGUI or theGUI then
             if bOpenGL then
-                hdr_args = {xpGUIcs,xpGUIjs&OpenGL}
+                hdr_args = {theGUIcs,theGUIjs&OpenGL}
             else
-                hdr_args = {xpGUIcs,xpGUIjs}
+                hdr_args = {theGUIcs,theGUIjs}
             end if
         end if
         string header = sprintf(html_headerf,hdr_args),
@@ -2460,8 +2556,10 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
         sequence ai = get_autoincludes()[1]
         if bGUI or pGUI then
             ai = add_includes(ai,{"find.e","pmaths.e","ptagset.e"})
-        elsif bxpGUI or xpGUI then
-            ai = add_includes(ai,{"find.e","pmaths.e","ptagset.e","psplit.e","match.e","pfindany.e","pcase.e","pfindall.e"})
+        elsif btheGUI or theGUI then
+            -- PL 3/12/24 added scanf for to_number, though I suspect I should be using to_integer..
+            ai = add_includes(ai,{"find.e","pmaths.e","ptagset.e","psplit.e","match.e","vslice.e",
+                                  "pfindany.e","pcase.e","pfindall.e","scanf.e","pApply.e"})
 --/*
 <!DOCTYPE html>
 <html lang="en" >
@@ -2520,8 +2618,8 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
         if pGUI and not bGUI then
             output = "include pGUI.e\n" & output
         end if
-        if xpGUI and not bxpGUI then
-            output = "include xpGUI.e\n" & output
+        if theGUI and not btheGUI then
+            output = "include theGUI.e\n" & output
         end if
 --      if pOpenGL and not bOpenGL then
 --          output = `include ..\pGUI\opengl.e` & "\n" & output

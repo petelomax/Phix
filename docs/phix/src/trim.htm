@@ -13,21 +13,21 @@
           <b>Definition:</b>
          </td>
          <td>
-            <a href="object.htm">object</a> res = trim(<a href="object.htm">object</a> source, 
-                                                       <a href="object.htm">object</a> what=" \t\r\n", 
-                                                       <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm#tf">false</a>)
+            <a href>object</a> res = trim(<a href>object</a> source, 
+                                                       <a href>object</a> what=" \t\r\n"<small>, 
+                                                       <a href>bool</a> return_index=<a href>false</a></small>)
             <br>
             <i>or ...</i>
             <br>
-            <a href="object.htm">object</a> res = trim_head(<a href="object.htm">object</a> source, 
-                                                            <a href="object.htm">object</a> what=" \t\r\n", 
-                                                            <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm#tf">false</a>)
+            <a href>object</a> res = trim_head(<a href>object</a> source, 
+                                                            <a href>object</a> what=" \t\r\n"<small>, 
+                                                            <a href>bool</a> return_index=<a href>false</a></small>)
             <br>
             <i>-- or --</i>
             <br>
-            <a href="object.htm">object</a> res = trim_tail(<a href="object.htm">object</a> source, 
-                                                            <a href="object.htm">object</a> what=" \t\r\n", 
-                                                            <a href="integer.htm#bool">bool</a> return_index=<a href="logicops.htm#tf">false</a>)
+            <a href>object</a> res = trim_tail(<a href>object</a> source, 
+                                                            <a href>object</a> what=" \t\r\n"<small>, 
+                                                            <a href>bool</a> return_index=<a href>false</a></small>)
          </td>
         </tr>
         <tr>
@@ -35,12 +35,12 @@
           <b>Description:</b>
          </td>
          <td>
-            Trim whitespace from strings.
+            Trim whitespace (or other characters) from strings.
             <br>
             <br>
             source: object (string) to be trimmed.<br>
             what: elements (characters) to be removed.<br>
-            return_index: when <a href="logicops.htm#tf">true</a> return {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail) respectively.
+            <small>return_index: avoid, see below.</small>
          </td>
         </tr>
         <tr>
@@ -56,20 +56,25 @@
           <b>Comments:</b>
          </td>
          <td>
-            Can theoretically be used for other purposes besides trimming whitespace, perhaps to trim unused entries from a table.
+            Can theoretically be used for other purposes besides chopping unwanted leading/trailing characters off a string.
             <br>
             <br>
-            When return_index is <a href="logicops.htm#tf">true</a>, the result is {startpos,endpos} (trim), startpos (trim_head), or endpos (trim_tail).
+            To simplify processing, if source is not a <a href>sequence</a>/<a href>string</a>, but instead 
+            something like EOF (ie -1), it is returned unaltered <small>(or 0 when return_index is true)</small>.
             <br>
             <br>
-            To simplify processing, if source is not a <a href="sequence.htm">sequence</a>/<a href="string.htm">string</a>, but instead 
-            something like EOF (ie -1), it is returned unaltered.<br>
+            When return_index is <a href>true</a>, the result is {startpos,endpos} (trim), startpos (trim_head), or 
+            endpos (trim_tail).<br>
+            Note that return_index is provided for Euphoria compatibility only.
+            Formal support is limited to "well don't use that pointless feature then".
+<!--
             Note however that feature is certainly <i>not</i> intended for use when working with indexes (return_index=true), since treating
             the -1 (or whatever!) result as an index would probably be quite wrong! Instead it is usually easier to avoid the call when
             source is not a sequence, rather than struggle to interpret the result correctly.<br>
             In other words, <code>integer {s,e} = trim(5,x,true)</code> will fail trying to extract {s,e} from 5, and likewise(-ish)
             <code>integer e = trim_head/tail(5,x,true)</code> will succeed however some subsequent [5] usage will almost certainly fail.<br>
             In both cases it is simply easier to avoid the call rather than test/ignore the bogus results.
+-->
 <!--
 //          <br>
 //          <br>
@@ -84,6 +89,7 @@
           <b>Example:</b>
          </td>
          <td>
+<small>
 <!--eucode>
 ?trim(" abc ")          -- prints "abc"
 ?trim(`"abc"`)          -- prints `"abc"`
@@ -93,14 +99,14 @@
 ?trim(gets(fn))         -- trim returns eof (-1) unaltered.
 </eucode-->
 <pre>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#008000">" abc "</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints "abc"</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#008000">`"abc"`</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints `"abc"`</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#008000">`"abc"`</font><font color="#0000FF">,</font><font color="#008000">'\"'</font><font color="#0000FF">)    </font><font color="#000080"><i> -- prints "abc" (not ""abc"" nor `"abc"`)</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000080"><i> -- removes s[i]={} entries from start and end (note the extra {})</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000080"><i> -- removes s[i]={} or 0 ""</i></font>
-<font color="#0000FF">?</font><font color="#5E005E">trim</font><font color="#0000FF">(</font><font color="#7060A8">gets</font><font color="#800000">(</font><font color="#000000">fn</font><font color="#800000">)</font><font color="#0000FF">)        </font><font color="#000080"><i> -- trim returns eof (-1) unaltered.</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#008000">" abc "</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints "abc"</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#008000">`"abc"`</font><font color="#0000FF">)         </font><font color="#000080"><i> -- prints `"abc"`</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#008000">`"abc"`</font><font color="#0000FF">,</font><font color="#008000">&apos;\"&apos;</font><font color="#0000FF">)    </font><font color="#000080"><i> -- prints "abc" (not ""abc"" nor `"abc"`)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{}</font><font color="#800000">}</font><font color="#0000FF">)      </font><font color="#000080"><i> -- removes s[i]={} entries from start and end (note the extra {})</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">)    </font><font color="#000080"><i> -- removes s[i]={} or 0 ""</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">trim</font><font color="#0000FF">(</font><font color="#7060A8">gets</font><font color="#800000">(</font><font color="#000000">fn</font><font color="#800000">)</font><font color="#0000FF">)        </font><font color="#000080"><i> -- trim returns eof (-1) unaltered.</i></font>
 </pre>
-            <a name=aux></a>
+</small>
          </td>
         </tr>
         <tr>

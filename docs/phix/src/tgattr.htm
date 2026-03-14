@@ -7,54 +7,74 @@
       <h1 class="title">Attributes</h1>
       <div id="mainSection">
         On the first reading, you should assume something like
-        <code><a href="gdx.htm">gdx</a> button = <a href="gButton.htm">gButton</a>("button")</code> and without worrying too much about the
+        <code><a href>gdx</a> button = <a href>gButton</a>("button")</code> and without worrying too much about the
         technical details of that, it should be obvious that it creates a button. Equally I am sure you can imagine a fairly long list of things
         you might want to alter: size, font, colour, text, an image, enable/disable it, and of course configure what happens when it is clicked. 
 <!--
         Aside: in IUP element position is dynamically determined through nested containers and fillers, though if you are adamantly married to 
-        specifying everything in pixels you could always try using an <a href="IupCbox.htm">IupCbox</a>.
+        specifying everything in pixels you could always try using an <a href>IupCbox</a>.
 -->
        <br>
        <br>
-        All of that, even the handlers, is achieved through the use of attributes.
+        All of that is achieved through the use of attributes, and even handlers (user-supplied routines) are just a specialised form of them.
        <br>
        <br>
-        Note that IUP/pGUI allow bespoke application-specific attributes on any control, which are effectively ignored, however in particular
-        xpGUI.js benefits enormously from flagging anything it does not [yet] understand, and likewise desktop/Phix is simply better if say 
-        "POSITON" is immediately called out as the typo that it is. So under xpGUI you will have to store such custom things elsewhere, or
-        alternatively I could easily be persuaded to add, say, gG/SetCustomAttribute().
+        Note IUP/pGUI allowed bespoke application-specific attributes on any control, which are effectively ignored, however <!--in particular
+        theGUI.js benefits enormously from flagging anything it does not [yet] understand, and likewise desktop/Phix--> it is simply better to
+        immediately call out (say) "ATCIVE" as an error, rather than just quietly ignore it. 
+        In theGUI every interface element has a <a href>USER_DATA</a> attribute, the contents of which are 
+        entirely at the discretion of the programmer, and should be used instead of (implicit) custom attributes.
+        <br>
+        <br>
+        Also, the inheritance model has been completely re-implemented for theGUI and no doubt there will be subtle and sometimes not-so-suble
+        differences from anything that came before. 
+        In particular, whether things like <a href>GAP</a> and <a href>MARGIN</a> apply just once or 
+        to all children as well, which may require a little extra thought and effort when porting legacy code, but should, if everything goes 
+        to plan, conversely make writing new code that little bit easier. Specifically here theGUI has <i>not</i> copied IUP in having 
+        <a href="IupHbox.htm#GAP">GAP</a>/<a href="IupHbox.htm#NGAP">NGAP</a> and 
+        <a href="IupHbox.htm#MARGIN">MARGIN</a>/<a href="IupHbox.htm#NMARGIN">NMARGIN</a>, but instead implemented both as non-inherited with
+        <i>no</i> inheritable version, since that multiple-effect side simply never made any sense to me.<br>
+        In fact, only <a href>ACTIVE</a>,
+                      <a href>FONT</a>, and
+                      <a href>VISIBLE</a>
+        are known to be inherited, at this point.
+
 <!--
-        ignore
-        Without looking at the C source, I would hazard that all attributes are in fact stored as pointers, or more accurately machine-sized 
-        words, which delivers high performance, with a handful of selected routines carefully taking a copy of any volatile strings, floats, 
-        etc and keeping them safe for the duration. My first reaction was predictable enough given my obsession with performance, but once I 
-        accepted it is no big deal to convert "200" to 200, or "YES/NO" to 1/0, I realised it is a pretty good way to keep things simple.
+//      you will have to store such custom things elsewhere, or
+//      alternatively I could easily be persuaded to add, say, gG/SetCustomAttribute().
+-->
+<!--
+//      ignore
+//      Without looking at the C source, I would hazard that all attributes are in fact stored as pointers, or more accurately machine-sized 
+//      words, which delivers high performance, with a handful of selected routines carefully taking a copy of any volatile strings, floats, 
+//      etc and keeping them safe for the duration. My first reaction was predictable enough given my obsession with performance, but once I 
+//      accepted it is no big deal to convert "200" to 200, or "YES/NO" to 1/0, I realised it is a pretty good way to keep things simple.
 -->
        <br>
        <br>
 <!-- DEV/ERM...
-        The majority of attributes are implemented using text strings, but there are also routines for storing (and perhaps more importantly
-        retrieving) numbers, pointers, etc. Depending on the interface element, some attributes are inheritable (for instance the
-//      <a href="gButton.htm#BGCOLOR">BGCOLOR</a> on an <a href="gButton.htm">gButton</a>: if not specifically set, a button takes on
-        the background colour of whatever control it is sitting on), and some attributes are non-inheritable (eg 
-        <a href="gButton.htm#TITLE">TITLE</a>). Some must be set at creation time, ie before the dialog is first displayed (eg 
-        <a href="gDropDown.htm#EDITABLE">EDITABLE</a>), while others can be amended on the fly (eg <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>), 
-        and some are read-only, or platform-specific. Whilst most attributes are static, referred to as needed, a few trigger actions when 
-        read or set (eg <a href="gSetHandler.htm#KEY">KEY</a>). These are all documented for each element type.
-       <br>
-       <br>
+//      The majority of attributes are implemented using text strings, but there are also routines for storing (and perhaps more importantly
+//      retrieving) numbers, pointers, etc. Depending on the interface element, some attributes are inheritable (for instance the
+//      <a href>BGCLR</a> on an <a href>gButton</a>: if not specifically set, a button takes on
+//      the background colour of whatever control it is sitting on), and some attributes are non-inheritable (eg 
+//      <a href="gButton.htm#TITLE">TITLE</a>). Some must be set at creation time, ie before the dialog is first displayed (eg 
+//      <a href>EDITABLE</a>), while others can be amended on the fly (eg <a href>ACTIVE</a>), 
+//      and some are read-only, or platform-specific. Whilst most attributes are static, referred to as needed, a few trigger actions when 
+//      read or set (eg <a href>KEY</a>). These are all documented for each element type.
+//     <br>
+//     <br>
 -->
 <!--
-        You can also set bespoke application-specific attributes on any control, which the underlying platform-specific driver will completely 
-        ignore. The most likely thing I can think of where that might be useful would be to have a single handler that deals with several 
-        controls, which fetches an attribute off the control that triggered it, and tweaks the behaviour accordingly. Perhaps (I have not 
-        tried this) a clock application could have a single handler that gets called by three timers, and draws the hour, minute, and second 
-        hand appropriately, but I digress...
-       <br>
-       <br>
-        The point I am trying to make here is that, sheer number of different controls aside, by and large the core of IUP is jaw-droppingly 
-        trivial - all the important stuff gets controlled by attributes. Equally there are quite a few ways to set and retrieve attributes,
-        of which there are plenty knocking about, but otherwise the attribute system itself is also conceptually quite trivial.
+//      You can also set bespoke application-specific attributes on any control, which the underlying platform-specific driver will completely 
+//      ignore. The most likely thing I can think of where that might be useful would be to have a single handler that deals with several 
+//      controls, which fetches an attribute off the control that triggered it, and tweaks the behaviour accordingly. Perhaps (I have not 
+//      tried this) a clock application could have a single handler that gets called by three timers, and draws the hour, minute, and second 
+//      hand appropriately, but I digress...
+//     <br>
+//     <br>
+//      The point I am trying to make here is that, sheer number of different controls aside, by and large the core of IUP is jaw-droppingly 
+//      trivial - all the important stuff gets controlled by attributes. Equally there are quite a few ways to set and retrieve attributes,
+//      of which there are plenty knocking about, but otherwise the attribute system itself is also conceptually quite trivial.
 -->
 <!-- nobody really uses this, and to be honest, I'll never keep it up to date...
        <br>
@@ -251,29 +271,18 @@
         The following attributes are common to several controls/interface element types:
        <br>
        <br>
-        <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a><br>
-//      <a href="gSetAttribute.htm#BGCOLOR">BGCOLOR</a><br>
-//      <a href="gGetAttribute.htm#CLIENTOFFSET">CLIENTOFFSET</a><br>
-//      <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a><br>
-        <a href="gSetAttribute.htm#CURSOR">CURSOR</a><br>
-        <a href="gSetAttribute.htm#EXPAND">EXPAND</a><br>
-//      <a href="gSetAttribute.htm#FGCOLOR">FGCOLOR</a><br>
-//      <a href="gSetAttribute.htm#FLOATING">FLOATING</a><br>
-        <a href="gSetAttribute.htm#FONT">FONT</a>
-//      <a href="gSetAttribute.htm#NAME">NAME</a>
-//      <a href="gGetAttribute.htm#NATURALSIZE">NATURALSIZE</a><br>
-        <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a><br>
-        <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a><br>
-//      <a href="gGetAttribute.htm#POSITION">POSITION</a><br>
-//      <a href="gGetAttribute.htm#SCREENPOSITION">SCREENPOSITION</a><br>
-//      <a href="gSetAttribute.htm#RASTERSIZE">RASTERSIZE</a><br>
-        <a href="gGetAttribute.htm#SIZE">SIZE</a><br>
-        <a href="gSetAttribute.htm#SCROLLBAR">SCROLLBAR</a><br>
-        <a href="gSetAttribute.htm#TIP">TIP</a><br>
-        <a href="gSetAttribute.htm#TITLE">TITLE</a><br>
-        <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a><br>
-//      <a href="gSetAttribute.htm#WID">WID</a><br>
-//      <a href="gSetAttribute.htm#ZORDER">ZORDER</a><br>
+        <a href>ACTIVE</a><br>
+//      <a href>BGCLR</a><br>
+        <a href>CURSOR</a><br>
+        <a href>EXPAND</a><br>
+//      <a href>FGCLR</a><br>
+        <a href>FONT</a>
+        <a href>MAXSIZE</a><br>
+        <a href>MINSIZE</a><br>
+        <a href>SIZE</a><br>
+        <a href>TIP</a><br>
+        <a href>TITLE</a><br>
+        <a href>VISIBLE</a><br>
 -->
        <br>
         &nbsp;

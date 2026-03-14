@@ -152,7 +152,7 @@ const NULL = 0,     // nb !=null, see docs
 let $tx_clr = -1,
     $bg_clr = -1;
 
-function puts(fn, text, cleanup=true) {
+function puts(/*integer*/ fn, /*object*/ text, cleanup=true) {
     integer(fn,"fn");
 //  string(text,"text");
     if ((fn !== 1) && (fn !== 2)) { crash("fn must be 1 or 2"); }
@@ -177,9 +177,9 @@ function puts(fn, text, cleanup=true) {
                                + `">` + text + `</span>`;
     }
     $docBody.insertAdjacentHTML(where, text);
-}
+} puts.$sig = "PIOO,2";
 
-function crash(msg, args = []) {
+function crash(/*string*/ msg, /*sequence*/ args = [] /*,nFrames=1*/) {
 //  string(msg,"msg");
 //  object(args,"args");
     if (!Array.isArray(args) || (args.length !== 0)) {
@@ -191,15 +191,15 @@ function crash(msg, args = []) {
     throw(new Error(msg));
 //  debugger;
 //  puts(2,"this should not occur");
-}
+} crash.$sig = "PSPI,1";
 
-function assert(condition, msg = "", args = []) {
+function assert(/*bool*/ condition, /*string*/ msg = "", /*sequence*/ args = [] /*,integer nFrames=1*/) {
     if (!condition) { crash(msg,args); }
-}
+} assert.$sig = "PISPI,1";
 
 function abort(i) {
     crash("abort(%d)",["sequence",i])
-}
+} abort.$sig = "PI";
 
 function $typeCheckError(name, x) {
     if (name.length !== 0) {
@@ -212,7 +212,10 @@ function $typeCheckError(name, x) {
     return false;
 }
 
-function integer(i, name = "") {
+// Note: the name param on the next five (integer()..object()) is a p2js.js-specific
+//       thing, being pseudo-typechecking, and not exactly very heavily used at that.
+
+function integer(/*object*/ i, name = "") {
 //
 // invoke as (eg) integer(fn) to test, integer(fn,"fn") to typecheck [from js only].
 //
@@ -245,11 +248,11 @@ function integer(i, name = "") {
     }
 //  }
     return true;
-}
+} integer.$sig = "TO";
 let int = integer;
 let bool = integer;
 
-function atom(a, name = "") {
+function atom(/*object*/ a, name = "") {
 //7/8/21...
 //  if ((typeof(a) !== "boolean") && (typeof(a) !== "function") && (typeof(a) !== "number" || !isFinite(a))) {
     let ta = typeof(a);
@@ -260,44 +263,44 @@ function atom(a, name = "") {
         return $typeCheckError(name,a);
     }
     return true;
-}
+} atom.$sig = "TO";
 let number = atom;
 
-function string(s, name = "") {
+function string(/*object*/ s, name = "") {
     if (typeof(s) !== "string") {
         return $typeCheckError(name,s);
     }
     return true;
-}
+} string.$sig = "FO";
 
-function sequence(p, name = "") {
+function sequence(/*object*/ p, name = "") {
     if (typeof(p) !== "string") {
         if (!Array.isArray(p) || p[0] !== "sequence") {
             return $typeCheckError(name,p);
         }
     }
     return true;
-}
+} sequence.$sig = "TO";
 let seq = sequence;
 
-function object(o, name = "") {
+function object(/*object*/ o, name = "") {
     if (typeof(o) === "undefined") {
         return $typeCheckError(name,"undefined");
     }
     return true;
-}
+} object.$sig = "TO";
 
-function length(o) {
+function length(/*sequence*/ o) {
     if (string(o)) {
         return o.length;
     } else if (sequence(o)) {
         return o.length-1;
     }
     crash("length of an atom is not defined");
-}
+} length.$sig = "FP";
 
 //function deep_copy(p, depth=-1) {
-function deep_copy(p) {
+function deep_copy(/*object*/ p) {
     // (we got no refcount here, so must ignore bIfNeeded)
     if (Array.isArray(p)) {
         p = p.slice();
@@ -311,7 +314,7 @@ function deep_copy(p) {
 //      }
     }
     return p;
-}
+} deep_copy.$sig = "FO";
 
 function $charArray(s) {
 // Needed because Array.from(string) produces lots of diddy-strings...
@@ -333,8 +336,9 @@ function $charArray(s) {
 }
 
 let $prefer_backtick = false;
+let $qu_dbg = 0;
 
-function sprintf(fmt, args = []) {
+function sprintf(/*string*/ fmt, /*object*/ args = []) {
 //function sprintf(fmt, args = ["sequence"]) {
     //
     // Should give reasonable approximation to the Phix sprintf() builtin,
@@ -666,10 +670,12 @@ function sprintf(fmt, args = []) {
             case 'v': res = stri(-1); break;
             case 'V': res = stri(true); break;
             case 'd': res = remove_scientific(inti()); break;
-            case 'b': res = inti().toString(2); break;
-            case 'o': res = inti().toString(8); break;
+            case 'b': res = inti(true).toString(2); break;
+            case 'o': res = inti(true).toString(8); break;
             case 'x': res = inti(true).toString(16).toUpperCase(); break;
+//          case 'x': res = inti(sgn !== '_').toString(16).toUpperCase(); break;
             case 'X': res = inti(true).toString(16); break; //^yep===Phix
+//          case 'X': res = inti(sgn !== '_').toString(16); break; //^yep===Phix
 //          case 'a': res = inbase(argi()); break;
             case 'a': res = inbase(argi()).toLowerCase(); break;
 //          case 'A': res = inbase(argi()).toUpperCase(); break;
@@ -684,6 +690,7 @@ function sprintf(fmt, args = []) {
             case 'r': res = toRoman(inti()).toLowerCase(); break;
             default: crash("unrecognised specifier");
         }
+        let underscore = 0;
         if (sgn === ',') {
             if ("aAdf".indexOf(specifier) === -1) {
                 crash('comma-fill only permitted on %a, %A, %d, and %f');
@@ -697,22 +704,49 @@ function sprintf(fmt, args = []) {
             }
         } else if (sgn === '+' && res[0] !== '-') {
             res = '+' + res;
-        } else if (sgn === '_' && res[0] !== '-') {
-            res = ' ' + res;
+        } else if (sgn === '_') {
+            if ("boxX".indexOf(specifier) === -1) {
+                if (res[0] !== '-') {
+                    res = ' ' + res;
+                }
+            } else {
+                underscore = (specifier === 'o') ? 3 : 4;
+//              if (size && size[0] !== '0') {
+//                  size = '0' + size;
+//              }
+            }
         }
         if (size) {
-            let pad = (size[0] === '0' && "-+_=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
+//          let padch = (size[0] === '0' && "-+_=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
+            let padch = (size[0] === '0' && "-+=|".indexOf(sgn) === -1 && res.indexOf('-') === -1) ? '0' : ' ';
+            if (underscore) {
+                if (res[0] === '-') {
+                    res = res.slice(1,res.length);
+                }
+                padch = '0';
+//              padch = (specifier === 'b') ? '1' 
+//                    : (specifier === 'o') ? '7'
+//                    : (specifier === 'x') ? 'F' : 'f';
+            }
             let padlen = parseInt(size,10)-res.length;
             if (padlen>0) {
                 let half = Math.floor(padlen/2);
                 switch (sgn) {
-                    case '=': res = pad.repeat(half) + res + pad.repeat(padlen-half); break;
-                    case '|': res = pad.repeat(padlen-half) + res + pad.repeat(half); break;
-                    case '-': res = res + pad.repeat(padlen); break;
-                    default : res = pad.repeat(padlen) + res; break;
+                    case '=': res = padch.repeat(half) + res + padch.repeat(padlen-half); break;
+                    case '|': res = padch.repeat(padlen-half) + res + padch.repeat(half); break;
+                    case '-': res = res + padch.repeat(padlen); break;
+                    default : res = padch.repeat(padlen) + res; break;
                 }
-            }       
-        }       
+            }
+        }
+        if (underscore) {
+            let upos = res.length;
+            let lim = underscore + (("-+".indexOf(res[0]) === -1) ? 0 : 1);
+            while (upos>lim) {
+                upos -= underscore;
+                res = res.slice(0,upos) + '_' + res.slice(upos);
+            }
+        }
         return res;
     }
     //
@@ -726,7 +760,7 @@ function sprintf(fmt, args = []) {
     return fmt.replace(regex, callback);
 }
 
-function printf(fn, fmt, args = []) {
+function printf(/*integer*/ fn, /*string*/ fmt, /*object*/ args = []) {
 //  integer(fn,"fn");
 //  string(fmt,"fmt");
 //  object(args,"args");
@@ -734,6 +768,8 @@ function printf(fn, fmt, args = []) {
         for (let i = 1; i < args.length; i += 2) {
             if (args[i] === 'prefer_backtick') {
                 $prefer_backtick = args[i+1];
+            } else if (args[i] === 'qu_dbg') {
+                $qu_dbg = args[i+1];
             } else if (args[i] !== 'unicode_align') {
                 // ( simply ignore 'unicode_align' )
                 crash("unsupported printf option " + args[i]);
@@ -742,9 +778,9 @@ function printf(fn, fmt, args = []) {
     } else {
         puts(fn,sprintf(fmt, args));
     }
-}
+} printf.$sig="PISO,2";
 
-function sprint(o,asCh) {
+function sprint(/*object*/ o, /*integer*/ asCh=false) {
 //  object(o,"o");
     let res;
     if (string(o)) {
@@ -814,13 +850,15 @@ function sprint(o,asCh) {
         res = cut_tz(o.toPrecision(10));
     }
     return res;
-}
+} sprint.$sig="FOI,1";
 
 function print(fn, o) {
 //  integer(fn,"fn");
 //  object(o,"o");
-    puts(fn,sprint(o) + "\n");
-}
+    let s = sprint(o);
+    if (fn === 1 && $qu_dbg) { $qu_dbg(s); }
+    puts(fn,s + "\n");
+} print.$sig="PIO";
 
 //DEV if msg[$]='\n' then just display it
 function progress(/*string*/ msg, /*object*/ args={}) {
@@ -833,7 +871,7 @@ function progress(/*string*/ msg, /*object*/ args={}) {
     if (equal($subse(msg,-1),0XA)) {    // if msg[$]='\n' then
         printf(1,msg,args);
     }
-}
+} progress.$sig="PSO,1";
 
 function append(a, x) {
 //  object(a,"a");
@@ -853,7 +891,7 @@ function append(a, x) {
         }
     }
     return a;
-}
+} append.$sig="FOO";
 
 function prepend(a, x) {
 //  object(a,"a");
@@ -875,14 +913,14 @@ function prepend(a, x) {
         }
     }
     return a;
-}
+} prepend.$sig="FOO";
 
 function wait_key() {
     // specifically for "{} = wait_key()", do nothing
     // (as per docs, you simply cannot "stop JavaScript"
     //  while waiting for keyboard input, no way Jose.)
     return [];
-}
+} wait_key.$sig="F";
 
 function compare(a, b) {
 //  if (string(a) && string(b)) { return a.localeCompare(b); }
@@ -914,7 +952,7 @@ function compare(a, b) {
     } else {
         return 1;
     }
-}
+} compare.$sig="FOO";
 
 function equal(a, b) {
     if (sequence(a)) {
@@ -939,7 +977,7 @@ function equal(a, b) {
     if (typeof(a)==="boolean") { a = a ? 1 : 0; }
     if (typeof(b)==="boolean") { b = b ? 1 : 0; }
     return (a === b);
-}
+} equal.$sig="FOO";
 
 function $conCat(a, b, clone=true) {
     // equivalent to the Phix infix & operator (js overloads +)
@@ -990,12 +1028,12 @@ function $conCat(a, b, clone=true) {
     return a;
 }
 
-function repeat(item, count) {
+function repeat(/*object*/ item, /*integer*/ count, /*bool*/ allow_strings=true) {
 //  if (typeof(item) === "string" && item.length === 1) {
 //      let res = item.repeat(count);
 //      return res;
 //  }
-    if (integer(item) && (item >= 7) && (item <= 255)) {
+    if (allow_strings && integer(item) && (item >= 7) && (item <= 255)) {
         return String.fromCodePoint(item).repeat(count);
     }
     let res = ["sequence"];
@@ -1008,24 +1046,24 @@ function repeat(item, count) {
         res.fill(item,1,count+1);
     }
     return res;
-}
+} repeat.$sig="FOII,2";
 
-function repeatch(ch,count) {
+function repeatch(/*integer*/ ch, count, nFrames=2) {
     if (!integer(ch) || ch < 0 || ch > 255) {
         crash("repeatch not passed a character");
     }
     return String.fromCodePoint(ch).repeat(count);
-}   
+} repeatch.$sig="FIII,2";
 
 let $seed = Date.now();
 
 function set_rand(new_seed) {
     $seed = new_seed;
-}
+} set_rand.$sig="PN";
 
 function get_rand() {
     return $seed;
-}
+} get_rand.$sig="F";
 
 function rnd() {
 //  $seed += 1;
@@ -1043,8 +1081,9 @@ function rnd() {
     $seed = (($seed + 0xFD7046C5) + ($seed << 3))   & 0xFFFFFFFF;
     $seed = (($seed ^ 0xB55A4F09) ^ ($seed >>> 16)) & 0xFFFFFFFF;
     return ($seed & 0xFFFFFFF) / 0x10000000;
-}
+} rnd.$sig = "F";
 
+//DEV undocumented [intentionally]: merge with rnd() instead...
 function sq_rnd(/*object*/ shape=1) {
     if (atom(shape)) { return rnd(); }
 /* // old
@@ -1062,21 +1101,21 @@ function sq_rnd(/*object*/ shape=1) {
         res[i] = sq_rnd(shape[i]);
     }
     return res;
-}
+} sq_rnd.$sig="FO,0";
 
-function rand(n) {
+function rand(/*atom*/ n) {
     if (n <= 0) {
         if (n !== -1) { crash("argument to rand() must be >= 1"); }
         n = 0xFFFFFFFF;
     }
     return ((n*rnd()) >>> 0)+1;
-}
+} rand.$sig="FN";
 
 function rand_range(/*integer*/ lo, hi) {
     if (lo>hi) { [lo,hi] = [hi,lo]; }
     lo -= 1;
     return lo+rand(hi-lo);
-}
+} rand_range.$sig="FII";
 
 //function floor(n) {
 //  return Math.floor(n);
@@ -1101,58 +1140,64 @@ function rand_range(/*integer*/ lo, hi) {
 //  return res;
 //}
 
-function routine_id(rtn_name) {
+function routine_id(/*string*/ rtn_name) {
     if (typeof(rtn_name) === "function") { return rtn_name; }
     let rtn = window[rtn_name];
     if (typeof(rtn) !== "function") { return -1; }
     return rtn;
-}
+} routine_id.$sig="FS";
 
-function call_func(rid,params) {
+function call_func(/*integer*/ rid, /*sequence*/ params) {
     if (typeof(rid) !== "function") { crash("invalid routine_id"); }
     return rid(...params.slice(1));
-}
+} call_func.$sig="FIP";
 
-function call_proc(rid,params) {
+function call_proc(/*integer*/ rid, /*sequence*/ params) {
     if (typeof(rid) !== "function") { crash("invalid routine_id"); }
     rid(...params.slice(1));
-}
+} call_proc.$sig="PIP";
 
 function xor(a,b) {
 //  return ( a || b ) && !( a && b );
 //  return ( a && !b ) || ( !a && b );
   return ((!a) != (!b)) ? 1 : 0;
 //  return (!a != !b) ? true : false;   // maybe...
-}
+} xor.$sig="FOO"; // [DEV?]
 
+let $t0 = 0;
 function time() {
     let d = new Date();
-    return d.valueOf()/1000;
-}
+    return d.valueOf()/1000 - $t0;
+} time.$sig="F"; $t0 = time();
 
 function remainder(a, b) {
     return a % b;
-}
+} remainder.$sig="FNN";
 const rmdr = remainder;
 
 function machine_bits() {
     return 32;
-}
+} machine_bits.$sig="F";
 
 function machine_word() {
     return 4;
-}
+} machine_word.$sig="F";
 
 function version() {
-    return "1.0.5";
-}
-//let IupVersion = version;
+    return "1.0.6";
+} version.$sig="F";
 
 function platform() {
     return JS;
-}
+} platform.$sig="F";
 
-function requires(x) {  // (hand translated)
+// for reversibility purposes, p2js_emit.e could easily just omit the call to this:
+//  (now I think of it, that also applies to the previous four routines as well)
+function source_line(line) {
+    return line;
+} platform.$sig="F";
+
+function requires(/*object*/x /*, bool bQuiet=false*/) {    // (hand translated)
 //
 // x: should be eg "0.8.2" for a version() requirement, or a
 //                  WINDOWS/LINUX/WEB platform() check, or
@@ -1184,7 +1229,7 @@ function requires(x) {  // (hand translated)
     } else if (x !== machine_bits()) {
         crash("requires %d bit (JS is inherently 32 bit)...",["sequence",x]);
     }
-}
+} requires.$sig="PO";
 requires(JS);
 
 function $sidii(s, idii, skip=0, t) {
@@ -1336,37 +1381,37 @@ function $repss(s, ss, se, x, idii) {
 
 function and_bits(a, b) {
     return a & b;
-}
+} and_bits.$sig="FNN";
 
 function and_bitsu(a, b) {
     return (a & b) >>> 0;
-}
+} and_bitsu.$sig="FNN";
 
 function or_bits(a, b) {
     return a | b;
-}
+} or_bits.$sig="FNN";
 
 function or_bitsu(a, b) {
     return (a | b) >>> 0;
-}
+} or_bitsu.$sig="FNN";
 
 function xor_bits(a, b) {
     return a ^ b;
-}
+} xor_bits.$sig="FNN";
 
 function xor_bitsu(a, b) {
     return (a ^ b) >>> 0;
-}
+} xor_bitsu.$sig="FNN";
 
 function not_bits(a) {
     return ~a;
-}
+} not_bits.$sig="FN";
 
 function not_bitsu(a) {
     return (~a) >>> 0;
-}
+} not_bitsu.$sig="FN";
 
-const power = Math.pow,
+const //power = Math.pow, -- (wrong name for routine_info...)
       floor = Math.floor,
       sqrt = Math.sqrt,
       log = Math.log,
@@ -1376,7 +1421,19 @@ const power = Math.pow,
       tan = Math.tan,
       arctan = Math.atan;
 
-function date(bMSecs = false) {
+function power(/*atom*/ x, y) {
+    return Math.pow(x,y);
+} power.$sig="FNN";
+floor.$sig="FN";
+sqrt.$sig="FN";
+log.$sig="FN";
+ln.$sig="FN";
+cos.$sig="FN";
+sin.$sig="FN";
+tan.$sig="FN";
+arctan.$sig="FN";
+
+function date(/*bool*/ bMSecs = false) {
     let D = new Date(),
         y = D.getFullYear(),    // Get the year as a four digit number (yyyy)
         m = D.getMonth()+1,     // Get the month as a number (1-12),
@@ -1396,21 +1453,36 @@ function date(bMSecs = false) {
              doy
             ]
     return s;
-}
+} date.$sig="FI,0";
 
-function get_routine_info(fn) {
-    let minp = 0, fname;
+function get_routine_info(/*integer*/ fn /*,bool bName=true*/ ) {
+    let minp = 0, maxp = 0, fname, sig = "";
 //  if (integer(fn)) {
     if (integer(fn) && typeof(fn) !== "function") {
         const e = new Error();
         const frame = e.stack.split("\n")[2-fn];
         fname = frame.split(" ")[5];
     } else {
-        minp = fn.length;
+//      minp = fn.length;
+//      maxp = minp;
         fname = fn.name;
+        sig = fn.$sig;
+        if (!sig) {
+            // see eg length() in this file
+            crash("missing sig for "+fname);
+        }
+        maxp = sig.length-1;
+        minp = maxp;
+        let k = sig.indexOf(',');
+        if (k != -1) {
+            let ss1 = sig.split(',')[1];
+            minp = parseInt(ss1);
+            maxp = k-1;
+            sig = sig.slice(0,k);
+        }
     }
-    return ["sequence",minp,0,"",fname];
-}
+    return ["sequence",maxp,minp,sig,fname];
+} get_routine_info.$sig = "FII,1";
 
 // (transpiled directly from pfile.e)
 function file_size_k(/*atom*/ size, /*integer*/ width=1) {
@@ -1436,7 +1508,7 @@ function file_size_k(/*atom*/ size, /*integer*/ width=1) {
     if (!equal(size,trunc(size))) { fmt = dpsfmt; }
     res = sprintf(fmt,["sequence",size,suffix]);
     return res;
-}
+} file_size_k.$sig="FNI,1";
 
 // (transpiled directly from machine.e, *2)
 function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
@@ -1475,7 +1547,7 @@ function int_to_bits(/*atom*/ x, /*integer*/ nbits=0) {
         }
     }
     return bits;
-}
+} int_to_bits.$sig="FNI,1";
 
 function bits_to_int(/*sequence*/ bits) {
 // get the (positive) value of a sequence of "bits"
@@ -1487,9 +1559,9 @@ function bits_to_int(/*sequence*/ bits) {
         p += p;
     }
     return val;
-}
+} bits_to_int.$sig="FP";
     
-function int_to_bytes(a, size=4) {
+function int_to_bytes(/*atom*/ a, /*integer*/ size=4) {
     let res = repeat(0,size);
     for (let i = 1; i <= size; i += 1) {
         let byte = a & 0xff;
@@ -1497,16 +1569,16 @@ function int_to_bytes(a, size=4) {
         a = (a-byte) / 0x100;
     }
     return res;
-}
+} int_to_bytes.$sig="FNI,1";
 
 //DEV signed not used/tested...
-function bytes_to_int(s, signed=true) {
+function bytes_to_int(/*sequence*/ s, /*bool*/ signed=true) {
     let res = 0;
     for (let i = length(s); i >= 1; i -= 1) {
         res = (res * 0x100) + s[i];
     }
     return res;
-}
+} bytes_to_int.$sig="FPI,1";
 
 function $catch(e) {
     // In Javascript a catch(e) can receive a string, number, boolean, or object,
@@ -1520,13 +1592,16 @@ function $catch(e) {
 
 function utf8_to_utf32(/*string*/ s) {
 //12/1/22:
+//killed 17/6/25
+/*
     s = ["sequence",...s];
     let l = length(s);
     for (let i = 1; i <= l; i += 1) {
         s[i] = s[i].codePointAt(0);
     }
+*/
     return s;
-}
+} utf8_to_utf32.$sig="FS";
 
 function utf32_to_utf8(/*sequence*/ s) {
     if (Array.isArray(s) && s[0] === "sequence") {
@@ -1538,7 +1613,7 @@ function utf32_to_utf8(/*sequence*/ s) {
         s = res;
     }
     return s;
-}
+} utf32_to_utf8.$sig="FP";
 
 function include_file() { return 1; } // see docs
 function incl0de_file() { return 0; }
@@ -1548,11 +1623,11 @@ function incl0de_file() { return 0; }
 
 function command_line() {
     return ["sequence","p2js",document.location.href];
-}
+} command_line.$sig="F";
 
-function get_proper_path(filepath) {
+function get_proper_path(/*sequence*/ filepath) {
     return filepath;
-}
+} get_proper_path.$sig="FP";
 
 function get_proper_dir(/*string*/ filepath, /*bool*/ remove_slash=false) {
     string(filepath,"filepath");
@@ -1566,40 +1641,43 @@ function get_proper_dir(/*string*/ filepath, /*bool*/ remove_slash=false) {
         } 
     }
     return res;
-}
+} get_proper_dir.$sig="FSI,1";
 
 function trace(/*integer*/ i) {
     // (ignored, in other words transpilation behaves much like compilation, as far as this routine is concerned)
 //Maybe:
 //  debugger;
-}
+} trace.$sig="PI";
 
 function clear_screen() {
     if (typeof(IupOpen) === "function") { crash("clear_screen() when pGUI detected"); }
-    if (typeof(gMainLoop) === "function") { crash("clear_screen() when xpGUI detected"); }
+    if (typeof(gMainLoop) === "function") { crash("clear_screen() when theGUI detected"); }
     $docBody.innerHTML = "";
 //  position(0,0);
-}
+} clear_screen.$sig="P";
 
 function text_color(/*integer*/ i) {
     $tx_clr = $console_colours[i];
-}
+} text_color.$sig="PI";
 
 function bk_color(/*integer*/ i) {
     $bg_clr = $console_colours[i];
-}
+} bk_color.$sig="PI";
 
 function even(/*atom*/ a) {
     return !(a & 1);
-}
+} even.$sig="FN";
 
 function odd(/*atom*/ a) {
     return a & 1;
-}
+} odd.$sig="FN";
 
-function free_console() {}
+function free_console() {
+} free_console.$sig="P";
 
-function instance() { return 0; }
+function instance() {
+    return 0;
+} instance.$sig="F";
 
 function atom_to_float32(/*atom*/ a) {
     let buffer = new ArrayBuffer(4),
@@ -1611,7 +1689,7 @@ function atom_to_float32(/*atom*/ a) {
         res[i] = byteArray[4-i];
     }
     return res;
-}
+} atom_to_float32.$sig="FN";
 
 function atom_to_float64(/*atom*/ a) {
     let buffer = new ArrayBuffer(8),
@@ -1623,7 +1701,7 @@ function atom_to_float64(/*atom*/ a) {
         res[i] = byteArray[8-i];
     }
     return res;
-}
+} atom_to_float64.$sig="FN";
 
 function float32_to_atom(/*sequence*/ s) {
     let buffer = new ArrayBuffer(4),
@@ -1634,7 +1712,7 @@ function float32_to_atom(/*sequence*/ s) {
     }
     let res = view.getFloat32(0);
     return res;
-}
+} float32_to_atom.$sig="FP";
 
 function float64_to_atom(/*sequence*/ s) {
     let buffer = new ArrayBuffer(8),
@@ -1648,23 +1726,26 @@ function float64_to_atom(/*sequence*/ s) {
     let res = view.getFloat64(0);
 //  let res = floatArray[0];
     return res;
-}
+} float64_to_atom.$sig="FP";
 // (sadly there is no get/setFloat80 in JavaScript...)
 
-const is_nan = Number.isNaN;
+//const is_nan = Number.isNaN;
+function is_nan(/*object*/ a) {
+    return Number.isNaN(a);
+} is_nan.$sig="FO";
 
-function is_inf(x, sgn) {
-    if (typeof(x)!="number" || Number.isFinite(x) || Number.isNaN(x)) { return false; }
-    if (sgn==-1) { return x<0; }
-//  if (sgn==-1) { return x==Number.NEGATITIVE_INFINITY; } // (untested)
+function is_inf(/*object*/ a, /*bool*/ sgn=0) {
+    if (typeof(a)!="number" || Number.isFinite(a) || Number.isNaN(a)) { return false; }
+    if (sgn==-1) { return a<0; }
+//  if (sgn==-1) { return a==Number.NEGATITIVE_INFINITY; } // (untested)
     if (sgn==0) { return true; }
-    if (sgn==+1) { return x>0; }
-//  if (sgn==+1) { return x==Number.POSITIVE_INFINITY; } // (not tested)
-}
+    if (sgn==+1) { return a>0; }
+//  if (sgn==+1) { return a==Number.POSITIVE_INFINITY; } // (not tested)
+} is_inf.$sig="FOI,1";
 
 function video_config() {
     return ["sequence",1,3,25,80,0,0,32,1,25,80];
-}
+} video_config.$sig="F";
 
 //DEV experimental...
 function speak(/*string*/ text, /*atom*/ rate=0, /*integer*/speech_cb=0) {
@@ -1686,7 +1767,7 @@ function speak(/*string*/ text, /*atom*/ rate=0, /*integer*/speech_cb=0) {
     }
     if (rate) { utterance.rate = rate; }
     window.speechSynthesis.speak(utterance);
-}
+} speak.$sig="PSNI";
 
 //if you have another AudioContext class use that one, as some browsers have a limit
 //const $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
@@ -1698,7 +1779,7 @@ let $audioCtx;
 //frequency of the tone in hertz. default is 440
 //volume of the tone. Default is 1, off is 0.
 //type of tone. Possible values are sine, square, sawtooth, triangle, and custom. Default is sine.
-function beep(frequencies=440, durations=500, volume=0.1, type) {
+function beep(/*object*/ frequencies=440, durations=500, /*atom*/ volume=0.1, type) {
     if (!$audioCtx) {
 //      $audioCtx = new (window.AudioContext || window.webkitAudioContext || window.audioContext);
         $audioCtx = new window.AudioContext;
@@ -1737,7 +1818,7 @@ function beep(frequencies=440, durations=500, volume=0.1, type) {
     }
     oscillator.start();
     oscillator.stop(t);
-}
+} beep.$sig="POON"; //[DEV..]
 
 /*
 [DEV] maybe we /can/ have sleep()...

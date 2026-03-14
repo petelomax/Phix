@@ -44,7 +44,11 @@ compile("p64 -c -norun p64.exu")
 include builtins\LiteZip.e
 
 --sequence phix7zip = get_text("sfx/phix7zip.lst",GT_LF_STRIPPED)
-sequence phix7zip = remove_all("",get_text("sfx/phix7zip.lst",GT_LF_STRIPPED))
+--sequence phix7zip = remove_all("",get_text("sfx/phix7zip.lst",GT_LF_STRIPPED))
+function blank_or_comment(string line)
+    return line!="" and not begins("--",line)
+end function
+sequence phix7zip = filter(get_text("sfx/phix7zip.lst",GT_LF_STRIPPED),blank_or_comment)
 integer l = length(phix7zip)
 printf(1,"phix7zip.lst contains %d entries\n",l)
 
@@ -69,6 +73,9 @@ function in_file(string zi)
         if match("demo\\pGUI\\win32",zi)=1
         or match("demo\\pGUI\\win64",zi)=1 then
             return 2
+        end if
+        if match("demo\\pGUI\\data",zi)=1 then
+            return 3
         end if
         if (match("demo\\Arwen",zi)!=1 or
             match("demo\\Arwen32dibdemo",zi)=1)

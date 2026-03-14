@@ -33,17 +33,17 @@ function $dict_init() {
     $defaults = ["sequence",NULL];
     $freelists = ["sequence",0];
     $init_dict = 1;
-}
+} $dict_init.$sig="P";
 //DEV/SUG: (requires forward type [erm, may already be working, just not yet tried in psym/init]) ...needs MARKTYPES...
 /*global*/ function $dictionary(/*integer*/ tid) {
     return (tid===1) || ((($init_dict && tid>=1) && compare(tid,length($roots))<=0) && sequence($subse($trees,tid)));
 //  return tid=1 or ($init_dict and tid>=1 and tid<=length($roots))
-}
+} $dictionary.$sig="TI";
 
 /*global*/ function is_dict(/*object*/ tid) {
     return (equal(tid,1)) || (((($init_dict && integer(tid)) && compare(tid,1)>=0) && compare(tid,length($roots))<=0) && sequence($subse($trees,tid)));
 //  return tid=1 or ($init_dict and integer(tid) and tid>=1 and tid<=length($roots))
-}
+} is_dict.$sig="FO";
 function $check_tid(/*integer*/ tid) {
 //28/10/20: (even though p2js.js may yet choose a completely different approach for dictionaries...)
     if (!is_dict(tid)) { crash("invalid $dictionary id (%d)",["sequence",tid],3); }
@@ -54,7 +54,7 @@ function $check_tid(/*integer*/ tid) {
 //            }
 //  end if
     if (!$init_dict) { $dict_init(); }
-}
+} $check_tid.$sig="PI";
 function $newNode(/*object*/ key, /*object*/ data, /*integer*/ tid) {
     let /*integer*/ node = $subse($freelists,tid);
     if (node===0) {
@@ -91,14 +91,14 @@ function $newNode(/*object*/ key, /*object*/ data, /*integer*/ tid) {
     }
     $sizes = $repe($sizes,tid,$subse($sizes,tid)+(1));
     return node;
-}
+} $newNode.$sig="FOOI";
 function $height(/*integer*/ node, /*integer*/ branch, /*integer*/ tid) {
     node = $subse($subse($trees,tid),node+branch);
     return ((node===NULL) ? 0 : $subse($subse($trees,tid),node+$HEIGHT));
-}
+} $height.$sig="FIII";
 function $setHeight(/*integer*/ node, /*integer*/ tid) {
     $trees = $repe($trees,node+$HEIGHT,max($height(node,$LEFT,tid),$height(node,$RIGHT,tid))+1,["sequence",tid]);
-}
+} $setHeight.$sig="PII";
 function $rotate(/*integer*/ node, /*integer*/ direction, /*integer*/ tid) {
     let /*integer*/ idirection = ($LEFT+$RIGHT)-direction, 
                     pivot = $subse($subse($trees,tid),node+idirection), 
@@ -108,10 +108,10 @@ function $rotate(/*integer*/ node, /*integer*/ direction, /*integer*/ tid) {
     $setHeight(node,tid);
     $setHeight(pivot,tid);
     return pivot;
-}
+} $rotate.$sig="FIII";
 function $getBalance(/*integer*/ N, /*integer*/ tid) {
     return ((N===NULL) ? 0 : $height(N,$LEFT,tid)-$height(N,$RIGHT,tid));
-}
+} $getBalance.$sig="FII";
 function $insertNode(/*integer*/ node, /*object*/ key, /*object*/ data, /*integer*/ tid) {
     if (node===NULL) {
         return $newNode(key,data,tid);
@@ -140,13 +140,12 @@ function $insertNode(/*integer*/ node, /*object*/ key, /*object*/ data, /*intege
         }
     }
     return node;
-}
+} $insertNode.$sig="FIOOI";
 
 /*global*/ function setd(/*object*/ key, /*object*/ data, /*integer*/ tid=1) {
     $check_tid(tid);
     $roots = $repe($roots,tid,$insertNode($subse($roots,tid),key,data,tid));
-}
-let putd = setd;
+} setd.$sig="POOI,1"; let putd = setd;
 //4/11/22 now properly aliased in psym.e, in a way that p2js understands
 //global procedure putd(object key, object data, integer tid=1)
 //--21/10/21...
@@ -162,26 +161,32 @@ let putd = setd;
 /*global*/ function setd_default(/*object*/ o, /*integer*/ tid) {
     $check_tid(tid);
     $defaults = $repe($defaults,tid,o);
-}
-function $getNode(/*integer*/ node, /*object*/ key, dflt, /*integer*/ tid) {
+} setd_default.$sig="POI";
+
+/*local*/ function $getNode(/*integer*/ node, /*object*/ key, dflt, /*integer*/ tid, /*bool*/ nullify=false) {
     while (node!==NULL) {
         let /*integer*/ c = compare(key,$subse($subse($trees,tid),node+$KEY));
-        if (c===0) { return $subse($subse($trees,tid),node+$DATA); }
+        if (c===0) {
+            let /*object*/ res = $subse($subse($trees,tid),node+$DATA);
+            if (nullify) {
+                $trees = $repe($trees,node+$DATA,NULL,["sequence",tid]); }
+            return res;
+        }
         let /*integer*/ direction = $HEIGHT+c; // $LEFT or $RIGHT
         node = $subse($subse($trees,tid),node+direction);
     }
     return dflt;
-}
+} $getNode.$sig="FIOOII,1";
 
-/*global*/ function getd(/*object*/ key, /*integer*/ tid=1) {
+/*global*/ function getd(/*object*/ key, /*integer*/ tid=1, /*bool*/ nullify=false) {
     $check_tid(tid);
-    return $getNode($subse($roots,tid),key,$subse($defaults,tid),tid);
-}
+    return $getNode($subse($roots,tid),key,$subse($defaults,tid),tid,nullify);
+} getd.$sig="FOII,1";
 
-/*global*/ function getdd(/*object*/ key, dflt, /*integer*/ tid=1) {
+/*global*/ function getdd(/*object*/ key, dflt, /*integer*/ tid=1, /*bool*/ nullify=false) {
     $check_tid(tid);
-    return $getNode($subse($roots,tid),key,dflt,tid);
-}
+    return $getNode($subse($roots,tid),key,dflt,tid,nullify);
+} getdd.$sig="FOOII,1";
 function $getKey(/*integer*/ node, /*object*/ key, /*integer*/ tid) {
     while (node!==NULL) {
         let /*integer*/ c = compare(key,$subse($subse($trees,tid),node+$KEY));
@@ -190,18 +195,21 @@ function $getKey(/*integer*/ node, /*object*/ key, /*integer*/ tid) {
         node = $subse($subse($trees,tid),node+direction);
     }
     return NULL;
-}
+} $getKey.$sig="FIOI";
 
 /*global*/ function getd_index(/*object*/ key, /*integer*/ tid=1) {
     $check_tid(tid);
     return $getKey($subse($roots,tid),key,tid);
-}
+} getd_index.$sig="FOI,1";
 
-/*global*/ function getd_by_index(/*integer*/ node, /*integer*/ tid=1) {
+/*global*/ function getd_by_index(/*integer*/ node, /*integer*/ tid=1, /*bool*/ nullify=false) {
     $check_tid(tid);
     if (node===0) { return 0; }
-    return $subse($subse($trees,tid),node+$DATA);
-}
+    let /*object*/ res = $subse($subse($trees,tid),node+$DATA);
+    if (nullify) {
+        $trees = $repe($trees,node+$DATA,NULL,["sequence",tid]); }
+    return res;
+} getd_by_index.$sig="FIII,1";
 function $minValueNode(/*integer*/ node, tid, direction) {
     while (1) {
         let /*integer*/ next = $subse($subse($trees,tid),node+direction);
@@ -209,7 +217,7 @@ function $minValueNode(/*integer*/ node, tid, direction) {
         node = next;
     }
     return node;
-}
+} $minValueNode.$sig="FIII";
 function $deleteNode(/*integer*/ root, /*object*/ key, /*integer*/ tid) {
     if (root===NULL) { return root; }
     let /*integer*/ c = compare(key,$subse($subse($trees,tid),root+$KEY)), 
@@ -253,12 +261,12 @@ function $deleteNode(/*integer*/ root, /*object*/ key, /*integer*/ tid) {
         root = $rotate(root,($LEFT+$RIGHT)-direction,tid);
     }
     return root;
-}
+} $deleteNode.$sig="FIOI";
 
 /*global*/ function deld(/*object*/ key, /*integer*/ tid=1) {
     $check_tid(tid);
     $roots = $repe($roots,tid,$deleteNode($subse($roots,tid),key,tid));
-}
+} deld.$sig="POI,1";
 function $traverse(/*integer*/ node, /*integer*/ rid, /*object*/ user_data, /*integer*/ tid, /*bool*/ rev) {
     let /*object*/ tt = $subse($trees,tid), 
                    key = $subse(tt,node+$KEY), 
@@ -277,14 +285,14 @@ function $traverse(/*integer*/ node, /*integer*/ rid, /*object*/ user_data, /*in
         if (equal($traverse(right,rid,user_data,tid,rev),0)) { return 0; }
     }
     return 1;
-}
+} $traverse.$sig="FIIOII";
 
 /*global*/ function traverse_dict(/*integer*/ rid, /*object*/ user_data=0, /*integer*/ tid=1, /*bool*/ rev=false) {
     $check_tid(tid);
     if (!equal($subse($roots,tid),0)) {
         /*[,] =*/ $traverse($subse($roots,tid),rid,user_data,tid,rev);
     }
-}
+} traverse_dict.$sig="PIOII,1";
 function $traverse_key(/*integer*/ node, /*integer*/ rid, /*object*/ pkey, /*object*/ user_data, /*integer*/ tid, /*bool*/ rev) {
     let /*object*/ tt = $subse($trees,tid), 
                    key = $subse(tt,node+$KEY), 
@@ -307,14 +315,14 @@ function $traverse_key(/*integer*/ node, /*integer*/ rid, /*object*/ pkey, /*obj
         if (equal($traverse_key(right,rid,pkey,user_data,tid,rev),0)) { return 0; }
     }
     return 1;
-}
+} $traverse_key.$sig="FIIOOII";
 
 /*global*/ function traverse_dict_partial_key(/*integer*/ rid, /*object*/ pkey, /*object*/ user_data=0, /*integer*/ tid=1, /*bool*/ rev=false) {
     $check_tid(tid);
     if (!equal($subse($roots,tid),0)) {
         /*[,] =*/ $traverse_key($subse($roots,tid),rid,pkey,user_data,tid,rev);
     }
-}
+} traverse_dict_partial_key.$sig="PIOOII,1";
 //object gpk    -- NB not thread safe!
 
 //function gpk_visitor(object key, object /*data*/, object /*pkey*/, object /*user_data=-2*/)
@@ -345,7 +353,7 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
         }
     }
     return res;
-}
+} $traverser.$sig="FPIIOIII,3";
 
 /*global*/ function getd_partial_key(/*object*/ pkey, /*integer*/ tid=1, /*bool*/ rev=false) {
     $check_tid(tid);
@@ -363,7 +371,7 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
         res = $subse($defaults,tid);
     }
     return res;
-}
+} getd_partial_key.$sig="FOII,1";
 
 /*global*/ function getd_all_keys(/*integer*/ tid=1, /*bool*/ bKeys=true) {
     $check_tid(tid);
@@ -372,12 +380,12 @@ function $traverser(/*sequence*/ res, /*integer*/ node, /*bool*/ partial, /*obje
     let /*sequence*/ res = ["sequence"];
     res = $traverser(res,$subse($roots,tid),false,NULL,tid,false,bKeys);
     return res;
-}
+} getd_all_keys.$sig="FII,1";
 
 /*global*/ function dict_size(/*integer*/ tid=1) {
     $check_tid(tid);
     return $subse($sizes,tid);
-}
+} dict_size.$sig="FI,1";
 function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
     let /*integer*/ node = $minValueNode($subse($roots,tid),tid,((rev) ? $RIGHT : $LEFT));
     if (node===0) { return $subse($defaults,tid); }
@@ -387,27 +395,27 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
         $roots = $repe($roots,tid,$deleteNode($subse($roots,tid),key,tid));
     }
     return ["sequence",key,data];
-}
+} $peekpop.$sig="FIII";
 
 /*global*/ function peep_dict(/*integer*/ tid=1, /*bool*/ rev=false) {
     return $peekpop(tid,rev,false);
-}
+} peep_dict.$sig="FII,1";
 
 /*global*/ function pop_dict(/*integer*/ tid=1, /*bool*/ rev=false) {
     return $peekpop(tid,rev,true);
-}
+} pop_dict.$sig="FII,1";
 
 /*global*/ function dict_name(/*integer*/ tid=1) {
     $check_tid(tid);
     return $subse($treenames,tid);
-}
+} dict_name.$sig="FI,1";
 
 /*global*/ function named_dict(/*string*/ name) {
     for (let tid=1, tid$lim=length($treenames); tid<=tid$lim; tid+=1) {
         if (equal($subse($treenames,tid),name)) { return tid; }
     }
     return NULL;
-}
+} named_dict.$sig="FS";
 
 /*global*/ function new_dict(/*object*/ kd_pairs=["sequence"], /*integer*/ pool_only=0) {
     if (!$init_dict) { $dict_init(); }
@@ -466,15 +474,15 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
         $sizes = $repe($sizes,tid,$subse($sizes,copy_tid));
     }
     return tid;
-}
+} new_dict.$sig="FOI,1";
 
-/*global*/ function $new_dicts(/*integer*/ n) {
+/*global*/ function new_dicts(/*integer*/ n) {
     let /*sequence*/ res = repeat(0,n);
     for (let i=1, i$lim=n; i<=i$lim; i+=1) {
         res = $repe(res,i,new_dict());
     }
     return res;
-}
+} new_dicts.$sig="FI";
 
 /*global*/ function destroy_dict(/*object*/ tid, /*bool*/ justclear=false) {
 //global procedure destroy_dict($dictionary tid, bool justclear=false)
@@ -506,9 +514,9 @@ function $peekpop(/*integer*/ tid, /*bool*/ rev, bDelete) {
             $freelists = $repe($freelists,tid,0);
         }
     }
-}
+} destroy_dict.$sig="POI,1";
 
-/*global*/ function $destroy_dictf(/*integer*/ tid) {
+/*global*/ function destroy_dictf(/*integer*/ tid) {
     destroy_dict(tid);
     return NULL;
-}
+} destroy_dictf.$sig="FI";

@@ -13,7 +13,7 @@
     path = get_proper_path(path);
     path = $subss(path,rfind(SLASH,path)+1,-1);
     return path;
-}
+} get_file_name.$sig="FS";
 
 /*global*/ function get_file_extension(/*string*/ filename) {
 // treats eg "libglfw.so.3.1" as "libglfw.so" (both yeilding "so"),
@@ -45,8 +45,7 @@
         }
     }
     return extension;
-}
-let fileext = get_file_extension;
+} get_file_extension.$sig="FS"; let fileext = get_file_extension;
 /*
 if get_file_extension("libglfw.so.3.1")!="so" then ?9/0 end if
 if get_file_extension("libglfw.so")!="so" then ?9/0 end if
@@ -61,15 +60,13 @@ if get_file_extension("test.exw")!="exw" then ?9/0 end if
     path = get_file_name(path);
     path = $subss(path,1,find(0X2E,path)-1);
     return path;
-}
-let filebase = get_file_base;
+} get_file_base.$sig="FS"; let filebase = get_file_base;
 
 /*global*/ function get_file_path(/*string*/ path, /*bool*/ dropslash=true) {
 //  if not finit then initf() end if
     path = get_proper_path(path);
     return $subss(path,1,rfind(SLASH,path)-dropslash);
-}
-let pathname = get_file_path;
+} get_file_path.$sig="FSI,1"; let pathname = get_file_path;
 
 /*global*/ function get_file_path_and_name(/*string*/ filepath, /*bool*/ dropslash=true) {
 //  if not finit then initf() end if
@@ -78,12 +75,12 @@ let pathname = get_file_path;
     let /*string*/ path = $subss(filepath,1,k-dropslash), 
                    name = $subss(filepath,k+1,-1);
     return ["sequence",path,name];
-}
+} get_file_path_and_name.$sig="FSI,1";
 
 /*global*/ function get_file_name_and_path(/*string*/ filepath, /*bool*/ dropslash=true) {
     let /*string*/ [,path,name] = get_file_path_and_name(filepath,dropslash);
     return ["sequence",name,path];
-}
+} get_file_name_and_path.$sig="FSI,1";
 //11/2/22 (removed silly "stickness")
 /*global*/ function file_size_k(/*atom*/ size, /*integer*/ width=1) {
 //
@@ -108,4 +105,4 @@ let pathname = get_file_path;
     if (!equal(size,trunc(size))) { fmt = dpsfmt; }
     res = sprintf(fmt,["sequence",size,suffix]);
     return res;
-}
+} file_size_k.$sig="FNI,1";

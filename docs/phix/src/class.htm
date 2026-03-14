@@ -17,10 +17,10 @@
 [global] [abstract] class <i>identifier</i> [nullable] [dynamic] [extends <i>base</i>]<br>
 &nbsp;&nbsp;&nbsp;&nbsp;{ [(public|private)[:]] ( <i>field</i> | <i>method</i> ) [ ',' ... ] }<br>
 end class<br>
-<center><small><i>-- or --</i></small></center>
+<small>&nbsp;&nbsp;&nbsp;<i>-- or --</i></small><br>
 class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ ',' ... ]<br>
-<center><small><i>-- or --</i></small></center>
-<a href="integer.htm#bool">bool</a> res = class|<i>identifier</i>(<a href="object.htm">object</a> o)
+<small>&nbsp;&nbsp;&nbsp;<i>-- or --</i></small><br>
+<a href>bool</a> res = class|<i>identifier</i>(<a href>object</a> o)
          </td>
         </tr>
         <tr>
@@ -28,31 +28,35 @@ class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ 
           <b>Description:</b>
          </td>
          <td>
-            As above class can be used in three very distinct ways, almost identically to <a href="struct.htm">struct</a>.
+            As above class can be used in three very distinct ways, almost identically to <a href>struct</a>.
             <br>
             <br>
 <!--
             It can sometimes be helpful to think of simple objects as structs and more complex things as classes, although in Phix there is technically not very much 
-            difference between them, apart from the fact that structs cannot be fully <a href="dynamic.htm">dynamic</a>.
+            difference between them, apart from the fact that structs cannot be fully <a href>dynamic</a>.
 -->
             Classes are superficially similar to structs, however in structs all fields are implicitly public whereas they are private by default in classes,
-            structs cannot be fully <a href="dynamic.htm">dynamic</a>, and typically classes have methods, while structs normally do not. <small>(In general, 
-            Phix allows some reasonable overlap, rather than always strictly saying "NON" (in a cheesy French accent) even when there is no reasonable let 
-            alone outright compelling reason to do so. Which reasonably stands to reason, he reasoned reasonably.)</small>
+            structs cannot be fully <a href>dynamic</a>, and typically classes have methods, while structs normally do not. <br>
+            <small>(In general, Phix allows some reasonable overlap, rather than always strictly saying "NON" (in a cheesy French accent) even when there is 
+            no reasonable let alone outright compelling reason to do so. Which reasonably stands to reason, he reasoned reasonably.)</small>
             <br>
             <br>
-            An abstract class (or struct) cannot be instantiated, ie attempts to invoke <a href="structs.htm#new">new</a>() trigger compile-time and/or run-time errors.<br>
+            An abstract class (or struct) cannot be instantiated, ie attempts to invoke <a href="structs.htm#new">new</a>() trigger an error.<br>
             By default struct and class variables cannot be set to null, unless the definition contains an explicit <b>nullable</b> clause.<br>
-            The <a href="dynamic.htm">dynamic</a> and <a href="extended.htm">extends</a> clauses are explained separately.
+            The <a href>dynamic</a> and <a href>extends</a> clauses are explained separately.
             <br>
             <br>
-            Note that you should <i>never</i> pass a class reference to <a href="deep_copy.htm">deep_copy</a>(): doing so would almost guarantee
+            Note that you should <i>never</i> pass a class reference to <a href>deep_copy</a>(): doing so would almost guarantee
             being left with a reference to reclaimed memory or a reclaimed slot in a class instances table, hence the latter now [1.0.5+] has a
-            guard in place to prevent such attempts. There are also some safety checks in builtins/structs.e that prohibit access to a shared
-            reference to a class instance that has (somehow) already been through the <a href="delete.htm">delete</a>() process, which would
+            guard in place to prevent such attempts. There are also some safety checks in builtins\structs.e that prohibit access to a shared
+            reference to a class instance that has (somehow) already been through the <a href>delete</a>() process, which would
             normally only occur when the reference count drops to zero, unless some other bit of code is trying to force the issue, such as by
-            trying to manually destroy an instance-specific delegate, perhaps because setting it to null wasn&rsquo;t doing it immediately,
+            trying to manually destroy an instance-specific delegate, perhaps because setting it to null wasn&apos;t doing it immediately,
             presumably because there was still some other reference to it when logically there should never be.
+            <br>
+            <br>
+            Note that private can (since 1.0.6) be used as an alias of <a href="local scope.htm#local">local</a>, were you wondering why F1 help 
+            landed you here.
          </td>
         </tr>
         <tr>
@@ -60,7 +64,7 @@ class|<i>identifier</i> <i>variable</i> ( ';' | '=' ( new() | <i>expr</i> ) ) [ 
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+          <a href="notp2js.htm#noclass"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -100,9 +104,10 @@ end class</font>
             If no default value is specified for a field, one will be provided automatically (0/false/""/{}/NULL).
             <br>
             <br>
-            All fields in classes are private by default, whereas in structs they are implicitly public. All methods are public by default.<br>
-            Explicitly using private on a class field, or public on a method or in a struct, is exactly the same as omitting it/both.<br>
-            If public or private is followed by ':' it toggles/trashes that default behaviour (as well as applying to the next field/method).<br>
+            All fields in classes are private by default, whereas in structs they are implicitly public.<br>
+            All methods are in contrast public by default.<br>
+            Explicitly using private on a class field, or public on a method or in a struct, is exactly the same as omitting it.<br>
+            If public or private is followed by ':' it toggles/trashes that default behaviour and applies to multiple followng fields/methods.<br>
             In the above, name is private by default, age is explicitly made public, whereas show is public by default: uncommenting that "private:" 
             would not change name or age, but would make show() private. While initially fields and methods get different privacy defaults, both 
             "private:" and "public:" affect them both, and there is no way to later revert to that initial difference. (You are of course
@@ -119,21 +124,22 @@ end class</font>
           <b>Implementation:</b>
          </td>
          <td>
-            As per <a href="struct.htm">struct</a>
+            As per <a href>struct</a>
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
           <a href="extended.htm">extended</a>,
-          <a href="dynamic.htm">dynamic</a>,
+          <a href>dynamic</a>,
           <a href="javascript.htm#this">javascript.this</a><br>
           <a name=tech></a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -183,7 +189,7 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
             <code>?{struct(b),struct(p),class(b),class(p)}</code> yields {1,1,1,1}, ie all true, whereas<br>
             <code>?{bridge(b),bridge(p),person(b),person(p)}</code> yields {1,0,0,1}, ie mixed true/false.<br>
             Should you really need a struct/class distinction, not that I can think of any valid reason why you might, use 
-            <code><a href="structs.htm#get_struct_type">get_struct_type</a>(s)=S_CLASS/S_STRUCT</code> instead.
+            <code><a href>get_struct_type</a>(s)=S_CLASS/S_STRUCT</code> instead.
             <br>
             <br>
             Class methods are automatically given a "this" first parameter, which is fulfilled by the object immediately to the left of the dot on the call.<br>
@@ -217,7 +223,7 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
             then in the set_age() procedure <code>age</code> and <code>this.age</code> genuinely refer to different things, and clearly omitting "this." would 
             <i>not</i> cause a compilation error, but instead just copy the parameter to itself, which achieves nothing. In contrast, in the set_age2()
             procedure, "age" <i>is</i> a potential compilation error, so the compiler <i>can</i> assume you must have really meant "this.age := a" (and of course
-            you&rsquo;d still get an error if this.age was also invalid). Note that fields local to the class, which you might assume should "shadow" file-level
+            you&apos;d still get an error if this.age was also invalid). Note that fields local to the class, which you might assume should "shadow" file-level
             or global identifiers, [at present] simply do not, and you still need the explicit "this." for those!
 <!-- hmm...
              You could make a big deal out of that, or realise that if
@@ -234,7 +240,24 @@ f</font><font color="#0000FF">.</font><font color="#000000">jelly</font><font co
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

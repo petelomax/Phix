@@ -28,10 +28,10 @@ include eval.e  -- main parser
 -- Most of these tests are mundane, some exhaustively so:
 --
 constant testset={
---  "..\\test\\t01type.exw",--[ 1] OK   -- very basic type checking
-    "t01type.exw",          --[ 1] OK   -- very basic type checking
+--  "..\\test\\t01type.exw",--[ 1] OK   -- very basic typechecking
+    "t01type.exw",          --[ 1] OK   -- very basic typechecking
     "t02parms.exw",         --[ 2] OK   -- simple parameter checking (oldish)
-    "t03showt.exw",         --[ 3] OK   -- more very basic type checking
+    "t03showt.exw",         --[ 3] OK   -- more very basic typechecking
     "t04unary.exw",         --[ 4] OK   -- tests for unary minus and 'not'
     "t05inc0.exw",          --[ 5] OK   -- a trivial include
     "t06inc1.exw",          --[ 6] OK   -- basic namespaces and scope
@@ -48,7 +48,7 @@ constant testset={
     "t17incV.exw",          --[17] OK   -- test crazy \\/ and uPPER/LowerCase handling
     "t18equal.exw",         --[18] OK   -- stress test of [not] equal (!=/=)
     "t19find.exw",          --[19] OK   -- quick test of find()
-    "t20cast.exw",          --[20] OK   -- primitive assignments and type checks
+    "t20cast.exw",          --[20] OK   -- primitive assignments and typechecks
     "t21ret1.exw",          --[21] OK   -- simple function returns
     "t22cmp.exw",           --[22] OK   -- stress test compare and relops
     "t23subsc.exw",         --[23] OK   -- trivial subscript tests
@@ -74,7 +74,7 @@ constant testset={
     "t40rtnid.exw",         --[40] OK   -- tests on routine_id, call_proc etc.
     "t41infan.exw",         --[41] OK   -- tests on inf and nan handling
     "t42cback.exw",         --[42] OK   -- call_back tests
-    "t43tchk.exw",          --[43] OK   -- simple user defined type checks
+    "t43tchk.exw",          --[43] OK   -- simple user defined typechecks
     "t44silly.exw",         --[44] OK   -- recursive return test (ie the function f() returns f() case)
     "t45aod.exw",           --[45] OK   -- an assignment on declaration problem test
 --DEV p64 -c t46 is broken (put back in a broken state 17/12/20)
@@ -109,6 +109,7 @@ constant testset={
     "t69infnan.exw",        --[69] OK   -- test is_nan() and is_inf()
     "t70nested.exw",        --[70] OK   -- test nested functions
     "t71decode_flags.exw",  --[71] OK   -- test decode_flags()
+    "t72sets.exw",          --[72] OK   -- test sets.e
     "..\\demo\\mandle.exw", --[72] OK   -- simple ascii mandlebrot demo
     "..\\demo\\combo.exw",  --[73] OK   -- simple combinations function
     "..\\demo\\takeuchi.exw",--[74] OK  -- stress test function calls
@@ -896,8 +897,20 @@ procedure show_cmd_help()
 --  ?command_line()
 end procedure
 
-sequence params
-         params = {}
+sequence params = {}
+constant ascii_name = """
+    __    ________
+   /_/\  / ______ \
+   \ \ \/ /\____/ /\ __
+    \ \ \/ /   / / //_/\
+     \ \ \/___/ / / \_\/_  __
+     /\ \______/\/    /_/\/ /\
+    / /\  ____ \ \    \ \ \/ /
+   / / /\ \ \ \ \ \    \_\  /
+  / / /  \ \ \ \ \ \   / /  \
+ /_/ /    \ \ \ \ \ \ /_/ /\ \
+ \_\/      \_\/  \_\/ \_\/\_\/
+"""
 
 procedure processCommandLine()
 object x0
@@ -929,7 +942,8 @@ while 1 do  -- 17/8
 --          end if
 --      end if
         -- version number is major.minor.bugfix
-        puts(1,"Phix hybrid interpreter/compiler.\n\n")
+        puts(1,ascii_name)
+        puts(1,"\nPhix hybrid interpreter/compiler\n\n")
 --      puts(1,"as modified by <insert your name here>\n")
 --DEV we should do some #ilasm here to obtain correct version/build no,
 --      and pemit.e should auto-increment something:
@@ -2310,6 +2324,9 @@ if eres then
 --09/08/21:
     elsif eres = #C0000005 then -- ""
         crash ("access violation (code #C0000005)")
+--7/4/25:
+    elsif not integer(eres) then
+        crash("system error (code #%08x)",{eres})
     else
         abort(eres)
     end if

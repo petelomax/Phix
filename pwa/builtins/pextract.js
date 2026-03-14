@@ -22,7 +22,7 @@
         res = $repe(res,i,$subse(source,ii));
     }
     return res;
-}
+} extract.$sig="FPPI,1";
 
 /*global*/ function reinstate(/*sequence*/ source, /*object*/ indexes, replacements, /*bool*/ invert=false) {
     let /*sequence*/ res;
@@ -66,4 +66,4 @@
         }
     }
     return res;
-}
+} reinstate.$sig="FPOOI,1";

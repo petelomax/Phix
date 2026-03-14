@@ -192,7 +192,7 @@ constant
 
 --
 -- WARNING: While it may seem daft to emit a 32-bit jump that you /know/ will fit in
---          an 8-bit offset, I have regretted doing so virtually every time.
+--          an 8-bit offset, I have regretted [not] doing so virtually every time.
 --
 --          All 32-bit jumps are automatically converted to 8-bit form when possible.
 --          This involves examining each offset, adjusting it as needed if/when any
@@ -475,7 +475,7 @@ constant eax=0, ecx=1, edx=2, ebx=3,
     -- isConstRef and isConstRefCount are used in eg name="fred". Since the compiler
     --  created that "fred" and knows exactly where it put it, it is quicker to use a
     --  literal ref/address of refcount, rather than load/compute then at run-time.
-    -- isILa is currently only used in user defined type checking.
+    -- isILa is currently only used in user defined typechecking.
     -- isIL is currently only used in opFrame/set params/Jmp(#E9),isIL,0,0,routine_no.
     --  Obtains the alsolute or relative address of the entry point for a routine.
     --  They were both derived from the isAddr concept, although that has since been
@@ -830,7 +830,7 @@ end procedure
 --  all off by heart; instead I look them up at the point of use.
 --
 --  If you haven't seen #isginfo statements before, they are just a simple way
---  of performing compile-time type checking. No code whatsoever is emitted,
+--  of performing compile-time typechecking. No code whatsoever is emitted,
 --  and apart from compiling cleanly/reporting an error, they do not affect
 --  compilation in any other way. TIP: any probs, just comment them out - some
 --  optimisations might get thwarted, but they are probably insignificant.
@@ -1092,6 +1092,7 @@ procedure emitHex5jmpG(integer opcode)
     if lblidx=0 then ?9/0 end if    -- (means that no #ilASM{} actually defined that label...
                                     --  check for things commented out, in one case there was
                                     --  a missing [], so it would only work on 64-bit...)
+                                    -- Also triggered when opSubsec not in VM/optable.e...
 if not newEmit then ?9/0 end if
     -- Jump to an opcode(global label). ?Used for opRetf and in tandem with emitHex5addr.
 --  if not sched then
@@ -3298,7 +3299,7 @@ integer callpending     -- set to 1 between each opFrame/opCall pair. (There
                         --  doing is setting up external function parameters.)
 integer gtypeonly       -- set to 1 to suppress ltAdd
         gtypeonly = 0   -- (15/11/09) now only used in opTchk, to set the globaltype
-                        --  on type check calls
+                        --  on typecheck calls
 
 --integer from_opRepCh = 0
 
@@ -5560,9 +5561,9 @@ end if
                             if slroot=T_integer and smin=smax then
 --9/7/23:
 --if and_bits(state1,K_rtn) then ?9/0 end if
-if and_bits(state1,K_rtn) then
-    printf(1,"checkme: line 5564 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
-end if
+--if and_bits(state1,K_rtn) then
+--  printf(1,"checkme: line 5564 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
+--end if
 --                              emitHex5w(mov_eax_imm32,smin)                   -- mov eax,smin
                                 movRegImm32(eax,smin)                           -- mov eax,smin
                             elsif not isFresSrc then
@@ -5683,7 +5684,7 @@ end if
 --DEV might want an add [esp],1 here... (but w/o upsetting the jz?, so pop edx lea edx,[edx+1] push edx?? or isILam1? or opUnassigned0?)
 --                          emitHex5jmpG(opUnassigned)
 --                          movRegVno(esi,src)                      -- mov esi,src (var no for unassigned)
---                          movRegVno(edi,dest)                     -- mov edi,dest (var no for type check error)
+--                          movRegVno(edi,dest)                     -- mov edi,dest (var no for typecheck error)
 --                          emitHex5callG(opUnassigned)
 --printf(1,"checkme: dodgy use of opUnassigned, line 5436 pilx86.e, (emitline=%d, %s)\n",{emitline,filenames[symtab[vi][S_FPno]][2]})
     else
@@ -5691,10 +5692,10 @@ end if
     end if
                             backpatch = length(x86)
                             movRegVno(esi,src)                      -- mov esi,src (var no for unassigned)
-                            movRegVno(edi,dest)                     -- mov edi,dest (var no for type check error)
+                            movRegVno(edi,dest)                     -- mov edi,dest (var no for typecheck error)
                             emitHex5callG(opUnassigned)
                             x86[backpatch] = length(x86)-backpatch
-                            -- e92movti is unassigned [esi] or type check [edx], does not return
+                            -- e92movti is unassigned [esi] or typecheck [edx], does not return
 
                             -- <aside>: we don't really need to typecheck here from ParamList, but
         --BLUFF!
@@ -6702,7 +6703,7 @@ end if
                             end if
                             if smax>swmax then ?9/0 end if  -- sanity check
                             if smax<swmax or swroot!=T_integer then
-                                -- extend range/type check/upper bounds check
+                                -- extend range/typecheck/upper bounds check
                                 if (swmax-smax)<10 and swroot=T_integer then
                                     smax = swmax
                                 else
@@ -7521,14 +7522,14 @@ end if
                             dbpos=length(x86)
                         end if
 --; mov ecx,(p3-p2)/4   ; noofparams/locals/tmps    271         B9 imm32        mov ecx,imm32
---; mov edx,N           ; type check routineNo      277         BF imm32        mov edi,imm32
+--; mov edx,N           ; typecheck routineNo       277         BF imm32        mov edi,imm32
 --; push <return addr>                              150         68 imm32        push imm32
 --; push <varno>        ; var number                150         68 imm32        push imm32
 --; push <code>         ; addr of typecheck code    150         68 imm32        push imm32
 --;                     ; (aka symtab[tcr][S_il])
 --; push dword[var]     ; value to check            377 065     FF 35 mem32     push dword[mem32]
 --; jmp opTchk                                      351         E9 rel32        jmp rel32
-                        symk = symtab[sudt] -- type check routine symtab entry
+                        symk = symtab[sudt] -- typecheck routine symtab entry
 --                      if sched then
 --                          schedule(0,0,ecxbit,pUV,0,0)
 --                      end if
@@ -11816,9 +11817,12 @@ end if
             if and_bits(slroot,T_atom)!=T_integer
             or and_bits(slroot2,T_atom)!=T_integer
             or (smin2<0 and (smin<-1 or smax>1))
+--10/2/26: (power(2,62) leaving it with a localtype of T_integer... this fix may be imperfect!)
+            or (smax2>=62)
             or (smin<=0 and smax>=0 and smin2<=0) then
                 slroot = T_atom
             else
+--?{"opPow int",smin,smax,smin2,smax2}
                 slroot = T_integer
 --DEV 25/8/15: (crash compiling demo\rosetta\Average_loop_length.exw)
 --if smax2=MAXINT then
@@ -12845,9 +12849,11 @@ end if
             end if
             storeDest()
 
-        elsif opcode=opSubse then       -- 24
+        elsif opcode=opSubse            -- 24
+           or opcode=opSubsec then      -- 37
             --
             -- opSubse is N, res, idxN..idx1, ref       -- res := ref[idx1][idx2]~[idxN]
+            -- opSubsec is the same, but with implied isCompound
             --
             noofitems = s5[pc+1]
             dest = s5[pc+2]
@@ -12892,7 +12898,8 @@ end if
                 movRegImm32(ecx,noofitems)                      -- mov ecx,no of params
                 src = s5[pc]
                 leamov(edx,src)                                 -- lea edx,[src]/mov edx,addr src
-                emitHex5jmpG(opSubse)                           -- jmp %pSubse (actually a call, return pushed above)
+--              emitHex5jmpG(opSubse)                           -- jmp %pSubse (actually a call, return pushed above)
+                emitHex5jmpG(opcode)                            -- jmp %pSubse[c] (actually a call, return pushed above)
                 -- set return addr offset:
                 x86[raoffset] = length(x86)-raoffset
                 -- all regs trashed, unless result is integer, in eax (and [dest])
@@ -16315,6 +16322,7 @@ string options
     jdesc[opSubse1] = "opSubse1,dest,ref,idx,isInit(ref and idx),isCompound\n"
     jdesc[opSubse1i] = "opSubse1i,dest,ref,idx,isInit(ref and idx),isCompound\n"
     jdesc[opSubse1is] = "opSubse1is,dest,ref,idx,isInit(ref and idx),isCompound\n"
+    jdesc[opSubsec] = "opSubsec,N,dest,idxN..idx1,ref\n"
     jdesc[opGchk] = "opGchk,var,type,min,max,etyp,len,line,col,fileno\n"
     jdesc[opLen] = "opLen,dest,src,isInit(src),ltype(src, <= T_object)\n"
 --  jdesc[opFor] = "opFor,init,ctl,step,limit,tgt\n"

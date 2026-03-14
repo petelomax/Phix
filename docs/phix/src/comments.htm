@@ -51,7 +51,7 @@
 --/* 
 include std\console.e           -- Ignored by Phix, included by Eu 
 --*/ 
---/* */include builtins\get.e   -- Included by Phix, ignored by Eu 
+--/**/include builtins\get.e    -- Included by Phix, ignored by Eu 
  
 /* 
         puts(1, "Neither Eu nor Phix execute this\n")  
@@ -61,16 +61,16 @@ include std\console.e           -- Ignored by Phix, included by Eu
         puts(1, "Eu prints this, Phix does not\n")  
 --*/  
  
---/* */ puts(1, "Phix prints this, Eu does not\n")   
+--/**/  puts(1, "Phix prints this, Eu does not\n")   
  
---/* */ puts(1, "Runs with Phix\n") --/*     
+--/**/  puts(1, "Runs with Phix\n") --/*     
         puts(1, "Runs with Eu\n")   --*/ 
 </eucode-->
 <pre>
 <font color="#000080"><i>--/* 
 include std\console.e           -- Ignored by Phix, included by Eu 
 --*/ 
---/* */</i></font><font color="#008080">include</font><font color="#000000"> builtins\get.e  </font><font color="#000080"><i> -- Included by Phix, ignored by Eu </i></font>
+--/**/</i></font><font color="#008080">include</font><font color="#000000"> builtins\get.e   </font><font color="#000080"><i> -- Included by Phix, ignored by Eu </i></font>
 <font color="#C0C0C0"> </font>
 <font color="#000080"><i>/* 
         puts(1, "Neither Eu nor Phix execute this\n")  
@@ -80,12 +80,12 @@ include std\console.e           -- Ignored by Phix, included by Eu
         puts(1, "Eu prints this, Phix does not\n")  
 --*/  </i></font>
 <font color="#C0C0C0"> </font>
-<font color="#000080"><i>--/* */</i></font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Phix prints this, Eu does not\n"</font><font color="#0000FF">)   </font>
+<font color="#000080"><i>--/**/ </i></font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Phix prints this, Eu does not\n"</font><font color="#0000FF">)   </font>
 <font color="#C0C0C0"> </font>
-<font color="#000080"><i>--/* */</i></font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Runs with Phix\n"</font><font color="#0000FF">)</font><font color="#000080"><i> --/*     
+<font color="#000080"><i>--/**/ </i></font><font color="#7060A8"> puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "Runs with Phix\n"</font><font color="#0000FF">)</font><font color="#000080"><i> --/*     
         puts(1, "Runs with Eu\n")   --*/ </i></font>
 </pre>
-        Thanks to ChrisB for suggesting the above. Note that Phix source does not need a space in /* */, but this html seems to.
+        Thanks to ChrisB for suggesting the above.
         <br>
         <br>
         An alternative (more recent and somewhat saner) way to cope with any required differences is:
@@ -124,7 +124,6 @@ end ifdef
 </pre>
         will actually be fine, but really treats the [/*]`" then while token()!="`[*/] as a depth-3-nested-comment, whereas 
         <br>
-        <br>
 <!--eucode>
     /*
     if token="*/" then exit end if
@@ -135,16 +134,16 @@ end ifdef
     if token="*/</i></font><font color="#008000">" then exit end </font><font color="#FF0000">i</font><font color="#000000">f</font>
 <font color="#008000">    */</font>
 </pre>
-        will (as you should be able to see) break trying to compile `" then exit end if\n*/`, in this particular case 
-        pointing just past the final if (aka end of line) and declaring "missing closing quote".
+        will (as you should be able to see) break trying to compile `" then exit end if\n`, in this particular case with
+        "missing closing quote" at the end of the line, because the original opening quote is now part of that half-comment.
         <br>
         <br>
         In uncommented code, text in string literals is treated specially and any embedded open/close block comments are ignored. <br>
         However once that code is made a comment, the whole thing is just text and hence there simply <i>cannot be any</i> special 
         handling of such once-were-string-literals.
         Thankfully not very much code embeds (unbalanced) comment markers inside string literals like that, and when it does you 
-        should get some pretty obvious clues from the syntax colouring (as long as you&rsquo;re not using the bare-bones Notepad or
-        any other editor that doesn&rsquo;t fully understand how phix comments work). In fact Rust, bless it, gets so antsy about
+        should get some pretty obvious clues from the syntax colouring (as long as you&apos;re not using the bare-bones Notepad or
+        any other editor that doesn&apos;t fully understand how phix comments work). In fact Rust, bless it, gets so antsy about
         that exact gotcha it will even start converting block comments to line comments to try and avoid it... each to their own.
         <br>
         <br>
@@ -157,9 +156,11 @@ end ifdef
         <li>/* .. */ standard nestable multiline comments</li>
         <li>--/* .. --*/ Euphoria-compatibility-style nestable multiline comments/code</li>
         </ul>
-        <br>
-        Whilst to their shame most don&rsquo;t, other programming languages that support nested block comments include ColdFusion,
-        D (/+ style), Dart, Haskell, Kotlin, Lisp, Lua (sortof), MATLAB, Nim, OCaml, Racket, Rust, Scala, Scheme, SQL, and Swift.
+        Whilst to their shame most don&apos;t, other programming languages that support nested block comments include ColdFusion,
+        D (/+ style), Dart, Elm, Haskell, Kotlin, Lisp, Lua (sortof), MATLAB, Modula-2/3, Nim, Oberon-2, OCaml, Racket, Raku (ish),
+        Rust, Scala, Scheme, Swift, V, Wren, zkl, and zonnon. Obviously I cannot list them all, but I can tell you for a fact that 
+        C, C++, Go, Java, JavaScript, Julia, HTML, Pascal, Python, and Ruby do not.<br>
+        Note that Edita/theEditor simply assume nested block comments are always supported, even for that last set.
         <br>
         <br>
        See also:

@@ -31,4 +31,4 @@
 --              int3 }
 */
     }
-}
+} assert.$sig="PISPI,1";

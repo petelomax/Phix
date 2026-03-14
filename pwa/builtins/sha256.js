@@ -76,5 +76,5 @@ function sha256(str) {
         j += 4;
     }
     return result;
-}
+} sha256.$sig="FS";
 

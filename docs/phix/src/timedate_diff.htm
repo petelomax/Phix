@@ -16,9 +16,9 @@
             include builtins\timedate.e
             <br>
             <br>
-            <a href="atom.htm">atom</a> a = timedate_diff(<a href="timedatetype.htm">timedate</a> td1, 
+            <a href>atom</a> a = timedate_diff(<a href="timedatetype.htm">timedate</a> td1, 
                                                           <a href="timedatetype.htm">timedate</a> td2, 
-                                                          <a href="integer.htm">integer</a> term=0)
+                                                          <a href>integer</a> term=0)
          </td>
         </tr>
         <tr>
@@ -30,9 +30,10 @@
             <br>
             <br>
             A term of DT_SECOND, DT_MINUTE, DT_HOUR, DT_DAY, DT_MONTH, or DT_YEAR may be supplied to truncate the difference 
-            to a whole number of that period (see example below). Note that DT_MONTH is treated as 30 days, and DT_YEAR uses
+            to a whole number of that period (see examples below). Note that DT_MONTH is treated as 30 days, and DT_YEAR uses
             365.25 to calculate the whole number of years, but then multiplies by 365 to get back to seconds.<br>
-            If term is zero (the default) then no such rounding is attempted.
+            If term is zero (the default) then no such truncation is attempted.<br>
+            If term is negative the result is neither truncated nor converted back to seconds.
          </td>
         </tr>
         <tr>
@@ -48,39 +49,58 @@
           <b>Comments:</b>
          </td>
          <td>
-            As with <a href="timedelta.htm">timedelta</a>, the result is intended to be used as a parameter to 
-            <a href="adjust_timedate.htm">adjust_timedate</a>(), and it can also be supplied as an argument to 
-            <a href="elapsed.htm">elapsed</a>().
+            As with <a href>timedelta</a>, the result is intended to be used as a parameter to 
+            <a href>adjust_timedate</a>(), and it can also be supplied as an argument to 
+            <a href>elapsed</a>(), in both cases only when term was not negative, or to be pendantic
+            not -DT_SECOND.
             <br>
             <br>
-            Note that results from <a href="date.htm">date</a>() should either have been generated with 
-            bMsecs:=<a href="logicops.htm#tf">true</a> or have their [<a href="date.htm">DT_MSEC</a>] entries 
+            Note that results from <a href>date</a>() should either have been generated with 
+            bMsecs:=<a href>true</a> or have their [<a href>DT_MSEC</a>] entries 
             set to zero before being passed to timedate_diff().
          </td>
         </tr>
         <tr>
          <td>
-          <b>Example:</b>
+          <b>Examples:</b>
          </td>
          <td>
 <!--eucode>
 include builtins\timedate.e
-timedate birthdate = parse_date_string("1/1/1960",{"D/M/YYYY"})
-printf(1,"You are %s old\n",{elapsed(timedate_diff(birthdate,date(),DT_DAY))})
--- displays "You are 57 years, 304 days old"
+timedate birthdate = parse_date_string("1/1/2000",{"D/M/YYYY"}),
+             today = parse_date_string("23/11/10 3:2:1",{"Y/M/D h:m:s"})
+printf(1,"You are %s old\n",{elapsed(timedate_diff(birthdate,today,DT_DAY))})
+-- displays "You are 23 years, 45 weeks, 4 days old", vs (without a term):
+printf(1,"You are %s old\n",{elapsed(timedate_diff(birthdate,today))})
+-- displays "You are 23 years, 45 weeks, 4 days, 3 hours, 2 minutes and 1s old"
+printf(1,"You are %d years old\n",trunc(timedate_diff(birthdate,today,-DT_YEAR)))
+-- displays "You are 23 years old"
+printf(1,"You are %d years old\n",round(timedate_diff(birthdate,today,-DT_YEAR)))
+-- displays "You are 24 years old"
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\timedate.e
-</font><font color="#004080">timedate</font><font color="#000000"> birthdate</font><font color="#0000FF"> =</font><font color="#5E005E"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"1/1/1960"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"D/M/YYYY"</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#5E005E">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"You are %s old\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#5E005E">elapsed</font><font color="#800080">(</font><font color="#5E005E">timedate_diff</font><font color="#00FF00">(</font><font color="#000000">birthdate</font><font color="#0000FF">,</font><font color="#5E005E">date</font><font color="#000080">()</font><font color="#0000FF">,</font><font color="#004600">DT_DAY</font><font color="#00FF00">)</font><font color="#800080">)</font><font color="#800000">}</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- displays "You are 57 years, 304 days old"</i></font>
+<font color="#008080">include</font><font color="#000000"> builtins\timedate.e</font>
+<font color="#004080">timedate</font><font color="#000000"> birthdate</font><font color="#0000FF"> =</font><font color="#7060A8"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"1/1/2000"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"D/M/YYYY"</font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#000000">             today</font><font color="#0000FF"> =</font><font color="#7060A8"> parse_date_string</font><font color="#0000FF">(</font><font color="#008000">"23/11/10 3:2:1"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"Y/M/D h:m:s"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"You are %s old\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#7060A8">elapsed</font><font color="#008080">(</font><font color="#7060A8">timedate_diff</font><font color="#00FF00">(</font><font color="#000000">birthdate</font><font color="#0000FF">,</font><font color="#000000">today</font><font color="#0000FF">,</font><font color="#004600">DT_DAY</font><font color="#00FF00">)</font><font color="#008080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "You are 23 years, 45 weeks, 4 days old", vs (without a term):</i></font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"You are %s old\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#7060A8">elapsed</font><font color="#008080">(</font><font color="#7060A8">timedate_diff</font><font color="#00FF00">(</font><font color="#000000">birthdate</font><font color="#0000FF">,</font><font color="#000000">today</font><font color="#00FF00">)</font><font color="#008080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "You are 23 years, 45 weeks, 4 days, 3 hours, 2 minutes and 1s old"</i></font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"You are %d years old\n"</font><font color="#0000FF">,</font><font color="#7060A8">trunc</font><font color="#800000">(</font><font color="#7060A8">timedate_diff</font><font color="#008080">(</font><font color="#000000">birthdate</font><font color="#0000FF">,</font><font color="#000000">today</font><font color="#0000FF">,-</font><font color="#004600">DT_YEAR</font><font color="#008080">)</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "You are 23 years old"</i></font>
+<font color="#7060A8">printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"You are %d years old\n"</font><font color="#0000FF">,</font><font color="#7060A8">round</font><font color="#800000">(</font><font color="#7060A8">timedate_diff</font><font color="#008080">(</font><font color="#000000">birthdate</font><font color="#0000FF">,</font><font color="#000000">today</font><font color="#0000FF">,-</font><font color="#004600">DT_YEAR</font><font color="#008080">)</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- displays "You are 24 years old"</i></font>
 </pre>
             <br>
-            By passing a whole number of days to <a href="elapsed.htm">elapsed</a>(), the result contains no left-over hours, minutes, or seconds.<br>
-            Should you want months/weeks in the result, you would have to create a modified copy of builtins/pelapsed.e and obviously sort out messy
+            By passing a whole number of days to <a href>elapsed</a>(), the result contains no left-over hours, minutes, or seconds.<br>
+            Aside: <a href>elapsed</a>() doesn&apos;t even attempt to speak months, due to their tendency to have 28/29/30/31 days.<br>
+            It becomes your responsibility/choice to truncate or round the result from a negative term, if needed.<br>
+<!--
+            Should you want months/weeks in the result, you would have to create a modified copy of builtins\pelapsed.e and obviously sort out messy
             details such as Jan 3<sup><small>rd</small></sup> to Feb 5<sup><small>th</small></sup> being 33 days or 1 month 2 days, as well as 
             Feb 3<sup><small>rd</small></sup> to Mar 5<sup><small>th</small></sup> being 30 or 31 days yet (arguably) also 1 month 2 days, 
             whether one or more leap years are pertinent to the equation or not - good luck!
+-->
          </td>
         </tr>
         <tr>
@@ -88,10 +108,10 @@ printf(1,"You are %s old\n",{elapsed(timedate_diff(birthdate,date(),DT_DAY))})
           <b>See Also:</b>
          </td>
          <td>
-          <a href="timedate.htm">timedate</a>,
-          <a href="adjust_timedate.htm">adjust_timedate</a>,
-          <a href="parse_date_string.htm">parse_date_string</a>,
-          <a href="elapsed.htm">elapsed</a>
+          <a href>timedate</a>,
+          <a href>adjust_timedate</a>,
+          <a href>parse_date_string</a>,
+          <a href>elapsed</a>
          </td>
         </tr>
        </table>

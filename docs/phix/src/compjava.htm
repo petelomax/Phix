@@ -10,6 +10,7 @@
         <a href="javascript:ExternalLink('extGJE');" title='https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.2'
            id="extGJE" style="color:#9B5565" >really is the official definition</a></i> of <b>Java</b> exception handling:
 <small>
+<small>
 <pre>
 A try statement with a finally block is executed by first executing the try block. Then there is a choice:
   If execution of the try block completes normally, then the finally block is executed, and then there is a choice:
@@ -39,6 +40,7 @@ A try statement with a finally block is executed by first executing the try bloc
     reason R is discarded).
 </pre>
 </small>
+</small>
         Of course, each individual phrase/clause/statement is perfectly reasonable, however as a whole it is utterly incomprehensible, quite
         literally almost impossible to remember, and hence extremely difficult to code correctly against. Plus the whole checked vs. unchecked 
         exceptions doobry-mah-jiig goes on top of all of that, albeit that is more at the function declaration level, it still significantly 
@@ -47,19 +49,20 @@ A try statement with a finally block is executed by first executing the try bloc
         <br>
         By adopting a simpler scheme with no finally clause and a single catch clause this becomes (for Phix):
 <small>
+<small>
 <pre>
-The catch clause is only entered if an exception occurs during the execution of the try block or 
- any routines invoked from within that block.
-There is no special exception handling within the catch block other than any already in place 
- before and after the try statement.
+The catch clause is only entered if an exception occurs during the execution of the try block or any routines invoked from within that block.
+There is no special exception handling within the catch block other than any already in place before and after the try statement.
 You may however nest try statements to any depth, in either the try or the catch block, or both.
 </pre>
+</small>
 </small>
         Which certainly fits inside my little brain a bit more readily. <br>
         You may also like to compare the 
         <a href="javascript:ExternalLink('extJNF');" title='https://docs.oracle.com/javase/specs/jls/se8/html/jls-14.html#jls-14.20.1'
            id="extJNF" style="color:#9B5565" >official definition</a>
         of <b>Java</b> exception handling when there is no finally clause:
+<small>
 <small>
 <pre>
 A try statement without a finally block is executed by first executing the try block. Then there is a choice:
@@ -76,11 +79,14 @@ A try statement without a finally block is executed by first executing the try b
   If execution of the try block completes abruptly for any other reason, then the try statement completes abruptly for the same reason.
 </pre>
 </small>
+</small>
         While certainly simpler than the "with finally" we just saw, it still somehow strikes me as being somehow deliberately over-egged in order 
-        to make the whole finally concept seem slightly less ridiculous (and at least in my opinion, failing badly in that attempt). FYI, I now
-        understand why the finally clause is useful <i>in Java</i>: <code>"try catch e"</code> has at least 3 execution paths: {completes normally, 
-        assignment compatible with e, not assignment compatible}, and more catch clauses == more paths, so the following boolean would probably
-        not suffice.
+        to make the whole finally concept seem slightly less ridiculous <small>(and at least in my opinion, failing badly in that attempt)</small>.
+        FYI, I now understand why the finally clause might be useful <i>in Java</i>: every catch clause has at least three execution paths: 
+        {completes normally, assignment compatible, not assignment compatible}, plus you can have several of them, so the following simple bool 
+        would probably not suffice. [Some months later but with this still in mind] I stumbled on some (hideous) Java code and estimated it might 
+        well need a <b><i>729</i></b>-way switch in Phix to be absolutely sure of mimicing it flawlessly... <small>[To be fair, it was part of a 
+        programming language test suite checking 34 separate errors.]</small>
         <br>
         <br>
         At least in the much simplified Phix approach, the only thing a finally block (which this whole page is a bit of a rant against) would save 
@@ -115,11 +121,15 @@ A try statement without a finally block is executed by first executing the try b
 <font color="#7060A8">       throw</font><font color="#0000FF">(</font><font color="#000000">e</font><font color="#0000FF">)</font>
 <font color="#008080">    end if</font>
 </pre>
+<!-- just don;t like,...
         I will concede, however, that a complex (exception-throwing) catch clause or finally block may need a nested try statement or two.<br>
         Of course you could instead factor out the cleanup code to a secondary routine that can be invoked from several places.<br>
+-->
         Should another try block exist, you might want to give the exception a different name and explicitly choose whether or not to 
         overwrite e, effectively rethrowing the inner exception (after letting the finally block run) and discarding the outer e.
         Specifically, all those implicit rules for reasons S/R/V of Java are replaced with explicit code fully under your control.
+        Of course you could trap on that final throw(), or just look at the condition immediately above it to figure out precisely
+        why some error is being re-thrown, neither of which is in any way possible when all you&apos;ve got is '}'.
         <br>
         <br>
 <!--

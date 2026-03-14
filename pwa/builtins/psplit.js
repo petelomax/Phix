@@ -56,7 +56,7 @@
         }
     }
     return ret;
-}
+} split.$sig="FPOII,1";
 
 /*global*/ function split_any(/*sequence*/ source, /*object*/ delimiters=", \t|") {
     let /*sequence*/ ret = ["sequence"];
@@ -78,7 +78,7 @@
         ret = append(ret,$subss(source,start,-1));
     }
     return ret;
-}
+} split_any.$sig="FPO,1";
 
 /*global*/ function split_by(/*sequence*/ s, /*integer*/ n) {
     // Split a sequence into chucks of at most length n each, 
@@ -94,7 +94,7 @@
         res = append(res,$subss(s,j,-1));
     }
     return res;
-}
+} split_by.$sig="FPI";
 
 /*global*/ function split_path(/*string*/ path, /*bool*/ preservetrailsep=false) {
     let /*sequence*/ res = ["sequence"];
@@ -124,4 +124,4 @@
         }
     }
     return res;
-}
+} split_path.$sig="FSI,1";

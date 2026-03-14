@@ -70,7 +70,7 @@
     }
 //  return s
     return res;
-}
+} unique.$sig="FPS,1";
 // Euphoria compatibility (not autoincluded)
 /*global*/ 
 const $RD_INPLACE = 1, $RD_PRESORTED = 2, $RD_SORT = 3
@@ -78,4 +78,4 @@ const $ops = ["sequence","INPLACE", "PRESORTED", "SORT"];
 
 /*global*/ function $remove_dups(/*sequence*/ source_data, /*integer*/ proc_option=$RD_PRESORTED) {
     return unique(source_data,$subse($ops,proc_option));
-}
+} $remove_dups.$sig="FPI,1";

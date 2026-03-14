@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Pi Digits Generator (~10 s)</title>
+<style>
+ body{font-family:monospace;background:#fafafa;padding:1em;}
+ #pi{white-space:pre-wrap;max-height:70vh;overflow-y:auto;}
+</style>
+</head>
+<body>
+<h2>Digits of À (spigot algorithm, ~10 s runtime)</h2>
+<button id="start">Start</button>
+<pre id="pi">Press Start&</pre>
+
+<script>
+async function generatePi(limitSeconds = 10) {
+    // Stanley Rabinowitz & Stan Wagon, Mathematica in Action, 1991
+    const start = performance.now();
+// 10,000 ==> 9999 in 3.25s
+// 15,000 ==> 14999 in 7.7s
+// 16,000 ==> 15999 in 8.1s
+// 17,000 ==> 16999 in 9.1s
+// 17,500 ==> 17499 in 9.7s
+// 17,700 ==> 17699 in 9.9s
+// 17,750 ==> 17749 in 9.9s
+// 17,770 ==> 17769 in 10s
+// 17,777 ==> 17769 in 10s
+// 17,780 ==> 17753 in 10s
+// 17,800 ==> 17771 in 10s
+// 18,000 ==> 17570 in 10s
+// 20,000 ==> 15891 in 10s
+// 30,000 ==> 10746 in 10s
+    const N = 17777; // number of iterations/digits (optimal for 10s)
+    const len = Math.floor(N * 10 / 3);
+    const a = new Uint32Array(len).fill(2);
+
+    let predigit = 0;
+    let nines = 0;
+    let skip = 2;          // skip the first two digits
+    let output = "3.";
+    const piOut = document.getElementById("pi");
+    piOut.textContent = "";
+
+    for (let i = 0; i < N; i++) {
+        if (performance.now() - start > limitSeconds * 1000) break;
+
+        let q = 0;
+        for (let j = len - 1; j >= 0; j--) {
+            const x = a[j] * 10 + q * (j + 1);
+            a[j] = x % (2 * (j + 1) - 1);
+            q = Math.floor(x / (2 * (j + 1) - 1));
+        }
+
+        const d = Math.floor(q / 10);
+        a[0] = q % 10;
+
+        if (d === 9) {
+            nines++;
+        } else if (d === 10) {
+            if (skip === 0) {
+                output += (predigit + 1);
+                output += "0".repeat(nines);
+            }
+            predigit = 0;
+            nines = 0;
+            if (skip > 0) skip--;
+        } else {
+            if (skip === 0) {
+                output += predigit;
+                if (nines > 0) {
+                    output += "9".repeat(nines);
+                    nines = 0;
+                }
+            }
+            predigit = d;
+            if (skip > 0) skip--;
+        }
+
+        // periodically update browser output
+        if (i % 200 === 0) {
+            piOut.textContent = output;
+            await new Promise(r => setTimeout(r, 0)); // yield to browser
+        }
+    }
+
+    output += predigit;  // append last digit
+    piOut.textContent =
+        output +
+        "\n\nGenerated " + (output.length - 2) +
+        " digits in " + ((performance.now() - start) / 1000).toFixed(2) + " s";
+}
+
+document.getElementById("start").onclick = () => generatePi(10);
+</script>
+</body>
+</html>
+

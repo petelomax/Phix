@@ -28,11 +28,13 @@
         }
     }
     return text;
-}
+} substitute.$sig="FPOOI,1";
 
 /*global*/ function substitute_all(/*sequence*/ text, strings, replacements) {
     for (let i=1, i$lim=length(strings); i<=i$lim; i+=1) {
         if (string(strings)) {
+//DEV (sip) might not be the case for JavaScript (test as next, should you notice something slow)
+//          if string(replacements) and platform()!=JS then -- not yet tried
             if (string(replacements)) {
                 // in this case a naive in situ approach is faster:
                 let /*integer*/ ch = $subse(strings,i), repch = $subse(replacements,i);
@@ -48,4 +50,4 @@
         }
     }
     return text;
-}
+} substitute_all.$sig="FPPP";

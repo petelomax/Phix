@@ -10,8 +10,11 @@
 let /*integer*/ $caseinit = 0;
 let /*string*/ $toUpper, $toLower;
 let /*sequence*/ $str_methods;
+
+/*local*/ 
 const $LOWER = 1, $UPPER = 2, $CAPITALISE = 3, $SENTENCE = 4, $INVERT = 5
-function $initcase() {
+
+/*local*/ function $initcase() {
     $str_methods = ["sequence","LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"];
     let /*integer*/ i32;
     $toUpper = repeat(255,255);
@@ -26,24 +29,26 @@ function $initcase() {
         $toUpper = $repe($toUpper,i32,i);
     }
     for (let i=0xC0, i$lim=0xD6; i<=i$lim; i+=1) { // see pcase8.e
+//  for i=192 to 214 do -- see pcase8.e
         i32 = i+32;
         $toLower = $repe($toLower,i,i32);
         $toUpper = $repe($toUpper,i32,i);
     }
     for (let i=0xD8, i$lim=0xDE; i<=i$lim; i+=1) { // see pcase8.e
+//  for i=216 to 222 do -- see pcase8.e
         i32 = i+32;
         $toLower = $repe($toLower,i,i32);
         $toUpper = $repe($toUpper,i32,i);
     }
     // several odd-balls, see pcase8.e
-    $toLower = $repe($toLower,0x8A,0x9A);
-    $toLower = $repe($toLower,0x8C,0x9C);
-    $toLower = $repe($toLower,0x9F,0xFF);
-    $toUpper = $repe($toUpper,0x9A,0x8A);
-    $toUpper = $repe($toUpper,0x9C,0x8C);
-    $toUpper = $repe($toUpper,0xFF,0x9F);
+//  $toLower[#8A] = #9A
+//  $toLower[#8C] = #9C
+//  $toLower[#9F] = #FF
+//  $toUpper[#9A] = #8A
+//  $toUpper[#9C] = #8C
+//  $toUpper[#FF] = #9F
     $caseinit = 1;
-}
+} $initcase.$sig="P";
 
 /*global*/ function upper(/*object*/ x) {
     let /*object*/ o;
@@ -72,7 +77,7 @@ function $initcase() {
         }
     }
     return x;
-}
+} upper.$sig="FO";
 
 /*global*/ function lower(/*object*/ x) {
     let /*object*/ o;
@@ -101,17 +106,17 @@ function $initcase() {
         }
     }
     return x;
-}
+} lower.$sig="FO";
 
 /*global*/ function isupper(/*integer*/ ch) {
     if (!$caseinit) { $initcase(); }
     return (ch>0 && ch<=255) && (!equal(ch,$subse($toLower,ch)));
-}
+} isupper.$sig="FI";
 
 /*global*/ function islower(/*integer*/ ch) {
     if (!$caseinit) { $initcase(); }
     return (ch>0 && ch<=255) && (!equal(ch,$subse($toUpper,ch)));
-}
+} islower.$sig="FI";
 //DEV doc/auto:
 //**
 // Convert a text sequence to capitalized words.
@@ -211,75 +216,76 @@ function $initcase() {
 --  return x
 --end function
 */
+let /*sequence*/ $proper_nouns; // (re-usable via a method of {})
 
-/*global*/ function proper(/*string*/ s, method="CAPITALISE") {
-//
-// $LOWER:       "this is England. so there" -> "this is england. so there"
-// $UPPER:       "this is England. so there" -> "THIS IS ENGLAND. SO THERE"
-// $CAPITALISE:  "this is England. so there" -> "This Is England. So There"
-// $SENTENCE:    "this is England. so there" -> "This is england. So there"
-// $INVERT:      "this is England. so there" -> "THIS IS eNGLAND. SO THERE"
-//
-// Obviously $LOWER/$UPPER overlap functionally with lower()/upper(), but it 
-//  might one day be useful to dynamically specify such options at runtime.
-// $SENTENCE is far from perfect, $INVERT has (potential) use in Edita/Edix,
-// to correct something just typed in with the wrong caps lock setting.
-//
-    let /*integer*/ mi = find(upper(method),$str_methods),  // must be one of those!
-                    ch,  // a character
-                    pc = 0X20; // previous character
+/*global*/ function proper(/*string*/ s, /*sequence*/ method="CAPITALISE") {
+    if (!$caseinit) { $initcase(); }
     let /*bool*/ eos = true,  // end of sentence flag
                  inQuote = false,  // within double quotes flag
-                 islow = false,  // ch is lowercase
-                 ishigh = false,  // ch is uppercase
+                 islo = false,  // ch is lowercase
+                 ishi = false,  // ch is uppercase
                  lowit = false,  // change it?
-                 highit = false; // change it?
-    if (!$caseinit) { $initcase(); }
+                 highit = false,  // change it?
+                 bProperNouns = !string(method);
+    if (bProperNouns) {
+        if (length(method)) {
+            // (ie {} re-uses one set up earlier, w/o re-lowercasing it)
+            $proper_nouns = apply(method,lower);
+        }
+        method = "SENTENCE";
+    }
+    let /*integer*/ mi = find(upper(method),$str_methods),  // must be one of those!
+                    pc = 0X20,  // previous character
+                    l = length(s), 
+                    word_start = 0;
     if (mi===0) { crash("proper(s,\"%s\"): invalid method parameter",["sequence",method]); }
-    for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
-        ch = $subse(s,i);
-//      islow := (ch>='a' and ch<='z')  lowit = false
-//      ishigh := (ch>='A' and ch<='Z') highit = false
-        islow = (ch>0 && ch<=255) && (!equal(ch,$subse($toUpper,ch))); lowit = false;
-        ishigh = (ch>0 && ch<=255) && (!equal(ch,$subse($toLower,ch))); highit = false;
+    for (let i = 1, ch$lim = length(s); i <= ch$lim; i += 1) { let ch = $subse(s,i);
+//      islo := (ch>='a' and ch<='z')   lowit = false
+//      ishi := (ch>='A' and ch<='Z') highit = false
+//      islo := (ch>0 and ch<=255 and ch!=$toUpper[ch])  lowit = false
+//      ishi := (ch>0 and ch<=255 and ch!=$toLower[ch])  highit = false
+        islo = !equal(ch,$subse($toUpper,ch)); lowit = false;
+        ishi = !equal(ch,$subse($toLower,ch)); highit = false;
         switch (mi) {
-            case $LOWER: lowit = ishigh;
+            case $LOWER: lowit = ishi;
                 break;
-            case $UPPER: highit = islow;
+            case $UPPER: highit = islo;
                 break;
-            case $INVERT: lowit = ishigh;
-                highit = islow;
+            case $INVERT: lowit = ishi;
+                highit = islo;
                 break;
             case $CAPITALISE:
-//                      if find(pc," \t\r\n\"\'`") then
-                if (find(pc,$conCat(" \r\n\"\'`", 9))) {
-                    highit = islow;
+                if (find(pc," \t\r\n\"\'`")) {
+//                      if find(pc," \r\n\"\'`"&9) then
+                    highit = islo;
                 } else {
-                    lowit = ishigh;
+                    lowit = ishi;
                 }
                 break;
             case $SENTENCE:
-//                  if find(pc," \t\r\n") then
-                if (find(pc,$conCat(" \r\n", 9))) {
+                if (find(pc," \t\r\n")) {
+//                  if find(pc," \r\n"&9) then
                     if (eos) {
-                        highit = islow;
+                        highit = islo;
                         eos = false;
                     } else {
-                        lowit = ishigh;
+                        lowit = ishi;
                     }
+                    word_start = i;
                 } else {
-                    lowit = ishigh;
+                    lowit = ishi;
                 }
                 if (find(ch,".!?")) {
                     eos = true;
-//                  elsif not find(ch," \t\r\n") then
-                } else if (!find(ch,$conCat(" \r\n", 9))) {
+                } else if (!find(ch," \t\r\n")) {
+//                  elsif not find(ch," \r\n"&9) then
                     eos = false;
                 }
                 if (ch===0X22) {
                     ch = 0X20;
                     inQuote = !inQuote;
-                    eos = inQuote;
+//                      eos := inQuote
+                    eos = (inQuote && i<l) && (!equal($subse(s,i+1),$subse($toLower,$subse(s,i+1))));
                 }
         }
         pc = ch;
@@ -288,6 +294,12 @@ function $initcase() {
         } else if (highit) { ch -= 32;
             s = $repe(s,i,ch);
         }
+        if ((bProperNouns && word_start) && ((i===l) || !(islo || ishi))) {
+            if (find(lower($subss(s,word_start,i-(i!==l))),$proper_nouns)) {
+                s = $repe(s,word_start,upper($subse(s,word_start)));
+            }
+            word_start = 0;
+        }
     }
     return s;
-}
+} proper.$sig="FSP,1";

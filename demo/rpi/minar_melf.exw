@@ -54,15 +54,19 @@ R_386_JMP_SLOT  at dynamic link time, deposit the address of "symbol" (a subrout
 R_386_PC8,
 R_386_PC32
 --*/
-constant EH_LEN = #34,
-         PH_SIZE = 32,  -- #20
+constant EH_LEN = #34,  -- size of elf header
+         PH_SIZE = 32,  -- size of program header entry (#20)
 --DEV DLI_ENT_SIZE (proper name) = #10, I think...
+         ST_LEN = #10,  -- size of one symbol table entry
+         REL_LEN = 8,   -- size of one relocation table entry
 --       EXEC  = 0b001,
          PF_X  = 0b001,
 --       WRITE = 0b010,
          PF_W  = 0b010,
 --       READ  = 0b100,
          PF_R  = 0b100,
+         PF_RX = 0b101,
+         PF_RW = 0b110,
          PT_LOAD = 1,
          PT_DYNAMIC = 2,
          PT_INTERP = 3,
@@ -84,7 +88,18 @@ constant EH_LEN = #34,
 #define SHT_NUM          12             /* Number of defined types.  */
 --*/
          BASE = 0x00008000,
-         GLOBFUN = #12, -- STB_GLOBAL(1)*#10 + STT_FUNC(2)
+         STB_LOCAL  = 0,
+         STB_GLOBAL = 1,
+--       STB_WEAK   = 2,
+--       STT_NOTYPE  = 0,
+--       STT_OBJECT  = 1,
+         STT_FUNC    = 2,
+         STT_SECTION = 3,
+--       STT_FILE    = 4,
+         ST_LOCSEC = STB_LOCAL*#10 + STT_SECTION,
+         ST_GLBFUN = STB_GLOBAL*#10 + STT_FUNC,
+
+         GLOBFUN = #12, -- STB_GLOBAL*#10 + STT_FUNC(2)
 --       STB_GLOBAL = 1,
 --       STB_WEAK   = 2,
 --       STT_NOTYPE  = 0,
@@ -110,16 +125,37 @@ constant EH_LEN = #34,
          DT_TEXTREL = #16,
          DT_RELCOUNT = #6FFFFFFA,
          N_PH = 5,              -- ie there will be exactly 5 segments
+         PH_LEN = PH_SIZE*N_PH, -- #A0 (#20*5)
+         EPH5 = EH_LEN+PH_LEN,  -- #D4
          EM_ARM = 40            -- =#28
 
         
-constant B = 1,
-         W = 2,
-         D = 4
+constant B = 1, -- BYTE
+         W = 2, -- WORD
+         D = 4  -- DWORD
+--       Q = 8  -- QWORD
+
 function binstr(atom v, integer l)
     string res = repeat('\0',l)
     for i=1 to l do
         res[i] = remainder(v, #100)
+        v = floor(v/#100)
+    end for
+    return res
+end function
+
+function SetField(string res, integer offset, dsize, atom v)
+--
+-- Break up v into dsize bytes (little endian) in res at offset.
+--
+-- res: should be a local string, res = SetField(res,...) for pbr.
+-- offset: 0-based, adjusted here(+1) to index res.
+-- dsize is BYTE(1), WORD(2), DWORD(4), or QWORD(8)[?]
+-- v: does not distinguish between -1 and +4294967295, btw.
+--
+--  #isginfo{res,0b1000,MIN,MAX,integer,-2} -- (verify it's a [binary] string)
+    for i=1 to dsize do
+        res[offset+i] = and_bits(v,#FF)
         v = floor(v/#100)
     end for
     return res
@@ -234,7 +270,11 @@ function ELF_interpreter_segment(string interpreter)
                -- 123456789012345678901234      #19 = 25
 --#F0-#D4 = 240-212 = 28 = #1C
 --  interpreter &= repeat('\n',4-rmdr(length(interpreter),3))
-    interpreter &= repeat('\0',4-rmdr(length(interpreter),3))
+--  interpreter &= repeat('\0',4-rmdr(length(interpreter),3))
+    integer padding = 4-rmdr(length(interpreter),3)
+--  if padding then -- (will always be 1..4)
+        interpreter &= repeat('\0',padding)
+--  end if
     assert(remainder(length(interpreter),4)==0)
     assert(length(interpreter)=LEN_IZ)
     return interpreter
@@ -276,13 +316,14 @@ function make_string_table(sequence strings)
         string_table &= strings[i]&'\0'
     end for
 --?{"string_table_length:",length(string_table)}
-    integer padlen = rmdr(length(string_table),4)
+    integer stlen = length(string_table),
+           padlen = rmdr(stlen,4)
 --?{"padlen:",padlen}
     if padlen then
         string_table &= repeat('\0',4-padlen)
     end if
 --?{"string_table_length:",length(string_table)}
-    return {strpos,string_table}
+    return {strpos,string_table,stlen}
 end function
 
 function roundto(integer v, integer blocksize)
@@ -302,11 +343,9 @@ constant N = length(names),
          NZ = length(nameZ),
          LEN_STRTBL = length(string_table),
          LEN_STRTBLZ = length(string_Zable),
-         BPEH = BASE+EH_LEN,    -- #8034
-         PH_LEN = PH_SIZE*N_PH, -- #A0 (#20*5)
-         EPH5 = EH_LEN+PH_LEN,  -- #D4
+--       BPEH = BASE+EH_LEN,    -- #8034
 --       BPH5 = BPEH+EPH5       -- #80D4
-         BPH5 = BASE+EPH5,      -- #80D4
+--       BPH5 = BASE+EPH5,      -- #80D4
 --       WASE = #08048000,
 --       WASE = #00008000,
          WASE = #00000000,
@@ -317,10 +356,10 @@ constant N = length(names),
          STRTAB = HASH+N*20+32,
          RELPOS = STRTAB+LEN_STRTBL,
          RELSIZ = 3*8,
-         RELSIZZ = 3*8,
+--       RELSIZZ = 3*8,
 --       TXT_POS = RELPOS+RELSIZ,
          TXT_POS = roundto(RELPOS+RELSIZ,4),
-         BTXTPOS = BASE+TXT_POS,
+--       BTXTPOS = BASE+TXT_POS,
          DLI_POS = TXT_POS+TXT_LEN,
          DLI_ZPOS = EH_LEN+PH_LEN+LEN_IZ,   --#E8+8 = #F0
          BDLIZPOS = WASE+DLI_ZPOS,
@@ -333,7 +372,7 @@ constant N = length(names),
          BSYM_POSR = WASE+SYM_POS+4*#10+7*4+LEN_STRTBLZ+NZ*8,
          ZHASH = BSYM_POS+4*#10,
          STRZTAB = ZHASH+7*4,
-         RELPOZ = STRZTAB+LEN_STRTBLZ,
+--       RELPOZ = STRZTAB+LEN_STRTBLZ,
          SYM_LEN = #A4,  -- DEV: 4*#10(4 entries)+HASH_SIZ+STR_SIZ+RELOC_SIZ+RELOCS_SIZ
          DATA_POS = DLI_POS+DLI_LEN,
          DD_LEN = DLI_LEN+DATA_LEN,
@@ -489,23 +528,6 @@ The total cost of adding symbols would thus be
             ht = SetField(ht,(i+2)*4,DWORD,i)
         end for
 
---SUG:
-function SetField(string res, integer offset, dsize, atom v)
---
--- Break up v into dsize bytes (little endian) in res at offset.
---
--- res: should be a local string, res = SetField(res,...) for pbr.
--- offset: 0-based, adjusted here(+1) to index res.
--- dsize is BYTE(1), WORD(2), DWORD(4), or QWORD(8)[?]
--- v: does not distinguish between -1 and +4294967295, btw.
---
-    #isginfo{res,0b1000,MIN,MAX,integer,-2} -- (verify it's a [binary] string)
-    for i=1 to dsize do
-        res[offset+i] = and_bits(v,#FF)
-        v = floor(v/#100)
-    end for
-    return res
-end function
 --*/
     string {sym_ents,relocs} = sym_entries(nss)
     string symtab = binstr(1,D)&        -- nbucket
@@ -1392,10 +1414,807 @@ procedure recreate_ELF(string listing)
     end for
 end procedure
 
-recreate_ELF(`hw5.asm`)
+if 0 then
+    recreate_ELF(`hw5.asm`)
+end if
 --recreate_ELF(`hw5np.asm`) -- officially giving up on this one...
 --recreate_ELF(`hwZ.asm`)
 
+function ELF_HeaderS(integer e_entry)
+    -- at offset 0
+    string hdr = "\x7FELF"&         -- 00000000,ei_magic,x4,0x7F&"ELF",ELF signature
+                 x"01"&             -- 00000004,ei_class,1,1,32 bit
+                 x"01"&             -- 00000005,ei_data,1,1,little endian
+                 x"01"&             -- 00000006,ei_version,1,1,current
+                 x"00"&             -- 00000007,ei_osabi,1,0,System V
+                 x"00"&             -- 00000008,ei_abiversion,1,0,
+                 x"000000000000"&   -- 00000009,ei_pad,h6,000000000000h,
+                 x"00"&             -- 0000000F,ei_size,h1,00h,
+                 x"0300"&           -- 00000010,e_type,2,3,Shared object file
+                 binstr(EM_ARM,W)&  -- 00000012,e_machine,2,40,ARM
+                 x"01000000"&       -- 00000014,e_version,4,1,current
+                 binstr(e_entry,D)& -- 00000018,e_entry,h4,00000174h,ARM code
+                 binstr(EH_LEN,D)&  -- 0000001C,e_phoff,h4,00000034h,program header table
+                 x"00000000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+--               x"08040000"&       -- 00000020,e_shoff,h4,00000000h,section header table
+                 x"02000005"&       -- 00000024,e_flags,h4,05000002h,ABI version 5, EF_ARM_HASENTRY
+--               x"3400"&           -- 00000028,e_ehsize,h2,0034h,ELF header size
+                 binstr(EH_LEN,W)&  -- 00000028,e_ehsize,h2,0034h,ELF header size
+--               x"2000"&           -- 0000002A,e_phentsize,2,32,program header table entry size
+                 binstr(PH_SIZE,W)& -- 0000002A,e_phentsize,2,32,program header table entry size
+--               x"0100"&           -- 0000002C,e_phnum,2,1,number of program header entries
+                 binstr(N_PH,W)&    -- 0000002C,e_phnum,2,5,number of program header entries
+                 x"2800"&           -- 0000002E,e_shentsize,2,40,section header entry size
+                 x"0000"&           -- 00000030,e_shnum,2,0,number of section header entries
+--               x"0E00"&           -- 00000030,e_shnum,2,0,number of section header entries
+                 x"0000"            -- 00000032,e_shstrndx,2,0,section name string table index
+--               x"0D00"            -- 00000032,e_shstrndx,2,0,section name string table index
+--  hdr[#18+1..#1C] = int_to_bytes(#00008064,D)
+--  hdr[#18+1..#1C] = binstr(#00008064,D)
+--  hdr[#18+1..#1C] = binstr(e_entry,D)
+--/*
+    hdr[1..43] = {127,69'E',76'L',70'F',
+                    1,1,1,0,0,
+                    0,0,0,0,0,0,
+                    2,0,
+                    40,0,
+                    1,0,0,0,
+                    #63,#81,0,0,
+                    52,0,0,0,
+                    0,0,0,0,
+                    2,0,0,5,
+                    52,0,
+                    32,0}
+    hdr[44..51] = { 5,0,
+                    40,0,
+                    0,0,
+                    0,0}
+"Elf_Header:"
+{127,69'E',76'L',70'F',1,1,1,0,0,0,0,0,0,0,0,0,3,0,40'(',0,1,0,0,0,140,2,0,0,52'4',0,0,0,0,0,0,0,2,0,0,5,52'4',0,32' ',0,5,0,40'(',0,0,14,0,13}
+{127,69'E',76'L',70'F',1,1,1,0,0,0,0,0,0,0,0,0,3,0,40'(',0,1,0,0,0,140,2,0,0,52'4',0,0,0,8,4,0,0,2,0,0,5,52'4',0,32' ',0,5,0,40'(',0,14,0,13,0}
+
+?"Elf_Header:"
+?hdr
+?
+x"7F454C46 01010100  00000000 00000000"& -- 00000000  *⌂ELF............*
+x"03002800 01000000  8C020000 34000000"& -- 00000010  *..(.....î...4...*
+x"08040000 02000005  34002000 05002800"& -- 00000020  *........4. ...(.*
+x"0E000D00"                              -- 00000030  *....*
+--*/
+    assert(length(hdr)==EH_LEN)
+    return hdr
+end function
+
+--DEV part of pttree:
+-- Nah, use strings...
+--/*
+enum T_adc, T_add, T_and, T_bic, T_cmn, T_cmp, T_eor, T_mov, 
+     T_mvn, T_orr, T_rsb, T_rsc, T_sbc, T_sub, T_teq, T_tst
+constant T_and_to_mvn = {T_and,T_eor,T_sub,T_rsb,T_add,T_adc,T_sbc,T_rsc,
+                         T_tst,T_teq,T_cmp,T_cmn,T_orr,T_mov,T_bic,T_mvn}
+
+enum T_r0,T_r1,T_r2,T_r3,T_r4,T_r5,T_r6,T_r7,T_r8,T_r9,T_r10,
+     T_fp,T_ip,T_sp,T_lr,T_p c
+constant T_r0_to_pc = {T_r0,T_r1,T_r2,T_r3,T_r4,T_r5,T_r6,T_r7,
+                       T_r8,T_r9,T_r10,T_fp,T_ip,T_sp,T_lr,T_pc}
+
+enum T_al, T_cc, T_cs, T_eq, T_ge, T_gt, T_hi, T_hs, T_le, 
+     T_lo, T_ls, T_lt, T_mi, T_ne, T_nv, T_pl, T_vc, T_vs
+constant ccs = {T_eq,T_ne,T_hs,T_lo,T_mi,T_pl,T_vs,T_vc,
+                T_hi,T_ls,T_ge,T_lt,T_gt,T_le,T_al,T_nv, T_cs, T_cc}
+--*/
+-- smlal, teq
+-- no trailing s on f*, b[l|x], cmn/cmp/teq/tst, push/pop, ldr,str[b[t]|h|s[b|h]|t], ldm/stm[cc](d|i)(a|b), swi, [Xswp[b]X]
+
+constant arm_and_to_ldr = {"and","eor","sub","rsb","add","adc","sbc","rsc",
+                           "tst","teq","cmp","cmn","orr","mov","bic","mvn","ldr"}
+--,
+--       arm_mov = 0b1101,
+--       arm_mvn = 0b1111
+
+constant arm_ccs = {"eq","ne","hs","lo","mi","pl","vs","vc",
+                    "hi","ls","ge","lt","gt","le","al","nv",
+                              "cs","cc"} -- (== hs,lo)
+
+constant arm_regs = {"r0","r1","r2","r3","r4","r5","r6","r7",
+                     "r8","r9","r10","fp","ip","sp","lr","pc"}
+
+constant sys_regs = {"sys_exit",2,3,"sys_write"}
+--constant RL = 0
+
+function ARM_conds(string conds)
+    integer cond = 0b1110, -- default to always
+               s = 0
+    if length(conds)>1 then
+        cond = find(conds[1..2],arm_ccs)-1
+        assert(cond>=0)
+        if cond>15 then cond -= 14 end if -- map cs,cc to hs,lo
+        conds = conds[3..$] 
+    end if
+    if length(conds) then
+        assert(conds = "s") 
+        s = 1
+    end if
+    return {cond,s}
+end function
+
+function ARM_reg_list(string regs)
+-- placeholder: eg "push r3" shd also be fine...
+    assert(regs[1]=='{' and regs[$]=='}')
+    integer res = 0
+    for r in split(regs[2..-2],',') do
+        integer k = find(r,arm_regs)
+        assert(k)
+        res += power(2,k-1)
+    end for
+    return res
+end function
+
+function ARM_barrel(sequence s)
+    integer ooo = 0b000, barrel
+    if find(s[1][1],"rfislp") then
+        -- reg [with optional rotate]
+--?{s,s[1],arm_regs,find(s[1],arm_regs)}
+        integer Rm = find(s[1],arm_regs)-1
+        assert(Rm>=0)
+--temp:
+        assert(length(s)=1) -- placeholder
+        barrel = Rm
+    elsif s[1][1]='\'' then
+        s = split(s[1],' ')
+        assert(s[1][$]='\'')
+        string s1 = s[1][2..-2]
+        if length(s1)=2 then -- escaped chars, eg \n
+            assert(s1[1]=='\\')
+            barrel = "\n\r\t\b\"\'\\\0"[find(s1[2],`nrtb"'\0`)]
+        else
+            assert(length(s1)==1) -- placeholder, allow eg \n here...
+            barrel = s1[1]
+        end if
+        ooo = 0b001
+        if length(s)!=1 then
+            assert(length(s)==3) -- eg s == {`'+'`,`shl`,`8`}
+            assert(s[2]="shl") -- placeholder...?
+            integer chrot = to_number(s[3])
+            assert(even(chrot))
+            -- to match as:
+--?{barrel, chrot}
+                while barrel and and_bits(barrel,3)=0 do
+                    chrot += 2
+                    barrel /= 4
+                end while
+--?{barrel, chrot}
+            barrel += (32-chrot)*#80
+        end if
+    else
+        -- literal [with optional rotate]
+        assert(length(s)=1)
+        ooo = 0b001
+        atom lit8 = to_number(s[1]) -- (tcf on error is deliberate!)
+        if and_bits(lit8,#FF)!=lit8 then
+--[DONE] cleanup and permit other rotates... [if ever actually needed, that is] 
+--/*
+            if and_bits(lit8,#FF00)=lit8 then
+                lit8 /= #100
+                lit8 += 12*#100 -- 24 bit rotate
+            elsif and_bits(lit8,#FF0000)=lit8 then
+                lit8 /= #10000
+                lit8 += 8*#100 -- 16 bit rotate
+            elsif and_bits(lit8,#FF000000)=lit8 then
+                lit8 /= #1000000
+                lit8 += 4*#100 -- 8 bit rotate
+            else
+--              ?"9/0 line 1568"
+                ?9/0
+            end if
+--*/ -- I might go back to the above... or hybrid aka if we need 3(/same number of) orr, use the sensible ones.
+            -- (this seems to match what "as" does, on a ten+year old Rasperry Pi emulator anyway)
+            integer rot = 32
+            while and_bits(lit8,3)=0 do
+                rot -= 2
+                lit8 /= 4
+            end while
+            assert(and_bits(lit8,#FF)==lit8)
+            lit8 += rot*#80
+        end if
+        assert(and_bits(lit8,#0FFF)==lit8)
+        barrel = lit8
+    end if
+    return {ooo,barrel}
+end function
+
+function ARM_assemble(string code)
+    -- NB coded entirely in an ad-hoc/as needed fashion...
+
+    -- code has already been stripped of any comments
+    -- first trim away any comments:
+--  code = trim(code[1..match_any({"--","//",";"},code)-1])
+
+    integer k = find(' ',code)
+    string op = code[1..k-1]
+    integer opc = find(op,{"push","pop"})
+    if opc then
+        -- (assuming cond of always)
+        return #E00D_0000+{#92,#8B}[opc]*#100000+ARM_reg_list(code[k+1..$])
+    end if
+    sequence regs = apply(split(code[k+1..$],','),trim)
+    opc = iff(k<4?0:find(op[1..3],arm_and_to_ldr))-1
+    if opc>=0 then
+        -- data processing and mov:
+        integer cond = 0b1110, -- default to always
+                   s = 0, ooo, barrel,
+                  Rn = 0,
+                  Rd = find(regs[1],arm_regs)-1
+        assert(Rd>=0)
+        if k>4 then
+            {cond,s} = ARM_conds(op[4..$])
+            op = op[1..3] -- (cosmetic)
+        end if
+        regs = regs[2..$]
+        if opc=16 then -- ldr
+            assert(length(regs)=1) -- placeholder?
+            string r1 = regs[1]
+            assert(r1[1]='[' and r1[$]=']')
+            r1 = r1[2..-2]
+            barrel = 0
+            -- aside: U (0b0100) don't rightly matter when offset is 0...
+            --        this seems to match "as" on Pi emulator from 2012..
+            opc = 0b1100
+            k = find_any("+-",r1)
+            if k then
+                if r1[k]='-' then opc -= 0b0100 end if
+                barrel = to_number(r1[k+1..$]) -- (always unsigned, with sep U flag)
+                r1 = r1[1..k-1]
+            end if
+            Rn = find(r1,arm_regs)-1
+            assert(Rn>=0)
+            ooo = 0b010
+            s = 1
+        else
+            if and_bits(opc,0b1101)!=0b1101 then -- not mov/mvn
+                if length(regs)=2 then
+                    Rn = find(regs[1],arm_regs)-1
+                    regs = regs[2..$]
+                else
+                    Rn = Rd
+                end if
+            end if
+            {ooo,barrel} = ARM_barrel(regs)
+        end if
+        return cond*#1000_0000
+              + ooo*#0200_0000
+              + opc*#0020_0000
+              +   s*#0010_0000
+              +  Rn*#0001_0000
+              +  Rd*#0000_1000
+              + barrel
+    elsif op="bx"
+       or op="blx" then
+        -- (assuming cond of always) -- DEV...
+        -- 1110_0001_0010_1111_1111_1111_00L1_0010
+        -- cond ----------fixed--------- ^blx -Rm-
+        assert(length(regs)=1)
+        integer Rm = find(regs[1],arm_regs)-1
+        assert(Rm>=0) -- placeholder...
+        assert(regs[1]!="pc") -- (an illegal instruction)
+        return #E12FFF00+iff(op="bx"?#10:#30)+Rm
+    elsif op="swi" then
+        -- (assuming cond of always)
+        assert(length(regs)==1)
+        k = find(regs[1],sys_regs)
+        if k then
+            k += #900000
+        else
+            k = to_number(regs[1])
+        end if
+        return #EF000000+k
+    end if
+--fail/not yet written:
+?{code,op,regs,opc}
+    return 0
+end function
+
+procedure ARM_assemble_test(string code, atom expected)
+
+    -- first trim away any comments:
+--  code = trim(code[1..match_any({"--","//",";"},code)-1])
+
+    atom actual = ARM_assemble(code)
+    if actual=expected then
+--      printf(1,"%s: %08x (good)\n",{code,actual})
+--      printf(1,"%s (good):\n expected: %_032b,\n   actual: %_032b\n",{code,expected,actual})
+    else
+        printf(1,"%s BAD:\n expected: %_032b,\n   actual: %_032b\n",{code,expected,actual})
+--/*
+mov r3,50: E3A03032 (good)
+mov r3,#32: E3A03032 (good)
+mov r3,0b110010: E3A03032 (good)
+orr r3,11008: E3833C2B (good)
+orr r3,#2B00: E3833C2B (good)
+orr r3,0b10101100000000: E3833C2B (good)
+orr r3,3276800: E3833832 (good)
+orr r3,#320000: E3833832 (good)
+orr r3,0b1100100000000000000000: E3833832 (good)
+orr r3,1023410176: E383343D (good)
+orr r3,#3D000000: E383343D (good)
+orr r3,0b111101_0000_0000_0000_0000_0000_0000: 0b11100011100000110011_0100_0011_1101 (good)
+mov r4,37: E3A04025 (good)
+mov r4,#25: E3A04025 (good)
+-- (we can live with this one..., I think, rotate 22 vs rotate 24) [NOW "FIXED"]
+orr r4,25600 BAD:
+orr r4,#6400 BAD:
+orr r4,0b1100100_0000_0000 BAD:
+ expected: 1110_0011_1000_0100_0100_1011_0001_1001,
+   actual: 1110_0011_1000_0100_0100_1100_0110_0100
+                ooo     s -rn- -rd- rrrr
+                   -opc-    
+--ARM_assemble_test("orr r4,25600",#E3844B19)
+--ARM_assemble_test("orr r4,#6400",#E3844B19)
+--ARM_assemble_test("orr r4,0b0110_0100_0000_0000",#E3844B19)
+
+orr r4,655360: E384480A (good)
+orr r4,167772160: E384440A (good)
+push {r3,r4}: E92D0018 (good)
+mov r0, 1: E3A00001 (good)
+mov r1, sp: E1A0100D (good)
+mov r2, 8: E3A02008 (good)
+swi 9437188: EF900004 (good)
+mov r0, sp: E1A0000D (good)
+mov r1, 4: E3A01004 (good)
+ldr r2, [pc-72]: E51F2048 (good)
+ldr r2, [r2]: E5922000 (good)
+mov lr, pc: E1A0E00F (good)
+bx r2: E12FFF12 (good)
+mov r0, 0: E3A00000 (good)
+swi #900001: EF900001 (good)
+
+ldr r2, [pc-72]: [FIXED, but keeping just in case]
+ expected: 1110_0101_0001_1111_0010_0000_0100_1000,
+   actual: 1110_0101_0001_0010_0001_1111_1011_1000
+           cond 0101 000S -Rn- -Rd-  
+--*/
+    end if
+end procedure
+
+function ELF_text_segment7S(integer n_relocs)
+    string text = repeat('\0',n_relocs*D)
+--  for v in relocs do
+--      text &= binstr(v,D)         -- (eg) iAdrPrntf: .int prntf
+--  end for
+--                binstr(BDSZ_POS+4,D)&     -- iAdrFmt: .int format
+
+--/*
+                x"3030A0E3"& -- mov r3, 48  -- = 0x30 ('0')
+                x"313C83E3"& -- orr r3, 12544  -- = 0x3100 (rotate=1100)
+                x"323883E3"& -- orr r3, 3276800 -- = 0x320000 (rotate=1000)
+                x"333483E3"& -- orr r3, 855638016  -- = 0x33000000 (rotate=0100)
+                x"3440A0E3"& -- mov r4, 52  -- = 0x34 ('4')
+                x"354C84E3"& -- orr r4, 13568  -- = 0x3500 (rotate=1100)
+                x"364884E3"& -- orr r4, 3538944 -- = 0x360000 (rotate=1000)
+                x"0A4484E3"& -- orr r4, 167772160  -- = 0xA000000 (rotate=0100)
+                x"18002DE9"& -- push {r3,r4}
+                x"0D10A0E1"& -- mov r1, sp
+                x"0820A0E3"& -- mov r2, 8
+                x"040090EF"& -- swi 9437188 -- #900004, sys_write
+                x"2A00A0E3"& -- mov r0, 42  -- = 0x2A ('*')
+                x"010090EF"  -- swi 9437185 -- #900001, sys_exit
+{43'+',8}
+{49195,8}
+{0b1100000000101011,8}
+orr r3,'+' shl 8 BAD:
+ expected: 1110_0011_1000_0011_0011_1100_0010_1011,
+   actual: 1110_0011_1000_0011_1111_0000_0010_1011
+{{33304},33304}
+{368,368,16}
+Test file `E:\downloads\misc\wren\qemu\putty\hw5s` written
+"done"
+
+--&repeat('\0',13*4)
+--&repeat('\0',5*4)
+&repeat('\0',7*4)
+--*/
+--printf(1,"%08x,%08x\n",{#3230A0E3, ARM_assemble({T_mov,RL,T_r3,50})})
+--printf(1,"%032b,%032b\n",{#3230A0E3, ARM_assemble({T_mov,0,RL,T_r3,50})})
+--printf(1,"%032b,%032b\n",{#3230A0E3, ARM_assemble("mov r3,50")})
+--printf(1,"%032b,\n%032b\n",{#E3A03032, ARM_assemble("mov r3,50")})
+ARM_assemble_test("mov r3,50",#E3A03032)
+ARM_assemble_test("mov r3,'2'",#E3A03032) -- good
+ARM_assemble_test("orr r3,11008",#E3833C2B)
+ARM_assemble_test("orr r3,'+' shl 8",#E3833C2B) -- good
+ARM_assemble_test("orr r3,3276800",#E3833832)
+ARM_assemble_test("orr r3,'2' shl 16",#E3833832) -- good
+ARM_assemble_test("orr r3,1023410176",#E383343D)
+ARM_assemble_test("orr r3,#3D000000",#E383343D)
+ARM_assemble_test("orr r3,'=' shl 24",#E383343D) -- good
+ARM_assemble_test("mov r4,37",#E3A04025)
+ARM_assemble_test("mov r4,'%'",#E3A04025)
+ARM_assemble_test("orr r4,25600",#E3844B19) -- (different but acceptable rotate, I think) [FIXED]
+--/*
+orr r4,'d' shl 8 BAD:
+ expected: 1110_0011_1000_0100_0100_1011_0001_1001,
+   actual: 1110_0011_1000_0100_0100_1100_0110_0100
+--   actual: 0b1110_0011_1000_0100_0100_1100_0110_0100
+   actual: #E3844C64
+--*/
+ARM_assemble_test("orr r4,'d' shl 8",#E3844B19) --  [this one now passes]
+--ARM_assemble_test("orr r4,'d' shl 8",#E3844C64) -- (different but acceptable rotate, I think) --
+--ARM_assemble_test("orr r4,25600",#E3844C64) -- (good, now see if it still works...) Nah, go with the quick fix, at least for now
+--ARM_assemble_test("orr r4,#6400",#E3844B19)
+--ARM_assemble_test("orr r4,0b0110_0100_0000_0000",#E3844B19)
+ARM_assemble_test("orr r4,655360",#E384480A)
+-- works for all the wrong reasons!
+--ARM_assemble_test("orr r4,'\n' shl 16",#E384480A)
+ARM_assemble_test(`orr r4,'\n' shl 16`,#E384480A)
+ARM_assemble_test("orr r4,167772160",#E384440A)
+ARM_assemble_test("push {r3,r4}",#E92D0018)
+ARM_assemble_test("mov r0, 1",#E3A00001)
+ARM_assemble_test("mov r1, sp",#E1A0100D)
+ARM_assemble_test("mov r2, 8",#E3A02008)
+ARM_assemble_test("swi 9437188",#EF900004)
+ARM_assemble_test("mov r0, sp",#E1A0000D)
+ARM_assemble_test("mov r1, 4",#E3A01004)
+ARM_assemble_test("ldr r2, [pc-72]",#E51F2048)
+ARM_assemble_test("ldr r2, [r2]",#E5922000)
+ARM_assemble_test("mov lr, pc",#E1A0E00F)
+ARM_assemble_test("bx r2",#E12FFF12)
+ARM_assemble_test("blx r4",#E12FFF34)
+ARM_assemble_test("mov r0, 0",#E3A00000)
+ARM_assemble_test("swi #900001",#EF900001)
+ARM_assemble_test("swi sys_exit",#EF900001)
+--/*
+0000013C,0000813C,h4,E12FFF34h,blx r4
+
+@   blx r4                               @ call of the function to be measured
+0000013C,0000813C,h4,E12FFF34h,teq pc, r4, lsr pc
+0000013C,0000813C,h4,0b1110_0001_0010_1111_1111_1111_0011_0100,teq pc, r4, lsr pc
+                       cond -- bx --- -----SBO------ -o2- -Rm-
+0000013C,0000813C,h4,0b1110_0001_0010_1111_1111_1111_0001_0100,bx r4
+(#E12FFF14)
+00000140,s!=1,,,
+
+--*/
+--pp({x"3230A0E3",binstr(#3230A0E3,D)}) -- wrong way round!
+--pp({x"3230A0E3",binstr(#E3A03032,D)}) -- right way round!
+--/*
+--  text &= x"3230A0E3"& -- mov r3, 50  -- = 0x32 ('2')
+    text &= binstr(ARM_assemble("mov r3, 50 -- = 0x32 ('2')"),D)&
+            x"2B3C83E3"& -- orr r3, 11008  -- = 0x2B00 (rotate=1100)
+            x"323883E3"& -- orr r3, 3276800 -- = 0x320000 (rotate=1000)
+            x"3D3483E3"& -- orr r3, 1023410176  -- = 0x3D000000 (rotate=0100)
+            x"2540A0E3"& -- mov r4, 37  -- = 0x25 ('%')
+            x"194B84E3"& -- orr r4, 25600  -- = 0x6400 (rotate=1011)
+--          x"644C84E3"& -- orr r4, 25600  -- = 0x6400 (rotate=1011)
+            x"0A4884E3"& -- orr r4, 655360  -- = 0xA0000 (rotate=1000)
+            x"0A4484E3"& -- orr r4, 167772160  -- = 0xA000000 (rotate=0100)
+            x"18002DE9"& -- push {r3,r4}
+            x"0100A0E3"& -- mov r0, 1
+            x"0D10A0E1"& -- mov r1, sp
+            x"0820A0E3"& -- mov r2, 8
+            x"040090EF"& -- swi 9437188 -- #900004, sys_write
+            x"0D00A0E1"& -- mov r0, sp
+            x"0410A0E3"& -- mov r1, 4
+            x"48201FE5"& -- ldr r2, [pc-72] -- (#00000170)
+            x"002092E5"& -- ldr r2, [r2]
+            x"0FE0A0E1"& -- mov lr, pc
+            x"12FF2FE1"& -- bx r2
+            x"0000A0E3"& -- mov r0, 0
+            x"010090EF"  -- swi 9437185 -- #900001, sys_exit
+-- to do:
+    adr r0,mult                           @ function address to measure
+0000009C,0000809C,h4,E28F0050h,add r0, pc, 80  -- = 0x50 ('P')
+lea r0,[pc+80]
+lea r0,[:mult]
+::mult
+
+--*/
+    string code = """
+mov r3,'2'
+orr r3,'+' shl 8
+orr r3,'2' shl 16
+orr r3,'=' shl 24
+mov r4,'%'
+orr r4,'d' shl 8
+orr r4,'\n' shl 16
+orr r4,'\n' shl 24
+push {r3,r4}
+mov r0, 1
+mov r1, sp
+mov r2, 8
+swi sys_write
+mov r0, sp
+mov r1, 4
+ldr r2, [pc-72] -- (#00000170)
+ldr r2, [r2]
+mov lr, pc
+bx r2   -- call printf()
+mov r0, 0
+swi sys_exit
+"""
+    for line in split(code,'\n') do
+        -- first trim away any comments:
+        line = trim(line[1..match_any({"--","//",";"},line)-1])
+        if length(line) then
+            text &= binstr(ARM_assemble(line),D)
+        end if
+    end for
+
+--  assert(length(text)=TXZ_LEN)
+
+    return text
+end function
+
+function ELF_hash_table(integer nchain)
+    string hash_table = binstr(     1,D)&   -- nbucket
+                        binstr(nchain,D)&   -- nchain
+                        binstr(     0,D)    -- bucket[0]
+    for i=1 to nchain-1 do
+          hash_table &= binstr(     i,D)    -- chain[0..n-2]
+    end for
+          hash_table &= binstr(     0,D)    -- chain[n-1]
+    return hash_table
+end function
+
+function ELF_symbol_table(sequence strpos, relocs)
+    string sym_ents = repeat('\0',ST_LEN)   -- symtab[0]
+
+    sym_ents &= binstr(0,D)&                -- st_name 
+                binstr(EPH5,D)&             -- st_value (interpreter)
+                binstr(0,D)&                -- st_size
+                binstr(ST_LOCSEC,B)&        -- st_info
+                binstr(0,B)&                -- st_other
+                binstr(strpos[1],W)         -- st_shndx
+
+    for i,r in relocs do
+        sym_ents &= binstr(0,D)&            -- st_name 
+                    binstr(r,D)&            -- st_value (eg printf reloc @ end of data segment...)
+                    binstr(0,D)&            -- st_size
+                    binstr(ST_LOCSEC,B)&    -- st_info
+                    binstr(0,B)&            -- st_other
+                    binstr(strpos[i+1],W)   -- st_shndx
+    end for
+
+    for n in strpos from 2 do
+        sym_ents &= binstr(n,D)&            -- st_name 
+                    binstr(0,D)&            -- st_value (printf reloc @ end of data segment...)
+                    binstr(0,D)&            -- st_size
+                    binstr(ST_GLBFUN,B)&    -- st_info
+                    binstr(0,B)&            -- st_other
+                    binstr(0,W)             -- st_shndx
+    end for
+
+    return sym_ents
+end function
+
+function ELF_reloc_table(sequence relocs)
+
+
+--  for i=1 to length(names) do
+--      string name = names[i]
+--      integer k = find(name,strings),
+--              offset = strpos[k]
+--      sym_ents &= binstr(offset,D)&       -- st_name
+--                  binstr(0,D)&            -- st_value
+--                  binstr(0,D)&            -- st_size
+--                  binstr(ST_GLBFUN,B)&    -- st_info
+--                  binstr(0,B)&            -- st_other
+--                  binstr(0,W)             -- st_shndx
+--  end for
+--  assert(length(sym_ents)=length(names)*#10)
+--  integer {nt,nd} = rinfo
+--  integer N = length(names)
+--  integer {nt,nd} = {2,N}
+--          text_pos = TXT_POS = EPH5+LEN_IS+LEN_ST
+
+--/*
+0000026C,relocation offset, h4,00000284h,DT_REL [#0000026C]                             -- ie text[0]
+00000270,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+00000274,relocation offset, h4,00000288h,                                               -- ie text[4]
+00000278,r_info,            h4,00000017h,R_386_PC8, symtab[0]=DT_SYMTAB [#00000130]
+0000027C,relocation offset, h4,00008360h,                                               -- ie data[0]
+00000280,r_info,            h4,00000102h,R_386_PC32, symtab[1]=printf
+--*/
+    string relocstr = ""
+--if nt!=0 then -- used in lieu of a (not) bZ...
+--  for i=1 to nt do
+--      relocs &= binstr(TXT_POS+i*4-4,D)&binstr(R_386_PC8,D)
+        relocstr &= binstr(#170,D)&binstr(R_386_PC8,D)
+--      relocs &= binstr(text_pos)&binstr(R_386_PC8)
+--      text_pos += 4
+--  end for
+--  for i=1 to nd do
+--      relocs &= binstr(BASE+DATA_POS+i*4-4,D)&binstr(i*#100+R_386_PC32,D)
+-- symtab[3]...
+--      relocs &= binstr(#8218,D)&binstr(3*#100+R_386_PC32,D)
+    for i,r in relocs do
+        relocstr &= binstr(r,D)&
+                    binstr((i+2)*#100+R_386_PC32,D)
+--      relocs &= binstr(BASE+data_pos,D)&binstr(i*#100+R_386_PC32,D)
+--      data_pos += 4
+    end for
+--  assert(length(res)=LEN_ST)
+--  assert(length(relocs)=RELSIZ)
+--else
+--?9/0
+--  assert(BSYM_POSR=BDSZ_POS-12)
+--  for i=1 to nd do
+----        relocs &= binstr(BSYM_POSR+i*4-4,D)&binstr(i*#100+R_386_32,D)
+--      relocs &= binstr(BSYM_POSR+i*4-4,D)&binstr(i*#100+R_ARM_ABS32,D)
+--  end for
+--  relocs &= repeat('\0',nd*4)
+--end if
+--  return {sym_ents,relocs}
+--/*
+000001B8,relocation offset,h4,080481D0h,DT_REL [#080481B8]          -- to change [+8, different offset]
+000001BC,r_info,h4,00000101h,R_386_32, symtab[1]=mallopt
+000001C0,relocation offset,h4,080481D4h,                            -- to change [+8, different offset]
+000001C4,r_info,h4,00000201h,R_386_32, symtab[2]=malloc
+000001C8,relocation offset,h4,080481D8h,                            -- to change [+8, different offset]
+000001CC,r_info,h4,00000301h,R_386_32, symtab[3]=printf
+,-,,,
+,--relocs--,,,
+000001D0,reloc[1] (#080481D0),-,00000000 ,....
+000001D4,reloc[2] (#080481D4),-,00000000 ,....
+000001D8,reloc[3] (#080481D8),-,00000000 ,....
+
+--*/
+--end function
+
+--/*
+Symtab
+======
+,--Symtab--,,,
+00000138,st_name[0],h4,00000000h,DT_SYMTAB [#08048138]
+0000013C,st_value,h4,00000000h,
+00000140,st_size,4,0,
+00000144,st_info,h1,00h,
+00000145,st_other,h1,00h,(should be 0)
+00000146,st_shndx,h2,0000h,
+,-,,,
+00000148,st_name[1],h4,0000000Bh,mallopt
+0000014C,st_value,h4,00000000h,
+00000150,st_size,4,0,
+00000154,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000155,st_other,h1,00h,(should be 0)
+00000156,st_shndx,h2,0000h,
+,-,,,
+00000158,st_name[2],h4,00000013h,malloc
+0000015C,st_value,h4,00000000h,
+00000160,st_size,4,0,
+00000164,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000165,st_other,h1,00h,(should be 0)
+00000166,st_shndx,h2,0000h,
+,-,,,
+00000168,st_name[3],h4,0000001Ah,printf
+0000016C,st_value,h4,00000000h,
+00000170,st_size,4,0,
+00000174,st_info,h1,12h,STB_GLOBAL, STT_FUNC
+00000175,st_other,h1,00h,(should be 0)
+00000176,st_shndx,h2,0000h,
+,-,,,
+,--Hash--,,,
+00000178,nbucket,4,     1,DT_HASH [#08048178]
+0000017C,nchain,4,      4,(also defines DT_SYMTAB size)
+00000180,bucket[0],4,   0,
+00000184,chain[0],4,    1,
+00000188,chain[1],4,    2,
+0000018C,chain[2],4,    3,
+00000190,chain[3],4,    0,
+,-,,,
+,--Strings--,,,
+00000194,08048194,-,00,.
+00000195,08048195,-,6C6962 632E736F 2E3600,libc.so.6.
+0000019F,0804819F,-,6D 616C6C6F 707400,mallopt.
+000001A7,080481A7,-,6D 616C6C6F 6300,malloc.
+000001AE,080481AE,-,7072 696E7466 00000000 ,printf....
+,-,,,
+,--Relocations--,,,
+000001B8,relocation offset,h4,080481D0h,DT_REL [#080481B8]          -- to change [+8, different offset]
+000001BC,r_info,h4,00000101h,R_386_32, symtab[1]=mallopt
+000001C0,relocation offset,h4,080481D4h,                            -- to change [+8, different offset]
+000001C4,r_info,h4,00000201h,R_386_32, symtab[2]=malloc
+000001C8,relocation offset,h4,080481D8h,                            -- to change [+8, different offset]
+000001CC,r_info,h4,00000301h,R_386_32, symtab[3]=printf
+,-,,,
+,--relocs--,,,
+000001D0,reloc[1] (#080481D0),-,00000000 ,....
+000001D4,reloc[2] (#080481D4),-,00000000 ,....
+000001D8,reloc[3] (#080481D8),-,00000000 ,....
+--*/
+--  return symtab
+    return relocstr
+end function
+
+procedure SELF()
+    string testfile = `E:\downloads\misc\wren\qemu\putty\hw5s`
+    integer fn = open(testfile,`wb`)
+    sequence strings = {"libc.so.6","printf"}
+    {sequence strpos, string string_table, integer str_len} = make_string_table(strings)
+--DEV probably easier to create then backpatch...
+    integer nchain = 4, -- (DEV...)
+          n_relocs = 1,
+         reloc_len = (n_relocs+1)*REL_LEN,
+          hash_len = (nchain+3)*4,
+          hash_pos = EPH5+LEN_IS,
+--         str_pos = #14C
+        string_len = length(string_table),
+            symlen = hash_len+nchain*ST_LEN+string_len+reloc_len,
+           sym_pos = hash_pos+hash_len,
+           str_pos = sym_pos+nchain*ST_LEN,
+         reloc_pos = str_pos+string_len
+
+    string dynamic_info = binstr(DT_NEEDED,D)   & binstr(strpos[1],D)&
+                          binstr(DT_HASH,  D)   & binstr(hash_pos,D)&
+                          binstr(DT_STRTAB,D)   & binstr(str_pos,D)&
+                          binstr(DT_SYMTAB,D)   & binstr(sym_pos,D)&
+                          binstr(DT_STRSZ, D)   & binstr(str_len,D)&
+                          binstr(DT_SYMENT,D)   & binstr(ST_LEN,D)&
+                          binstr(DT_REL,   D)   & binstr(reloc_pos,D)&
+                          binstr(DT_RELSZ, D)   & binstr(reloc_len,D)&
+                          binstr(DT_RELENT,D)   & binstr(REL_LEN,D)&
+                          binstr(DT_TEXTREL,D)  & binstr(NULL,D)
+
+    integer    ln4 = (length(strings)-1)*4, -- (cse)
+        code_start = hash_pos+symlen,
+           dli_len = length(dynamic_info),
+          data_len = dli_len+ln4,
+$
+--DEV... or {EPH5,#8218}
+    sequence relocs = {#8218}
+--           relocs = {data_virt+dli_len}
+    string hash_table = ELF_hash_table(nchain),
+         symbol_table = ELF_symbol_table(strpos, relocs),
+          reloc_table = ELF_reloc_table(relocs),
+               symtab = hash_table & symbol_table & string_table & reloc_table,
+         code_segment = ELF_text_segment7S(n_relocs)
+--binstr(atom v, integer l)
+    assert(length(hash_table)=hash_len)
+    assert(length(symtab)=symlen)
+--?{#174,hash_pos+length(symtab)+4,#170}
+    integer 
+               e_entry = code_start+ln4,
+              code_end = code_start+length(code_segment), -- == data_start
+             data_virt = code_end+BASE,
+             basealign = BASE
+--           reloc_len = length(reloc_table)
+?{relocs,data_virt+dli_len}
+?{#170,code_start,reloc_len}
+    code_segment = SetField(code_segment, 0, D, data_virt+dli_len)
+--?{symlen,hash_len+nchain*ST_LEN+string_len+reloc_len}
+
+    puts(fn,ELF_HeaderS(e_entry))
+    sequence ph = {{PT_PHDR,      EH_LEN,   EH_LEN,   EH_LEN,   PH_LEN,   PH_LEN, PF_RX, #00000004},
+                   {PT_INTERP,      EPH5,     EPH5,     EPH5,   IS_LEN,   IS_LEN, PF_R,  #00000001},
+                   {PT_LOAD,   #00000000,#00000000,#00000000, code_end, code_end, PF_RX, basealign},
+                   {PT_LOAD,    code_end,data_virt,data_virt, data_len, data_len, PF_RW, basealign},
+                   {PT_DYNAMIC, code_end,data_virt,data_virt,  dli_len,  dli_len, PF_RW, #00000004}}
+    assert(length(ph)==N_PH)
+
+    puts(fn,ELF_program_headers(ph))
+--/!*
+
+    puts(fn,interpreter_segment)
+--  puts(fn,ELF_symtabZS(nzz, string_Zable))
+--  puts(fn,ELF_symtabZS())
+    puts(fn,symtab)
+    puts(fn,code_segment)
+-- DEV up two? - NAH, no gain that I can think of
+    puts(fn,dynamic_info)
+--*!/
+
+--printf(1,"After ELF_Dynamic_Link_Info:%x\n",where(fn))
+--  puts(fn,ELF_symtab(nss, string_table))
+--printf(1,"After ELF_symtab:%x\n",where(fn))
+--  puts(fn,ELF_data_segment())
+    puts(fn,"\0\0\0\0")
+--printf(1,"After ELF_data_segment:%x\n",where(fn))
+--  puts(fn,ELF_text_segment(true))
+
+--...
+
+    close(fn)
+    printf(1,"Test file `%s` written\n",{testfile})
+end procedure
+SELF()
 
 ?"done"
 wait_key()
@@ -2125,11 +2944,11 @@ Symtab
 00000280,00000280,-,02030000 ,....
 .text
 =====
-00000284,00000284,-,60830000 64830000 ,....d...
+00000284,00000284,-,60830000 64830000 ,....d... (data[0] [a reloc], data[4] [a string])
 0000028C,0000028C,h4,E92D4800h,push {fp,lr}
-00000290,00000290,h4,E51F0010h,ldr r0, [pc-16] -- (#00000288)
+00000290,00000290,h4,E51F0010h,ldr r0, [pc-16] -- (#00000288) [address of string]
 00000294,00000294,h4,E3A0107Ch,mov r1, 124  -- = 0x7C ('|')
-00000298,00000298,h4,E51F201Ch,ldr r2, [pc-28] -- (#00000284)
+00000298,00000298,h4,E51F201Ch,ldr r2, [pc-28] -- (#00000284) [address of reloc]
 0000029C,0000029C,h4,E5922000h,ldr r2, [r2]
 000002A0,000002A0,h4,E1A0E00Fh,mov lr, pc
 000002A4,000002A4,h4,E12FFF12h,bx r2
@@ -2186,7 +3005,7 @@ Dynamic Link Info
 00000354,00008354,-,B4820000 00000000 00000000 ,............
 .data
 =====
-00000360,00008360,-,00000000                            ,....
+00000360,00008360,-,00000000                            ,.... (will become printf)
 00000364,00008364,-,54686520 72657375 6C742069          ,The result i
 00000370,00008370,-,733A2025 640A                       ,s: %d.
 .ARM.attributes

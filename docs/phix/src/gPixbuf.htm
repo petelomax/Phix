@@ -1,0 +1,796 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gPixbuf</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+          include theGUI.e
+          <br>
+          <br>
+          <a href>gdp</a>
+                                pid = gPixbuf(<a href>integer</a> w, h, 
+                                              <a href>atom</a> bgclr=<a href>TG_WHITE</a>)
+<!-- maybe... (only minor thorn is refactoring tg_xpm.e)
+          <small><br><i>-- or --</i><br></small>
+          {<a href>gdp</a> pixels,
+           <a href>atom</a> transparent} = gPixbuf_from_XPM(<a href>sequence</a> xpm,
+                                                                       <a href>bool</a> bOwned=<a href>false</a>)
+-->
+          <small><br><i>-- or --</i><br></small>
+          <a href>gdp</a>
+                                pixbuf = gPixbuf_from_Image(<a href>gdm</a> img)
+                                                            <small><i>-- [NB not fast, aim for once-only]</i></small>
+          <br>  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Creates a platform independent pixel buffer that can later be converted to a <a href>gImage</a>.
+            <br>            
+            <br>            
+            w: width in pixels.<br>
+            h: height in pixels.<br>
+            bgclr: the initial colour of all pixels.<br>
+<!--
+            xpm: see <a href>gImage_from_XPM</a>(). 
+-->
+            img: if created via <a href>gImage_from_XPM</a>(), bPixbuf must have been <a href>true</a>. The img is automatically destroyed.
+<!--
+            <br>
+            <br>
+            The pixels parameter must be a non-empty sequence either of length height*width or a sequence of height rows of length&lt;=width each,
+            with short items padded using pixels[[i]][$]. Note that it decides via sequence(pixels[1]) whether to treat it as [height*width] or 
+            [height][width], however the latter may have atom elements &gt;= [2], which are treated as if repeated width times, whereas of 
+            course the former/flat baulks should it suddenly run into an unexpected nested sequence.<br>
+            Origin is at the top-left corner (nb <i>not</i> bottom-left) and data is oriented top to bottom, and left to right.
+-->
+<!-- (this is not C... we don't need to say this, ever [except, perhaps, for atom memory pointers].)
+            The pixels and palette arrays are duplicated internally and hence can be discarded after the call. -->
+            <br>
+            <br>
+            Similar to <a href>gImage</a>, a gPixbuf is <b>not</b> an interface element and <i>cannot</i> be added to a layout hierarchy.<br>
+            A <a href>gCanvas</a> is regularly blanked, and usually resizeable (by the end user), whereas similar would only ever happen to 
+            a gPixbuf when deliberate and explicit (in the application source code).
+<!--
+            Also, a gCanvas , whereas a gPixbuf is effectively/kinda fixed in size at creation.<br>
+            <small>[nothing stops you replacing (say) 16x16 with 24x24 or extending/cropping one from t&apos;other, but it never occurs naturally.]</small>
+-->
+            <br>
+            <br>
+            To get images/text onto a pixbuf, you must (first convert it to an image, then) draw them on an image and convert that (back) to a pixbuf.
+            See the <a href="#fsum" onclick="opentech()">feature summary</a> of gCanvas/gImage/gPixbuf below for more details. As noted there, you should
+            expect such conversions to take about &frac18;s, or at most four image&hArr;pixbuf round trips per second.
+            <br>
+<!--
+            <br>
+            The parameter passed to gPixbuf_from_Pixels() won&apos;t need a <a href>deep_copy</a>() if the only thing you are going to use
+            the result for is a source in gPixbufDraw(), or it isn&apos;t a constant and your application does not keep a reference [count] to it, for 
+            instance should you return from the routine where it was created before any attempt to further modify it, and in particular code such as 
+            <code>gPixbuf_from_Pixels(my_make_buffer())</code> would normally achieve that/not need it.<br>
+            It also won&apos;t need <a href>deep_copy</a>() if you have no plans to run it in a browser, not that getting rid of any that
+            would be needed would actually save very much. Likewise an application should ditch the last refcount to any result from gPixbufGetPixels()
+            <small>[which o/c <a href>deep_copy</a>() can do]</small> before attempting any further modifications to it.
+            <br>
+            <br>
+            Routines from <a href>gDrawLine</a>() to <a href>gDrawRect</a>() can also be used on a 
+            gPixbuf, and are (probably) of themselves faster on the latter, however the need for a subsequent <a href="#gPixbufDraw">gPixbufDraw</a>() may 
+            outweigh any performance benefits. There is also better support for alpha blending: on a gCanvas those routines may (on some backends) use the 
+            single <a href>BGCLR</a> for antialiased lines/edges, whereas on a gPixbuf the actual pixels are always used.
+            <br>
+            <br>
+            Also, <a href="#gPixbufPixel">gPixbufPixel</a>() must be used instead of <a href>gCanvasPixel</a>(), and 
+            there is no support for <a href>gDrawText</a>() or <a href>gDrawImage</a>() on 
+            a gPixbuf, instead those might be used on the "real" canvas after you have transferred the buffer contents to it.
+-->
+
+<!-- maybe put this in technicalia...
+//          The result is a backend-specific
+//          <a href>sequence</a>, such as <code>{"gImage",GtkPixBuf}</code> under GTK or <code>{"gImage",hDIB,w,h,t}</code> under WinAPI 
+//          (at least as at the time of writing), or a HtmlElement under p2js, but all that is an implementation detail and there would be nothing to 
+//          stop it being (say) either a standard two-dimensional sequence of length height lines of width pixels each, or a flat width*height sequence, 
+//          or even some collection of (possibly somehow compacted) binary strings - all such, one expects, properly tagged.
+//          [DEV] The file demo\theGUI\gImage.exw shows how (trivial it is) to display gImages.
+-->
+<!--
+//<br>
+//<br>
+//<b>DEV</b>: one thing I might yet do is ditch gImage(), and instead just quietly store a full pixel array against every gCanvas...<br>
+//That way I could have a fast gGetPixel(), and proper (also fast) anti-aliased lines, flood filling, alpha blending, and all that jazzz...
+//<small> file_size_k(1920 * 1080) === 1.98MB (hi-end desktop monitor), file_size_k(7680 * 4320) === 31.64MB (8K UHDTV, which start at &pound;5,000), 
+//      file_size_k(17280 * 4320) === 71.19MB (Sony&apos;s ridiculous 64 by 18 foot (19.5 m * 5.5 m) commercial 16K display, ~&pound;5,000,000): 
+//      we can cope, even when multiplying those sizes by 4 or 8 bytes per pixel.</small>
+-->
+<!--
+//          <br>
+//          <br>
+//<small>[DEV some such routines may yet get renamed...]<br></small>
+//          Routines such as <a href>gDrawLine</a>() accept a <a href>gdc</a>, meaning 
+//          they can be applied to both a gGanvas or a gImage, however <a href>gDrawText</a>() (as the 
+//          name implies) is gCanvas-only, and likewise/conversely <a href="#gImageGetPixel">gImageGetPixel</a>() is gImage-only.
+-->
+<!--
+            <br><a name=gPixbufPixel></a>
+            <br>
+            <b>gPixbufPixel</b>(<a href="gcb.htm">gbuf</a> buffer, <a href>atom</a> x, y, colour)<br>
+            &nbsp;&nbsp;Set the colour of a single pixel in a gPixbuf.
+
+            <br><a name=gPixbufGetPixel></a>
+            <br>
+            <a href>atom</a> colour = <b>gPixbufGetPixel</b>(<a href="gcb.htm">gbuf</a> buffer, <a href>atom</a> x, y)<br>
+            &nbsp;&nbsp;Retrieve the colour of a single pixel from a gPixbuf.
+
+            <br><a name=gPixbufDraw></a>
+            <br>
+            <b>gPixbufDraw</b>(<a href="gcb.htm">gcb</a> canvas, <a href="gcb.htm">gbuf</a> image, 
+                               <a href>atom</a> x=0, y=0, sx=0, sy=0, w=-1, h=-1)<br>
+            &nbsp;&nbsp;Transfer pixels from a gPixbuf to a gCanvas (within its <a href>REDRAW</a> handler) or another gPixbuf.<br>
+            &nbsp;&nbsp;x, y: refer to the 0-based target top left position in canvas.<br>
+            &nbsp;&nbsp;sx, sy: refer to the 0-based source top left position in image.<br>
+            &nbsp;&nbsp;w, h: width and height, with -1 meaning all/max/safely clipped to min(src,tgt) boundaries.<br>
+            <br>
+-->
+<!--            Note that src can only be a gImage, not a gCanvas, whereas tgt can be either.<br>-->
+<!--            When tgt is a gCanvas, -->
+
+<!--
+            one his routine should (probably) only ever be invoked from .<br>
+            Any fractional part of x and y (which locate a top left corner on the canvas) is automatically truncated/ignored.<br>
+?           The ability to transfer some smaller region of image has not yet (bar just now) even been considered, let alone implemented.
+-->
+<!--
+            <br><a name=gImageGetPixel></a>
+            <br>
+            gImageGetPixel()...
+            <br>
+            <br>
+            NOT STARTED...
+            <br>
+            <br>
+            Creates an image to be shown on a label, button, toggle, or as a cursor.
+            <br>
+            <br>
+--X         gImage() uses 1 byte per pixel (limited to 256 colours), gImageRGB uses 3 bytes and gImageRGBA uses 4 bytes per pixel, aka 8/24/32 bit bitmaps.
+            <br>
+            <br>
+            Returns: the identifier of the created element.
+            <br>
+-->
+<!-- hmm...
+            Planned: gImageGetPixel(), gImageSetPixel(), maybe some way to create a gImage from a gCanvas, some desktop/Phix only and/or platform-specific 
+            methods of loading a gImage from file, and some means of generating suitable ([binary] text) constants that can be pasted into a source file.
+            <br>
+            <br>
+            However there are <b><i>no</i></b> plans to perform any of the advanced drawing operations (esp text) that you can on a gCanvas directly to
+            a gImage, the furthest it is likely to ever go is low-level individual pixel manipulation (far faster than on a gCanvas).
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+            Supported, but note from/take pixels is rather slow, ~&frac18;s vs. &lt;1e-6s on desktop/Phix.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href>gCanvas</a>,
+          <a href>gImage</a>,
+          <a href>gImage_from_XPM</a>,
+          <a href>gImage_from_Pixbuf</a>
+            <br><a name=eg></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+           <div>
+            <div style="float:right; padding: 0 0 0 5px;">
+             <img alt="gPixbuf" src="images/gPixbufACS.png" width="240" height="156"/>
+             <div style="clear:right; text-align:center;" ><i><small>&nbsp;&nbsp;(compare with <a href="gCanvas.htm#eg">gCanvas</a>)</small></i></div>
+            </div>
+            <div>
+            The file demo\theGUI\gPixbuf.exw is pretty much same as <a href="gCanvas.htm#eg">gCanvas.exw</a> but 
+            reworked to use gPixbuf, and test a few things on gImages, plus a rack of timing tests, and no ugly 
+            <a href="gCanvas.htm#bresenham">bresenham edges</a> on WinAPI.
+            <br>
+            <br>
+<!--            Notice there are none of those ugly <a href="gCanvas.htm#bresenham">bresenham edges</a> under WinAPI as there are on a
+            gCanvas: while there is an <a href="gCanvas.htm#WU_BLEND">easy fix</a>, you never have to worry about that on a pixbuf,
+            or selectively applying it for performance reasons. -->
+            There are separate cases where I would recommend a gCanvas, being simple/static, or a
+            gPixbuf for deep analysis or any pixel-level work, or OpenGL or similar, for fast/full-on gaming.<br>
+            <small>[Aside: compare gCanvas/gPixbuf once had a point, now it just proves they match.]</small>
+            </div>
+           </div>
+           <div class="clear"></div>
+          <br><a name=tech></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            There is no particular advantage of gPixbuf(w,h,clr,false) over repeat(repeat(clr,w),h) except for a clearer and
+            more obvious/intuitive statement of intent <small>(whereas bOwned:=true returns a -ve integer index)</small>.
+            <br>
+            <br>
+            A <a href>gImage</a> passed to gPixbuf_from_Image() must be one created by
+            <a href>gImage_from_XPM</a>() with bPixbuf set to <a href>true</a>, or any created via 
+            <a href>gImage_from_Pixbuf</a>() or <a href>gImage</a>(), ie on those latter two that flag 
+            is effectively automatically <a href>true</a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Deprecated:</b>
+         </td>
+         <td>
+            While very fast on desktop/Phix, a serious bottleneck in theGUI.js has made me question their merit.<br>
+            However there is no point actually removing them until all rosettacode examples have been converted to use theGUI.<br>
+            They permit the use of gDrawLine..gDrawRect on a pixbuf, which quite frankly isn&apos;t what a pixbuf is for, and besides
+            you can create a gImage, do those (and gDrawText) on that, then convert it to a pixbuf, which if nothing else gives you
+            the same performance characteristics on desktop/Phix and pwa/p2js.
+            <br>
+            <br>
+          <a href>gdp</a><font color="#000080"><i><small>/*(/int)*/</small></i></font>
+                                pid = gPixbuf_from_Pixels(<a href>gdp</a><font color="#000080"><i><small>/*(/seq)*/</small></i></font> pixels)
+                                <small><i>-- (pid & pixels usually same var)</i></small>
+          <small><br><i>-- or --</i><br></small>
+          <a href>gdp</a><font color="#000080"><i><small>/*(/seq)*/</small></i></font>
+                                pixels = gPixbuf_take_Pixels(<a href>gdp</a><font color="#000080"><i><small>/*(/int)*/</small></i></font> pid)
+                                <small><i>-- (ditto)</i></small>
+          <br>
+          <br>
+            pixels: as per a potentially modified <a href>deep_copy</a>(<a href>repeat</a>(<a href>repeat</a>(bgclr,w),h)).<br>
+            pid: (as param) take ownership of the pixels and destroy/recycle the internal pid entry.<br>
+            Technically both gPixbuf() and gPixbuf_from_Image() also have <a href>bool</a> bOwned=<a href>false</a>
+            as their final parameter: by default a 2D sequence (app-owned) is returned, when true <a href>gdp</a> result is -ve int (theGUI-owned) 
+            appropriate for gDrawLine(), etc.
+<!--
+            <br>
+            <br>
+//          Invoking gPixbuf_from_XPM() is equivalent to gPixbuf_from_Image(<a href>gImage_from_XPM</a>()), except 
+//          direct and along with what <a href>gImage_get_transparent</a>(<i>interim</i>) 
+//          would return. <small>[Unlike <a href>gImage_from_XPM</a>(), this is never invoked automatically.]</small>
+-->
+            <br>
+            <br>
+            gPixbuf_from_Pixels() transfers ownership of a 2D pixel sequence to theGUI (stores it in an internal list).<br>
+            gPixbuf_take_Pixels() transfers ownership from theGUI to the application (deletes it from an internal list).<br>
+<!--
+            The plain gPixbuf() creates a theGUI-owned pixbuf whereas repeat(repeat()) would create an app-owned one, which 
+            can of course be manipulated directly. The latter, or the result from gPixbuf_take_Pixels(), is suitable for 
+            passing to gPixbuf_from_Pixels() and both to <a href>gImage_from_Pixbuf</a>(), but only theGUI-owned 
+            ones to gDrawLine() and similar.<x!--, except gText().--x><br>
+-->
+            Note that gPixbuf_from_Pixels() must be passed a sequence with a reference count of <b>one</b>: should it be a constant then 
+            [an inline] <a href>deep_copy</a>() is needed, should you have constructed it yourself the best bet is to 
+            return it from an inline function call. One other trick you might use is p = gPixbuf_from_Pixels(p) whereby the [local] input 
+            p is your hand-built 2d sequence of pixels and the output p (ie same var) will be an even -ve <a href>gdp</a>, 
+            which uses <a href="functions.htm#pbr">automatic pbr</a> to deal with that pesky reference count (luck willing),
+            and in fact the <a href>gdp</a> type is deliberately designed to support precisely that.
+            You need not worry about ownership (or reference counts) at all when passing a <!--n application created--> sequence to 
+            <a href>gImage_from_Pixbuf</a>().<!--, vs. obtaining an integer <a href>gdp</a> first.---><br>
+            The pixels <i>must</i> however be exclusively owned by theGUI before <a href>gDrawLine</a>() (etc)
+            can be used, and <a href>gDrawImage</a>() and <a href>gDrawText</a>() 
+            only work on a gCanvas or gImage, <i>not</i> a gPixbuf, though (only if you really have to) you <i>could</i> do them
+            on a gImage (which may be created from a gPixbuf, as next) and convert that (back) into a gPixbuf.
+<!--
+            <br>
+            <br>
+            The default behaviour of <a href>gImage_from_Pixbuf</a>(bDestroy:=true) is to discard theGUI-owned pixbufs,
+            but should you need to defer/disable that you may need to invoke gPixbuf_take_Pixels() as part of a later cleanup.
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Application icons are usually 32x32. Toolbar bitmaps are 24x24 or smaller. Menu bitmaps and small icons are 16x16 or smaller.
+            Transparent pixels are identified using the colour "None".
+            <br>
+            <br>
+            The first line of an xpm is &lt;wide&gt; &lt;tall&gt; &lt;colours&gt; &lt;chars per pixel&gt; [&lt;hotspot x&gt; &lt;y&gt;].<br>
+            Currently limited to 1 char per pixel (via an explicit assert), which means 93 possible colours <small>(>1 is just a matter of testing)</small>.<br>
+            <small>[No attempt has yet been made to utilise a hotspot in any way.]</small><br>
+            The colour codes part consists of &lt;colours&gt; lines, each being &lt;code&gt; &lt;key&gt; &lt;colour&gt;.<br>
+            Only the c key is currently supported (not m/s/g4/g), and as above code can currently only be a single character.<br>
+            The colour code can be None for transparency or a hex RGB code (no other [symbolic] names or HSV codes).<br>
+            The pixels part consists of &lt;tall&gt; lines, each being &lt;wide&gt; * &lt;chars per pixel&gt; long.<br>
+            It is considered a very bad idea to try and use spaces anywhere in that, given they could very easily get mangled into tab characters,
+            and worse, with no indication of how many spaces each tab character represents, or any clue where any of the tabstops might be.<br>
+            No extensions are supported (such as XPMEXT or XPMENDEXT).<br>
+            There is no use of, nor any replication of any of the functions or structures of xpmlib <small>[except probably within and private to GTK]</small>.
+            <br>
+            <br>
+            Images created with gImage can be reused in different elements.
+-->
+<!--
+            <br>
+            <br>
+?           The images should be destroyed when they are no longer necessary, by means of the <a href>IupDestroy</a> function. <br>
+?           To destroy an image, it cannot be in use, i.e the controls where it is used should be destroyed first. <br>
+//??            Images that were associated with controls by names are automatically destroyed in <a href>IupClose</a>.
+            <br>
+            <br>
+??          Please observe the rules for creating cursor images: <a href>CURSOR</a>.
+            <br>
+            <br>
+//          Some examples can be found in demo\pGUI\sample.exw
+-->
+<!--
+// now better documented in gCanvas/technicalia...
+//          <br>
+//          <br>
+//          The polygon filling method is a simple pairwise bisection algorithm: rather than actually draw all the points on the perimeter,
+//          it first collects all wu-pairs and sorts them column-wise, with any horizontal and vertical segments treated specially. It then 
+//          looks for any columns containing exactly two vertical pairs, or a single vertical segment, which can then be drawn immediately. 
+//          Should two wu-pairs overlap, their overlappng pixels are simply averaged, otherwise their inner pixels and everything inbetween
+//          are drawn in the full fill colour. Any blocks of columns which cannot be so painted are passed to a recursive subroutine, with 
+//          the left/right edge information, which re-sorts those points row-wise and repeats the process laterally, with the addition that 
+//          single wu-pairs can match with one of the edges. An error may be raised should no such bisection in the direction specified be
+//          possible for any such subset of pixels (or, perhaps, the fill simply abandoned). Should that happen you may need to find a
+//          different way to draw the shape, ie effectively bisect or perhaps/probably quadsect it yourself, bearing in mind the algorithm
+//          will thank you for using as many abutting horizontal and vertical lines as you can. The special handling of horizontal and
+//          vertical segments as mentioned also means that (square-cornered) rectangles are filled particularly efficiently.
+            <br>
+-->
+<!--
+         </td>
+        </tr>
+-->
+        <tr>
+         <td class="techbtn">
+          <b>Attributes:</b>
+          <img id="Timg" />
+         </td>
+         <td>
+            (also deprecated)<br>
+<!--            <a href>BGCLR</a>,-->
+            <a href>FGCLR</a> default: <a href>TG_BLACK</a>,<br>
+            <a href>LINESTYLE</a> default: <a href>TG_CONTINUOUS</a>,<br>
+            <a href>LINEWIDTH</a> default: 1,<br>
+            <a href>USER_DATA</a> default: <a href>NULL</a>,<br>
+            <a href>SIZE</a> (read-only).
+            <br>
+            <br>
+<!--
+            Note that <a href>ACTIVE</a> is provided for convenience only, technically that
+            attribute is part of the layout hierarchy, similar to say <a href>CANFOCUS</a>,
+            and in that particular case potentially affecting it. It makes no difference to anything directly, that is
+            on a gImage, but may be used/useful when (re-)creating or drawing the image. 
+that since nothing else interferes
+-->
+            Note that (mainly because of ownership issues) <a href>SIZE</a> is read-only and like
+            a <a href="gImage.htm#USERSIZE">gImage</a> there is no <a href>USER_SIZE</a>. <br>
+            Technically you can also set <a href="#BGCLR">BGCLR</a>, but it is not actually used (or sensibly defaulted) anywhere.<br>
+<!--            and setting <a href>BGCLR</a> has no discernable effect whatsoever, unless the application code uses it.<br>-->
+            While <a href>NULL</a> <small>(===<a href>TG_BLACK</a>)</small> 
+            effectively resets <a href>FGCLR</a>/<a href>USER_DATA</a>, 
+            others may need their defaults deliberately restoring.<br>
+            Lastly note that <a href="gSetAttributes.htm">gSetAttribute<b>s</b></a> (the with-an-s one) is <i>not</i>
+            applicable to a gPixbuf; instead do them one-at-a-time.
+         </td>
+        </tr>
+
+<!--
+        <tr>
+         <td>
+?         HOTSPOT
+         </td>
+         <td>
+            Hotspot is the position inside a cursor image indicating the mouse-click spot. <br>
+            Its value is given by the x and y coordinates inside a cursor image. <br>
+            Its value has the format "x:y", where x and y are integers defining the coordinates in pixels. Default: "0:0".
+         </td>
+        </tr>
+        <tr>
+         <td>
+?         SIZE
+         </td>
+         <td>
+            (read-only) returns the image size in pixels. Similar to, but technically not actually related to the
+            interface element <a href>SIZE</a> attribute at all.
+         </td>
+        </tr>
+-->
+        <tr id="Technicalia" class="hiddenRow">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            Negative widths and heights trigger an error as expected, however a height of zero returns {{}}, the same as w=0, h=1 does, 
+            which means that length(pixbuf[1]) is always a valid method to check the width and that way simplifies the internals a bit.
+            To be crystal clear, width is ignored when height is zero.
+<!--
+            <br>
+            <br>
+            My attempts at native versions of gCanvasPixel() and worse gCanvasGetPixel() had truly terrible performance, excruciatingly 
+            so on GTK - <i>just 4 or 5 per second</i>, and that was <i>before</i> invoking GdiFlush/gdk_flush before each, thus getting 
+            some highly suspect results anyway, which directly lead me to the design decision to have gPixbuf in the first place.
+-->
+            <br>
+            <br>
+            The question must arise: Why do we have <a href>gCanvas</a>, <a href>gImage</a>, <i>and</i> 
+            <a href>gPixbuf</a>?
+            <br>
+            <br>
+            Essentially a <a href>gCanvas</a> is the thing you can actually see on screen, at the very far end of the GPU pipeline.<br>
+            When the provided primitives suffice, or you can leverage (say) opengl to take full advantage of all that lovely fast GPU hardware, 
+            then you certainly should. However direct access is helpful/essential for more detailed image analysis and processing such as image 
+            sharpening or canny edge detection, and then performance becomes an issue. The GPU pipeline is (probably) quite a bit slower than 
+            you might think: it is nice and wide so you can tip lorry-loads of instructions in that run in parallel, but certainly not optimised 
+            for retrieval, especially should it need flushing first.
+<!--<br>[DEV use opengl!! ...]<br> NO!!-->
+<!--
+            Also the WinAPI primitives, at least the ones I&apos;ve been experimenting with, don&apos;t seem to handle anti-aliasing
+            or/of filled shapes very well, so (sometimes) theGUI does things more laboriously, quite probably quite unnecessarily, but
+            then again other uses easily justify the independent existence of gPixbufs.<br>
+-->
+            <small>[At the risk of confusing you, since switching to emulated controls even a gCanvas is emulated with a gImage,
+            and the only real "canvas" is now the whole client area of a (headerless) dialog, or conversely you could say 
+            <i>everything</i> except a gDialog is technically a gCanvas, albeit in an associated image sense only.]</small>
+            <br>
+            <br>
+            A <a href>gPixbuf</a> is an application-side version of the pixels that is much more suitable for detailed analysis
+            and direct manipulation, but in a format the hardware and backend do not understand at all (though theGUI itself does). 
+<!--
+            <br>HMM/deprecated:
+            Careful transfer of the ownership of the pixels between theGUI and 
+            the application proper may often be necessary, but can be done near-instantly (OOPS: it is hideously slow under JS...). 
+            While I can and do check for a reference count of one in gPixbuf_from_Pixels() on desktop/Phix, there is no way I could do 
+            that in a browser/JavaScript, which is why theGUI forces you to do that rather than performing a deep_copy() itself (and/or 
+            in the process making everything that doesn&apos;t need it significantly slower). The downside is that everything that 
+            happens to a pixbuf must be laboriously coded by hand - you should be aware there is an absolute shed-load of code in theGUI.e 
+            to draw anti-aliased lines and filled shapes, for instance, and all of it pretty much derived from scratch. In contrast,
+            theGUI.js uses native methods, since they&apos;re not rubbish like the WinAPI ones, to which end gPixbuf_from_Pixels() actually
+            creates a HtmlCanvas, making a theGUI.js-owned gPixbuf the same as a gImage. I may have to rethink gPixbuf on JS...
+            <small>(maybe I really do have to port over a thousand lines of code rather than rely on JS primitives...)</small>
+-->
+            <br>
+            <br>
+            A <a href>gImage</a> is half way between, <!--still technically owned by the application but--> in a backend-specific
+            format. <!-- it will readily understand. Theoretically they could be modified by theGUI, but that would be unnecessarily fiddly and 
+            possibly fairly slow, so it chooses to treat them as read-only, with the exception of g[Canvas]Text[DEV]. <br>-->
+            Theoretically pixel-level operations could be performed on them, but slower than <!--(especially so for GTK)--> and no real advantage 
+            over using a pixbuf. You would certainly not want to have to convert a gPixbuf or XPM string to (the equivalent of) a gImage every 
+            time, say, you displayed an icon on a menu item - as would almost certainly be needed <!--(at least for WinAPI)--> did the 
+            <a href>gdm</a> type not exist. A gImage also offers a way to get text and images into a gPixbuf, albeit with
+            the obvious performance penalties such conversions entail.
+            <br>
+            <br>
+            Every platform (even GTK!) has highly optimised native methods to display or transfer a gImage onto a gCanvas.<br>
+            The slowest part is going to be converting between images and pixbufs, so focus on doing that as few times as possible.
+<!--
+            <br>
+            Note that <a href>gImage_from_Pixbuf</a>() is currently one-way only, probably not excessively difficult
+            to write a gPixbuf_from_Image() function should that be required/helpful, however such conversions are not likely to 
+            be particularly fast, though [hopefully] it(/they [would] fetch/) store on a whole-line-at-a-time basis when possible.
+bgcolor="#C0C0C0"
+-->
+<!--        <h3>Feature summary</h3>-->
+<!--
+            <br>
+            <big><b>Feature summary</b></big>
+            <br> <pre> 
+
+                        Line   Filled   Text   DrawImage    Pixel   
+            gCanvas      Y       B       Y         T          N
+            gImage       Y       B       Y         Y          N
+            gPixbuf      Y       Y       N         N          Y
+ </pre>
+            <br>
+-->
+            <br><a name=fsum></a>
+            <br>
+            Obviously eveything below will need updating if/when deprecated items above get deleted.
+            <br>
+            <br>
+            
+            <big><b>Feature summary</b></big>
+<!--
+            <h3>Feature summary</h3>
+            <table style="margin:10px auto 10px auto; width: auto;">
+             <tr><td align="center" style="padding: 0; border-style: none;"> </td>          <td align="center" style="padding: 0; border-style: none;">Line</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Filled</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Text</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">DrawImage</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Pixel</td></tr>
+             <tr><td align="center" style="padding: 0; border-style: none;">gCanvas</td>    <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">B</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">T</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">N</td>
+             <tr><td align="center" style="padding: 0; border-style: none;">gImage</td>     <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">B</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">N</td>
+             <tr><td align="center" style="padding: 0; border-style: none;">gPixbuf</td>    <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Y</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">N</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">N</td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;">Y</td>
+             <tr><td align="center" style="padding: 0; border-style: none;">types</td>      <td align="center" style="padding: 0; border-style: none;"><a href="gdx.htm">gcp</a></td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;"><a href="gdx.htm">gcp</a>/<br>
+                                                                                                                                                       <a href="gdx.htm">gdp</a></td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;"><a href="gdx.htm">gdc</a></td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;"><a href="gdx.htm">gcp</a>/<br>
+                                                                                                                                                       <a href="gdx.htm">gdm</a></td>
+                                                                                            <td align="center" style="padding: 0; border-style: none;"><a href>gdp</a></td>
+             </tr>
+            </table>
+            <br>
+            &nbsp;
+-->
+          <div style="display:flex; justify-content:center;">
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>&nbsp;</div>
+                <div>gCanvas</div>
+                <div>gImage</div>
+                <div>gPixbuf</div>
+                <div>types<small></small></div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div><a href="gCanvas.htm#gDrawLine">Line</a></div>
+                <div>Y</div>
+                <div>Y</div>
+                <div>Y</div>
+                <div><a href>gcp</a></div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div><a href="gCanvas.htm#gDrawArc">Filled</a></div>
+                <div>Y</div>
+                <div>Y</div>
+                <div>Y</div>
+                <div><a href>gcp</a></div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div><a href="gCanvas.htm#gDrawImage">Image</a></div>
+                <div>T</div>
+                <div>Y</div>
+                <div>N</div>
+                <div><a href>gdc</a>/<a href>gdm</a></div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div><a href="gCanvas.htm#gDrawText">Text</a></div>
+                <div>Y</div>
+                <div>Y</div>
+                <div>N</div>
+                <div><a href>gdc</a></div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>Pixel</div>
+                <div>N</div>
+                <div>N</div>
+                <div>Y</div>
+                <div><a href>gdp</a></div>
+           </div>
+          </div>
+
+            <br>
+<!--            ?: 6 other (whole sets of) things still have incomplete implementations...<br>-->
+<!--
+            B indicates <a href="gCanvas.htm#bresenham">bresenham edges</a> may occur under WinAPI, unless 
+            <a href="gCanvas.htm#WU_BLEND">WU_BLEND</a> set (making it slower).<br>
+-->
+<!--
+            B indicates filled shapes may have <a href="gCanvas.htm#bresenham">bresenham edges</a> under WinAPI.<br>
+            B also denotes there is <i><b>no</b></i> support for filled polygons on a gCanvas or gImage.<br>
+-->
+            T indicates a canvas is target-only, whereas an image can be source or target (and pixbuf neither).<br>
+            You can convert images to pixbufs and vice versa to work around the N on those lines.<br>
+            Pixel-level working has to occur in a pixbuf, then -&gt; image -&gt; canvas to appear on-screen,<br>
+            with any text and/or images only added at the image (or canvas) stage, and ideally with the<br>
+            conversion of pixbuf-&gt;image performed just the once only.
+<!--
+            <br>
+            <br>
+            There is no support whatsoever in WinAPI (well, GDI) for polygons with anything but all straight edges
+            (and I have not checked GTK). I could probably fairly easily implement a variant of gDrawPolyon() with 
+            that restriction and fill support on gCanvas and gImage, but have chosen not to bother, especially 
+            since it would almost certainly have those ugly bresenham edges on WinAPI.
+-->
+
+            <br>
+            <br>
+            A key point here is that a gCanvas supports all the "plain" features necessary for (say) 
+            <a href>gGraph</a>,
+            <a href>gList</a>, and
+            <a href>gTable</a>, including things like the <a href="gCanvas.htm#fakescroll">fake scrollbars</a>.
+            The following table contains a few shockers, but "iMage" is decent enough across the board, so if you can save
+            and re-use images rather than construct everything from scratch every time, you&apos;ll be fine.
+            <br><a name=psum></a>
+            <br>
+            <big><b>Performance summary</b></big>
+          <div style="display:flex; justify-content:center;">
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:flex-end;">
+                <div><i>Pixbuf|Image|Canvas</i></div>
+                <div>Flat line</div>
+                <div>Non-flat</div>
+                <div>Arc</div>
+                <div>cHord</div>
+                <div>beZier</div>
+                <div>poLygon</div>
+                <div>polyOut</div>
+                <div>Rect</div>
+                <div>recoUt</div>
+                <div>iMage</div>
+                <div>tExt</div>
+                <div>set piXel</div>
+                <div>get pixYel</div>
+                <div>from/taKe pxls</div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>WinAPI</div>
+                <div>200K|50K|135K</div>
+                <div>1700|170|280</div>
+                <div>2600|850|900</div>
+                <div>400|90|120</div>
+                <div>260|80|110</div>
+                <div>300|60|100</div>
+                <div>500|90|140</div>
+                <div>4200|23K|35K</div>
+                <div>56K|45K|100K</div>
+                <div>-|55K|80K</div>
+                <div>-|6500|18K</div>
+                <div>10M|2M|350K</div>
+                <div>32M|3M|240K</div>
+                <div>1.7M|-|-</div>
+           </div>
+<!--
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>WU_BLEND</div>
+                <div>=|=|=</div>
+                <div>=|=|130</div>
+                <div>=|=|500</div>
+                <div>=|=|70</div>
+                <div>=|=|60</div>
+                <div>=|=|60</div>
+                <div>=|=|70</div>
+                <div>=|=|=</div>
+                <div>=|=|=</div>
+                <div>-|=|=</div>
+                <div>-|=|=</div>
+                <div>=|=|=</div>
+                <div>=|=|=</div>
+                <div>=|-|-</div>
+           </div>
+-->
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>GTK2</div>
+                <div>=|80K|16K</div>
+                <div>=|8K|5K</div>
+                <div>=|23K|9K</div>
+                <div>=|13K|7K</div>
+                <div>=|4900|3700</div>
+                <div>=|260|270</div>
+                <div>=|7K|2K</div>
+                <div>=|8K|6K</div>
+                <div>=|68K|14K</div>
+                <div>-|75K|80K</div>
+                <div>-|30K|7K</div>
+                <div>=|2M|=</div>
+                <div>=|2M|60</div>
+                <div>=|-|-</div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>GTK3</div>
+                <div>=|45K|40K</div>
+                <div>=|20K|18K</div>
+                <div>=|24K|22K</div>
+                <div>=|17K|16K</div>
+                <div>=|12K|14K</div>
+                <div>=|170|250</div>
+                <div>=|7K|6K</div>
+                <div>=|22K|20K</div>
+                <div>=|44K|36K</div>
+                <div>-|52K|20K</div>
+                <div>-|20K|14K</div>
+                <div>=|3M|90K</div>
+                <div>45M|2M|60</div>
+                <div>=|-|-</div>
+           </div>
+           <div style="padding: 0 10px; display:flex; flex-direction:column; align-items:center;">
+                <div>JavaScript</div>
+                <div>420K|=|320K</div>
+                <div>&quot;&quot;&quot;</div>
+                <div>280K|=|275K</div>
+                <div>240K|=|240K</div>
+                <div>400K|=|280K</div>
+                <div>200K|=|=</div>
+                <div>&quot;&quot;&quot;</div>
+                <div>=|87K|=</div>
+                <div>=|174K|=</div>
+                <div>-|200K|180K</div>
+                <div>-|150K|150K</div>
+                <div>2M|150K|=</div>
+                <div>3.5M|600|=</div>
+                <div>4|4|4</div>
+           </div>
+          </div>
+            <br>
+            The above were generated by demo\theGUI\gPixbuf.exw - be warned it pushes a browser to breaking point.<br>
+            An '=' means it is the same as the preceding (leftwise) entry, '-' means non applicable.<br>
+            Note WinAPI figures are skewed since it uses "the ludicrously hard way"<sup>&trade;</sup> to avoid bresenham edges.<br>
+            'T' toggles timing tests on and off.<!--, 'B' toggles WU_BLEND <small>(stopping some secondary bresenham-esque effects)</small>.--><br>
+            Type one of PIC to set the output target to pixbuf, image, or canvas respectively, as each of the 5*15 entries show.<br>
+            Type one of 36WG to switch between 32/64 bit mode and WinAPI/GTK backends (which likely only works for me).<br>
+            The 32M/45M difference in get pixYel is nowt to do with GTK but 32/64 bit, as some colours exceed 31 bits.<br>
+            Type one of FNAHZLORUMEXYK to run a specific test or (much easier) space to cycle through them. <br>
+            The final entry is the real shocker, and indicates that while gPixbuf_from_Pixels() and gPixbuf_take_Pixels() are very fast on 
+            desktop/Phix, they should be avoided under p2js, though a one-off 0.25s overhead may be ok.<br>
+            Actually, it&apos;s the same as image&hArr;pixbuf, otherwise unrepresented above, and about that on desktop/Phix too.<br>
+            You might be better off using get/set pixel under p2js (600 vs 4), however that&apos;s the main thing to avoid on GTK.<br>
+            <small>[The 2/3.5M are for an app-owned pixbuf, 150K/600 for a theGUI-owned one, since that&apos;s an image, and why from/take are so slow.]<br></small>
+            <small>[theGUI.js cheats by using native methods, to avoiding porting 3000+ lines of theGUI-owned pixbuf code... doing that might help.]<br></small>
+            Note the image shown is the "draw once" matching gCanvas.exw using pixbufs/images, <i>plus</i> the test being run.<br>
+            <small>[Drawing the same thing in the same place 1000 times messes up anti-aliasing/alpha blending, so we don&apos;t want to show that.<br></small>
+            <small>&nbsp;It redraws the first iteration only, and as noted (several times) in the code, those gPolygon() are only almost right at 240x156 - should<br></small>
+            <small>&nbsp;you be able to devise something a little bit better in that test file, especially my crummy xy_mul(), I&apos;m all ears.]<br></small>
+<!--
+            <br>
+//Additionally,
+//A gdm is a gImage (not a gdx/odd-ve1). A gdn is a nullable version of that.
+//A gdc is a single gCanvas (which is a gdx) or gdm.
+//A gdp is a gPixbuf (not a gdx/even-ve1 or a sequence).
+//A gcp is a gdc/gdm or integer gdp.
+// [DEV] maybe I meant this:
+--yep       A <b><a href="gCanvas.htm">gcp</a></b> is a gdc or <i>integer</i> gdp.<br>
+--XXX       A <b><a href="gPixbuf.htm">gpm</a></b> is an <i>integer</i> <a href>gPixbuf</a> or <a href>gImage</a>.<br>
+-->
+         </td>
+        </tr>
+       </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

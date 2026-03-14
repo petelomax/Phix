@@ -13,21 +13,42 @@
           <b>Definition:</b>
          </td>
          <td>
-            include xpGUI.e
+            include theGUI.e
             <br>
             <br>
-            gMsgBox(<a href="gdx.htm">gdx</a> parent, 
-                   [<a href="rtn.htm">rtn</a> handler=NULL,]
-                    <a href="string.htm">string</a> [title="Error",] [msg, ] [attributes="", ]
-                    <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+<!--
+            gMsgBox([<a href>gdx</a> parent=<a href>gGetDialog</a>(<a href>gGetFocus</a>()),] <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-->
+            gMsgBox(<a href>string</a> [title="Error",] msg
+                    [,<a href="html/glossary.htm#dwordseq">dword_seq</a> args={}]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    [,<a href="html/glossary.htm#dwordseq">dword_seq</a> buttons={"OK"}] 
+<!--                    [<a href>sequence</a> buttons="OK",] -->
+                    [,<a href>rtn</a> handler=<a href>NULL</a>]<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+                    [,<a href>gdn</a> image=<a href>NULL</a>])
+<!--
+                    [[<a href>string</a>] attributes="", 
+                     [<a href="html/glossary.htm#dwordseq">dword_seq</a> args={}]])
+-->
 <!--
             <small><br><i>-- or --</i><br></small>
-?           gMsgBoxA(<a href="gdx.htm">gdx</a> parent, 
-                     <a href="rtn.htm">rtn</a> handler,
-                     <a href="string.htm">string</a> attributes,
+?           gMsgBoxA(<a href>gdx</a> parent, 
+                     <a href>rtn</a> handler,
+                     <a href>string</a> attributes,
                      <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
             <small>[ or a new paranormalise_ptmraa() routine? ]</small>
 -->
+            <br>
+            <br>
+            <font color="#000080"><i>-- gMsgBox([title,] msg[, args][, buttons][, handler][, image]) &nbsp; <small> <small> -- tad easier to read!</small></small></i></font>
+<br>
+<br>
+<b>NB INCOMPLETE</b>:<br>
+?           Does not resize or reposition or reparent correctly on subsequent invocations.<br>
+<!--            <small>[should probably destroy/resuse controls/gdx entries...]</small><br>-->
+?           The OK button is a silly size.<br>
+?           No serious attempt at wordwrap or an icon or any other attributes as yet.<br>
          </td>
         </tr>
         <tr>
@@ -35,13 +56,6 @@
           <b>Description:</b>
          </td>
          <td>
-            INCOMPLETE:<br>
-            <small>[?requires a new paranormalise_rtmaa() routine?]</small><br>
-?           Does not resize or reposition or reparent correctly on subsequent invocations.<br>
-            <small>[should probably destroy/resuse controls/gdx entries...]</small><br>
-?           The OK button is not right-aligned. The popup is not [yet / properly or in fact at all] modal.<br>
-?           Parameters not finalised, no serious attempt at wordwrap or an icon or any other attributes as yet.<br>
-?           Multiple buttons (plus a callback to handle which clicked) would be one obviously desired enhancement.<br>
 <!--
 ?           "title, msg" may (somehow) become "[title,] [msg,] [attributes]", with several additional rules such as: 
             &gt;=1 must exist, if &lt;3 and [$] contains '=' it is attributes and must contain "TITLE="/"MSG=": none
@@ -55,18 +69,34 @@
             optionally "TITLE=" (both quoted when needed), and (say) `BUTTONS="OK,Cancel,Abort"`.
             <br> 
 -->
-            <br> 
-            Shows a modal dialog containing a message with (by default) an OK button. 
+            Display a modal popup containing an optional image, message, and one or more buttons.
+            <!-- <small>(hopefully much easier to use than the above might first suggest)</small>. -->
             <br>
             <br>
-?           parent: Identifier of the dialog to use as a parent, primarily to control focus when the message box is closed. Can be NULL.<br>
-?           <small>I might yet ditch parent & use the currently active window, and allow stacked msgboxen...</small><br>
-?           handler: (optional) A procedure to be invoked when a button is clicked, see <a href="#HANDLER">HANDLER</a>.<br>
-?           <small>action: a standard <a href="gButton.htm#ACTION">ACTION</a>, with USER_DATA set to an integer, 1..length(BUTTONS)?</small><br>
-            title: (optional) Text to be shown on the popup window&rsquo;s header. Default "Error".<br>
-            msg: Text to be shown on the label, a msg=sprintf(msg,args) may occur when args!={}, can be set via <a href="#MSG">MSG</a>.<br>
-?           For more information on the attributes and args parameters see <a href="gSetAttributes.htm">gSetAttributes</a>(), and below.<br>
+<!--
+          <div style="display:flex;">
+           <div>parent:&nbsp;
+           </div>
+           <div>       (optional) dialog to use as a parent, to which focus returns when the message box is closed.<br>
+                       <small>[Actual default is <a href>NULL</a>, which remains if no window has yet been displayed.]</small><br> 
+           </div>
+          </div>
+-->
+            title: (optional) text to be shown on the popup window&apos;s header. Default: "Error".<br>
+            msg: (mandatory) text to be shown on the label, msg:=<a href>sprintf</a>(msg,args) occurs when args!={}.<br>
+<!--        args: (optional) as just explained.<br>-->
+<!--            buttons: (optional) sequence of strings or comma-delimited string containing button text(s). Default: "OK".<br>--->
+            buttons: (optional) sequence of button text(s). Default: {"OK"}.<br>
+            handler: (mandatory when >1 button defined) a procedure to be invoked when a button is clicked, see <a href="#HANDLER">HANDLER</a>.<br>
+            image: (optional) a <a href>gImage</a> to be placed before the msg.<br>
+<!--            <small>action: a standard <a href>ACTION</a>, with <a href>USER_DATA</a> set 
+                                to an integer, 1..length(BUTTONS)?</small><br>-->
+<!--            Note that msg is **NOT** optional, and sprintf(msg,args) may occur.<br>--->
+<!---
+?           For more information on the attributes and args parameters see <a href>gSetAttributes</a>(), and below.<br>
+
             At least one of msg or attributes [with <a href="#MSG">MSG</a> set] must be specified.<br>
+-->
             This is a <a href="g_paranormal.htm">paranormalised routine</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
             <br>
          </td>
@@ -85,20 +115,24 @@
          </td>
          <td>
           <div style="float:left;">
+            <small>
 <!--eucode>
---? see demo\xpGUI\gTreeView.exw for a better example (when F1|2 pressed)
-include xpGUI.e
-gMsgBox(NULL,`gMsgBox`,`This is a simple %s window.`,{`message box`})
+include theGUI.e
+gMsgBox(`Please try again`)
 gMainLoop()
 </eucode-->
 <pre>
-<font color="#000080"><i>--? see demo\xpGUI\gTreeView.exw for a better example (when F1|2 pressed)</i></font>
-<font color="#008080">include</font><font color="#000000"> xpGUI.e</font>
-<font color="#7060A8">gMsgBox</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#008000">`gMsgBox`</font><font color="#0000FF">,</font><font color="#008000">`This is a simple %s window.`</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">`message box`</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#008080">include</font><font color="#000000"> theGUI.e</font>
+<font color="#7060A8">gMsgBox</font><font color="#0000FF">(</font><font color="#008000">`Please try again`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">()</font>
 </pre>
+            </small>
           </div>
-          <img alt="gMsgBox" style="float:right;" src="images/gMsgBox.png" width="236" height="103"/>
+<!--          <img alt="gMsgBox" style="float:right;" src="images/gMsgBox.png" width="236" height="98"/>--->
+          <div style="float:right;">
+            <img alt="gMsgBox" src="images/gMsgBox.png" width="236" height="98"/>
+            <div style="clear:right; text-align:center;" ><i><small>&nbsp;&nbsp;(out-of-date mock up)</small></i></div>
+          </div>
           <div class="clear"></div>
          </td>
         </tr>
@@ -107,63 +141,80 @@ gMainLoop()
           <b>Notes:</b>
          </td>
          <td>
-          This is a relatively straightforward (hll) convenience wrapper for a <a href="gDialog.htm">gDialog</a> containing 
-          a [<a href="gCanvas.htm">gCanvas</a>,] <a href="gLabel.htm">gLabel</a>, and one or more
-          <a href="gButton.htm">gButton</a>. Should this not meet your precise needs, just simply roll your own.
+          This is a relatively straightforward (hll) convenience wrapper for <a href>gShow</a>() on a 
+          (single/private/reusable) <a href>gDialog</a> containing a [not always visible] 
+          <a href>gCanvas</a>, <a href>gLabel</a>, and one or more
+          <a href>gButton</a>(currently max 5). 
+          Should this not meet your precise needs, simply roll your own.
           <br>
           <br>
           For JavaScript compatibility reasons this does not "stop the world", instead control returns immediately and normal
-          processing continues. Attempts to display more than one gMsgBox at the same time will result in a fatal error.
-<!--          This is <i>not</i> <a href="g_paranormal.htm">paranormalised</a>, in particular "no parent" requires an explicit NULL.-->
+          processing continues, which may require a certain amount of refactoring when porting legacy code to theGUI. 
+          Specifically, i = <a href>message_box</a>(), i = <a href>messageBox</a>(),
+          i = <a href>IupAlarm</a>(), and i = <a href="IupMesageAlarm.htm">IupMesageAlarm</a>() must be
+          reworked to perform any required actions based on the value of i inside the (new) handler, rather than immediately
+          next in the code, along with any subsequent actions, such as invoking <a href>abort</a>().
+?         Attempts to display more than one gMsgBox at the same cause them to be "queued" such that closing the currrently open 
+          one immediately triggers display of the next in line.
+<!--          This is <i>not</i> <a href="g_paranormal.htm">paranormalised</a>, in particular "no parent" requires an explicit <a href>NULL</a>.-->
           <br>
           <br>
-??        b1 is set as the "DEFAULTENTER". The "DEFAULTESC" is set to the last non-NULL of b1, b2, and b3.
+<!--
+??        b1 is set as the "DEFAULTENTER". The "DEFAULTESC" is set to the last non-<a href>NULL</a> of b1, b2, and b3.
           <br>
           <br>
 ??X       Returns 1, 2 or 3 to indicate which button was selected. (this text nicked from IupAlarm...)
+-->
           <br>
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <b>Attributes:</b>
          </td>
          <td>
+<X!--
 ?           Not yet implemented.<br>
-            Since the application never gets to see the prvate gdx being used, these can only be set via the implicit
-            <a href="gSetAttributes">gSetAttributes</a>() of the initial call, likewise all are effectively non-readable.
-            <br>
-            <a name=TITLE></a>
+            Since the application never gets to see the prvate gdx being used (except, perhaps and all a bit too late via
+            <a href>gGetDialog</a>(id) in the handler, these can only be set via the implicit
+            <a href="gSetAttributes">gSetAttributes</a>() of the initial call, and therefore effectively all non-readable.
+--X>
          </td>
         </tr>
+-->
+<!--
+            <br><a name=TITLE></a>
         <tr>
          <td>
           <a href="gDialog.htm#TITLE">TITLE</a>
          </td>
          <td>
             (optional) The popup title. Default: "Error".
-            <br>
-            <a name=IMAGE></a>
+//          <br><a name=IMAGE></a>
          </td>
         </tr>
-        <tr>
-         <td>
-          IMAGE
-         </td>
-         <td>
-            (optional) A <a href="gImage.htm">gImage</a> to be placed before the <a href="#MSG">MSG</a>.
-            <br>
-            <a name=MSG></a>
-         </td>
-        </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        IMAGE
+//       </td>
+//       <td>
+//          (optional) A <a href>gImage</a> to be placed before the <a href="#MSG">MSG</a>.
+//          Can only be set via one of the (first two) '=' forms of the implicit <a href="gSetAttributes">gSetAttributes</a>().
+//       </td>
+//      </tr>
+-->
+<!--
+            <br><a name=MSG></a>
         <tr>
          <td>
           MSG
          </td>
          <td>
             (not optional, but can be set via the msg parameter) The main/central text of the popup.
-            <br>
-            <a name=BUTTONS></a>
+            <br><a name=BUTTONS></a>
          </td>
         </tr>
         <tr>
@@ -171,181 +222,174 @@ gMainLoop()
           BUTTONS
          </td>
          <td>
-            (optional) A comma-delimited string containing the text of any button(s) to be shown. Default: "OK".<br>
+            (optional) A sequence of strings Xor comma-delimited stringX containing the text of any button(s) to be shown. Default: "OK".<br>
 ?           An error occurs if more than one button (which just closes) is present but no <a href="#HANDLER">HANDLER</a> has been specified.<br>
             <br>
          </td>
         </tr>
-
+-->
 <!--
         <tr>
          <td>
             also
          </td>
          <td>
-            <a href="gSetAttribute.htm#ACTIVE">ACTIVE</a>, 
-            <a href="gSetAttribute.htm#EXPAND">EXPAND</a>,
-            <a href="gSetAttribute.htm#FONT">FONT</a>, 
-            <a href="gSetAttribute.htm#MARGIN">MARGIN</a>, 
-            <a href="gSetAttribute.htm#MINSIZE">MINSIZE</a>, 
-            <a href="gSetAttribute.htm#MAXSIZE">MAXSIZE</a>,
-            <a href="gGetAttribute.htm#SIZE">SIZE</a>,
-            <a href="gSetAttribute.htm#VISIBLE">VISIBLE</a>.<br>
-          <a name=tech></a>
+            <a href>ACTIVE</a>, 
+            <a href>EXPAND</a>,
+            <a href>FONT</a>, 
+            <a href>MARGIN</a>, 
+            <a href>MINSIZE</a>, 
+            <a href>MAXSIZE</a>,
+            <a href>SIZE</a>,
+            <a href>VISIBLE</a>.
+          <br><a name=tech></a>
          </td>
         </tr>
 -->
         <tr>
          <td>
-          <b>Handlers:</b>
+          <b>Handler:</b>
          </td>
          <td>
-?         <a href="gButton.htm#ACTION">ACTION</a>...?
-          <br>
-          <a name=HANDLER></a>
+<!--?         <a href>ACTION</a>...?--->
+            <small>(as implicily set on the private <a href="gButton.htm">button</a>(s) via the handler parameter)</small>
+          <br><a name=HANDLER></a>
          </td>
         </tr>
         <tr>
-         <td>
-??        HANDLER
+         <td class="techbtn">
+          HANDLER
+          <img id="Timg" />
          </td>
          <td>
-            procedure handler(<a href="integer.htm">integer</a> btn[, <a href="string.htm">string</a> title])<br>
-            btn: a 1-based index corresponding to <a href="#BUTTONS">BUTTONS</a>.<br>
-            title: (optional) the text corresponding to <a href="#BUTTONS">BUTTONS</a>.
+            procedure handler(<a href>integer</a> btn[, <a href>string</a> title])<br>
+            btn: a 1-based index corresponding to buttons.<br>
+            title: (optional) the corresponding text.
+<!-- (stop advertising vapourware...) [DEV the sig thing has actually been done now...]
             <br>
             <br>
-            The popup is automatically closed <i>before</i> the handler is invoked. Can be set via the handler parameter or as
-            "HANDLER" using an implicit leading '=' variant of <a href="gSetAttributes.htm">gSetAttributes</a>() - since the
+            <small>
+            Aside: btn may become optional if I ever get round to making <a href>get_routine_info</a>()
+            a bit smarter (ie return the same sig as desktop/Phix) under pwa/p2js.
+            </small>
+-->
+            <br>
+            <br>
+?           The popup is automatically closed <i>before</i> the handler is invoked. <br>
+            <!--Can be set via the handler parameter or as
+            "HANDLER" using an implicit leading '=' variant of <a href>gSetAttributes</a>() - since the
             application never gets to see the prvate gdx being used, it cannot be set via <a href="gSetHandler">gSetHandler</a>().
-            An error occurs when there are multiple buttons but no handler has been specified. A common handler can be used for 
-            multiple popups, just so long as it can determine unequivocably what btn/title actually means in the current context 
-            (via some saved state should need be).
+-->
+            An error occurs when there are multiple buttons but no handler has been specified.<br>
+            A common handler can be used, just so long as it can determine unequivocably what btn[1..5]/title actually means,
+            bearing in mind theGUI might be sitting on a stack of things you&apos;ve asked it to display, so they will not
+            necessarily relate to the last thing asked for.
             <br>
-          <a name=tech></a>
+            <br>
+            There is also a HANDLER on a <a href>gMenu</a>, were you looking for that.
+            <br><a name=tech></a>
          </td>
         </tr>
 
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
           </a>
          </td>
          <td>
-<i><small>(DEV to be completed/implemented/tested)</small></i><br>
             As this is a <a href="g_paranormal.htm">paranormalised function</a>, and with no expectation that you should memorise this lot,
-            except maybe "prtmaa", you can assume that all of the following are potentially perfectly valid, with the fairly obvious restrictions 
-            that any parameters <i>must</i> be in strict prtmaa-order, with parent non-optional, and msg or <a href="#MSG">MSG</a> must be set.<br>
-            While NULL can be used for the parent, you should then fully expect the keyboard focus is quite likely to go all a bit wonky.<br>
-            Note that args can apply to msg or attributes, and an implicit leading '=' variant of <a href="gSetAttributes.htm">gSetAttributes</a>()
-            must be used to set an <a href="#IMAGE">IMAGE</a>.
+            except maybe "tmabhi", you can assume that all of the following are potentially perfectly valid, with the fairly obvious restrictions 
+            that any parameters <i>must</i> be in strict tmabhi-order, with msg non-optional, and the same for handler when more than one button.
             <br>
             <br>
 <small>
 <!--eucode>
-                        gMsgBox(parent, attributes)
-                        gMsgBox(parent, attributes, args)
-                        gMsgBox(parent, msg)
-                        gMsgBox(parent, msg, args)
-                        gMsgBox(parent, msg, attributes)                            
-                        gMsgBox(parent, msg, attributes, args)
---X                     gMsgBox(parent, title, attributes)                          -- (see note two)
---X                     gMsgBox(parent, title, attributes, args)                    --       ""
-                        gMsgBox(parent, title, msg)
-                        gMsgBox(parent, title, msg, args)
-                        gMsgBox(parent, title, msg, attributes)
-                        gMsgBox(parent, title, msg, attributes, args)
-                        gMsgBox(parent, handler, attributes)
-                        gMsgBox(parent, handler, attributes, args)
-                        gMsgBox(parent, handler, msg)
-                        gMsgBox(parent, handler, msg, args)
-                        gMsgBox(parent, handler, msg, attributes)
-                        gMsgBox(parent, handler, msg, attributes, args)
---X                     gMsgBox(parent, handler, title, attributes)                 -- (see note two)
---X                     gMsgBox(parent, handler, title, attributes, args)           --       ""
-                        gMsgBox(parent, handler, title, msg)
-                        gMsgBox(parent, handler, title, msg, args)
-                        gMsgBox(parent, handler, title, msg, attributes)
-                        gMsgBox(parent, handler, title, msg, attributes, args)      -- (the full set)
+                        gMsgBox(msg)
+                        gMsgBox(msg, image)
+                        gMsgBox(msg, handler)
+                        gMsgBox(msg, handler, image)
+                        gMsgBox(msg, {button})
+                        gMsgBox(msg, {button}, image)
+                        gMsgBox(msg, {buttons}, handler)
+                        gMsgBox(msg, {buttons}, handler, image)
+                        gMsgBox(msg, args)
+                        gMsgBox(msg, args, image)
+                        gMsgBox(msg, args, handler)
+                        gMsgBox(msg, args, handler, image)
+                        gMsgBox(msg, args, {button})
+                        gMsgBox(msg, args, {button}, image)
+                        gMsgBox(msg, args, {buttons}, handler)
+                        gMsgBox(msg, args, {buttons}, handler, image)
+                        gMsgBox(title, msg)
+                        gMsgBox(title, msg, image)
+                        gMsgBox(title, msg, handler)
+                        gMsgBox(title, msg, handler, image)
+                        gMsgBox(title, msg, {button})
+                        gMsgBox(title, msg, {button}, image)
+                        gMsgBox(title, msg, {buttons}, handler)
+                        gMsgBox(title, msg, {buttons}, handler, image)
+                        gMsgBox(title, msg, args)
+                        gMsgBox(title, msg, args, image)
+                        gMsgBox(title, msg, args, handler)
+                        gMsgBox(title, msg, args, handler, image)
+                        gMsgBox(title, msg, args, {button})
+                        gMsgBox(title, msg, args, {button}, image)
+                        gMsgBox(title, msg, args, {buttons}, handler)
+                        gMsgBox(title, msg, args, {buttons}, handler, image)    -- (the full set)
 </eucode-->
 <pre>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)                            </font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#000080"><i>--X                     gMsgBox(parent, title, attributes)                          -- (see note two)
---X                     gMsgBox(parent, title, attributes, args)                    --       ""</i></font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#000080"><i>--X                     gMsgBox(parent, handler, title, attributes)                 -- (see note two)
---X                     gMsgBox(parent, handler, title, attributes, args)           --       ""</i></font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">parent</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)     </font><font color="#000080"><i> -- (the full set)</i></font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">button</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gMsgBox</font><font color="#0000FF">(</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000"> msg</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">buttons</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000"> handler</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">)   </font><font color="#000080"><i> -- (the full set)</i></font>
 </pre>
 </small>
             <br>
-            Note that in practice most parameters are actually defined as <a href="object.htm">object</a>, but everything is verified to be of 
-            the documented types, after being repositioned via xpGUI.e/paranormalise_rtmaa(). Also note the parent is non-optional and takes 
-            no part in the paranormalisation handling.
+            Be grateful it was me not you that had to figure out how to properly distinguish and test all 32 separate cases.<br>
+            Don&apos;t read too much into {button[s]} - it&apos;s just a pseudo-type-notation that helped me clarify a few things.<br>
+            Note that in practice all parameters bar title are actually defined as <a href>object</a>, but everything is verified 
+            to be of the documented types (or <a href>NULL</a> in the case of image), after being repositioned via 
+            theGUI/paranormalise_tmabhi().
             <br>
             <br>
-            A msg is distinguished from attributes by the presence of an '=', as per <a href="g_paranormal.htm#eqch">here</a>, and that is used 
-            to determine which of the above cases actually applies. Since title has a default but msg does not, a single ('='-less) string is 
-            taken to be msg not title, and there is no way to set title as a normal parameter with <a href="#MSG">MSG</a> in attributes, and 
-            attempts to do so would probably set MSG twice and leave you with the default <a href="#TITLE">TITLE</a> of "Error".
+            Obviously when two dword-sequences are passed they are assumed to be args, buttons. When only one is passed it determines whether
+            it is args or buttons by the presence or absense of one or more % characters in msg. A handler is &gt;0 whereas an image is &lt;0,
+            which helps distinguish those when only one or the other is specified, and lastly "only one string" is always taken to be msg
+            rather than title.
+            <br>
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
        <br>
        <br>

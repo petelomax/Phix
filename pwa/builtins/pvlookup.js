@@ -13,7 +13,7 @@
         }
     }
     return def_value;
-}
+} vlookup.$sig="FOPIIO,1";
 //DEV doc/auto:
 //**
 // If the supplied item is in the source list, this returns the corresponding
@@ -50,7 +50,7 @@
         def_value = $subse(target_list,-1);
     }
     return def_value;
-}
+} $lookup.$sig="FOPPO,1";
 //DEV doc/auto/move to a better location...
 //**
 // Converts a string containing Key/Value pairs into a set of
@@ -297,7 +297,7 @@
         }
     }
     return res;
-}
+} $keyvalues.$sig="FPOOOOI,1";
 //**
 // Formats a set of arguments in to a string based on a supplied pattern.
 //
@@ -936,4 +936,4 @@
         }
     }
     return result;
-}
+} $text_format.$sig="FPO,1";

@@ -24,7 +24,15 @@ it will create both a new p.exe and a new pw.exe, again automatically for you.
 
 Please note the following entries are probably more for my benefit than yours.
 
-Version 1.0.5
+Version 1.0.6
+=============
+12/12/2024: Bugfix: ?""&{} and ?{}&"" both printed {""} rather than "" (not 
+            that {} would strictly be wrong for either/both). Traced to an
+            update 24/11/2022 (1.0.2) which replaced opConcat[N] with opMkSq
+            for <=1 items, when it should have been for 0 items only.
+            Clearly nothing has triggered that in the interim, and to be fair
+            it can only happen should such literal gibberish actually be coded,
+            though (string|char)&"" to force it into a string is a real thing.
 
 Version 1.0.3
 =============
@@ -102,6 +110,7 @@ Version 1.0.2
             which makes no sense, and in the second case tried to opConcatN 
             zero items, which ain't ever gonna fly. It now pushes an opMkSq 
             operation for <=1 items, as it always should have.
+            [UPDATE] see bugfix 12/12/24
 
 
 Version 1.0.1
@@ -277,7 +286,7 @@ Version 0.8.3
 29/01/2021: BUGFIX: deleting a dictionary entry was moving the key but not
             the data(!!). Many thanks to irv for finding this nasty bug.
 29/01/2021: New still_has_delete_routine() function. Used by the internal 
-            type checking routines of builtins\structs.e to identify any 
+            typechecking routines of builtins\structs.e to identify any 
             now-invalid struct/class instances, and prevent accidentally 
             clobbering a slot now occupied by something else.
 30/01/2021: BUGFIX: tagset was using ceil() not floor() for some unknown
@@ -887,7 +896,7 @@ Version 0.7.5
             (assuming the compiler does not optimise that test away too)
             Update: Problem resurfaced. There are now fixes for this in 
             both pmain.e/DoFor() and pilx86.e/jskip().
-29/10/2017  Bugfix. A call_func that triggered a type check was displaying
+29/10/2017  Bugfix. A call_func that triggered a typecheck was displaying
             an incorrect return address/line number of -1. As part of this
             fix, the ex.err no longer contains the stack entry arising from 
             pcallfunc.e/call_common(), somewhat unintended, but perhaps not
@@ -1187,7 +1196,7 @@ Version 0.6.6
             Omitting the type, as all legacy code does, is effectively the 
             same as coding "constant object", which is basically pointless
             (as in it is exactly equivalent to the plain "constant"), and
-            means "no type check; infer any type info as best you can".
+            means "no typecheck; infer any type info as best you can".
             
             Being explicit about the type may not only catch things that
             go wrong much earlier, but may let the compiler make just one
@@ -1290,7 +1299,7 @@ Version 0.6.6
              you will understand why I am quite keen to get rid of it!)
 25/02/2013  Fixed a bug in opMovti whereby (as previously noted at some time in the
             past but never addressed) it was checking dtype instead of slroot. This
-            meant it did not perform a type check storing a float in an integer,
+            meant it did not perform a typecheck storing a float in an integer,
             which later caused a memory leak warning message.
 01/03/2013  Bugfix. pttree.e used a terminator of 0 for identifiers, and -1 for strings
             (and -2 for ilasm), which was fine until you defined a string with the
@@ -1312,7 +1321,7 @@ Version 0.6.6
             Added test\trace.exw as a home for all trace-related (manual) tests.
 27/03/2013  Completed demo\arwendemo\filedump.exw. Next job is to transfer the F3 test
             routine to pemit.e [update: done]
-27/03/2013  Bugfix. opSubse1i was making a royal mess of reporting a type check error.
+27/03/2013  Bugfix. opSubse1i was making a royal mess of reporting a typecheck error.
             An appropriate new test case was added to test\terror.exw (opSubse1i01)
 10/04/2013  Completed demo\msgbox.exw. The first tests (on pfileio.e) indicate the 
             alternatives (to c_func/c_proc) do not provide the significant performance 
@@ -1593,9 +1602,9 @@ Version 0.6.6
 24/01/2014  Added checks for zero length replacement slices in strings, so that (eg)
                 string s = "123456"
                 s[3..5] = {} -- (as opposed to s[3..5] = "", which was always fine)
-            no longer causes a type check. Obviously if the replacement length is 0,
+            no longer causes a typecheck. Obviously if the replacement length is 0,
             there is no need for opReps to auto-expand s to a dword-sequence, even
-            if it could be argued that higher-level type checking should ideally be
+            if it could be argued that higher-level typechecking should ideally be
             in place.
 02/02/2014  Added typechecking to multiple assignments. (Dunno how I missed that.)
 02/02/2014  Bugfix. Ctrl-Click on "decode" of "p2asm:decode" completely ignored the
@@ -1813,7 +1822,7 @@ Version 0.6.2
             Also spotted, forward-calling a routine as a function but then later
             declaring it as a procedure, or vice versa, had never previously been
             reported as an error, presumably causing any and all manner of run-time 
-            failures. However, I suspect more could be done regarding type checking 
+            failures. However, I suspect more could be done regarding typechecking 
             of parameters on forward calls. [DEV]
 21/08/2010  ALERT: while adding Export() to test\terror.exw, I noticed a
             probable bug in file i/o. The raw text had embedded "\r\n" in

@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="atom.htm">atom</a> thread_id = get_thread_id()
+         <a href>atom</a> thread_id = get_thread_id()
          </td>
         </tr>
         <tr>
@@ -29,7 +29,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+          <a href="notp2js.htm#nothread"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -41,7 +41,7 @@
             Only the main thread should ever update the gui directly.
             <br>
             <br>
-            The returned value bears no resemblance to the thread handles returned by <a href="create_thread.htm">create_thread</a>().
+            The returned value bears no resemblance to the thread handles returned by <a href>create_thread</a>().
          </td>
         </tr>
         <tr>
@@ -65,8 +65,8 @@ global procedure loggit(string text)
     end if
 end procedure
 
-function timer_cb(Ihandle /*ih*/)
--- (this is only ever invoked by the main thread)
+procedure timer_action()
+    -- (this is only ever invoked by the main[/GUI] thread)
     -- process any stacked background thread loggit()s in a thread-safe way
     enter_cs(logcs)
     sequence ls = loggit_stack
@@ -75,37 +75,35 @@ function timer_cb(Ihandle /*ih*/)
     for i=1 to length(ls) do
         loggit(ls[i])
     end for
-    return IUP_DEFAULT
-end function    
+end procedure
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">constant</font><font color="#000000"> main_thread</font><font color="#0000FF"> =</font><font color="#5E005E"> get_thread_id</font><font color="#0000FF">(),
-</font><font color="#000000">         logcs</font><font color="#0000FF"> =</font><font color="#5E005E"> init_cs</font><font color="#0000FF">()
-</font><font color="#004080">sequence</font><font color="#000000"> loggit_stack</font><font color="#0000FF"> = {}
-
-</font><font color="#008080">global procedure</font><font color="#000000"> loggit</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> text</font><font color="#0000FF">)
-</font><font color="#000080"><i>-- (this can be called by any code, in any thread)
-</i></font><font color="#008080">    if</font><font color="#5E005E"> get_thread_id</font><font color="#0000FF">()=</font><font color="#000000">main_thread</font><font color="#008080"> then
-</font><font color="#000080"><i>        -- show text in gui
-</i></font><font color="#008080">    else
-</font><font color="#5E005E">        enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
-</font><font color="#000000">        loggit_stack</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">loggit_stack</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#0000FF">)
-</font><font color="#5E005E">        leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
-</font><font color="#008080">    end if
+<font color="#008080">constant</font><font color="#000000"> main_thread</font><font color="#0000FF"> =</font><font color="#7060A8"> get_thread_id</font><font color="#0000FF">(),</font>
+<font color="#000000">         logcs</font><font color="#0000FF"> =</font><font color="#7060A8"> init_cs</font><font color="#0000FF">()</font>
+<font color="#004080">sequence</font><font color="#000000"> loggit_stack</font><font color="#0000FF"> = {}
+</font>
+<font color="#008080">global procedure</font><font color="#000000"> loggit</font><font color="#0000FF">(</font><font color="#004080">string</font><font color="#000000"> text</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- (this can be called by any code, in any thread)</i></font>
+<font color="#008080">    if</font><font color="#7060A8"> get_thread_id</font><font color="#0000FF">()=</font><font color="#000000">main_thread</font><font color="#008080"> then</font>
+<font color="#000080"><i>        -- show text in gui</i></font>
+<font color="#008080">    else</font>
+<font color="#7060A8">        enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)</font>
+<font color="#000000">        loggit_stack</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">loggit_stack</font><font color="#0000FF">,</font><font color="#000000">text</font><font color="#0000FF">)</font>
+<font color="#7060A8">        leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
 end procedure
 
-function</font><font color="#000000"> timer_cb</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000080"><i> /*ih*/</i></font><font color="#0000FF">)
-</font><font color="#000080"><i>-- (this is only ever invoked by the main thread)
-    -- process any stacked background thread loggit()s in a thread-safe way
-</i></font><font color="#5E005E">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
-</font><font color="#004080">    sequence</font><font color="#000000"> ls</font><font color="#0000FF"> =</font><font color="#000000"> loggit_stack
-    loggit_stack</font><font color="#0000FF"> = {}
-</font><font color="#5E005E">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)
-</font><font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#0000FF">)</font><font color="#008080"> do
-</font><font color="#000000">        loggit</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)
-</font><font color="#008080">    end for
-    return</font><font color="#004600"> IUP_DEFAULT
-</font><font color="#008080">end function    </font>
+procedure</font><font color="#000000"> timer_action</font><font color="#0000FF">()</font>
+<font color="#000080"><i>    -- (this is only ever invoked by the main[/GUI] thread)
+    -- process any stacked background thread loggit()s in a thread-safe way</i></font>
+<font color="#7060A8">    enter_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)</font>
+<font color="#004080">    sequence</font><font color="#000000"> ls</font><font color="#0000FF"> =</font><font color="#000000"> loggit_stack
+    loggit_stack</font><font color="#0000FF"> = {}</font>
+<font color="#7060A8">    leave_cs</font><font color="#0000FF">(</font><font color="#000000">logcs</font><font color="#0000FF">)</font>
+<font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#0000FF">)</font><font color="#008080"> do</font>
+<font color="#000000">        loggit</font><font color="#0000FF">(</font><font color="#000000">ls</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">    end for
+end procedure</font>
 </pre>
          </td>
         </tr>
@@ -122,7 +120,7 @@ function</font><font color="#000000"> timer_cb</font><font color="#0000FF">(</fo
           <b>See Also:</b>
          </td>
          <td>
-          <a href="create_thread.htm">create_thread</a>
+          <a href>create_thread</a>
          </td>
         </tr>
        </table>

@@ -13,24 +13,24 @@
           <b>Definition:</b>
          </td>
          <td>
-            include xpGUI.e
+            include theGUI.e
             <br>
             <br>
-            gSetGlobal(<a href="string.htm">string</a> name, <a href="object.htm">object</a> v)
+            gSetGlobal(<a href>string</a> name, <a href>object</a> v)
 <!--
-            gSetGlobal(<a href="string.htm">string</a> name, <a href="string.htm">atom_string</a> v)
+            gSetGlobal(<a href>string</a> name, <a href>atom_string</a> v)
             <br>
             <i>-- or --</i>
             <br>
-            IupSetStrGlobal(<a href="string.htm">string</a> name, <a href="string.htm">nullable_string</a> v)
+            IupSetStrGlobal(<a href>string</a> name, <a href>nullable_string</a> v)
             <br>
             <i>-- or --</i>
             <br>
-            IupStoreGlobal(<a href="string.htm">string</a> name, <a href="string.htm">nullable_string</a> v)
+            IupStoreGlobal(<a href>string</a> name, <a href>nullable_string</a> v)
             <br>
             <i>-- or --</i>
             <br>
-            IupSetGlobalInt(<a href="string.htm">string</a> name, <a href="integer.htm">integer</a> v)
+            IupSetGlobalInt(<a href>string</a> name, <a href>integer</a> v)
 -->
          </td>
         </tr>
@@ -44,7 +44,10 @@
             <br>
             <br>
             name: name of the attribute.<br>
-            v: value of the attribute. If it equals NULL,<!-- (except for IupSetGlobalInt),--> the attribute will be removed.
+            v: value of the attribute. 
+<!--
+            If it equals <a href>NULL</a>,[!-- (except for IupSetGlobalInt),--] the attribute will be removed.
+-->
          </td>
         </tr>
         <tr>
@@ -52,11 +55,16 @@
           <b>Notes:</b>
          </td>
          <td>
-            Like <a href="gSetAttribute.htm">gSetAttribute</a>(), v can be atom/string/sequence, but when retrieved it will be
+            Like <a href>gSetAttribute</a>(), v can be atom/string/sequence, but when retrieved it will be
             as decoded and internally stored.
+<!--
             <br>
             <br>
-            See <a href="gGetGlobal.htm">gGetGlobal</a>() for possible names (those not marked read-only).
+            See <a href>gGetGlobal</a>() for possible names (those not marked read-only, specifically
+            <a href>IDLE_ACTION</a>,
+--XX            <a href="gSetGlobal.htm#IDLE_ARGS">IDLE_ARGS</a>, and
+            <a href="g?GetGlobal.htm#MOUSEPOS">MOUSEPOS</a>).
+-->
 <!--
 //          IupSetGlobal can store only constant strings (like "Title", "30", etc) or application pointers. <br>
 //          The given value is not duplicated as a string, only a reference is stored. <br>
@@ -67,8 +75,127 @@
 //          The given string value will be duplicated internally.
 //          <br>
 //          <br>
-//          <a href="IupSetAttribute.htm">IupSetAttribute</a> functions can also be used to set global attributes, just set the element to NULL.
+//          <a href>IupSetAttribute</a> functions can also be used to set global attributes, just 
+//          set the element to <a href>NULL</a>.
 -->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Writeable</b>
+         </td>
+         <td>
+          See <a href>gGetGlobal</a> for the read-only ones.
+          <br><a name=DIAGNOSTICS></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DIAGNOSTICS
+         </td>
+         <td>
+          (write only, desktop/Phix only and/or quite different for JS) Enable selected diagnostic messages from theGUI, see the source code 
+          of gSetGlobal() for more details. The main idea is you don&apos;t have to run around switching things off to run or debug something
+          else, and it is far easier to uncomment some gSetGlobal("DIAGNOSTICS",?) statements when you thought you were done but were not.<br>
+          Obviously if you&apos;re not actively debugging theGUI.s/js itself, you quite simply never have to bother with this at all.
+          <br><a name=IDLE_ACTION></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IDLE_ACTION
+         </td>
+         <td>
+            (write only) Invoked when there are no events or messages to be processed, to perform background operations.
+            <br>
+            <br>
+            function idle_action([params])<br>
+            params: (optional) as set via gSetGlobal("IDLE_ACTION",{rtn,args[,low_priority]}), with gSetGlobal("IDLE_ACTION",rtn) being equivalent 
+            to gSetGlobal("IDLE_ACTION",{rtn,{}[,<a href>false</a>]}), and where rtn is a normal function identifier (aka 
+            <a href>routine_id</a>), <i>not</i> a <a href>call_back</a>, args must be a sequence suitable for 
+            passing to <a href>call_func</a>(), and low_priority defaults to <a href>false</a>.
+            <br>
+            <br>
+            Returns: <!--if <a href>TG_CLOSE</a> is returned the current loop is closed and the handler removed. <br>-->
+            If <a href>TG_IGNORE</a> is returned the handler is removed and normal processing/idling continues.<br>
+            If <a href>TG_CONTINUE</a> is returned, as it should be every 50ms (1/20<small><sup>th</sup></small>s) or so,
+            the main processing loop checks for any messages to process (keeping the system responsive) and automatically re-invokes this routine as soon 
+            as they have been dealt with. <br>
+            No other values should be returned, specifically <a href>TG_CLOSE</a> is <i>not</i> handled
+            <small>(instead of, I suppose, closing some random window)</small>, and <a href>TG_DEFAULT</a> is 
+            now treated as meaningless and hence triggers a fatal error <small>(treating it the same as TG_IGNORE, as it used to in the past,
+            just muddifies things)</small>.
+            <br>
+            <br>
+            Normally, the main processing loop goes properly idle when there are no events or messages to be processed, consuming little or no CPU cycles. 
+            Setting an idle action changes that loop to a more CPU consuming one. It is important it be set <a href>NULL</a> when not 
+            needed, that is for <a href>TG_IGNORE</a> to be returned, otherwise the application consumes CPU even when the 
+            handler is doing nothing.
+            <br>
+            <br>
+            Each idle action must (eventually) terminate itself, and <!--(possibly unlike some legacy code) -->
+            gSetGlobal(`IDLE_ACTION`,<a href>NULL</a>) is specifically prohibited. 
+            Internally theGUI maintains a stack of idle routines, and promotes normal above low priority entries. [Which also happens to be the reason why 
+            it is non-readable, and besides not only does <a href>TG_IGNORE</a> permanently discard it, you&apos;ll know anyway 
+            precisely which routine is active when it calls the active routine!]
+            For instance, a <a href>gTree</a>() uses a low-priority idle/redraw task to determine the widest visible node, so it can set the 
+            <a href>VIEWPORT</a> correctly, and there may well be things which are a tad more urgent than that, not least perhaps 
+            being deferred loading of the very tree nodes it should be measuring.
+<!-- DEV bluff? testme. --]
+            <small>[It is in fact GTK3 which foists the slightly clunky idle/redraw mechanism on us, since who in their right mind would <i>ever</i> want 
+                    to measure text widths <i>outside</i> a redraw? <small>&lt;/sarcasm&gt;</small>]</small>
+-->
+            <br>
+            <br>
+            Ideally the idle process should return twenty or at the very least five times per second, to keep the system responsive. <br>
+            Should you create a loop or an operation that takes a long time to complete inside the idle handler of your application 
+            then the user interface message loop processing is interrupted until the handler returns, so the user cannot click on 
+            any control, and/or typed characters do not show up immediately, but there are ways to handle that:
+            <ul>
+<!--            <li>call <a href>IupLoopStep</a> or <a href>IupFlush</a> inside the application handler when it is performing long time operations. <br>
+            This will allow the user to click on a cancel button for instance, because the user interface message loop will be processed.</li>-->
+
+            <li>split the operation into several smaller parts and return <a href>TG_CONTINUE</a> between each.</li>
+            <li>split the operation into several smaller parts but use a <a href="gTimer.htm">timer</a> to process each part. </li>
+            <li>move the operation to a background <a href="mthread.htm">thread</a>. </li>
+            </ul>
+            For something as simple as a background redraw of a <a href>gCanvas</a>, a better idea may be to handle the "idle" state yourself. 
+            For example, register a timer for a something like 500ms, and reset it in the mouse and keyboard handlers of the <a href>gCanvas</a>. 
+            If the timer is trigged then you are (probably) in an idle state. If the <a href>gCanvas</a> loses focus stop the timer.
+            <br>
+            <br>
+            If the work that needs to be done cannot be split into suitably small time slices, you could consider migrating it to
+            a background <a href="mthread.htm">thread</a> instead of using either an idle action or a timer, albeit imposing additional 
+            effort on the part of the programmer and quite probably deserving rather more rigorous testing.
+            <br>
+            <br>
+            <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a> Uses window.requestIdleCallback() which is marked on 
+            <a href="javascript:ExternalLink('ext373');" title='https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback'
+            id="ext373" style="color:#9B5565" >MDN</a> as experimental, but that has not changed since 2015. Note that according to 
+            <a href="javascript:ExternalLink('ext382');" title='https://caniuse.com/requestidlecallback'
+            id="ext382" style="color:#9B5565" >caniuse.com</a> for this to work in Safari you (and/or you users) must enable requestIdleCallback 
+            in Experimental (Webkit) Features, and the same may be true for Chrome on macOS (not that desktop/Phix works on macOS, yet).<br>
+<!--
+            Also note I am not quite sure what "current loop will be closed" above means for TG_CLOSE returns, so TG_CLOSE and TG_IGNORE do
+            the same thing, which is in fact <i>don&apos;t</i> re-apply requestIdleCallback.<br>
+-->
+            If at all possible you should strive to return within 50ms/break up idle processing into chucks of work shorter than that, to
+            avoid (otherwise fairly harmless) JavaScript violation messages being logged to the (hidden) console. A future version may
+            incorporate a means to get <code>(deadline.timeRemaining() > 0 || deadline.didTimeout)</code> in pwa/p2js, with a matching
+            mechanism of some as yet undecided genre for desktop/Phix, should that ever be desired/requested.
+            <br>
+            <br>
+            For an example see demo\rosetta\DrawRotatingCube.exw <small>[aside: the currently poor performance of gDrawPolygon() does
+            however mean that is not really the best place to compare an idle handler with a timer, esp under WinAPI.]</small>
+<!-- (it works fine now, no idea what I did...)
+//          <br>
+//          <br>
+//          <b>NB</b> Does not appear to work on (my version of) GTK2, it spits out a console message to that effect, but it seems fine
+t//         on GTK3, WinAPI, and under p2js.
+-->
+            <br>
+            <br>
+            See Also: <a href>gTimer</a>, <a href="mthread.htm">multithreading</a>.
          </td>
         </tr>
         <tr>
@@ -76,12 +203,12 @@
           <b>See Also:</b>
          </td>
          <td>
-          <a href="gSetAttribute.htm">gSetAttribute</a>,
-          <a href="gGetGlobal.htm">gGetGlobal</a>
+          <a href>gSetAttribute</a>,
+          <a href>gGetGlobal</a>
          </td>
         </tr>
        </table>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

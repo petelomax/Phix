@@ -14,26 +14,26 @@
 //
 // builtins\ptypes.e
 //
-//  NB not an autoinclude, but used/included by [x]pGUI.e, mpfr.e, pFilter.e, and structs.e.
+//  NB not an autoinclude, but used/included by theGUI.e, mpfr.e, pFilter.e, and structs.e.
 //
 
 // used by IupSetAttribute, IupSetGlobal, cdCreateCanvas, mpz_import:
 /*global*/ function atom_string(/*object*/ o) {
     return (string(o) || (integer(o) && compare(o,NULL)>=0)) || ((atom(o) && compare(o,NULL)>=0) && (equal(o,floor(o))));
-}
+} atom_string.$sig="TO";
 
 /*global*/ function rid_string(/*object*/ o) {
-    return string(o) || (integer(o) && compare(o,15)>0);
-}
+    return string(o) || (integer(o) && compare(abs(o),15)>0); // (note hll_integer etc /are/ > 15)
+} rid_string.$sig="TO";
 
 /*global*/ function nullable_string(/*object*/ o) {
     return string(o) || (equal(o,NULL));
-}
+} nullable_string.$sig="TO";
 // Note: psym.e aliases bool to integer, without the true|false aka 0|1 validation
 /*global*/ function boolean(/*object*/ o) {
     return integer(o) && ((equal(o,true)) || (equal(o,false)));
-}
-//DEV/erm, see if we can get by (in xpGUI.e) without this...
+} boolean.$sig="TO";
+//DEV/erm, see if we can get by (in theGUI.e) without this... [update: we can]
 //global function get_raw_string_ptr(string s)
 //--
 //-- Returns a raw string pointer for s, somewhat like allocate_string(s), but using the existing memory.
@@ -100,7 +100,9 @@
                 if (!sequence(userdata) || (!equal(length(userdata),2))) {
                     crash("userdata must be a sequence of length 2 for in/out handling");
                 }
-                let /*object*/ [,lo,hi] = userdata;
+//              object {lo,hi} = userdata
+                let /*object*/ lo = $subse(userdata,1), 
+                               hi = $subse(userdata,2);
 //              for i=1 to length(s) do
 //                  si = s[i]
                 for (let si$idx = 1, si$lim = length(s); si$idx <= si$lim; si$idx += 1) { si = $subse(s,si$idx);
@@ -157,7 +159,8 @@
     } else {
         // user-defined function handling
         if (rangetype!=="") { crash("invalid rangetype"); }
-        let /*integer*/ fn = rs, [,maxp,minp] = get_routine_info(fn);
+        let /*bool*/ bTrue = compare(rs,0)>0;
+        let /*integer*/ fn = abs(rs), [,maxp,minp] = get_routine_info(fn);
         if (maxp<1 || minp>3) {
             crash("filter routine must accept 1..3 parameters");
         } else if ((maxp===1) && (!equal(userdata,["sequence"]))) {
@@ -165,7 +168,7 @@
         }
         for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
             si = $subse(s,i);
-            let /*bool*/ bAdd;
+            let /*integer*/ bAdd;
             if (equal(userdata,["sequence"])) {
                 if ((maxp===1) || minp<=1) {
                     bAdd = fn(si);
@@ -179,7 +182,7 @@
             } else {
                 bAdd = fn(si,userdata);
             }
-            if (bAdd) {
+            if (equal((bAdd!==0),bTrue)) {
                 if (bCount) {
                     ires += 1;
                 } else {
@@ -190,8 +193,8 @@
     }
     if (bCount) { return ires; }
     return res;
-}
+} filter.$sig="FP9OS,1";
 
 /*global*/ function filter_count(/*sequence*/ s, /*rid_string*/ rs, /*object*/ userdata=["sequence"], /*string*/ rangetype="") {
     return filter(s,rs,["sequence",userdata,rangetype],"COUNT");
-}
+} filter_count.$sig="FP9OS,1";

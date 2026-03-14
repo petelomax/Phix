@@ -62,7 +62,7 @@ function mpfr(v) {
         && ([MPFR_RNDN].indexOf(v[MPFR$R]) !== -1) // (more to be added as supported)
         && integer(v[MPFR$P])
         && (v[MPFR$P] < 0);
-}
+} mpfr.$sig="TO";
 
 function mpq(v) {
     return Array.isArray(v)
@@ -70,22 +70,22 @@ function mpq(v) {
         && (v[MPFR$T] === "mpq")
         && (typeof(v[MPQ$N]) === "bigint")
         && (typeof(v[MPQ$D]) === "bigint");
-}
+} mpq.$sig="TO";
 
 function mpz(v) {
     return Array.isArray(v)
         && (v.length === 2)
         && (v[MPFR$T] === "mpz")
         && (typeof(v[MPZ$B]) === "bigint");
-}
+} mpz.$sig="TO";
 
 function mpir_open_dll() {
     return "";
-}
+} mpir_open_dll.$sig="FSO,0";
 
 function mpir_get_versions() {
     return ["sequence","JavaScript","mpfr.js","n/a"];
-}
+} mpir_get_versions.$sig="FO,0";
 
 function MPFR$replace_e(/*string*/ s) {
 // allow strings such as "1e200" or even "2.5e1" (as long as integer overall)
@@ -114,7 +114,7 @@ function mpz_init(v=0) {
         v = v[MPZ$B];
     }
     return ["mpz",BigInt(v)];
-}
+} mpz_init.$sig="FOI,0";
 let mpz_init_set = mpz_init;
 
 function mpz_inits(n, v=0) {
@@ -130,7 +130,7 @@ function mpz_inits(n, v=0) {
         }
     }
     return res;
-}
+} mpz_inits.$sig="FIO,1";
 
 function mpz_free(x) {
     if (sequence(x)) {
@@ -142,7 +142,7 @@ function mpz_free(x) {
         x = NULL;
     }
     return x;
-}
+} mpz_free.$sig="FO";
 
 function MPFR$COMMAFILL(res) {
     let showcommas = res.length,
@@ -164,7 +164,7 @@ function mpz_get_str(x, base=10, comma_fill=false) {
     let res = x[MPZ$B].toString(base);
     if (comma_fill) { res = MPFR$COMMAFILL(res); }
     return res;
-}
+} mpz_get_str.$sig="FOIO,1";
 
 // (transiled and copied in by hand)
 function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ comma_fill=false, /*string*/ what="digits") {
@@ -202,50 +202,54 @@ function mpz_get_short_str(/*mpz*/ op, /*integer*/ ml=20, base=10, /*boolean*/ c
     }
     if (neg) { res = $conCat("-", res); mpz_neg(op,op); } // (ditto)
     return res;
-}
+} mpz_get_short_str.$sig="FOIIOS,1";
 
 function mpz_add(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] + op2[MPZ$B];
-}
+} mpz_add.$sig="POOO";
 
 function mpz_add_ui(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] + BigInt(op2);
-}
+} mpz_add_ui.$sig="POOI";
+
 let mpz_add_si = mpz_add_ui;
 
 function mpz_sub(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] - op2[MPZ$B];
-}
+} mpz_sub.$sig="POOO";
 
 function mpz_sub_ui(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] - BigInt(op2);
-}
+} mpz_sub_ui.$sig="POOI";
+
 let mpz_sub_si = mpz_sub_ui
 
 function mpz_si_sub(rop, op1, op2) {
     rop[MPZ$B] = BigInt(op1) - op2[MPZ$B];
-}
+} mpz_si_sub.$sig="PNIO";
 
 function mpz_mul(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] * op2[MPZ$B];
-}
+} mpz_mul.$sig="POOO";
 
 function mpz_mul_si(rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] * BigInt(op2);
-}
+} mpz_mul_si.$sig="POOI";
+
 let mpz_mul_d = mpz_mul_si;
 
 function mpz_mul_2exp(/*mpz*/ rop, op1, /*integer*/ op2) {
     rop[MPZ$B] = op1[MPZ$B] << BigInt(op2);
-}
+} mpz_mul_2exp.$sig="POOI";
 
 function mpz_addmul(/*mpz*/ rop, op1, op2) {
     rop[MPZ$B] = rop[MPZ$B] + op1[MPZ$B] * op2[MPZ$B];
-}
+} mpz_addmul.$sig="POOO";
     
 function mpz_addmul_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     rop[MPZ$B] = rop[MPZ$B] + op1[MPZ$B] * BigInt(op2);
-}
+} mpz_addmul_ui.$sig="POOI";
+
 let mpz_addmul_si = mpz_addmul_ui;
 
 function mpz_cmp(op1, op2) {
@@ -258,7 +262,7 @@ function mpz_cmp(op1, op2) {
     } else {
         return 1;
     }
-}
+} mpz_cmp.$sig="FOO";
 
 function mpz_cmp_si(op1, op2) {
     op1 = op1[MPZ$B];
@@ -271,21 +275,23 @@ function mpz_cmp_si(op1, op2) {
     } else {
         return 1;
     }
-}
+} mpz_cmp_si.$sig="FOI";
 
 function mpz_set(op1, op2) {
     op1[MPZ$B] = op2[MPZ$B];
-}
+} mpz_set.$sig="POO";
 
 function mpz_set_si(rop, op) {
     rop[MPZ$B] = BigInt(op);
-}
+} mpz_set_si.$sig="POI";
+
 let mpz_set_d = mpz_set_si;
 
 function mpz_set_q(rop, op) {
     rop[MPZ$B] = op[MPQ$N] / op[MPQ$D];
 //  rop[MPZ$B] = op[MPQ$D] / op[MPQ$N];
-}
+} mpz_set_q.$sig="POO";
+
 //function mpz_set_ui(op1, op2) {
 //  op1[MPZ$B] = BigInt(op2);
 //}
@@ -339,7 +345,7 @@ function MPFR$PREFIX(s, base) {
 function mpz_set_str(rop, s, base=0) {
 //DEV spotted in passing 6/11/21 - what about replace_e()?
     rop[MPZ$B] = MPFR$PREFIX(s,base);
-}
+} mpz_set_str.$sig="POSI,2";
 
 function mpz_set_v(rop, v) {
     if (string(v)) {
@@ -347,37 +353,38 @@ function mpz_set_v(rop, v) {
     } else {
         mpz_set_si(rop, v);
     }
-}
+} mpz_set_v.$sig="POO";
 
 function mpz_odd(op1) {
     let bit = BigInt.asUintN(1,op1[MPZ$B]);
 //  let bit = BigInt.asIntN(1,op1[MPZ$B]);
     // note that bit is a BigInt, so == not ===: 
     return bit == 1;
-}
+} mpz_odd.$sig="FO";
 
 function mpz_even(op1) {
     let bit = BigInt.asUintN(1,op1[MPZ$B]);
 //  let bit = BigInt.asIntN(1,op1[MPZ$B]);
     // ditto
     return bit == 0;
-}
+} mpz_even.$sig="FO";
 
 function mpz_neg(/*mpz*/ rop, op) {
     rop[MPZ$B] = -op[MPZ$B];
-}
+} mpz_neg.$sig="POO";
 
 function mpz_abs(/*mpz*/ rop, op) {
     let n = op[MPZ$B];
     if (n < 0n) { n = -n; }
     rop[MPZ$B] = n;
-}
+} mpz_abs.$sig="POO";
 
 function mpz_pow_ui(rop, base, exponent) {
     base = (typeof base === 'number')? BigInt(base) : base[MPZ$B];
     exponent = (typeof exponent === 'number')? BigInt(exponent) : exponent[MPZ$B];
     rop[MPZ$B] = base**exponent;
-}
+} mpz_pow_ui.$sig="POOI";
+
 let mpz_ui_pow_ui = mpz_pow_ui;
 
 function mpz_fdiv_q(q, n, d) {
@@ -385,7 +392,8 @@ function mpz_fdiv_q(q, n, d) {
     d = d[MPZ$B];
     n = n[MPZ$B];
     q[MPZ$B] = n / d;
-}
+} mpz_fdiv_q.$sig="POOO";
+
 let mpz_divexact = mpz_fdiv_q;
 
 function mpz_fdiv_q_ui(q, n, d) {
@@ -398,7 +406,8 @@ function mpz_fdiv_q_ui(q, n, d) {
     n = n % d;
     if (n < 0n) { n += d; }
     return Number(n);
-}
+} mpz_fdiv_q_ui.$sig="FOOI";
+
 let mpz_divexact_ui = mpz_fdiv_q_ui;
 
 function mpz_fdiv_r(r, n, d) {
@@ -410,7 +419,7 @@ function mpz_fdiv_r(r, n, d) {
     n = n % d;
     if (n < 0n) { n += d; }
     r[MPZ$B] = n;
-}
+} mpz_fdiv_r.$sig="POOO";
 
 function mpz_fdiv_ui(n, d) {
 //integer res = mpz_fdiv_ui(mpz n, integer d) - returns mod(n,d) - n and d remain unaltered, d is a phix integer, 0..1GB.  
@@ -421,7 +430,7 @@ function mpz_fdiv_ui(n, d) {
     n = n % d;
     if (n < 0n) { n += d; }
     return Number(n);
-}
+} mpz_fdiv_ui.$sig="FOI";
 
 function mpz_mod(r, n, d) {
 // mpz_mod(mpz r, n, d) - r := mod(n,d)
@@ -442,7 +451,7 @@ function mpz_mod(r, n, d) {
 */
 //  if (s) { n = -n; }
     r[MPZ$B] = n;
-}
+} mpz_mod.$sig="POOO";
 
 function mpz_mod_ui(r, n, d) {
 // mpz_mod_ui(mpz r, n, integer d) - "" except op2 is a phix integer, 0..1GB
@@ -453,19 +462,19 @@ function mpz_mod_ui(r, n, d) {
     n = n % d;
     if (n < 0n) { n += d; }
     r[MPZ$B] = n;
-}
+} mpz_mod_ui.$sig="FOOI";
 
 function mpz_fdiv_qr(/*mpz*/ q, r, n, d) {
 // {q,r} := {floor(n/d),remainder(n,d)}
 // {q,r} := {floor(n/d),mod(n,d)}       // dev?? (might be more accurate, update docs and everywhere else...)
     mpz_fdiv_q(q, n, d);
     mpz_mod(r, n, d);
-}
+} mpz_fdiv_qr.$sig="POOOO";
 
 function mpz_fdiv_q_2exp(q, n, b) {
 //mpz_fdiv_q_2exp(mpz q, n, integer b) - bitwise right shift, arithmetic if n -ve.
     q[MPZ$B] = n[MPZ$B] >> BigInt(b);
-}
+} mpz_fdiv_q_2exp.$sig="POOI";
 
 function mpz_tdiv_q_2exp(q, n, b) {
 //mpz_tdiv_q_2exp(mpz q, n, integer b) - q := trunc(n/2^b), rounds q towards zero
@@ -475,7 +484,7 @@ function mpz_tdiv_q_2exp(q, n, b) {
     n = n >> BigInt(b);
     if (s) { n = -n; }
     q[MPZ$B] = n;
-}
+} mpz_tdiv_q_2exp.$sig="POOI";
 
 function mpz_tdiv_r_2exp(r, n, b) {
 //mpz_tdiv_r_2exp(mpz r, n, integer b) - r := remainder(n,2^b), r will have the same sign as n
@@ -486,7 +495,7 @@ function mpz_tdiv_r_2exp(r, n, b) {
     n = BigInt.asUintN(b, n);
     if (s) { n = -n; }
     r[MPZ$B] = n;
-}
+} mpz_tdiv_r_2exp.$sig="POOI";
 
 function mpz_cdiv_q(/*mpz*/ q, n, d) {
 //mpz_cdiv_q(mpz q, n, d) - q := ceil(n/d)
@@ -498,7 +507,7 @@ function mpz_cdiv_q(/*mpz*/ q, n, d) {
     n /= d;
 //  if (s) { n = -n; }
     q[MPZ$B] = n;
-}
+} mpz_cdiv_q.$sig="POOO";
 
 function mpz_powm(/*mpz*/ rop, base, exponent, modulus) {
     // Set rop to mod(base^exponent,modulus)
@@ -529,7 +538,7 @@ function mpz_powm(/*mpz*/ rop, base, exponent, modulus) {
         }
     }
     mpz_mod(rop,rop,modulus);
-}
+} mpz_powm.$sig="POOOO";
 
 function mpz_powm_ui(/*mpz*/ rop, base, /*integer*/ exponent, /*mpz*/ modulus) {
     // Set rop to mod(base^exponent,modulus)
@@ -556,7 +565,7 @@ function mpz_powm_ui(/*mpz*/ rop, base, /*integer*/ exponent, /*mpz*/ modulus) {
         }
     }
     mpz_mod(rop,rop,modulus);
-}
+} mpz_powm_ui.$sig="POOIO";
 
 // mpz_abs(mpz rop, op) - rop := abs(op)    
 //  mpz_neg(mpz rop, op) - rop := -op  
@@ -588,14 +597,14 @@ function mpz_sizeinbase(op, base=2) {
     let n = op[MPZ$B];
     if (n < 0n) { n = -n; }
     return n.toString(base).length;
-}
+} mpz_sizeinbase.$sig="FOI";
 
 function mpz_tstbit(/*mpz*/ op, /*integer*/ bit_index) {
 //integer res = mpz_tstbit(mpz op, integer bit_index) - Test bit bit_index in op and return 0 or 1 accordingly.  
     let bit = 1n << BigInt(bit_index);
     op = op[MPZ$B] & bit;
     return (op === 0n) ? 0 : 1;
-}
+} mpz_tstbit.$sig="FOI";
 
 function mpz_scan0(/*mpz*/ op, /*integer*/ starting_bit) {
 //integer res = mpz_scan0(mpz op, integer starting_bit) - Find first 0 in op >= starting_bit.  
@@ -607,7 +616,7 @@ function mpz_scan0(/*mpz*/ op, /*integer*/ starting_bit) {
         res += 1;
     }
     return res;
-}
+} mpz_scan0.$sig="FOI";
 
 function mpz_scan1(/*mpz*/ op, /*integer*/ starting_bit) {
 //integer res = mpz_scan1(mpz op, integer starting_bit) - Find first 1 in op >= starting_bit.  
@@ -619,11 +628,12 @@ function mpz_scan1(/*mpz*/ op, /*integer*/ starting_bit) {
         res += 1;
     }
     return res;
-}
+} mpz_scan1.$sig="FOI";
 
 function mpz_fits_integer(/*mpz*/ op) {
     return mpz_sizeinbase(op,2)<machine_bits()-1;
-}
+} mpz_fits_integer.$sig="FO";
+
 //function mpz_fits_integer(/*mpz*/ op) {
 //// Return true iff the value of op fits in a (signed) integer, otherwise, return false.
 //// Note this actually returns false for -#40000000, which technically fits, but true
@@ -647,7 +657,7 @@ function mpz_fits_atom(/*mpz*/ op, /*bool*/ tztrim=false) {
         temp = mpz_free(temp);
     }
     return n<=lim;
-}
+} mpz_fits_atom.$sig="FOO,1";
 
 function mpz_get_integer(/*mpz*/ op) {
 //  return Number(BigInt.asIntN(32, op[MPZ$B]));
@@ -656,7 +666,7 @@ function mpz_get_integer(/*mpz*/ op) {
     op = (op < 0n) ? BigInt.asIntN(32, op)
                    : BigInt.asUintN(32, op);
     return Number(op);
-}
+} mpz_get_integer.$sig="FO";
 
 function mpz_get_atom(/*mpz*/ op) {
 //  return Number(BigInt.asIntN(53, op[MPZ$B]));
@@ -665,7 +675,7 @@ function mpz_get_atom(/*mpz*/ op) {
     op = (op < 0n) ? BigInt.asIntN(53, op)
                    : BigInt.asUintN(53, op);
     return Number(op);
-}
+} mpz_get_atom.$sig="FO";
 
 function mpz_fib2_ui(/*mpz*/ fn, fnsub1, /*integer*/ n) {
     n -= 1;
@@ -720,7 +730,7 @@ function mpz_fib2_ui(/*mpz*/ fn, fnsub1, /*integer*/ n) {
             bit = floor(bit/2);
         }
     }
-}
+} mpz_fib2_ui.$sig="POOI";
 
 function mpz_fib_ui(/*mpz*/ fn, /*integer*/ n) {
     //
@@ -756,7 +766,7 @@ function mpz_fib_ui(/*mpz*/ fn, /*integer*/ n) {
         mpz_mul(a,a,c);
         mpz_add(fn,b,a);
     }
-}
+} mpz_fib_ui.$sig="PON";
 
 function mpz_rand(rop,range) {
     // returns BigInt 0 to range-1
@@ -767,7 +777,8 @@ function mpz_rand(rop,range) {
         rands.push(("" + (Math.random() * 1000000000 | 0)).padStart(9, "0"));
     }
     rop[MPZ$B] = BigInt(rands.join("")) % r;  // Leading zeros are ignored
-}
+} mpz_rand.$sig="POO";
+
 let mpz_rand_ui = mpz_rand;
 
 //  // Generates BigInts between low (inclusive) and high (exclusive)
@@ -810,7 +821,7 @@ function mpz_gcd(/*mpz*/ rop, op1, op2) {
     let a = op1[MPZ$B],
         b = op2[MPZ$B];
     rop[MPZ$B] = MPZ$GCD(a,b);
-}
+} mpz_gcd.$sig="POOO";
 
 function mpz_gcd_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     let a = op1[MPZ$B],
@@ -822,7 +833,8 @@ function mpz_gcd_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     if (!mpz_fits_atom(a)) { return 0; }
     a = Number(a);
     return a;
-}
+} mpz_gcd_ui.$sig="FOOI";
+
 
 //function gcd(x, y) {
 //  while (x) {
@@ -837,14 +849,14 @@ function mpz_lcm(/*mpz*/ rop, op1, op2) {
         b = op2[MPZ$B],
         c = MPZ$GCD(a,b);
     rop[MPZ$B] = a*b/c;
-}
+} mpz_lcm.$sig="POOO";
 
 function mpz_lcm_ui(/*mpz*/ rop, op1, /*integer*/ op2) {
     let a = op1[MPZ$B],
         b = BigInt(op2),
         c = MPZ$GCD(a,b);
     rop[MPZ$B] = a*b/c;
-}
+} mpz_lcm_ui.$sig="POOI";
 //lcm = (x,y) => x*y/gcd(x,y);
 
 function mpz_invert(rop, op1, op2) {
@@ -869,7 +881,8 @@ function mpz_invert(rop, op1, op2) {
     if (op2 < 0n) { t = -t; }
     rop[MPZ$B] = t;
     return true;
-}
+} mpz_invert.$sig="FOOO";
+
 /*
 // a possible alternative (needing much work) for mpz_invert:
 function modInverse(a, m) {
@@ -926,7 +939,7 @@ function mpz_divisible_p(/*mpz*/ n, d) {
     d = d[MPZ$B];
     if (d === 0n) { return b === 0n; }
     return (n % d) === 0n;
-}
+} mpz_divisible_p.$sig="FOO";
 
 function mpz_divisible_ui_p(/*mpz*/ n, /*integer*/ d) {
     // returns non-zero if n is exactly divisible by d. n is divisible by d if there exists an integer q satisfying n = qd.
@@ -935,7 +948,7 @@ function mpz_divisible_ui_p(/*mpz*/ n, /*integer*/ d) {
     d = BigInt(d);
     if (d === 0n) { return b === 0n; }
     return (n % d) === 0n;
-}
+} mpz_divisible_ui_p.$sig="FOI";
 
 //boolean res = mpz_divisible_2exp_p(mpz n, integer b) - "" except tests if n is divisible by 2 b  
 
@@ -949,7 +962,7 @@ function mpz_remove(/*mpz*/ rop, op, f) {
     }
     rop[MPZ$B] = op;
     return count;
-}
+} mpz_remove.$sig="FOOO";
 
 // as transpiled from mp_prime_mr() in mpfr.e, with these three manually renamed:
 let /*mpz*/ MPZ$modp47 = NULL, MPZ$w;
@@ -1042,7 +1055,8 @@ function mpz_prime(/*mpz*/ p, /*integer*/ k=10) {
         }
     }
     return true;
-}
+} mpz_prime.$sig="FOI,1";
+
 //let mpz_prime_mr = mpz_prime;
 
 function mpz_nextprime(/*mpz*/ rop, op) {
@@ -1054,7 +1068,7 @@ function mpz_nextprime(/*mpz*/ rop, op) {
             mpz_add_si(rop,rop,2);
         }
     }
-}
+} mpz_nextprime.$sig="POO";
 
 function mpz_prime_factors(/*mpz*/ s, /*integer*/ maxprime=100) {
 //
@@ -1127,7 +1141,7 @@ function mpz_prime_factors(/*mpz*/ s, /*integer*/ maxprime=100) {
     }
     [,n,f] = mpz_free(["sequence",n,f]);
     return res;
-}
+} mpz_prime_factors.$sig="FOI,1";
 
 /*
 function mpz_perfect_power_p(/!*mpz*!/ op) {
@@ -1158,7 +1172,7 @@ function mpz_factorstring(/*sequence*/ s) {
         }
     }
     return res;
-}
+} mpz_factorstring.$sig="FP";
 
 function mpz_re_compose(/*mpz*/ rop, /*sequence*/ s) {
 // takes eg {{2,2},{3,3}} and sets rop to 108,
@@ -1180,7 +1194,7 @@ function mpz_re_compose(/*mpz*/ rop, /*sequence*/ s) {
         }
         pn = mpz_free(pn);
     }
-}
+} mpz_re_compose.$sig="POP";
 
 function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
 //
@@ -1330,10 +1344,11 @@ function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
         res = merge(res,mpz_prime_factors(n,1230),bAsStrings);
     }
     return res;
-}
+} mpz_pollard_rho.$sig="FOI,1";
 
 //manually pasted transpilation of the one in mpfr.e:
-/*global*/ function mpz_factors(/*object*/ s, /*object*/ include1=0, /*bool*/ bAsAtmStr=true, bSort=true) {
+/*global*/ 
+function mpz_factors(/*object*/ s, /*object*/ include1=0, /*bool*/ bAsAtmStr=true, bSort=true) {
 //, bCountOnly=false) -- [cannot think of a good use, tbh: re-add should one ever pop up]
 //
 //  returns a list of all integer factors of s
@@ -1443,7 +1458,7 @@ function mpz_pollard_rho(/*mpz_or_string*/ s, /*bool*/ bAsStrings=false) {
     } else if (equal(include1,0)) { res = $subss(res,2,-1-1);
     }
     return res;
-}
+} mpz_factors.$sig="FOOII,1";
 
 function mpz_min(/*sequence*/ s, /*boolean*/ return_index=false) {
     let /*mpz*/ res = $subse(s,1); // (ioob as per docs...)
@@ -1455,7 +1470,7 @@ function mpz_min(/*sequence*/ s, /*boolean*/ return_index=false) {
         }
     }
     return ((return_index) ? rdx : res);
-}
+} mpz_min.$sig="FPO,1";
 
 function mpz_max(/*sequence*/ s, /*boolean*/ return_index=false) {
     let /*mpz*/ res = $subse(s,1); // (ioob as per docs...)
@@ -1467,11 +1482,11 @@ function mpz_max(/*sequence*/ s, /*boolean*/ return_index=false) {
         }
     }
     return ((return_index) ? rdx : res);
-}
+} mpz_max.$sig="FPO,1";
 
 function mpz_sign(/*mpz*/ op1) {
     return compare(mpz_cmp_si(op1,0),0); // -1: op1 -ve, 0: op1=0, +1: op1+ve
-}
+} mpz_sign.$sig="FO";
 
 //These may yet be made official...
 function mpz_vecprod(/*mpz*/ rop, /*sequence*/ s, /*integer*/ zlr=1) {
@@ -1520,7 +1535,7 @@ function mpz_vecprod_si(/*mpz*/ rop, /*sequence*/ s, /*integer*/ zlr=1) {
 function mpz_fac_ui(/*mpz*/ rop, /*integer*/ n) {
 //Set rop to the factorial of n.
     mpz_vecprod_si(rop,tagset(n),1);
-}
+} mpz_fac_ui.$sig="POI";
 
 function mpz_bin_uiui(/*mpz*/ rop, /*integer*/ n, k) {
 // equivalent, for small n and k, to builtins/factorial.e's choose()
@@ -1530,7 +1545,7 @@ function mpz_bin_uiui(/*mpz*/ rop, /*integer*/ n, k) {
         mpz_mul_si(rop,rop,(n-i)+1);
         if (!equal(mpz_fdiv_q_ui(rop,rop,i),0)) { crash("9/0"); }
     }
-}
+} mpz_bin_uiui.$sig="POII";
 
 //function mpz_nthroot(/*mpz*/ rop, op, /*integer*/ n) {
 //  let /*integer*/ n1 = n-1;
@@ -1572,11 +1587,12 @@ function MPZ$nthroot(/*BigInt*/ op, /*integer*/ n) {
 function mpz_nthroot(/*mpz*/ rop, op, /*integer*/ n) {
     op = op[MPZ$B];
     rop[MPZ$B] = MPZ$nthroot(op,n);
-}
+} mpz_nthroot.$sig="POOI";
 
 function mpz_sqrt(/*mpz*/ rop, op) {
     mpz_nthroot(rop,op,2);
-}
+} mpz_sqrt.$sig="POO";
+
 //from wren (tryme?):
 // isqrt {
 //      if (isNegative) Fiber.abort("Cannot take the square root of a negative number.")
@@ -1592,11 +1608,11 @@ function mpz_sqrt(/*mpz*/ rop, op) {
 
 function mpz_and(/*mpz*/ rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] & op2[MPZ$B];
-}
+} mpz_and.$sig="POOO";
 
 function mpz_xor(/*mpz*/ rop, op1, op2) {
     rop[MPZ$B] = op1[MPZ$B] ^ op2[MPZ$B];
-}
+} mpz_xor.$sig="POOO";
 
 function mpz_popcount(/*mpz*/ op) {
     let count = 0,
@@ -1606,7 +1622,7 @@ function mpz_popcount(/*mpz*/ op) {
         count += 1;
     }
     return count;
-}
+} mpz_popcount.$sig="FO";
 
 function MPFR$GCD(a, b) {
 /*
@@ -1682,19 +1698,19 @@ function mpq_canonicalize(/*mpq*/ op) {
     }
     op[MPQ$N] = n;
     op[MPQ$D] = d;
-}
+} mpq_canonicalize.$sig="PO";
 
 function mpq_set(/*mpq*/ tgt, src) {
     tgt[MPQ$N] = src[MPQ$N];
     tgt[MPQ$D] = src[MPQ$D];
-}
+} mpq_set.$sig="POO";
 
 function mpq_set_si(/*mpq*/ tgt, /*integer*/ n, d=1) {
 // tgt := n/d
     tgt[MPQ$N] = BigInt(n);
     tgt[MPQ$D] = BigInt(d);
     mpq_canonicalize(tgt);
-}
+} mpq_set_si.$sig="POII,2";
 
 function mpq_set_str(/*mpq*/ tgt, /*string*/ s, /*integer*/ base=0) {
     let /*integer*/ k = s.indexOf('/'),
@@ -1706,7 +1722,7 @@ function mpq_set_str(/*mpq*/ tgt, /*string*/ s, /*integer*/ base=0) {
     tgt[MPQ$N] = MPFR$PREFIX(s,base);
     tgt[MPQ$D] = dn;
     mpq_canonicalize(tgt);
-}
+} mpq_set_str.$sig="POSI,2";
 
 function mpq_set_z(/*mpq*/ tgt, /*mpz*/ n, d=NULL) {
 //mpq_set_z(mpq tgt, mpz n, d=NULL) - Set tgt from an mpz (d=NULL results in an implied denominator of 1).
@@ -1717,29 +1733,29 @@ function mpq_set_z(/*mpq*/ tgt, /*mpz*/ n, d=NULL) {
         tgt[MPQ$D] = d[MPZ$B];
         mpq_canonicalize(tgt);
     } 
-}
+} mpq_set_z.$sig="POOO,2";
 
 function mpq_init_set(op) {
     return ["mpq",op[MPQ$N],op[MPQ$D]];
-}
+} mpq_init_set.$sig="FO";
 
 function mpq_init_set_si(/*integer*/ n, d=1) {
     let /*mpq*/ res = mpq_init();
     mpq_set_si(res, n, d);
     return res;
-}
+} mpq_init_set_si.$sig="FII,1";
 
 function mpq_init_set_str(/*string*/ s, /*integer*/ base=0) {
     let /*mpq*/ res = mpq_init();
     mpq_set_str(res,s,base);
     return res;
-}
+} mpq_init_set_str.$sig="FSI,1";
 
 function mpq_init_set_z(/*mpz*/ n, d=NULL) {
     let /*mpq*/ res = mpq_init();
     mpq_set_z(res,n,d);
     return res;
-}
+} mpq_init_set_z.$sig="FOO,1";
 
 function mpq_init(/*object*/ v=0) {
     let /*object*/ res = ["mpq",0n,1n];
@@ -1757,7 +1773,7 @@ function mpq_init(/*object*/ v=0) {
         }
     }
     return res;
-}
+} mpq_init.$sig="FO,0";
 
 //function mpq_init() {
 //  return ["mpq",0n,1n];
@@ -1774,7 +1790,7 @@ function mpq_inits(/*integer*/ n, /*object*/ v=0) {
             res = $repe(res,i,mpq_init(v)); }
     }
     return res;
-}
+} mpq_inits.$sig="FIO,1";
 
 //function mpq_inits(n) {
 //  let res = repeat(0,n);
@@ -1797,15 +1813,15 @@ function mpq_get_d(/*mpq*/ op) {
     let dn = (op[MPQ$N]*(10n**20n))/op[MPQ$D],
         d = Number(dn)/1e20;
     return d;
-}
+} mpq_get_d.$sig="FO";
 
 function mpq_get_num(/*mpz*/ numerator, /*mpq*/ rational) {
     numerator[MPZ$B] = rational[MPQ$N];
-}
+} mpq_get_num.$sig="POO";
 
 function mpq_get_den(/*mpz*/ denominator, /*mpq*/ rational) {
     denominator[MPZ$B] = rational[MPQ$D];
-}
+} mpq_get_den.$sig="POO";
 
 function mpq_get_str(/*mpq*/ op, /*integer*/ base=10, /*boolean*/ comma_fill=false) {
 //Return op as a string in the specified base (2..62).
@@ -1820,7 +1836,7 @@ function mpq_get_str(/*mpq*/ op, /*integer*/ base=10, /*boolean*/ comma_fill=fal
         res += '/' + den;
     }
     return res;
-}
+} mpq_get_str.$sig="FOIO,1";
 
 function mpq_cmp(/*mpq*/ op1, op2) {
     let n1 = op1[MPQ$N],
@@ -1852,12 +1868,13 @@ alt, untested (adapted from from boost):
 // or from bjarne:
 //  x1.num*x2.den==x1.den*x2.num;
 */
-}
+} mpq_cmp.$sig="FOO";
+
 
 function mpq_cmp_si(/*mpq*/ op1, /*integer*/ n, d=1) {
     let op2 = mpq_init_set_si(n, d);
     return mpq_cmp(op1,op2);
-}
+} mpq_cmp_si.$sig="FOII,2";
 
 function mpq_abs(/*mpq*/ rop, op) {
     let n = op[MPQ$N],
@@ -1866,14 +1883,14 @@ function mpq_abs(/*mpq*/ rop, op) {
     if (d < 0n) { d = -d; }
     rop[MPQ$N] = n;
     rop[MPQ$D] = d;
-}
+} mpq_abs.$sig="POO";
 
 function mpq_neg(/*mpq*/ rop, op) {
     let n = op[MPQ$N],
         d = op[MPQ$D];
     rop[MPQ$N] = -n;
     rop[MPQ$D] = d;
-}
+} mpq_neg.$sig="POO";
 
 function mpq_inv(/*mpq*/ rop, op) {
     let n = op[MPQ$N],
@@ -1885,22 +1902,22 @@ function mpq_inv(/*mpq*/ rop, op) {
     }
     rop[MPQ$N] = d;
     rop[MPQ$D] = n;
-}
+} mpq_inv.$sig="POO";
 
-function mpq_add(/*mpq*/ rsum, addend1, addend2) {
-//-- set rsum to addend1 + addend2.
-    let n1 = addend1[MPQ$N],
-        d1 = addend1[MPQ$D],
-        n2 = addend2[MPQ$N],
-        d2 = addend2[MPQ$D],
+function mpq_add(/*mpq*/ rop, op1, op2) {
+//-- set rop to op1 + op2.
+    let n1 = op1[MPQ$N],
+        d1 = op1[MPQ$D],
+        n2 = op2[MPQ$N],
+        d2 = op2[MPQ$D],
         lm = MPFR$LCM(d1,d2),
         a = lm / d1,
         b = lm / d2;
     a *= n1;
     b *= n2;
-    rsum[MPQ$N] = a + b;
-    rsum[MPQ$D] = lm;
-    mpq_canonicalize(rsum);
+    rop[MPQ$N] = a + b;
+    rop[MPQ$D] = lm;
+    mpq_canonicalize(rop);
 /*
 alt, untested (adapted from from boost):
     //
@@ -1922,80 +1939,92 @@ alt, untested (adapted from from boost):
     // Which proves that instead of normalizing the result, it is better to
     // divide num and den by gcd((a*d1 + c*b1), g)
     //
-    let n1 = addend1[MPQ$N],
-        d1 = addend1[MPQ$D],
-        n2 = addend2[MPQ$N],
-        d2 = addend2[MPQ$D]
+    let n1 = op1[MPQ$N],
+        d1 = op1[MPQ$D],
+        n2 = op2[MPQ$N],
+        d2 = op2[MPQ$D]
         g = MPFR$GCD(d1, d2);
     d1 /= g;  // = b1 from the calculations above
     n1 = n1 * (d2 / g) + n2 * d1;
     g = MPFR$GCD(n1, g);
     n1 /= g;
     d1 *= d2/g;
-    rsum[MPQ$N] = n1;
-    rsum[MPQ$D] = d2;
+    rop[MPQ$N] = n1;
+    rop[MPQ$D] = d2;
 */
-}
+} mpq_add.$sig="POOO";
 
-function mpq_add_si(/*mpq*/ rsum, addend1, /*integer*/ n, d=1) {
-    let /*mpq*/ addend2 = mpq_init_set_si(n,d);
-    mpq_add(rsum, addend1, addend2);
-    addend2 = mpq_free(addend2);
-}
+function mpq_add_si(/*mpq*/ rop, op1, /*integer*/ n, d=1) {
+    let /*mpq*/ op2 = mpq_init_set_si(n,d);
+    mpq_add(rop, op1, op2);
+    op2 = mpq_free(op2);
+} mpq_add_si.$sig="POOII,3";
 
-function mpq_sub(/*mpq*/ rdifference, minuend, subtrahend) {
-// set rdifference to minuend - subtrahend.
-//oops, problem when rdifference===minuend:
-//  mpq_neg(rdifference,subtrahend);
-//  mpq_add(rdifference,minuend,rdifference);
-    let n1 = minuend[MPQ$N],
-        d1 = minuend[MPQ$D],
-        n2 = subtrahend[MPQ$N],
-        d2 = subtrahend[MPQ$D],
+function mpq_sub(/*mpq*/ rop, op1, op2) {
+// set rop to op1 - op2.
+//oops, problem when rop===op1:
+//  mpq_neg(rop,op2);
+//  mpq_add(rop,op1,rop);
+    let n1 = op1[MPQ$N],
+        d1 = op1[MPQ$D],
+        n2 = op2[MPQ$N],
+        d2 = op2[MPQ$D],
         lm = MPFR$LCM(d1,d2),
         a = lm / d1,
         b = lm / d2;
     a *= n1;
     b *= n2;
-    rdifference[MPQ$N] = a - b;
-    rdifference[MPQ$D] = lm;
-    mpq_canonicalize(rdifference);
+    rop[MPQ$N] = a - b;
+    rop[MPQ$D] = lm;
+    mpq_canonicalize(rop);
 // (see mpq_add for an alt, identical bar a single +/-)
-}
+} mpq_sub.$sig="POOO";
     
-function mpq_mul(/*mpq*/ rproduct, multiplier, multiplicand) {
-//-- set rproduct to multiplier * multiplicand.
-    rproduct[MPQ$N] = multiplier[MPQ$N] * multiplicand[MPQ$N];
-    rproduct[MPQ$D] = multiplier[MPQ$D] * multiplicand[MPQ$D];
-    mpq_canonicalize(rproduct);
+function mpq_sub_si(/*mpq*/ rop, op1, /*integer*/ n, d=1) {
+    let /*mpq*/ op2 = mpq_init_set_si(n,d);
+    mpq_sub(rop, op1, op2);
+    op2 = mpq_free(op2);
+} mpq_sub_si.$sig="POOII,3";
+
+function mpq_mul(/*mpq*/ rop, op1, op2) {
+//-- set rop to op1 * op2.
+    rop[MPQ$N] = op1[MPQ$N] * op2[MPQ$N];
+    rop[MPQ$D] = op1[MPQ$D] * op2[MPQ$D];
+    mpq_canonicalize(rop);
 /*
 alt, untested (adapted from from boost):
-    let n1 = dividend[MPQ$N],
-        n2 = divisor[MPQ$N],
-        d1 = dividend[MPQ$D],
-        d2 = divisor[MPQ$D],
+    let n1 = op1[MPQ$N],
+        n2 = op2[MPQ$N],
+        d1 = op1[MPQ$D],
+        d2 = op2[MPQ$D],
         // Avoid overflow and preserve normalization
         g1 = MPFR$GCD(n1,d2),
         g2 = MPFR$GCD(n2,d1),
         n = (n1/g1) * (n2/g2),
         d = (d1/g2) * (d2/g1);
-    rproduct[MPQ$N] = n;
-    rproduct[MPQ$D] = d;
+    rop[MPQ$N] = n;
+    rop[MPQ$D] = d;
 */
-}
+} mpq_mul.$sig="POOO";
 
-function mpq_div(/*mpq*/ rquotient, dividend, divisor) {
-// set rquotient to dividend / divisor.
-// (as mpq_mul() but with divisor's num/den swapped)
-    rquotient[MPQ$N] = dividend[MPQ$N] * divisor[MPQ$D];
-    rquotient[MPQ$D] = dividend[MPQ$D] * divisor[MPQ$N];
-    mpq_canonicalize(rquotient);
+function mpq_mul_si(/*mpq*/ rop, op1, /*integer*/ n, d=1) {
+    let /*mpq*/ op2 = mpq_init_set_si(n,d);
+    mpq_mul(rop, op1, op2);
+    op2 = mpq_free(op2);
+} mpq_mul_si.$sig="POOII,3";
+
+function mpq_div(/*mpq*/ rop, op1, op2) {
+// set rop to op1 / op2.
+// (as mpq_mul() but with op2's num/den swapped)
+    rop[MPQ$N] = op1[MPQ$N] * op2[MPQ$D];
+    rop[MPQ$D] = op1[MPQ$D] * op2[MPQ$N];
+    mpq_canonicalize(rop);
 /*
 alt, untested (adapted from from boost):
-    let n1 = dividend[MPQ$N],
-        n2 = divisor[MPQ$N],
-        d1 = dividend[MPQ$D],
-        d2 = divisor[MPQ$D];
+    let n1 = op1[MPQ$N],
+        n2 = op2[MPQ$N],
+        d1 = op1[MPQ$D],
+        d2 = op2[MPQ$D];
     if (n2===0n) { crash("bad rational"); }
     if (n1!=0) {
         let g1 = MPFR$GCD(n1,n2),
@@ -2006,18 +2035,24 @@ alt, untested (adapted from from boost):
             n = -n;
             d = -d;
         }
-        rquotient[MPQ$N] = n;
-        rquotient[MPQ$D] = d;
+        rop[MPQ$N] = n;
+        rop[MPQ$D] = d;
     }
 */
-}
+} mpq_div.$sig="POOO";
+
+function mpq_div_si(/*mpq*/ rop, op1, /*integer*/ n, d=1) {
+    let /*mpq*/ op2 = mpq_init_set_si(d,n);
+    mpq_mul(rop, op1, op2);
+    op2 = mpq_free(op2);
+} mpq_div_si.$sig="POOII,3";
 
 function mpq_div_2exp(/*mpq*/ rop, op, /*integer*/ bits) {
 // set rop to op / 2^bits
     rop[MPQ$N] = op[MPQ$N];
     rop[MPQ$D] = op[MPQ$D] << BigInt(bits);
     mpq_canonicalize(rop);
-}
+} mpq_div_2exp.$sig="POOI";
 
 //mpq_mul_2exp(mpq rop, op, integer bits) - set rop to op * 2^bits.
 //mpq_div_2exp(mpq rop, op, integer bits) - set rop to op / 2^bits.
@@ -2080,7 +2115,7 @@ function mpfr_set_default_precision(/*integer*/ precision) {
 //  if (precision >= 0) { precision = MPFR$precision_in_dp(precision); } else { precision -= 2; }
 //  MPFR$default_precision = MPFR$precision_in_dp(precision);
     MPFR$default_precision = MPFR$precision_in_binary(precision);
-}
+} mpfr_set_default_precision.$sig="PI";
 
 function mpfr_get_default_precision(/*boolean*/ decimal=false) {
 //  let precision = -MPFR$default_precision;
@@ -2088,24 +2123,24 @@ function mpfr_get_default_precision(/*boolean*/ decimal=false) {
 //  if (!decimal) { precision = MPFR$precision_in_binary(precision); }
     if (decimal) { precision = MPFR$precision_in_dp(precision); }
     return precision;
-}
+} mpfr_get_default_precision.$sig="FO,0";
 
 function mpfr_set_default_rounding_mode(/*integer*/ rounding) {
 // Set the default rounding mode. The initial default rounding mode is to nearest (MPFR_RNDN).
     if ([MPFR_RNDN].indexOf(rounding) === -1) { crash("?9/0"); } // (placeholder)
     MPFR$default_rounding = rounding;
-}
+} mpfr_set_default_rounding_mode.$sig="PI";
 
 function mpfr_get_default_rounding_mode() {
     return MPFR$default_rounding;
-}
+} mpfr_get_default_rounding_mode.$sig="F";
 
 //DEV completely untested *2:
 function mpfr_get_precision(/*mpfr*/ x, /*boolean*/ decimal=false) {
     let /*integer*/ precision = x[MPFR$P];
     if (decimal) { precision = MPFR$precision_in_dp(precision); }
     return precision;
-}
+} mpfr_get_precision.$sig="FOO,1";
 
 function mpfr_set_precision(/*mpfr*/ x, /*integer*/ precision) {
 //
@@ -2123,7 +2158,7 @@ function mpfr_set_precision(/*mpfr*/ x, /*integer*/ precision) {
     x[MPFR$N] = 0n;
     x[MPFR$D] = 1n;
     x[MPFR$P] = precision;
-}
+} mpfr_set_precision.$sig="POI";
 
 function mpfr_set(/*mpfr*/ tgt, src, rounding=MPFR$default_rounding) {
 // set tgt from src
@@ -2132,7 +2167,7 @@ function mpfr_set(/*mpfr*/ tgt, src, rounding=MPFR$default_rounding) {
     tgt[MPFR$E] = src[MPFR$E];
     tgt[MPFR$R] = rounding;
 //  tgt[MPFR$P] = MPFR$default_precision;
-}
+} mpfr_set.$sig="POOI,2";
 
 function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding) {
 // set tgt from a phix integer
@@ -2141,7 +2176,7 @@ function mpfr_set_si(/*mpfr*/ tgt, /*integer*/ i, rounding=MPFR$default_rounding
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
 //  tgt[MPFR$P] = MPFR$default_precision;
-}
+} mpfr_set_si.$sig="POII,2";
 
 function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ base=0, rounding=MPFR$default_rounding) {
     let d = 1n,
@@ -2182,12 +2217,12 @@ function mpfr_set_str(/*mpfr*/ tgt, /*string*/ s, /*integer*/ base=0, rounding=M
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
 //  tgt[MPFR$P] = MPFR$default_precision;
-}
+} mpfr_set_str.$sig="POSII,2";
 
 function mpfr_set_d(/*mpfr*/ tgt, /*atom*/ a, /*integer*/ rounding=MPFR$default_rounding) {
     let s = a.toString();
     mpfr_set_str(tgt,s,rounding);
-}
+} mpfr_set_d.$sig="PONI,2";
 
 function mpfr_init(/*object*/ v=0, /*integer*/ precision=MPFR$default_precision, rounding=MPFR$default_rounding) {
 //
@@ -2208,7 +2243,7 @@ function mpfr_init(/*object*/ v=0, /*integer*/ precision=MPFR$default_precision,
         crash("?9/0"); // what's v??
     }
     return res;
-}
+} mpfr_init.$sig="FOII,0";
 
 function mpfr_inits(/*integer*/ n, /*object*/ v=0, precision=MPFR$default_precision, rounding=MPFR$default_rounding) {
 //
@@ -2231,7 +2266,7 @@ function mpfr_inits(/*integer*/ n, /*object*/ v=0, precision=MPFR$default_precis
         }
     }
     return res;
-}
+} mpfr_inits.$sig="FIOOO,1";
 
 function mpfr_set_q(/*mpfr*/ tgt, /*mpq*/ q, /*integer*/ rounding=MPFR$default_rounding) {
 // set the mpfr rop from an mpq
@@ -2239,7 +2274,7 @@ function mpfr_set_q(/*mpfr*/ tgt, /*mpq*/ q, /*integer*/ rounding=MPFR$default_r
     tgt[MPFR$D] = q[MPQ$D];
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
-}
+} mpfr_set_q.$sig="POOI,2";
 
 function mpfr_set_z(/*mpfr*/ tgt, /*mpz*/ z, /*integer*/ rounding=MPFR$default_rounding) {
 // set the mpfr rop from an mpz
@@ -2247,25 +2282,25 @@ function mpfr_set_z(/*mpfr*/ tgt, /*mpz*/ z, /*integer*/ rounding=MPFR$default_r
     tgt[MPFR$D] = 1n;
     tgt[MPFR$E] = 0;
     tgt[MPFR$R] = rounding;
-}
+} mpfr_set_z.$sig="POOI,2";
 
 function mpfr_init_set(/*mpfr*/ f, /*integer*/ rounding=MPFR$default_rounding) {
     let /*mpfr*/ res = mpfr_init();
     mpfr_set(res,f,rounding);
     return res;
-}
+} mpfr_init_set.$sig="FOI,1";
 
 function mpfr_init_set_q(/*mpq*/ q, /*integer*/ rounding=MPFR$default_rounding) {
     let /*mpfr*/ res = mpfr_init();
     mpfr_set_q(res,q,rounding);
     return res;
-}
+} mpfr_init_set_q.$sig="FOI,1";
 
 function mpfr_init_set_z(/*mpz*/ z, /*integer*/ rounding=MPFR$default_rounding) {
     let /*mpfr*/ res = mpfr_init();
     mpfr_set_z(res,z,rounding);
     return res;
-}
+} mpfr_init_set_z.$sig="FOI,1";
 
 let mpfr_free = mpz_free;
 
@@ -2333,7 +2368,7 @@ function mpfr_floor(/*mpfr*/ rop, op) {
 // rop := floor(op)
     rop[MPFR$N] = op[MPFR$N]/op[MPFR$D];
     rop[MPFR$D] = 1n;
-}
+} mpfr_floor.$sig="POO";
 
 function mpfr_ceil(/*mpfr*/ rop, op) {
 // rop := ceil(op)
@@ -2347,14 +2382,14 @@ function mpfr_ceil(/*mpfr*/ rop, op) {
 //  rop[MPFR$N] = BigInt(Math.ceil(Number(n)/Number(d)));
     rop[MPFR$N] = n/d + (n%d>0n?1n:0n);
     rop[MPFR$D] = 1n;
-}
+} mpfr_ceil.$sig="POO";
 
 function mpfr_neg(/*mpz*/ rop, op) {
     let n = op[MPFR$N],
         d = op[MPFR$D];
     rop[MPFR$N] = -n;
     rop[MPFR$D] = d;
-}
+} mpfr_neg.$sig="POOI,2";
 
 function mpfr_abs(/*mpz*/ rop, op) {
     let n = op[MPFR$N],
@@ -2363,7 +2398,23 @@ function mpfr_abs(/*mpz*/ rop, op) {
     if (d < 0n) { d = -d; }
     rop[MPFR$N] = n;
     rop[MPFR$D] = d;
-}
+} mpfr_abs.$sig="POOI,2";
+
+function mpfr_cmpabs(/*mpq*/ op1, op2) {
+    let n1 = op1[MPQ$N],
+        d1 = op1[MPQ$D],
+        n2 = op2[MPQ$N],
+        d2 = op2[MPQ$D];
+    if (n1 < 0n) { n1 = -n1; }
+    if (d1 < 0n) { d1 = -d1; }
+    if (n2 < 0n) { n2 = -n2; }
+    if (d2 < 0n) { d2 = -d2; }
+    if (d1 !== d2) {
+        n1 *= d2;
+        n2 *= d1;
+    }
+    return n1 === n2 ? 0 : n1 > n2 ? 1 : -1;
+} mpfr_cmpabs.$sig="FOO";
 
 function mpfr_add(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {
     // rop := op1+op2 with specified rounding 
@@ -2378,7 +2429,7 @@ function mpfr_add(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_roun
     b *= n2;
     a += b;
     MPFR$normalise(rop,a,lm);
-}
+} mpfr_add.$sig="POOOI,3";
 
 function mpfr_add_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
     let n1 = op1[MPFR$N],
@@ -2386,7 +2437,8 @@ function mpfr_add_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MP
         n2 = BigInt(op2),
         a = n1 + d1 * n2;
     MPFR$normalise(rop,a,d1);
-}
+} mpfr_add_si.$sig="POOII,3";
+
 //let mpfr_add_d = mpfr_add_si;
 
 function mpfr_add_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2394,7 +2446,7 @@ function mpfr_add_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$d
     op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
     mpfr_set_str(op2,s,rounding);
     mpfr_add(rop, op1, op2, rounding);
-}
+} mpfr_add_d.$sig="POONI,3";
 
 function mpfr_sub(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {
     // rop := op1-op2 with specified rounding 
@@ -2409,7 +2461,7 @@ function mpfr_sub(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_roun
     b *= n2;
     a -= b;
     MPFR$normalise(rop,a,lm);
-}
+} mpfr_sub.$sig="POOOI,3";
 
 function mpfr_sub_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
     let n1 = op1[MPFR$N],
@@ -2417,7 +2469,8 @@ function mpfr_sub_si(/*mpfr*/ rop, op1, /*integer*/ op2, /*integer*/ rounding=MP
         n2 = BigInt(op2),
         a = n1 - d1 * n2;
     MPFR$normalise(rop,a,d1);
-}
+} mpfr_sub_si.$sig="POOII,3";
+
 //let mpfr_sub_d = mpfr_sub_si;
 
 function mpfr_sub_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2425,7 +2478,7 @@ function mpfr_sub_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$d
     op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
     mpfr_set_str(op2,s,rounding);
     mpfr_sub(rop, op1, op2, rounding);
-}
+} mpfr_sub_d.$sig="POONI,3";
 
 function mpfr_si_sub(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
     let n1 = BigInt(op1),
@@ -2433,21 +2486,22 @@ function mpfr_si_sub(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ ro
         d2 = op2[MPFR$D],
         a = d2 * n1 - n2;
     MPFR$normalise(rop,a,d2);
-}   
+} mpfr_si_sub.$sig="POIOI,3";
 
 function mpfr_mul(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {
 // rop := op1*op2 with specified rounding 
     let n = op1[MPQ$N] * op2[MPQ$N],
         d = op1[MPQ$D] * op2[MPQ$D];
     MPFR$normalise(rop,n,d);
-}
+} mpfr_mul.$sig="POOOI,3";
 
 function mpfr_mul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
 // rop := op1*op2 with specified rounding 
     let n = op1[MPQ$N] * BigInt(op2),
         d = op1[MPQ$D];
     MPFR$normalise(rop,n,d);
-}
+} mpfr_mul_si.$sig="POOII,3";
+
 //let mpfr_mul_d = mpfr_mul_si;
 
 function mpfr_mul_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2455,14 +2509,14 @@ function mpfr_mul_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$d
     op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
     mpfr_set_str(op2,s,rounding);
     mpfr_mul(rop, op1, op2, rounding);
-}
+} mpfr_mul_d.$sig="POONN,3";
 
 function mpfr_mul_z(/*mpfr*/ rop, op1, /*mpz*/ op2, rounding=MPFR$default_rounding) {
 // rop := op1*op2 with specified rounding 
     let n = op1[MPQ$N] * op2[MPZ$B],
         d = op1[MPQ$D];
     MPFR$normalise(rop,n,d);
-}
+} mpfr_mul_z.$sig="POOOO,3";
 
 function mpfr_addmul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
     let n = op1[MPQ$N] * BigInt(op2),
@@ -2470,7 +2524,7 @@ function mpfr_addmul_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$defaul
         p = op1[MPFR$P],
         tmp = ["mpfr",n,d,0,rounding,p];
     mpfr_add(rop, rop, tmp, rounding);
-}
+} mpfr_addmul_si.$sig="POOII,3";
 
 function mpfr_div(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_rounding) {
 // rop := op1/op2 with specified rounding 
@@ -2478,21 +2532,29 @@ function mpfr_div(/*mpfr*/ rop, op1, op2, /*integer*/ rounding=MPFR$default_roun
         d = op1[MPQ$D] * op2[MPQ$N];
     MPFR$normalise(rop,n,d);
 // (see also the alt in mpq_div)
-}
+} mpfr_div.$sig="POOOI,3";
 
 function mpfr_si_div(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
 // rop := op1/op2
     let n = op2[MPFR$D] * BigInt(op1),
         d = op2[MPFR$N];
     MPFR$normalise(rop,n,d);
-}
+} mpfr_si_div.$sig="POIOI,3";
+
+function mpfr_div_2si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
+// rop := op1/2^op2
+    let n = op1[MPFR$N],
+        d = op1[MPFR$D] * 2n**BigInt(op2);
+    MPFR$normalise(rop,n,d);
+} mpfr_div_2si.$sig="POOII,3";
 
 function mpfr_div_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
 // rop := op1/op2
     let n = op1[MPFR$N],
         d = op1[MPFR$D] * BigInt(op2);
     MPFR$normalise(rop,n,d);
-}
+} mpfr_div_si.$sig="POOII,3";
+
 //let mpfr_div_d = mpfr_div_si;
 
 function mpfr_div_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2500,13 +2562,13 @@ function mpfr_div_d(/*mpfr*/ rop, op1, /*atom*/ op2, /*integer*/ rounding=MPFR$d
     op2 = ["mpfr",0n,1n,0,rounding,MPFR$default_precision];
     mpfr_set_str(op2,s,rounding);
     mpfr_div(rop, op1, op2, rounding);
-}
+} mpfr_div_d.$sig="POONN,3";
 
 function mpfr_div_z(/*mpfr*/ rop, op1, /*mpz*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
     let n = op1[MPFR$N],
         d = op1[MPFR$D] * op2[MPZ$B];
     MPFR$normalise(rop,n,d);
-}
+} mpfr_div_z.$sig="POOOI,3";
 
 function mpfr_fmod(/*mpfr*/ r, x, y, /*integer*/ rounding=MPFR$default_rounding) {
 // Set r to the value of x - ny, rounded according to the direction rnd, 
@@ -2521,14 +2583,14 @@ function mpfr_fmod(/*mpfr*/ r, x, y, /*integer*/ rounding=MPFR$default_rounding)
 //  r[MPFR$D] = dy
     tmp = ["mpfr",n*ny,dy,0,rounding,p];
     mpfr_sub(r, x, tmp, rounding)
-}
+} mpfr_fmod.$sig="POOOI,3";
 
 function mpfr_pow_si(/*mpfr*/ rop, op1, /*integer*/ op2, rounding=MPFR$default_rounding) {
     let p = BigInt(op2),
         n = op1[MPFR$N]**p,
         d = op1[MPFR$D]**p;
     MPFR$normalise(rop,n,d);
-}
+} mpfr_pow_si.$sig="POOII,3";
 
 //function mpfr_ui_pow(/*mpfr*/ rop, /*integer*/ op1, /*mpfr*/ op2, /*integer*/ rounding=MPFR$default_rounding) {
 //  let pn = op2[MPFR$N],
@@ -2543,7 +2605,7 @@ function mpfr_ui_pow_ui(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$defaul
         n = BigInt(op1)**p,
         d = BigInt(1);
     MPFR$normalise(rop,n,d);
-}
+} mpfr_ui_pow_ui.$sig="POIII,3";
 
 let MPFR$ONE = NULL;
 
@@ -2556,14 +2618,14 @@ function mpfr_si_pow_si(/*mpfr*/ rop, /*integer*/ op1, op2, rounding=MPFR$defaul
         if (MPFR$ONE === NULL) { MPFR$ONE = mpfr_init(1); }
         mpfr_div(rop,MPFR$ONE,rop,rounding);
     }
-}
+} mpfr_si_pow_si.$sig="POIII,3";
 
 function mpfr_get_si(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
 // res := op as an integer.
     let dn = op[MPFR$N]/op[MPFR$D],
         d = Number(dn);
     return d;
-}
+} mpfr_get_si.$sig="FOI,1";
 
 //DEV (spotted in passing) there must be some way quite a bit a better than this...
 function mpfr_get_d(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
@@ -2583,7 +2645,7 @@ function mpfr_get_d(/*mpfr*/ op, /*integer*/ rounding=MPFR$default_rounding) {
 //  }
 //  d = s*Number(n)/Number(d);
 //  return d;
-}
+} mpfr_get_d.$sig="FOI,1";
 
 let mpfr_cmp = mpq_cmp;
 let mpfr_cmp_si = mpq_cmp_si;
@@ -2712,7 +2774,7 @@ function mpfr_sqrt(/*mpfr*/ rop, op, /*integer*/ rounding=MPFR$default_rounding)
     n = n * p102 / d;
     n = MPZ$nthroot(n,2);
     MPFR$normalise(rop,n,p10);
-}
+} mpfr_sqrt.$sig="POOI,2";
 
 function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
 // pi is the sum of (1/16**k)(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6)) for k=0 to the no of hex digits required.
@@ -2729,7 +2791,7 @@ function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
         k += 1;
     }
     mpfr_set_q(x,final_pi,rounding);
-}
+} mpfr_const_pi.$sig="POI,1";
 // original (w/o rounding):
 //  procedure MPFR_const_pi(mpfr x)
 //  -- pi is the sum of (1/16**k)(4/(8k+1)-2/(8k+4)-1/(8k+5)-1/(8k+6)) for k=0 to the no of hex digits required.
@@ -2759,6 +2821,105 @@ function mpfr_const_pi(/*mpfr*/ x, /*integer*/ rounding=MPFR$default_rounding) {
 //sin(x) = sum for n=1 to ~(((-1)^(n-1)*x^(2n-1))/(2n-1)!
 //cos(x) = sum for n=1 to ~(((-1)^n*x^(2n-1))/(2n)!
 //arctan(x) = sum for n=1 to ~(((-1)^n*x^(2n+1))/(2n+1) [covergence extremely slow as x approaches 1]
+
+/*
+function * generateDigitsOfPi() {
+    let q = 1n;
+    let r = 180n;
+    let t = 60n;
+    let i = 2n;
+    while (true) {
+        let digit = ((i * 27n - 12n) * q + r * 5n) / (t * 5n);
+        yield Number(digit);
+        let u = i * 3n;
+        u = (u + 1n) * 3n * (u + 2n);
+        r = u * 10n * (q * (i * 5n - 2n) + r - t * digit);
+        q *= 10n * i * (i++ * 2n - 1n);
+        t *= u;
+    }
+}
+
+// Demo
+let iter = generateDigitsOfPi();
+
+let output = document.querySelector("div");
+(function displayTenNextDigits() {
+    let digits = "";
+    for (let i = 0; i < 10; i++) digits += iter.next().value;
+    output.insertAdjacentHTML("beforeend", digits);
+    scrollTo(0, document.body.scrollHeight);
+    requestAnimationFrame(displayTenNextDigits);
+})();
+*/
+
+/* // chudnovsky algorithm: (needs converting to native bigint...)
+const BigNumber = require('bignumber.js')
+
+const A = new BigNumber('13591409')
+const B = new BigNumber('545140134')
+const C = new BigNumber('640320')
+const D = new BigNumber('426880')
+const E = new BigNumber('10005')
+const DIGITS_PER_TERM = new BigNumber('14.1816474627254776555') // log(53360^3) / log(10)
+
+const C3_24 = C.multipliedBy(C).multipliedBy(C).dividedToIntegerBy(24)
+
+async function computePI(digits) {
+  if (digits <= 0) {
+    return '0'
+  }
+
+  const DIGITS = new BigNumber(digits)
+  const N = DIGITS.dividedToIntegerBy(DIGITS_PER_TERM).plus(1)
+  const PREC = DIGITS.multipliedBy(Math.log2(10))
+
+  BigNumber.config({
+    DECIMAL_PLACES: Math.ceil(PREC.toNumber()),
+    POW_PRECISION: Math.ceil(PREC.toNumber()),
+  })
+
+  const PQT = await computePQT(new BigNumber(0), N)
+  let PI = D.multipliedBy(E.sqrt()).multipliedBy(PQT.Q)
+  PI = PI.dividedBy(A.multipliedBy(PQT.Q).plus(PQT.T))
+
+  return PI.toFixed(digits)
+}
+
+async function computePQT(n1, n2) {
+  let m = new BigNumber(0)
+  let PQT = {
+    P: new BigNumber(0),
+    Q: new BigNumber(0),
+    T: new BigNumber(0),
+  }
+
+  if (n1.plus(1).isEqualTo(n2)) {
+    PQT.P = n2.multipliedBy(2).minus(1)
+    PQT.P = PQT.P.multipliedBy(n2.multipliedBy(6).minus(1))
+    PQT.P = PQT.P.multipliedBy(n2.multipliedBy(6).minus(5))
+    PQT.Q = C3_24.multipliedBy(n2).multipliedBy(n2).multipliedBy(n2)
+    PQT.T = A.plus(B.multipliedBy(n2)).multipliedBy(PQT.P)
+    if (n2.modulo(2).isEqualTo(1)) {
+      PQT.T = PQT.T.negated()
+    }
+  } else {
+    m = n1.plus(n2).dividedToIntegerBy(2)
+    let res1 = await new Promise((resolve) =>
+      process.nextTick(async () => resolve(await computePQT(n1, m)))
+    )
+    let res2 = await new Promise((resolve) =>
+      process.nextTick(async () => resolve(await computePQT(m, n2)))
+    )
+    PQT.P = res1.P.multipliedBy(res2.P)
+    PQT.Q = res1.Q.multipliedBy(res2.Q)
+    PQT.T = res1.T.multipliedBy(res2.Q).plus(res1.P.multipliedBy(res2.T))
+  }
+
+  return PQT
+}
+
+module.exports = computePI
+*/
 
 //mpfr_get_str(
 //sequence res =     mpfr_get_str(mpfr x, integer base=10, n=0, rounding=default_rounding) --  
@@ -2884,40 +3045,40 @@ function mpfr_get_fixed(/*mpfr*/ x, /*integer*/ dp=6, base=10, /*bool*/ comma_fi
         if (neg) { res = $conCat("-", res); }
     }
     return res;
-}
+} mpfr_get_fixed.$sig="FOIIOI,1";
 
 /*
-sign(x) {
-    if (x === 0n) return 0n
-    return x < 0n ? -1n : 1n
-}
+//sign(x) {
+//  if (x === 0n) return 0n
+//  return x < 0n ? -1n : 1n
+//}
 
-const big0 = BigInt(0)
-const big1 = BigInt(1)
-const big8 = BigInt(8)  
-function bigToUint8Array(big: bigint) {
-  if (big < big0) {
-    // work out how long is the big int in bits and add 1
-    const bits: bigint = (BigInt(big.toString(2).length) / big8 + big1) * big8  
-    // create a BigInt that's 100000... of length of big + 1
-    const prefix1: bigint = big1 << bits
-    big += prefix1
-  }
-  let hex = big.toString(16)
-  if (hex.length % 2) {
-    hex = '0' + hex
-  }
-  const len = hex.length / 2
-  const u8 = new Uint8Array(len)
-  var i = 0
-  var j = 0
-  while (i < len) {
-    u8[i] = parseInt(hex.slice(j, j + 2), 16)
-    i += 1
-    j += 2
-  }
-  return u8
-}
+//const big0 = BigInt(0)
+//const big1 = BigInt(1)
+//const big8 = BigInt(8)    
+//function bigToUint8Array(big: bigint) {
+//  if (big < big0) {
+//  // work out how long is the big int in bits and add 1
+//  const bits: bigint = (BigInt(big.toString(2).length) / big8 + big1) * big8  
+//  // create a BigInt that's 100000... of length of big + 1
+//  const prefix1: bigint = big1 << bits
+//  big += prefix1
+//  }
+//  let hex = big.toString(16)
+//  if (hex.length % 2) {
+//  hex = '0' + hex
+//  }
+//  const len = hex.length / 2
+//  const u8 = new Uint8Array(len)
+//  var i = 0
+//  var j = 0
+//  while (i < len) {
+//  u8[i] = parseInt(hex.slice(j, j + 2), 16)
+//  i += 1
+//  j += 2
+//  }
+//  return u8
+//}
 
 */
 
@@ -3140,829 +3301,6 @@ function mpfrz_init(v=0) {
 */
 
 /*
- *  big.js v6.1.1
- *  A small, fast, easy-to-use library for arbitrary-precision decimal arithmetic.
- *  Copyright (c) 2021 Michael Mclaughlin
- *  https://github.com/MikeMcl/big.js/LICENCE.md
- */
-/*
-;(function (GLOBAL) {
-  'use strict';
-  var Big,
-// ********************************** EDITABLE DEFAULTS *****************************************
-    // The default values below must be integers within the stated ranges.
-    //
-    // The maximum number of decimal places (DP) of the results of operations involving division:
-    // div and sqrt, and pow with negative exponents.
-    //
-    DP = 20,            // 0 to MAX_DP
-    //
-    // The rounding mode (RM) used when rounding to the above decimal places.
-    //
-    //  0  Towards zero (i.e. truncate, no rounding).       (ROUND_DOWN)
-    //  1  To nearest neighbour. If equidistant, round up.  (ROUND_HALF_UP)
-    //  2  To nearest neighbour. If equidistant, to even.   (ROUND_HALF_EVEN)
-    //  3  Away from zero.                                  (ROUND_UP)
-    //
-    RM = 1,             // 0, 1, 2 or 3
-    // The maximum value of DP and Big.DP.
-    MAX_DP = 1E6,       // 0 to 1000000
-    // The maximum magnitude of the exponent argument to the pow method.
-    MAX_POWER = 1E6,    // 1 to 1000000
-    //
-    // The negative exponent (NE) at and beneath which toString returns exponential notation.
-    // (JavaScript numbers: -7)
-    // -1000000 is the minimum recommended exponent value of a Big.
-    //
-    NE = -7,            // 0 to -1000000
-    //
-    // The positive exponent (PE) at and above which toString returns exponential notation.
-    // (JavaScript numbers: 21)
-    // 1000000 is the maximum recommended exponent value of a Big, but this limit is not enforced.
-    //
-    PE = 21,            // 0 to 1000000
-    //
-    // When true, an error will be thrown if a primitive number is passed to the Big constructor,
-    // or if valueOf is called, or if toNumber is called on a Big which cannot be converted to a
-    // primitive number without a loss of precision.
-    //
-    STRICT = false,     // true or false
-// ***********************************************************************************************
-    // Error messages.
-    NAME = '[big.js] ',
-    INVALID = NAME + 'Invalid ',
-    INVALID_DP = INVALID + 'decimal places',
-    INVALID_RM = INVALID + 'rounding mode',
-    DIV_BY_ZERO = NAME + 'Division by zero',
-    // The shared prototype object.
-    P = {},
-    UNDEFINED = void 0,
-    NUMERIC = /^-?(\d+(\.\d*)?|\.\d+)(e[+-]?\d+)?$/i;
-  //
-  // Create and return a Big constructor.
-  //
-  function _Big_() {
-    //
-    // The Big constructor and exported function.
-    // Create and return a new instance of a Big number object.
-    //
-    // n {number|string|Big} A numeric value.
-    //
-    function Big(n) {
-      var x = this;
-      // Enable constructor usage without new.
-      if (!(x instanceof Big)) return n === UNDEFINED ? _Big_() : new Big(n);
-      // Duplicate.
-      if (n instanceof Big) {
-        x.s = n.s;
-        x.e = n.e;
-        x.c = n.c.slice();
-      } else {
-        if (typeof n !== 'string') {
-          if (Big.strict === true) {
-            throw TypeError(INVALID + 'number');
-          }
-          // Minus zero?
-          n = n === 0 && 1 / n < 0 ? '-0' : String(n);
-        }
-        parse(x, n);
-      }
-      // Retain a reference to this Big constructor.
-      // Shadow Big.prototype.constructor which points to Object.
-      x.constructor = Big;
-    }
-    Big.prototype = P;
-    Big.DP = DP;
-    Big.RM = RM;
-    Big.NE = NE;
-    Big.PE = PE;
-    Big.strict = STRICT;
-    Big.roundDown = 0;
-    Big.roundHalfUp = 1;
-    Big.roundHalfEven = 2;
-    Big.roundUp = 3;
-    return Big;
-  }
-  //
-  // Parse the number or string value passed to a Big constructor.
-  //
-  // x {Big} A Big number instance.
-  // n {number|string} A numeric value.
-  //
-  function parse(x, n) {
-    var e, i, nl;
-    if (!NUMERIC.test(n)) {
-      throw Error(INVALID + 'number');
-    }
-    // Determine sign.
-    x.s = n.charAt(0) == '-' ? (n = n.slice(1), -1) : 1;
-    // Decimal point?
-    if ((e = n.indexOf('.')) > -1) n = n.replace('.', '');
-    // Exponential form?
-    if ((i = n.search(/e/i)) > 0) {
-      // Determine exponent.
-      if (e < 0) e = i;
-      e += +n.slice(i + 1);
-      n = n.substring(0, i);
-    } else if (e < 0) {
-      // Integer.
-      e = n.length;
-    }
-    nl = n.length;
-    // Determine leading zeros.
-    for (i = 0; i < nl && n.charAt(i) == '0';) ++i;
-    if (i == nl) {
-      // Zero.
-      x.c = [x.e = 0];
-    } else {
-      // Determine trailing zeros.
-      for (; nl > 0 && n.charAt(--nl) == '0';);
-      x.e = e - i - 1;
-      x.c = [];
-      // Convert string to array of digits without leading/trailing zeros.
-      for (e = 0; i <= nl;) x.c[e++] = +n.charAt(i++);
-    }
-    return x;
-  }
-  //
-  // Round Big x to a maximum of sd significant digits using rounding mode rm.
-  //
-  // x {Big} The Big to round.
-  // sd {number} Significant digits: integer, 0 to MAX_DP inclusive.
-  // rm {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  // [more] {boolean} Whether the result of division was truncated.
-  //
-  function round(x, sd, rm, more) {
-    var xc = x.c;
-    if (rm === UNDEFINED) rm = x.constructor.RM;
-    if (rm !== 0 && rm !== 1 && rm !== 2 && rm !== 3) {
-      throw Error(INVALID_RM);
-    }
-    if (sd < 1) {
-      more =
-        rm === 3 && (more || !!xc[0]) || sd === 0 && (
-        rm === 1 && xc[0] >= 5 ||
-        rm === 2 && (xc[0] > 5 || xc[0] === 5 && (more || xc[1] !== UNDEFINED))
-      );
-      xc.length = 1;
-      if (more) {
-        // 1, 0.1, 0.01, 0.001, 0.0001 etc.
-        x.e = x.e - sd + 1;
-        xc[0] = 1;
-      } else {
-        // Zero.
-        xc[0] = x.e = 0;
-      }
-    } else if (sd < xc.length) {
-      // xc[sd] is the digit after the digit that may be rounded up.
-      more =
-        rm === 1 && xc[sd] >= 5 ||
-        rm === 2 && (xc[sd] > 5 || xc[sd] === 5 &&
-          (more || xc[sd + 1] !== UNDEFINED || xc[sd - 1] & 1)) ||
-        rm === 3 && (more || !!xc[0]);
-      // Remove any digits after the required precision.
-      xc.length = sd--;
-      // Round up?
-      if (more) {
-        // Rounding up may mean the previous digit has to be rounded up.
-        for (; ++xc[sd] > 9;) {
-          xc[sd] = 0;
-          if (!sd--) {
-            ++x.e;
-            xc.unshift(1);
-          }
-        }
-      }
-      // Remove trailing zeros.
-      for (sd = xc.length; !xc[--sd];) xc.pop();
-    }
-    return x;
-  }
-  //
-  // Return a string representing the value of Big x in normal or exponential notation.
-  // Handles P.toExponential, P.toFixed, P.toJSON, P.toPrecision, P.toString and P.valueOf.
-  //
-  function stringify(x, doExponential, isNonzero) {
-    var e = x.e,
-      s = x.c.join(''),
-      n = s.length;
-    // Exponential notation?
-    if (doExponential) {
-      s = s.charAt(0) + (n > 1 ? '.' + s.slice(1) : '') + (e < 0 ? 'e' : 'e+') + e;
-    // Normal notation.
-    } else if (e < 0) {
-      for (; ++e;) s = '0' + s;
-      s = '0.' + s;
-    } else if (e > 0) {
-      if (++e > n) {
-        for (e -= n; e--;) s += '0';
-      } else if (e < n) {
-        s = s.slice(0, e) + '.' + s.slice(e);
-      }
-    } else if (n > 1) {
-      s = s.charAt(0) + '.' + s.slice(1);
-    }
-    return x.s < 0 && isNonzero ? '-' + s : s;
-  }
-  // Prototype/instance methods
-  //
-  // Return a new Big whose value is the absolute value of this Big.
-  //
-  P.abs = function () {
-    var x = new this.constructor(this);
-    x.s = 1;
-    return x;
-  };
-  //
-  // Return 1 if the value of this Big is greater than the value of Big y,
-  //       -1 if the value of this Big is less than the value of Big y, or
-  //        0 if they have the same value.
-  //
-  P.cmp = function (y) {
-    var isneg,
-      x = this,
-      xc = x.c,
-      yc = (y = new x.constructor(y)).c,
-      i = x.s,
-      j = y.s,
-      k = x.e,
-      l = y.e;
-    // Either zero?
-    if (!xc[0] || !yc[0]) return !xc[0] ? !yc[0] ? 0 : -j : i;
-    // Signs differ?
-    if (i != j) return i;
-    isneg = i < 0;
-    // Compare exponents.
-    if (k != l) return k > l ^ isneg ? 1 : -1;
-    j = (k = xc.length) < (l = yc.length) ? k : l;
-    // Compare digit by digit.
-    for (i = -1; ++i < j;) {
-      if (xc[i] != yc[i]) return xc[i] > yc[i] ^ isneg ? 1 : -1;
-    }
-    // Compare lengths.
-    return k == l ? 0 : k > l ^ isneg ? 1 : -1;
-  };
-  //
-  // Return a new Big whose value is the value of this Big divided by the value of Big y, rounded,
-  // if necessary, to a maximum of Big.DP decimal places using rounding mode Big.RM.
-  //
-  P.div = function (y) {
-    var x = this,
-      Big = x.constructor,
-      a = x.c,                  // dividend
-      b = (y = new Big(y)).c,   // divisor
-      k = x.s == y.s ? 1 : -1,
-      dp = Big.DP;
-    if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-      throw Error(INVALID_DP);
-    }
-    // Divisor is zero?
-    if (!b[0]) {
-      throw Error(DIV_BY_ZERO);
-    }
-    // Dividend is 0? Return +-0.
-    if (!a[0]) {
-      y.s = k;
-      y.c = [y.e = 0];
-      return y;
-    }
-    var bl, bt, n, cmp, ri,
-      bz = b.slice(),
-      ai = bl = b.length,
-      al = a.length,
-      r = a.slice(0, bl),   // remainder
-      rl = r.length,
-      q = y,                // quotient
-      qc = q.c = [],
-      qi = 0,
-      p = dp + (q.e = x.e - y.e) + 1;    // precision of the result
-    q.s = k;
-    k = p < 0 ? 0 : p;
-    // Create version of divisor with leading zero.
-    bz.unshift(0);
-    // Add zeros to make remainder as long as divisor.
-    for (; rl++ < bl;) r.push(0);
-    do {
-      // n is how many times the divisor goes into current remainder.
-      for (n = 0; n < 10; n++) {
-        // Compare divisor and remainder.
-        if (bl != (rl = r.length)) {
-          cmp = bl > rl ? 1 : -1;
-        } else {
-          for (ri = -1, cmp = 0; ++ri < bl;) {
-            if (b[ri] != r[ri]) {
-              cmp = b[ri] > r[ri] ? 1 : -1;
-              break;
-            }
-          }
-        }
-        // If divisor < remainder, subtract divisor from remainder.
-        if (cmp < 0) {
-          // Remainder can't be more than 1 digit longer than divisor.
-          // Equalise lengths using divisor with extra leading zero?
-          for (bt = rl == bl ? b : bz; rl;) {
-            if (r[--rl] < bt[rl]) {
-              ri = rl;
-              for (; ri && !r[--ri];) r[ri] = 9;
-              --r[ri];
-              r[rl] += 10;
-            }
-            r[rl] -= bt[rl];
-          }
-          for (; !r[0];) r.shift();
-        } else {
-          break;
-        }
-      }
-      // Add the digit n to the result array.
-      qc[qi++] = cmp ? n : ++n;
-      // Update the remainder.
-      if (r[0] && cmp) r[rl] = a[ai] || 0;
-      else r = [a[ai]];
-    } while ((ai++ < al || r[0] !== UNDEFINED) && k--);
-    // Leading zero? Do not remove if result is simply zero (qi == 1).
-    if (!qc[0] && qi != 1) {
-      // There can't be more than one zero.
-      qc.shift();
-      q.e--;
-      p--;
-    }
-    // Round?
-    if (qi > p) round(q, p, Big.RM, r[0] !== UNDEFINED);
-    return q;
-  };
-  //
-  // Return true if the value of this Big is equal to the value of Big y, otherwise return false.
-  //
-  P.eq = function (y) {
-    return this.cmp(y) === 0;
-  };
-  //
-  // Return true if the value of this Big is greater than the value of Big y, otherwise return
-  // false.
-  //
-  P.gt = function (y) {
-    return this.cmp(y) > 0;
-  };
-  //
-  // Return true if the value of this Big is greater than or equal to the value of Big y, otherwise
-  // return false.
-  //
-  P.gte = function (y) {
-    return this.cmp(y) > -1;
-  };
-  //
-  // Return true if the value of this Big is less than the value of Big y, otherwise return false.
-  //
-  P.lt = function (y) {
-    return this.cmp(y) < 0;
-  };
-  //
-  // Return true if the value of this Big is less than or equal to the value of Big y, otherwise
-  // return false.
-  //
-  P.lte = function (y) {
-    return this.cmp(y) < 1;
-  };
-  //
-  // Return a new Big whose value is the value of this Big minus the value of Big y.
-  //
-  P.minus = P.sub = function (y) {
-    var i, j, t, xlty,
-      x = this,
-      Big = x.constructor,
-      a = x.s,
-      b = (y = new Big(y)).s;
-    // Signs differ?
-    if (a != b) {
-      y.s = -b;
-      return x.plus(y);
-    }
-    var xc = x.c.slice(),
-      xe = x.e,
-      yc = y.c,
-      ye = y.e;
-    // Either zero?
-    if (!xc[0] || !yc[0]) {
-      if (yc[0]) {
-        y.s = -b;
-      } else if (xc[0]) {
-        y = new Big(x);
-      } else {
-        y.s = 1;
-      }
-      return y;
-    }
-    // Determine which is the bigger number. Prepend zeros to equalise exponents.
-    if (a = xe - ye) {
-      if (xlty = a < 0) {
-        a = -a;
-        t = xc;
-      } else {
-        ye = xe;
-        t = yc;
-      }
-      t.reverse();
-      for (b = a; b--;) t.push(0);
-      t.reverse();
-    } else {
-      // Exponents equal. Check digit by digit.
-      j = ((xlty = xc.length < yc.length) ? xc : yc).length;
-      for (a = b = 0; b < j; b++) {
-        if (xc[b] != yc[b]) {
-          xlty = xc[b] < yc[b];
-          break;
-        }
-      }
-    }
-    // x < y? Point xc to the array of the bigger number.
-    if (xlty) {
-      t = xc;
-      xc = yc;
-      yc = t;
-      y.s = -y.s;
-    }
-    //
-    // Append zeros to xc if shorter. No need to add zeros to yc if shorter as subtraction only
-    // needs to start at yc.length.
-    //
-    if ((b = (j = yc.length) - (i = xc.length)) > 0) for (; b--;) xc[i++] = 0;
-    // Subtract yc from xc.
-    for (b = i; j > a;) {
-      if (xc[--j] < yc[j]) {
-        for (i = j; i && !xc[--i];) xc[i] = 9;
-        --xc[i];
-        xc[j] += 10;
-      }
-      xc[j] -= yc[j];
-    }
-    // Remove trailing zeros.
-    for (; xc[--b] === 0;) xc.pop();
-    // Remove leading zeros and adjust exponent accordingly.
-    for (; xc[0] === 0;) {
-      xc.shift();
-      --ye;
-    }
-    if (!xc[0]) {
-      // n - n = +0
-      y.s = 1;
-      // Result must be zero.
-      xc = [ye = 0];
-    }
-    y.c = xc;
-    y.e = ye;
-    return y;
-  };
-  //
-  // Return a new Big whose value is the value of this Big modulo the value of Big y.
-  //
-  P.mod = function (y) {
-    var ygtx,
-      x = this,
-      Big = x.constructor,
-      a = x.s,
-      b = (y = new Big(y)).s;
-    if (!y.c[0]) {
-      throw Error(DIV_BY_ZERO);
-    }
-    x.s = y.s = 1;
-    ygtx = y.cmp(x) == 1;
-    x.s = a;
-    y.s = b;
-    if (ygtx) return new Big(x);
-    a = Big.DP;
-    b = Big.RM;
-    Big.DP = Big.RM = 0;
-    x = x.div(y);
-    Big.DP = a;
-    Big.RM = b;
-    return this.minus(x.times(y));
-  };
-  //
-  // Return a new Big whose value is the value of this Big plus the value of Big y.
-  //
-  P.plus = P.add = function (y) {
-    var e, k, t,
-      x = this,
-      Big = x.constructor;
-    y = new Big(y);
-    // Signs differ?
-    if (x.s != y.s) {
-      y.s = -y.s;
-      return x.minus(y);
-    }
-    var xe = x.e,
-      xc = x.c,
-      ye = y.e,
-      yc = y.c;
-    // Either zero?
-    if (!xc[0] || !yc[0]) {
-      if (!yc[0]) {
-        if (xc[0]) {
-          y = new Big(x);
-        } else {
-          y.s = x.s;
-        }
-      }
-      return y;
-    }
-    xc = xc.slice();
-    // Prepend zeros to equalise exponents.
-    // Note: reverse faster than unshifts.
-    if (e = xe - ye) {
-      if (e > 0) {
-        ye = xe;
-        t = yc;
-      } else {
-        e = -e;
-        t = xc;
-      }
-      t.reverse();
-      for (; e--;) t.push(0);
-      t.reverse();
-    }
-    // Point xc to the longer array.
-    if (xc.length - yc.length < 0) {
-      t = yc;
-      yc = xc;
-      xc = t;
-    }
-    e = yc.length;
-    // Only start adding at yc.length - 1 as the further digits of xc can be left as they are.
-    for (k = 0; e; xc[e] %= 10) k = (xc[--e] = xc[e] + yc[e] + k) / 10 | 0;
-    // No need to check for zero, as +x + +y != 0 && -x + -y != 0
-    if (k) {
-      xc.unshift(k);
-      ++ye;
-    }
-    // Remove trailing zeros.
-    for (e = xc.length; xc[--e] === 0;) xc.pop();
-    y.c = xc;
-    y.e = ye;
-    return y;
-  };
-  //
-  // Return a Big whose value is the value of this Big raised to the power n.
-  // If n is negative, round to a maximum of Big.DP decimal places using rounding
-  // mode Big.RM.
-  //
-  // n {number} Integer, -MAX_POWER to MAX_POWER inclusive.
-  //
-  P.pow = function (n) {
-    var x = this,
-      one = new x.constructor('1'),
-      y = one,
-      isneg = n < 0;
-    if (n !== ~~n || n < -MAX_POWER || n > MAX_POWER) {
-      throw Error(INVALID + 'exponent');
-    }
-    if (isneg) n = -n;
-    for (;;) {
-      if (n & 1) y = y.times(x);
-      n >>= 1;
-      if (!n) break;
-      x = x.times(x);
-    }
-    return isneg ? one.div(y) : y;
-  };
-  //
-  // Return a new Big whose value is the value of this Big rounded to a maximum precision of sd
-  // significant digits using rounding mode rm, or Big.RM if rm is not specified.
-  //
-  // sd {number} Significant digits: integer, 1 to MAX_DP inclusive.
-  // rm? {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  //
-  P.prec = function (sd, rm) {
-    if (sd !== ~~sd || sd < 1 || sd > MAX_DP) {
-      throw Error(INVALID + 'precision');
-    }
-    return round(new this.constructor(this), sd, rm);
-  };
-  //
-  // Return a new Big whose value is the value of this Big rounded to a maximum of dp decimal places
-  // using rounding mode rm, or Big.RM if rm is not specified.
-  // If dp is negative, round to an integer which is a multiple of 10**-dp.
-  // If dp is not specified, round to 0 decimal places.
-  //
-  // dp? {number} Integer, -MAX_DP to MAX_DP inclusive.
-  // rm? {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  //
-  P.round = function (dp, rm) {
-    if (dp === UNDEFINED) dp = 0;
-    else if (dp !== ~~dp || dp < -MAX_DP || dp > MAX_DP) {
-      throw Error(INVALID_DP);
-    }
-    return round(new this.constructor(this), dp + this.e + 1, rm);
-  };
-  //
-  // Return a new Big whose value is the square root of the value of this Big, rounded, if
-  // necessary, to a maximum of Big.DP decimal places using rounding mode Big.RM.
-  //
-  P.sqrt = function () {
-    var r, c, t,
-      x = this,
-      Big = x.constructor,
-      s = x.s,
-      e = x.e,
-      half = new Big('0.5');
-    // Zero?
-    if (!x.c[0]) return new Big(x);
-    // Negative?
-    if (s < 0) {
-      throw Error(NAME + 'No square root');
-    }
-    // Estimate.
-    s = Math.sqrt(x + '');
-    // Math.sqrt underflow/overflow?
-    // Re-estimate: pass x coefficient to Math.sqrt as integer, then adjust the result exponent.
-    if (s === 0 || s === 1 / 0) {
-      c = x.c.join('');
-      if (!(c.length + e & 1)) c += '0';
-      s = Math.sqrt(c);
-      e = ((e + 1) / 2 | 0) - (e < 0 || e & 1);
-      r = new Big((s == 1 / 0 ? '5e' : (s = s.toExponential()).slice(0, s.indexOf('e') + 1)) + e);
-    } else {
-      r = new Big(s + '');
-    }
-    e = r.e + (Big.DP += 4);
-    // Newton-Raphson iteration.
-    do {
-      t = r;
-      r = half.times(t.plus(x.div(t)));
-    } while (t.c.slice(0, e).join('') !== r.c.slice(0, e).join(''));
-    return round(r, (Big.DP -= 4) + r.e + 1, Big.RM);
-  };
-  //
-  // Return a new Big whose value is the value of this Big times the value of Big y.
-  //
-  P.times = P.mul = function (y) {
-    var c,
-      x = this,
-      Big = x.constructor,
-      xc = x.c,
-      yc = (y = new Big(y)).c,
-      a = xc.length,
-      b = yc.length,
-      i = x.e,
-      j = y.e;
-    // Determine sign of result.
-    y.s = x.s == y.s ? 1 : -1;
-    // Return signed 0 if either 0.
-    if (!xc[0] || !yc[0]) {
-      y.c = [y.e = 0];
-      return y;
-    }
-    // Initialise exponent of result as x.e + y.e.
-    y.e = i + j;
-    // If array xc has fewer digits than yc, swap xc and yc, and lengths.
-    if (a < b) {
-      c = xc;
-      xc = yc;
-      yc = c;
-      j = a;
-      a = b;
-      b = j;
-    }
-    // Initialise coefficient array of result with zeros.
-    for (c = new Array(j = a + b); j--;) c[j] = 0;
-    // Multiply.
-    // i is initially xc.length.
-    for (i = b; i--;) {
-      b = 0;
-      // a is yc.length.
-      for (j = a + i; j > i;) {
-        // Current sum of products at this digit position, plus carry.
-        b = c[j] + yc[i] * xc[j - i - 1] + b;
-        c[j--] = b % 10;
-        // carry
-        b = b / 10 | 0;
-      }
-      c[j] = b;
-    }
-    // Increment result exponent if there is a final carry, otherwise remove leading zero.
-    if (b) ++y.e;
-    else c.shift();
-    // Remove trailing zeros.
-    for (i = c.length; !c[--i];) c.pop();
-    y.c = c;
-    return y;
-  };
-  //
-  // Return a string representing the value of this Big in exponential notation rounded to dp fixed
-  // decimal places using rounding mode rm, or Big.RM if rm is not specified.
-  //
-  // dp? {number} Decimal places: integer, 0 to MAX_DP inclusive.
-  // rm? {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  //
-  P.toExponential = function (dp, rm) {
-    var x = this,
-      n = x.c[0];
-    if (dp !== UNDEFINED) {
-      if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-        throw Error(INVALID_DP);
-      }
-      x = round(new x.constructor(x), ++dp, rm);
-      for (; x.c.length < dp;) x.c.push(0);
-    }
-    return stringify(x, true, !!n);
-  };
-  //
-  // Return a string representing the value of this Big in normal notation rounded to dp fixed
-  // decimal places using rounding mode rm, or Big.RM if rm is not specified.
-  //
-  // dp? {number} Decimal places: integer, 0 to MAX_DP inclusive.
-  // rm? {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  //
-  // (-0).toFixed(0) is '0', but (-0.1).toFixed(0) is '-0'.
-  // (-0).toFixed(1) is '0.0', but (-0.01).toFixed(1) is '-0.0'.
-  //
-  P.toFixed = function (dp, rm) {
-    var x = this,
-      n = x.c[0];
-    if (dp !== UNDEFINED) {
-      if (dp !== ~~dp || dp < 0 || dp > MAX_DP) {
-        throw Error(INVALID_DP);
-      }
-      x = round(new x.constructor(x), dp + x.e + 1, rm);
-      // x.e may have changed if the value is rounded up.
-      for (dp = dp + x.e + 1; x.c.length < dp;) x.c.push(0);
-    }
-    return stringify(x, false, !!n);
-  };
-  //
-  // Return a string representing the value of this Big.
-  // Return exponential notation if this Big has a positive exponent equal to or greater than
-  // Big.PE, or a negative exponent equal to or less than Big.NE.
-  // Omit the sign for negative zero.
-  //
-  P.toJSON = P.toString = function () {
-    var x = this,
-      Big = x.constructor;
-    return stringify(x, x.e <= Big.NE || x.e >= Big.PE, !!x.c[0]);
-  };
-  //
-  // Return the value of this Big as a primitve number.
-  //
-  P.toNumber = function () {
-    var n = Number(stringify(this, true, true));
-    if (this.constructor.strict === true && !this.eq(n.toString())) {
-      throw Error(NAME + 'Imprecise conversion');
-    }
-    return n;
-  };
-  //
-  // Return a string representing the value of this Big rounded to sd significant digits using
-  // rounding mode rm, or Big.RM if rm is not specified.
-  // Use exponential notation if sd is less than the number of digits necessary to represent
-  // the integer part of the value in normal notation.
-  //
-  // sd {number} Significant digits: integer, 1 to MAX_DP inclusive.
-  // rm? {number} Rounding mode: 0 (down), 1 (half-up), 2 (half-even) or 3 (up).
-  //
-  P.toPrecision = function (sd, rm) {
-    var x = this,
-      Big = x.constructor,
-      n = x.c[0];
-    if (sd !== UNDEFINED) {
-      if (sd !== ~~sd || sd < 1 || sd > MAX_DP) {
-        throw Error(INVALID + 'precision');
-      }
-      x = round(new Big(x), sd, rm);
-      for (; x.c.length < sd;) x.c.push(0);
-    }
-    return stringify(x, sd <= x.e || x.e <= Big.NE || x.e >= Big.PE, !!n);
-  };
-  //
-  // Return a string representing the value of this Big.
-  // Return exponential notation if this Big has a positive exponent equal to or greater than
-  // Big.PE, or a negative exponent equal to or less than Big.NE.
-  // Include the sign for negative zero.
-  //
-  P.valueOf = function () {
-    var x = this,
-      Big = x.constructor;
-    if (Big.strict === true) {
-      throw Error(NAME + 'valueOf disallowed');
-    }
-    return stringify(x, x.e <= Big.NE || x.e >= Big.PE, true);
-  };
-  // Export
-  Big = _Big_();
-  Big['default'] = Big.Big = Big;
-  //AMD.
-  if (typeof define === 'function' && define.amd) {
-    define(function () { return Big; });
-  // Node and other CommonJS-like environments that support module.exports.
-  } else if (typeof module !== 'undefined' && module.exports) {
-    module.exports = Big;
-  //Browser.
-  } else {
-    GLOBAL.Big = Big;
-  }
-})(this);
-*/
-
-/*
 --from https://rosettacode.org/wiki/Home_primes#Phix
 -- needs /mpz_prime_factors()/ [potentially transpilable], /mpz_prime()/ [maybe ditto, as per miller-rabin...].
 include mpfr.e
@@ -4180,77 +3518,6 @@ Calculation of pi took 52 iterations using the Almkvist-Giullera formula.
 Pi to 70 d.p.: 3.1415926535897932384626433832795028841971693993751058209749445923078164
 Pi (builtin) : 3.1415926535897932384626433832795028841971693993751058209749445923078164
 mpq
-*/
-/*
-class BigDecimal {
-    constructor(value) {
-        let [ints, decis] = String(value).split(".").concat("");
-        decis = decis.padEnd(BigDecimal.decimals, "0");
-        this.bigint = BigInt(ints + decis);
-    }
-    static fromBigInt(bigint) {
-        return Object.assign(Object.create(BigDecimal.prototype), { bigint });
-    }
-    divide(divisor) { // You would need to provide methods for other operations
-        return BigDecimal.fromBigInt(this.bigint * BigInt("1" + "0".repeat(BigDecimal.decimals)) / divisor.bigint);
-    }
-    toString() {
-        const s = this.bigint.toString().padStart(BigDecimal.decimals+1, "0");
-        return s.slice(0, -BigDecimal.decimals) + "." + s.slice(-BigDecimal.decimals)
-                .replace(/\.?0+$/, "");
-    }
-}
-BigDecimal.decimals = 18; // Configuration of the number of decimals you want to have.
-// Demo
-var a = new BigDecimal("123456789123456789876");
-var b = new BigDecimal( "10000000000000000000");
-console.log(a.divide(b).toString());
-
-
-class BigDecimal {
-    // Configuration: constants
-    static DECIMALS = 18; // number of decimals on all instances
-    static ROUNDED = true; // numbers are truncated (false) or rounded (true)
-    static SHIFT = BigInt("1" + "0".repeat(BigDecimal.DECIMALS)); // derived constant
-    constructor(value) {
-        if (value instanceof BigDecimal) return value;
-        let [ints, decis] = String(value).split(".").concat("");
-        this._n = BigInt(ints + decis.padEnd(BigDecimal.DECIMALS, "0")
-                                     .slice(0, BigDecimal.DECIMALS)) 
-                  + BigInt(BigDecimal.ROUNDED && decis[BigDecimal.DECIMALS] >= "5");
-    }
-    static fromBigInt(bigint) {
-        return Object.assign(Object.create(BigDecimal.prototype), { _n: bigint });
-    }
-    add(num) {
-        return BigDecimal.fromBigInt(this._n + new BigDecimal(num)._n);
-    }
-    subtract(num) {
-        return BigDecimal.fromBigInt(this._n - new BigDecimal(num)._n);
-    }
-    static _divRound(dividend, divisor) {
-        return BigDecimal.fromBigInt(dividend / divisor 
-            + (BigDecimal.ROUNDED ? dividend  * 2n / divisor % 2n : 0n));
-    }
-    multiply(num) {
-        return BigDecimal._divRound(this._n * new BigDecimal(num)._n, BigDecimal.SHIFT);
-    }
-    divide(num) {
-        return BigDecimal._divRound(this._n * BigDecimal.SHIFT, new BigDecimal(num)._n);
-    }
-    toString() {
-        const s = this._n.toString().padStart(BigDecimal.DECIMALS+1, "0");
-        return s.slice(0, -BigDecimal.DECIMALS) + "." + s.slice(-BigDecimal.DECIMALS)
-                .replace(/\.?0+$/, "");
-    }
-}
-// Demo
-var a = new BigDecimal("123456789123456789876");
-var b = a.divide("10000000000000000000");
-var c = b.add("9.000000000000000004");
-console.log(b.toString());
-console.log(c.toString());
-console.log(+c); // loss of precision when converting to number
 */
 
 /*

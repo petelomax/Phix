@@ -23,17 +23,20 @@
     if (atom(needle)) {
         return find(needle,haystack,start);
     }
+//19/12/24(!!)
+    let /*integer*/ nl = length(needle), 
+                    hl = length(haystack);
+    if (start<0) { start += hl+1; }
     if (!case_sensitive) {
         needle = lower(needle);
         haystack = lower(haystack);
     }
-    let /*integer*/ res = start, 
-                    nl = length(needle), 
-                    hl = length(haystack);
+    let /*integer*/ res = start;
     // This line is also not Euphoria compliant
     //  (Euphoria gives error "first argument of match() must be a non-empty sequence")
-    if (nl===0) { return 0; }
-    if (start<1) { return 0; }
+//  if nl=0 then return 0 end if
+//  if start<1 then return 0 end if
+    if ((nl===0) || start<1) { return 0; }
     while ((res+nl)-1<=hl) {
         for (let i=1, i$lim=nl; i<=i$lim; i+=1) {
             let /*integer*/ hdx = (i+res)-1;
@@ -79,41 +82,41 @@
         }
     }
     return 0;
-}
+} match.$sig="FOPII,1";
 
-/*global*/ function rmatch(/*object*/ needle, /*sequence*/ haystack, /*integer*/ start=length(haystack), /*bool*/ case_sensitive=true) {
+/*global*/ function rmatch(/*object*/ needle, /*sequence*/ haystack, /*integer*/ endx=length(haystack), /*bool*/ case_sensitive=true) {
 //
 // Try to match a needle against some slice of a haystack in reverse order.
-// Return the element number of haystack where the (last<=start) matching slice begins, else 0.  
+// Return the element number of haystack where the (last<=endx) matching slice begins, else 0.  
 //
     // This line, and first parameter being object not sequence, is not Euphoria compliant.
     //  (Euphoria gives error "first argument of match() must be a sequence")
     if (atom(needle)) {
-        return rfind(needle,haystack,start);
+        return rfind(needle,haystack,endx);
     }
     let /*integer*/ nl = length(needle), 
                     hl = length(haystack);
-    if ((((nl===0) || (start===0)) || start>hl) || compare(hl+start,1)<0) {
+    if ((((nl===0) || (endx===0)) || endx>hl) || compare(hl+endx,1)<0) {
         return 0;
     }
     if (!case_sensitive) {
         needle = lower(needle);
         haystack = lower(haystack);
     }
-    if (start<1) {
-        start = hl+start;
+    if (endx<1) {
+        endx = hl+endx;
     }
-    if ((start+nl)-1>hl) {
-        start = (hl-nl)+1;
+    if ((endx+nl)-1>hl) {
+        endx = (hl-nl)+1;
     }
-    for (let i=start; i>=1; i-=1) {
+    for (let i=endx; i>=1; i-=1) {
         for (let j=1, j$lim=nl; j<=j$lim; j+=1) {
             if (!equal($subse(needle,j),$subse(haystack,(i+j)-1))) { break; }
             if (j===nl) { return i; }
         }
     }
     return 0;
-}
+} rmatch.$sig="FOPII,1";
 
 /*global*/ function match_all(/*object*/ needle, /*sequence*/ haystack, /*integer*/ start=1, /*bool*/ case_sensitive=true, overlap=false) {
     if (!case_sensitive) {
@@ -131,26 +134,33 @@
         start += ((overlap) ? 1 : length(needle));
     }
     return res;
-}
+} match_all.$sig="FOPIII,1";
 
-/*global*/ function begins(/*object*/ sub_text, /*sequence*/ full_text) {
+/*global*/ function begins(/*object*/ sub_text, /*sequence*/ full_text, /*integer*/ start=1) {
     let /*integer*/ lf = length(full_text);
-    if (lf===0) { return false; }
+//  if lf=0 then return false end if
+    if (start<0) { start += lf+1; }
     if (atom(sub_text)) {
         // eg begins('c',"cat") -> true.
-        return equal(sub_text,$subse(full_text,1));
+        return equal(sub_text,$subse(full_text,start));
     }
-    let /*integer*/ ls = length(sub_text);
-    return ls<=lf && (equal(sub_text,$subss(full_text,1,ls)));
-}
-
-/*global*/ function $ends(/*object*/ sub_text, /*sequence*/ full_text) {
+    let /*integer*/ ls = length(sub_text), 
+                    endx = (start+ls)-1;
+    return (endx<=lf && (ls<50 || (equal($subse(sub_text,1),$subse(full_text,start))))) && (equal(sub_text,$subss(full_text,start,endx)));
+} begins.$sig="FOPI,1";
+//global function ends(object sub_text, sequence full_text, integer lf=length(full_text))
+/*global*/ function ends(/*object*/ sub_text, /*sequence*/ full_text, /*integer*/ endx=-1) {
     let /*integer*/ lf = length(full_text);
-    if (lf===0) { return false; }
+//  if lf=0 then return false end if
+    if (endx<0) { endx += lf+1; }
     if (atom(sub_text)) {
-        // eg $ends('t',"cat") -> true.
-        return equal(sub_text,$subse(full_text,-1));
+        // eg ends('t',"cat") -> true.
+        return equal(sub_text,$subse(full_text,endx));
     }
+//  integer ls = lf-length(sub_text)+1
+//  return ls<=lf and sub_text==full_text[ls..lf]
+//  return ls>0 and sub_text==full_text[ls..lf]
     let /*integer*/ ls = length(sub_text);
-    return ls<=lf && (equal(sub_text,$subss(full_text,-ls,-1)));
-}
+    return (ls<=endx && (ls<50 || (equal($subse(sub_text,1),$subse(full_text,-ls))))) && (equal(sub_text,$subss(full_text,-ls,endx)));
+//  return ls<=lf and sub_text==full_text[-ls..-1]
+} ends.$sig="FOPI,1";

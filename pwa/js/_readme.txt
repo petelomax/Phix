@@ -15,7 +15,7 @@ the individual files to indicate that) but can still be useful should
 something suddenly stop working or start going wrong.
 
 Unlike pwa/js, there is no particular reason for you not to edit files 
-directly in pwa/js/poc.
+directly in pwa/js/poc (since they are /not/ regularly validated).
 
 Sometimes, "pipe dreams" may end up in /poc that pwa/p2js is a very long
 way off actually supporting... (again there should be a comment in the 

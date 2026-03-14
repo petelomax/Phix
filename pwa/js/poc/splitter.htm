@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Resizable Split Canvas</title>
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    #container {
+      display: flex;
+      height: 100%;
+      width: 100%;
+    }
+
+    .canvas {
+      flex-grow: 1;
+      min-width: 5%;
+    }
+
+    #handle {
+      width: 5px;
+      background: repeating-linear-gradient(
+        to bottom,
+        #555,
+        #555 2px,
+        transparent 2px,
+        transparent 4px
+      );
+      cursor: col-resize;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+
+<div id="container">
+  <div id="left" class="canvas"><canvas></canvas></div>
+  <div id="handle"></div>
+  <div id="right" class="canvas"><canvas></canvas></div>
+</div>
+
+<script>
+  const container = document.getElementById('container');
+  const left = document.getElementById('left');
+  const right = document.getElementById('right');
+  const handle = document.getElementById('handle');
+  const leftCanvas = left.querySelector('canvas');
+  const rightCanvas = right.querySelector('canvas');
+
+  let isDragging = false;
+  let leftRatio = 0.5;
+
+  function resizePanels() {
+    const totalWidth = container.clientWidth;
+    const handleWidth = handle.offsetWidth;
+    const leftWidth = Math.max(30, (totalWidth - handleWidth) * leftRatio);
+    const rightWidth = totalWidth - handleWidth - leftWidth;
+
+    left.style.width = `${leftWidth}px`;
+    right.style.width = `${rightWidth}px`;
+
+    [leftCanvas, rightCanvas].forEach(drawX);
+  }
+
+  function drawX(canvas) {
+    canvas.width = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+
+    const ctx = canvas.getContext('2d');
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    ctx.strokeStyle = '#000';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(canvas.width, canvas.height);
+    ctx.moveTo(canvas.width, 0);
+    ctx.lineTo(0, canvas.height);
+    ctx.stroke();
+  }
+
+  window.addEventListener('resize', resizePanels);
+  resizePanels();
+
+  // Handle dragging
+  handle.addEventListener('mousedown', e => {
+    isDragging = true;
+    document.body.style.cursor = 'col-resize';
+    e.preventDefault();
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!isDragging) return;
+    const containerRect = container.getBoundingClientRect();
+    const dx = e.clientX - containerRect.left;
+    const totalWidth = containerRect.width;
+    const handleWidth = handle.offsetWidth;
+
+    // Clamp ratio
+    leftRatio = (dx - handleWidth / 2) / (totalWidth - handleWidth);
+    if (leftRatio < 0.05) leftRatio = 0.05;
+    if (leftRatio > 0.95) leftRatio = 0.95;
+
+    resizePanels();
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (isDragging) {
+      isDragging = false;
+      document.body.style.cursor = '';
+    }
+  });
+</script>
+
+</body>
+</html>
+

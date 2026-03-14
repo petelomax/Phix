@@ -19,7 +19,7 @@
         Relatively small lists gain little, however I can attest to seeing this thoroughly trounce an earlier 
         version of a program that had to process over 800,000 numbers in a different order to the way they were 
         created, by a factor of 17.5 (0.8s vs 14s), and yet the only real difference was how those numbers were 
-        being stored and sorted. While a standard <a href="sort.htm">sort</a>() is generally pretty fast, it can 
+        being stored and sorted. While a standard <a href>sort</a>() is generally pretty fast, it can 
         (sometimes) be completely outclassed by a priority queue, especially if (as per the example below) we 
         can avoid the need to generate everything up-front, and/or avoid any repeated sorting or scanning.
         <br>
@@ -40,9 +40,11 @@
         <br>
         Priority queues particularly shine when used with generators, whereby as each item is popped the next 
         (if any) for that generator (which is always >= than the one just popped, but may be lower or higher 
-        than other generators in the queue) is immediately pushed back on. [By "generator" I just mean anything 
-        you can get another value from, be that a routine_id, an index, a file handle, whatever - the data can 
-        be anything, the only constraint is the priority has to be sortable.]
+        than other generators in the queue) is immediately pushed back on.
+        <br>
+        <br>
+        By "generator" I just mean anything you can get another value from, be that a routine_id, index, file 
+        handle, whatever - the data can be anything, the only constraint is the priority has to be sortable.
         <br>
         <br>
         These routines are fully supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>.
@@ -96,7 +98,7 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
         re-adding the p=2 generator more times than the p=3, p=5, and p=7 generators. Incidentally it would be quite fair 
         to say that code pushes far too many primes, apart from a starter it only needs to push the next prime when it
         pops a p==v. Without a priority queue, that kind of thing can get real fiddly real fast. Should you be looking 
-        for a true (in-order-of-addition) queue, simply use a standard Phix <a href="sequence.htm">sequence</a> [update: 
+        for a true (in-order-of-addition) queue, simply use a standard Phix <a href>sequence</a> [update: 
         or see the new subpage].
         <br>
         <br>
@@ -109,6 +111,7 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
         <div id="nopad" class="nopad" align="center">
          <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_new></a>
             integer pqid =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
@@ -116,28 +119,31 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
             </dt><dd class="pad">
             Parameter t must be either MIN_HEAP (ie pop 1 before 2) or MAX_HEAP (ie pop 2 before 1). <br>
             Note the default queue (ie pqid of 1 in the calls below) is always a MIN_HEAP.<br>
-            Parameter crid can be the <a href="routine_id.htm">routine_id</a> of a custom priority comparison
+            Parameter crid can be (the <a href>routine_id</a> of) a custom priority comparison
             routine, such as <a href="mpfr.htm#mpz">mpz_cmp</a>().<br>
             The default PQ_COMPARE [not global] is just a simple wrapper of the standard builtin 
-            <a href="compare.htm">compare</a>() function.<br>
+            <a href>compare</a>() function.<br>
             The only way to set a custom comparator on pqid=1 is via pq_destroy(), see below.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_size></a>
             integer res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>pq_size</b>(integer pqid=1) - obtains the number of entries currently in the list.<br>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_empty></a>
             bool res =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
-            <b>pq_empty</b>(integer pqid=1) - yields <a href="logicops.htm#tf">true</a> when the list is empty, 
-                                                     <a href="logicops.htm#tf">false</a> otherwise.<br>
+            <b>pq_empty</b>(integer pqid=1) - yields <a href>true</a> when the list is empty, 
+                                                     <a href>false</a> otherwise.<br>
             </dt><dd class="pad">
             <small> (it is literally implemented as just simply <code>return pq_size(pqid)==0</code>)</small><br>
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_add></a>
             <!-- procedure -->
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
@@ -147,7 +153,8 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            sequence item =&nbsp;
+            <a name=pq_pop></a>
+            <nobr>sequence item =&nbsp;</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>pq_pop</b>(integer pqid=1) - obtains highest/lowest priority item.<br>
@@ -156,27 +163,30 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_pop_data></a>
             object data =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>pq_pop_data</b>(integer pqid=1) - as pq_pop but discards priority.<br>
             </dt><dd class="pad">
-            There would be no way to determine what the priority was, unless you had buried it somewhere inside data.
+            There would be no way to determine what the priority was, unless buried within data.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
-            sequence item =&nbsp;
+            <a name=pq_peek></a>
+            <nobr>sequence item =&nbsp;</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <b>pq_peek</b>(integer pqid=1) - as pq_pop but leaves item in the queue.<br>
           </td></tr>
 
           <tr><td align="right" style="padding: 0; border-style: none;">
+            <a name=pq_destroy></a>
             <!-- procedure -->
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>pq_destroy</b>(integer pqid=1, bool justclear=<a href="logicops.htm#tf">false</a>, integer crid=PQ_COMPARE) 
-            removes/frees/empties a queue once no longer needed.<br>
+            <b>pq_destroy</b>(integer pqid=1, bool justclear=<a href>false</a>, integer crid=PQ_COMPARE)<br>
             </dt><dd class="pad">
+            Removes/frees/empties a queue once no longer needed.<br>
             A pqid of 1 is always just cleared. <br>
             By default any custom comparator function on pqid is removed, unless re-supplied.
             </dd></dl>
@@ -190,6 +200,53 @@ pp(res) -- {2,3,4,5,7,8,9,11,13,16,17,19,23,25,27,29,31,32,37,41,43,47,49}
         If you define a MAX_HEAP queue, the maximum priority is readily available, the minimum is not.<br>
         Should you require both min and max to be available, and perhaps a few things in the middle, just
         use a <a href="dict.htm">dictionary</a> instead.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
         <br>
         <br>
       </div>

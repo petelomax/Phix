@@ -19,4 +19,4 @@
         s = $repe(s,j,si);
     }
     return s;
-}
+} shuffle.$sig="FP";

@@ -65,7 +65,7 @@ function $init_sieve() {
 --pp(shorten(wheel,"digits",40))
 --pp(shorten($primes,"primes",40))
 */
-}
+} $init_sieve.$sig="P";
 function $add_block() {
     let /*integer*/ N = min(($sieved-1)*$sieved,400000);
 //  integer N = min(($sieved-1)*$sieved,30030)
@@ -118,7 +118,7 @@ function $add_block() {
     $sieved += N;
 //pp(shorten($primes))
 //?{$sieved,length($primes)}
-}
+} $add_block.$sig="P";
 
 /*global*/ function get_prime(/*integer*/ k) {
     if (k===0) { return 0; }
@@ -127,7 +127,7 @@ function $add_block() {
         $add_block();
     }
     return $subse($primes,k);
-}
+} get_prime.$sig="FI";
 // (moved here from pfactors.e 29/10/22, then merged)
  /*
 --global function is_prime(atom n)
@@ -180,7 +180,7 @@ function $add_block() {
         p = get_prime(pn);
     }
     return n>1;
-}
+} is_prime.$sig="FNI,1";
 
 /*global*/ function get_maxprime(/*atom*/ m) {
 // returns a suitable maxprime for prime_factors()
@@ -192,7 +192,7 @@ function $add_block() {
     let /*integer*/ res = binary_search(m,$primes);
     if (res<0) { res = abs(res)-1; }
     return res;
-}
+} get_maxprime.$sig="FN";
 
 /*global*/ function get_primes(/*integer*/ count=0) {
     if ($sieved===0) { $init_sieve(); }
@@ -204,7 +204,7 @@ function $add_block() {
         res = $subss(res,1,abs(count));
     }
     return res;
-}
+} get_primes.$sig="FI,1";
 /* no no no, don't do that...
 --function segmented_primes(atom limit, integer show_progress)
     -- translation of https://gist.github.com/kimwalisch/3dc39786fab8d5b34fee
@@ -330,7 +330,7 @@ function $add_block() {
     }
     let /*sequence*/ res = $subss($primes,1,hi+overrun);
     return res;
-}
+} get_primes_le.$sig="FII,3";
 // my go at the prime sieve shootout: (see also demo/prime_drag_race.exw, 2 years earlier that I'd forgotten about)
  /*
 enum SIEVE_SIZE, NUM_BITS, SIEVE 

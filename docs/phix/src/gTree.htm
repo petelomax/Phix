@@ -1,0 +1,1332 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">gTree</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include theGUI.e
+           <br>
+           <br>
+            <a href>gdx</a> tree = gTree(<a href>sequence</a> nodes,
+                                                            <small>
+<!--                                                            [<a href>rtn</a> branchopen=<a href>NULL</a>, ]--->
+                                                             <a href>string</a> attributes="", 
+                                                             <a href="html/glossary.htm#dwordseq">dword_seq</a> args={}</small>)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+<!--            <b><i>DRAFT</i></b> - planned canvas-based replacement for gTreeView...<br><br>-->
+            Creates a nested tree control with expandable/collapsable nodes from a simple [recursive] data structure.
+            <br>
+            <br>
+            nodes: a <a href="#EXAMPLE">nested</a> <i>or</i> <a href="#tech" onclick="opentech()">flat</a> version of the tree, 
+                sets <a href="#DATA">DATA</a>.<br>
+<!--            suitable for passing to <a href="gTreeAddNodes.htm">gTreeAddNodes</a>(). <br> -->
+<!--
+            construct of ?the form {"<i>text</i>"[,attr][,children]}.<br>
+?           branchopen: optional routine for deferred loading of sub-tree nodes, see <a href="#BRANCHOPEN">BRANCHOPEN</a>.<br>
+-->
+            For more information on the attributes and args parameters see <a href>gSetAttributes</a>().<br>
+            Note standard optional parameters perfectly suffice, <i>no</i> <a href="g_paranormal.htm">paranormalisation</a> is 
+            performed or required.
+<!--
+            This is a <a href="g_paranormal.htm">paranormalised function</a>.  <small>(see <a href="#tech" onclick="opentech()">technicalia</a>)</small>
+            <br>
+            <br>
+//          The tree_nodes parameter may be empty, or omitted on creation and set via <a href="gTreeAddNodes.htm">gTreeAddNodes</a>()
+            at some later time.
+-->
+<!--
+            <br>
+            <br>
+??          At the time of writing, few treeview attributes are supported, but in time I expect it will cope with at least
+            [!--ACTIVE, COUNT, EXPAND, --]EXPANDNODE, CONTRACTNODE, FOCUSNODE, TOPITEM, VISIBLENODE, as well as having a few 
+            more handler routines, probably.
+-->
+            <br>
+            <br>
+<!--
+OLD:
+            {{{title,data[,image,id]}}[,pop_rid[,userdata]]}
+            <br>
+            <br>
+            Each data[1][i] represents a node in the tree, and each element of data[1][i][2] holds a sequence of equivalent 
+            structures, with pop_rid (if present) being invoked with the (outer) data structure, which should modify and 
+            return an updated data structure.<br>
+            Note that pop_rid is a routine_id() rather than an Icallback(), and can be specified as a bare name, without a
+            routine_id("") wrapper. You can supply an image in "string" or {handle} form, whereas an integer id is added by 
+            gTree when it gets displayed.
+            <br>
+            <br>
+            For example, you might display your C: drive contents using a data of {{"C:",{}},populate,"C:\\"}, with populate() 
+            replacing that first {} by details obtained from dir("C:\\").
+            <br>
+            <br>
+            If you have a completed data structure, simply omit pop_rid.<br>
+            If the pop_rid() leaves the top-level copy of itself in place, it is (re-)invoked every time that node is displayed, 
+            with perhaps a flag it has set in userdata to indicate that, else it can be removed, along with userdata, or maybe 
+            replaced with a lessor refresh(). It should also plant a copy of itself on each of the data[1][i][2] it populates, 
+            unless perhaps that is a finished leaf node construct, along with whataver updated userdata any subsequent call 
+            might need (eg the subdir path).
+            <br>
+            <br>
+            The contents of userdata are not referenced in any way by this routine, merely forwarded to the pop_rid(), and can 
+            even be completely omitted. Typically, as hinted above, I might expect the userdata to hold a full path, and 
+            data[1][i][1] just the trailing file or directory name. Obviously you can also use a treeview for other 
+            non-file-and-directory-related things.
+            <br>
+            <br>
+            A suitable pop_rid might look something like this:
+<X!X--eucode>
+        function populate(sequence data)
+            string path = data[3]
+            sequence d = dir(data[3])
+            for i=3 to length(d) do -- (skip . & ..)
+                string name = d[i][1]
+                sequence di = {name,{},populate,path&name}
+                data[1][2] = append(data[1][2],di)
+            end for
+            data = data[1..1] -- (prevent re-invocation)
+            return data
+        end function
+<X/eucode--X>
+<XpreX>
+<font color="#008080">        function</font><font color="#000000"> populate</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> data</font><font color="#0000FF">)</font>
+<font color="#004080">            string</font><font color="#000000"> path</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">3</font><font color="#0000FF">]</font>
+<font color="#004080">            sequence</font><font color="#000000"> d</font><font color="#0000FF"> =</font><font color="#5E005E"> dir</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">3</font><font color="#800000">]</font><font color="#0000FF">)</font>
+<font color="#008080">            for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">3</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">d</font><font color="#0000FF">)</font><font color="#008080"> do</font><font color="#000080"><i> -- (skip . &amp; ..)</i></font>
+<font color="#004080">                string</font><font color="#000000"> name</font><font color="#0000FF"> =</font><font color="#000000"> d</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">][</font><font color="#000000">1</font><font color="#0000FF">]</font>
+<font color="#004080">                sequence</font><font color="#000000"> di</font><font color="#0000FF"> = {</font><font color="#000000">name</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#000000">populate</font><font color="#0000FF">,</font><font color="#000000">path</font><font color="#0000FF">&amp;</font><font color="#000000">name</font><font color="#0000FF">}</font>
+<font color="#000000">                data</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">][</font><font color="#000000">2</font><font color="#0000FF">] =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#800000">[</font><font color="#000000">1</font><font color="#800000">][</font><font color="#000000">2</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">di</font><font color="#0000FF">)</font>
+<font color="#008080">            end for</font>
+<font color="#000000">            data</font><font color="#0000FF"> =</font><font color="#000000"> data</font><font color="#0000FF">[</font><font color="#000000">1</font><font color="#0000FF">..</font><font color="#000000">1</font><font color="#0000FF">]</font><font color="#000080"><i> -- (prevent re-invocation)</i></font>
+<font color="#008080">            return</font><font color="#000000"> data</font>
+<font color="#008080">        end function</font>
+<X/preX>
+
+            Blah...
+            <br>
+            <br>
+-->
+            Returns: the identifier of the created element.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+<!--            Supported.-->
+            Not yet. Need to fix <a href>SCROLLSIZE</a> first (gulp)...
+            <br><a name=EXAMPLE></a>
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+//        <a href="gTreeAddNodes.htm">gTreeAddNodes</a>
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+          <div style="float:left;">
+           <small>
+<!-- original/maybe:
+gdx tree = gTree(nodes),
+    dlg = gDialog(tree,`gTree`)
+gShow(dlg)
+gShow(gDialog(gTree(nodes),`gTree`))
+-->
+<!--eucode>
+include theGUI.e    -- demo\theGUI\gTree.exw
+sequence nodes = {"Figures",true,   -- branch with 6 children
+                  {"Other",         -- leaf
+                   {"triangle",     -- branch with 3 children
+                    {"equilateral",   -- (no true = closed)
+                     {"isoceles",{"acute","obtuse"}},
+                     "scalenus"}},
+                   {"parallelogram",true,{"square","diamond"}},
+                   "2D",{"3D",{}},  -- 1 leaf, 1 empty branch
+                   {"4D",{"some","other","branch"}}}}
+gMainLoop(gDialog(gTree(nodes),`gTree`,"SIZE=240x180"))
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> theGUI.e   </font><font color="#000080"><i> -- demo\theGUI\gTree.exw</i></font>
+<font color="#004080">sequence</font><font color="#000000"> nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,  </font><font color="#000080"><i> -- branch with 6 children</i></font>
+<font color="#800000">                  {</font><font color="#008000">"Other"</font><font color="#0000FF">,        </font><font color="#000080"><i> -- leaf</i></font>
+<font color="#008080">                   {</font><font color="#008000">"triangle"</font><font color="#0000FF">,    </font><font color="#000080"><i> -- branch with 3 children</i></font>
+<font color="#00FF00">                    {</font><font color="#008000">"equilateral"</font><font color="#0000FF">,  </font><font color="#000080"><i> -- (no true = closed)</i>
+                     {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,</font><font color="#008000">{"acute"</font><font color="#0000FF">,</font><font color="#008000">"obtuse"}</font><font color="#000080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                     "scalenus"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font>
+<font color="#008080">                   {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"square"</font><font color="#0000FF">,</font><font color="#008000">"diamond"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                   "2D"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"3D"</font><font color="#0000FF">,</font><font color="#00FF00">{}</font><font color="#008080">}</font><font color="#0000FF">, </font><font color="#000080"><i> -- 1 leaf, 1 empty branch</i></font>
+<font color="#008080">                   {</font><font color="#008000">"4D"</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"some"</font><font color="#0000FF">,</font><font color="#008000">"other"</font><font color="#0000FF">,</font><font color="#008000">"branch"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#7060A8">gDialog</font><font color="#800000">(</font><font color="#7060A8">gTree</font><font color="#008080">(</font><font color="#000000">nodes</font><font color="#008080">)</font><font color="#0000FF">,</font><font color="#008000">`gTree`</font><font color="#0000FF">,</font><font color="#008000">"SIZE=240x180"</font><font color="#800000">)</font><font color="#0000FF">)</font>
+</pre>
+           </small>
+          </div>
+          <div style="float:right;">
+            <img alt="gTree" src="images/gTree.png" width="240" height="180"/>
+          </div>
+          <div class="clear"></div>
+<!--
+          <br>
+//          See also <a href="gTreeAddNodes.htm">gTreeAddNodes</a> for a more details of the structures, splitting/flattening them, and deferred loading.
+-->
+          <!--br-->
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            In the nested/recursive form shown <a href="#EXAMPLE">above</a>, the whole tree and every subnode must be in the form:
+            <br>
+            <br>
+            <center><code> desc or {desc[,expanded,[checked,[image,[userdata,]]]],children} </code></center>
+            <br>
+            where desc is the descriptive text string for the node, with just-string being interpreted as a leaf,<br>
+            expanded is <a href>false</a> (the default), <a href>true</a> (ignored on leaf nodes), 
+                or -1 for deferred loading (see <a href="#DEFERRED">DATA</a>),<br>
+            checked is <a href>false</a> (the default) or <a href>true</a>, ignored when 
+                <a href>CHECKED</a> is <a href>false</a>,<br>
+            image is <a href>NULL</a> (the default) or a <a href>gImage</a> or an xpm (ie string/sequence), 
+                ignored when <a href="#IMAGE">IMAGE</a> is <a href>false</a>,<br>
+            userdata (default <a href>NULL</a>) can contain anything the application needs, per-node
+                <small>(cf the per-tree <a href>USER_DATA</a>)</small>,<br>
+            children is always the last item and (when expanded!=-1) can be 0 to signify a leaf, or a sequence of sub-nodes.
+            <br>
+            <br>
+            In other words there are up to four optional items mid-node, some of which may need prior dummy values, at worst 0,0,0,
+            and should node not be a just-string leaf node, <a href>length</a>(node) must always be 2..6 inclusive.<br>
+<!--
+            Also note that when an image is specified on a branch node, it should really be the same ("closed branch") 
+            image on all branches, and have [the same] matching ("open branch") image set in <a href="#IMAGE">IMAGE</a>, alternatively
+            it can be a {closed,open} pair of images [on branch nodes only].<br>
+-->
+            Lastly, should userdata only be needed for deferred loading you can put it in the children slot instead, when expanded==-1,
+            and in fact {desc,-1} is a special case of deferred loading with (presumably) no userdata needed, and {desc,-1,stuff} would
+            mean you&apos;re getting your userdata from the children slot in the <a href="#DEFERRED">DATA</a> handler.
+            <br>
+            <br>
+            The nested form is automatically converted into a <a href="#tech" onclick="opentech()">flat internal</a> one as detailed in 
+            the <a href="#tech" onclick="opentech()">technicalia</a>.
+            <br>
+         </td>
+        </tr>
+        </tr>
+<!--
+        <tr>
+         <td>
+          Simple Marking
+         </td>
+         <td>
+            It is the default operation mode (MARKMODE=SINGLE). In this mode only one node can be selected.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Multiple Marking
+         </td>
+         <td>
+            IupFlatTree allows marking several nodes simultaneously using the Shift and Control keys. <br>
+            To use multiple marking set MARKMODE=MULTIPLE. <br>
+//          Multiple nodes can also be selected using mouse dragging if SHOWDRAGDROP=NO.
+          <br>
+          <br>
+            When a user keeps the Control key pressed, the individual marking mode is used. <br>
+            This way, the focus node can be modified without changing the marked node. <br>
+            To reverse a node marking, the user simply has to press the space bar.
+          <br>
+          <br>
+            When the user keeps the Shift key pressed, the block marking mode is used. <br>
+            This way, all nodes between the focus node and the initial node are marked, and all others are unmarked. <br>
+            The initial node is changed every time a node is marked without the Shift key being pressed. <br>
+            This happens when any movement is done without Shift or Control keys being pressed, or when the space bar is pressed together with Control.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          Navigation
+         </td>
+         <td>
+            Using the keyboard:
+          <ul>
+           <li>Arrow Up/Down: Moves the focus node to the neighbor node, according to the arrow direction. 
+                              If Shift is pressed and MARKMODE=MULTIPLE a continuous range of cells is selected.</li>
+           <li>Home/End: Moves the focus node to the first/last node. </li>
+           <li>Page Up/Page Down: Moves the focus node to the node one visible page above/below the focus node. </li>
+           <li>Enter: If the focus node is an expanded branch, it is collapsed; if it is a collapsed branch, it is expanded; if it is a leaf, it is executed. </li>
+           <li>Ctrl+Arrow Up/Down: Moves only the focus node. </li>
+           <li>Ctrl+Space: Marks or unmarks the node at focus. </li>
+           <li>F2: Calls the rename handler or invokes the in place rename. </li>
+           <li>Esc: cancels in place rename. </li>
+          </ul>
+            Using the left mouse button:
+          <ul>
+           <li>Clicking a node: Moves the focus node to the clicked node. </li>
+           <li>Clicking a (-/+) box: Makes the branch to the right of the (-/+) box collapse/expand. </li>
+           <li>Double-clicking a node: Moves the focus node to the clicked node. 
+                If the node is an expanded branch, it is collapsed; 
+                if it is a collapsed branch, it is expanded; 
+                if it is a leaf, it is executed. </li>
+           <li>Clicking twice a node: Calls the rename handler or invokes the in place rename. </li>
+//         <li>Clicking and dragging a node: if SHOWDRAGDROP=Yes starts a drag. When mouse is released, the DRAGDROP_CB handler is called. <br>
+                If the handler does not exist or if it returns <a href>TG_CONTINUE</a> then the node is moved to the new position. <br>
+                If Ctrl is pressed then the node is copied instead of moved. In Motif drag is performed with the middle mouse button.
+           </li>
+          </ul>
+            Removing a Node with "Del" <br>
+            By default the Del key is not processed, but you can implement it using a simple
+          <a href>KEY</a> handler:
+        <br>
+        <br><small>
+<X!X--eucode>
+    function key(gdx h, integer c)
+        if c == VK_DEL then gSetAttribute(h,?"DELNODE",?"MARKED") end if 
+        return TG_CONTINUE
+    end function
+</eucode--X>
+<Xpre>
+<font color="#008080">    function</font><font color="#000000"> k_any</font><font color="#0000FF">(</font><font color="#5E005E">Ihandle</font><font color="#000000"> ih</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> c</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#000000"> c</font><font color="#0000FF"> ==</font><font color="#004600"> K_DEL</font><font color="#008080"> then</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000">"DELNODE"</font><font color="#0000FF">,</font><font color="#008000">"MARKED"</font><font color="#0000FF">)</font><font color="#008080"> end if 
+        return</font><font color="#004600"> TG_CONTINUE</font>
+<font color="#008080">    end function</font>
+<X/pre>
+          </small>
+         </td>
+        </tr>
+
+-->
+<!--
+        <tr>
+         <td>
+          Extra Functions
+         </td>
+         <td>
+//          IupFlatTree has functions that allow associating a pointer (or a user defined id) to a node. <br>
+            In order to do that, you provide the id of the node and the pointer (userid); even if the node&apos;s 
+            id changes later on (because of insertions/deletions above/below it), the userid will still be associated with the given node. <br>
+            A positive integer index, to some other table, is recommended in Phix, whereas using raw pointers would 
+            most likely require additional/careful/tedious memory management.<br>
+            These functions all use the USERDATAid attribute.
+            <br>
+            <br>
+            IupFlatTree shares the same functions with <a href>IupTree</a>.
+          <br><a name="IupTreeSetUserId"></a>
+          <br>
+            <b>IupTreeSetUserId</b>(<a href>Ihandle</a> ih, <a href>integer</a> id, <a href>atom</a> userid) <br>
+            ih: Identifier of the interface element. <br>
+            id: Node identifier. <br>
+            userid: User index or pointer to be associated with the node. Use <a href>NULL</a> to remove the association.
+          <br>
+          <br>
+            Associates a userid with a given id. If the id of the node is changed, the userid remains the same.
+            Terminates in error if the node cannot be found.
+          <br><a name="IupTreeGetUserId"></a>
+          <br>
+            <a href>atom</a> userid = <b>IupTreeGetUserId</b>(<a href>Ihandle</a> ih, <a href>integer</a> id) <br>
+            ih: Identifier of the interface element. <br>
+            id: Node identifier.
+          <br>
+          <br>
+            Returns the index or pointer associated to the node or <a href>NULL</a> if none was associated. <br>
+            IupTreeSetUserId must have been called for the node with the given id.
+          <br><a name="IupTreeGetId"></a>
+          <br>
+            <a href>integer</a> id = <b>IupTreeGetId</b>(<a href>Ihandle</a> ih, <a href>atom</a> userid) <br>
+            ih: Identifier of the interface element. <br>
+            userid: Index or pointer associated to the node.
+          <br>
+          <br>
+            Returns the id of the node that has the userid on success or -1 (nil) if not found. 
+            IupTreeSetUserId must have been called with the same userid.
+            <br>
+            <br>
+            The utility functions <a href>IupSetAttributeId</a>, <a href>IupGetAttributeId</a>, 
+            <a href>IupGetIntId</a>, <a href>IupGetFloatId</a>, 
+            <a href>IupSetIntId</a>, and <a href>IupSetFloatId</a>
+            can also be used here, as well as <a href>IupTreeAddNodes</a>.
+            <br>        
+            <br>        
+            They work just like the respective traditional set and get functions, but the attribute string is complemented with the id value. For example:
+            <br>
+            <br><small>
+<X!--eucode>
+IupSetAttributeId(ih, "KIND", 30, value) == IupSetAttribute(ih, "KIND30", value)
+IupSetAttributeId(ih, "ADDLEAF", 10, value) == IupSetAttribute(ih, "ADDLEAF10", value)
+</eucode--X>
+<Xpre>
+<font color="#5E005E">IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "KIND"</font><font color="#0000FF">,</font><font color="#000000"> 30</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">) ==</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "KIND30"</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">)</font>
+<font color="#5E005E">IupSetAttributeId</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "ADDLEAF"</font><font color="#0000FF">,</font><font color="#000000"> 10</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">) ==</font><font color="#5E005E"> IupSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ih</font><font color="#0000FF">,</font><font color="#008000"> "ADDLEAF10"</font><font color="#0000FF">,</font><font color="#5E005E"> value</font><font color="#0000FF">)</font>
+<X/pre>
+            </small><br>
+            These functions are faster than the traditional functions because they do not need to parse the attribute name string and the application 
+            does not need to concatenate the attribute name with the id, although you will probably only notice if you are processing a <i>very</i>
+//          large tree.  Note that the C function <span class="illegal">IupSetfAttributeId</span> is not wrapped by pGUI, however that functionality 
+            is covered by the optional parameters of <a href>IupSetStrAttributeId</a>.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <b>Attributes:</b>
+         </td>
+         <td>
+<!--
+//          Inherits all attributes and handlers of the <a href>IupCanvas</a>, but redefines a few attributes.
+//          <br>
+//          <br>
+//          Different from the <a href>IupTree</a>, all attributes are functional before map. <br>
+//          The attributes marked with (*) are exclusive to the IupFlatTree and are NOT support in the regular IupTree.
+-->
+            <br><a name=CHECKED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHECKED
+         </td>
+         <td>
+            If <a href>true</a> show checkboxes against every node. Default: <a href>false</a>.<br>
+<!--
+            When true, all <a href="#tech" onclick="opentech()">internal</a> form nodes must be at least length 5 
+            (conversion from nested ensures that).<br>
+-->
+            The identically-named <a href="#CHKHAND">CHECKED</a> handler, if present, receives individual node notifications,<br>
+            or the <a href="#DATA">DATA</a> can simply be fetched and scanned for checked items at any time.<br>
+            There is also a CHECKED attribute on a <a href="gMenu.htm#CHECKED">gMenu</a>, in case you were looking for that.
+<!-- SUG: and it is also an alias for the VALUE attribute on a gCheckbox -->
+            <br><a name=DATA></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DATA[+]
+         </td>
+         <td>
+            As per the nodes parameter you can set this in either <a href="#EXAMPLE">nested</a> or 
+            <a href="#tech" onclick="opentech()">internal</a> flat form. <br>
+            Returns the internal form plus a set of the internal control routines for more advanced use, see 
+            <a href="#advanceduse" onclick="opentech()">technicalia</a>.<br>
+            The (internal form) data is deemed theGUI-owned: should you feel the need to modify it yourself, other than via the methods
+            given in the above advanced use <a href="#advanceduse" onclick="opentech()">link</a>, fetch "DATA+" (which nullifies the 
+            internal copy), update, and put it back pronto, and when necessary <a href>deep_copy</a>() any copies kept 
+            for debugging purposes.<br>
+            The identically-named <a href="#DEFERRED">DATA</a> handler is, in contrast, used exclusively for deferred loading.<br>
+            There is also a DATA attribute on a <a href="gTable.htm#DATA">gTable</a>, and a DATA handlers on a 
+            <a href="gList.htm#DATA">gList</a> and <a href="gGraph.htm#DATA">gGraph</a>, were you looking for them.
+            <br><a name=IMAGE></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          IMAGE
+         </td>
+         <td>
+            If <a href>true</a> (the default) show an image against every node, using stock icons if none provided (as above).<br>
+            It may also be a 16x16 <a href>gImage</a>, which replaces the stock "open branch" image on all expanded branches,<br>
+            that is, unless the branch already has an {open,closed} pair of images itself. 
+            No images shown when <a href>false</a>.<br>
+            It may also be {open[, closed[, leaf]]} to specify up to three stock images for nodes without those specifically set.<br>
+            There is also a IMAGE attribute on a <a href="gButton.htm#IMAGE">gButton</a><!--, <a href="gGraph.htm#IMAGE">gGraph</a>,--> and
+            <a href="gMenu.htm#IMAGE">gMenu</a>, in case you were looking for them.
+          <br><a name=SELECTED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SELECTED
+         </td>
+         <td>
+            Retrieve/set a node index to the <a href="#tech" onclick="opentech()">internal</a> form, which almost certainly requires 
+            <a href="#DATA">DATA</a> be retrieved to be of any use.<br>
+            Can be retrieved on demand or the identically-named <a href="#SELHAND">SELECTED</a> handler gets notified when changed.<br>
+<!--
+??          Auto-expands any required parent nodes and scrolls appropriately when needed. Unlike a <a href>gList</a>, there is no
+//          <a href>SHOWLINE</a> that shows an entry without selecting it on a gTree, nor a (publically visible)
+//          <a hxxxref>TOPITEM</a>, but setting this as {line,offset} behaves like the former (but with selection), where offset is 
+//          a number of lines or fraction 0.01..0.99 - one thing it will not let you do, however, is put the 5<small><sup>th</sup></small> of 6 at the 
+//          top when there is space for 10, except perhaps by manually collapsing a node to leave you in that state (with a pending jolt the next time
+//          the scrollbar is nudged).<br>
+-->
+            There are also similar SELECTED attributes/handlers on a <a href="gList.htm#SELECTED">gList</a> and <a href="gTable.htm#SELECTED">gTable</a>,
+            were you looking for them.
+          <br><a name=SELFULL></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SELFULL
+         </td>
+         <td>
+            Specify whether the full line should be highlit when selected or just the text. Default: <a href>true</a>.<br>
+            <br>
+         </td>
+        </tr>
+<!--
+            <br><a name=ROWS></a>
+//      <tr>
+//       <td>
+//        <b>General</b>
+//       </td>
+//       <td>
+//          
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        <a href>EXPAND</a>
+//       </td>
+//       <td>
+//          (non inheritable) The default value is "YES".
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        ICONSPACING(*)
+//       </td>
+//       <td>
+//          (non inheritable) spacing between the image and the text. Default: "2".
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        INDENTATION
+//       </td>
+//       <td>
+//          sets the indentation level in pixels. <br>
+//          Default: 16 for standard resolution, 24 for high resolution display.
+//       </td>
+//      </tr>
+-->
+<!--
+//      <tr>
+//       <td>
+//        <b>Expanders</b>
+//       </td>
+//       <td>
+//          (non inheritable)
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        HIDEBUTTONS
+//       </td>
+//       <td>
+//          hide the expand and collapse buttons.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        HIDELINES
+//       </td>
+//       <td>
+//          hide the lines that connect the nodes in the hierarchy.
+//       </td>
+//      </tr>
+//      <tr>
+//       <td>
+//        LINECOLOR(*)
+//       </td>
+//       <td>
+//          the colour of the dotted guidelines. Default: "110 110 110"
+//       </td>
+//      </tr>
+-->
+        <tr>
+         <td>
+          also
+         </td>
+         <td>
+            <a href>ACTIVE</a>, 
+            <a href>BGCLR</a>, 
+<!--            <a href>FGCLR</a>, -->
+            <a href>BGSEL</a>,
+            <a href>BGHOV</a>, 
+            <a href>CANFOCUS</a>, 
+            <a href>FONT</a>, 
+            <a href>EXPAND</a>, 
+            <a href>MINSIZE</a>, 
+            <a href>MAXSIZE</a>,
+            <a href>SIZE</a>, 
+            <a href>TIP</a>, 
+            <a href>VISIBLE</a>.<br>
+            Note that <a href>USER_DATA</a> is per-tree and unrelated to the userdata on each node.<br>
+<!--
+            <br>
+            <br>
+?           Drag & Drop attributes are supported. See Notes above.
+-->
+         </td>
+        </tr>
+<!--
+        <tr>
+         <td>
+          <b>Drag&Drop</b>
+         </td>
+         <td>
+//?         Drag & Drop attributes are supported, but SHOWDRAGDROP must be set no No.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DRAGDROPTREE
+         </td>
+         <td>
+?           (non inheritable) prepare the Drag & Drop handlers to support drag and drop of nodes between trees (IupFlatTree only), in the same IUP application. <br>
+?           Drag & Drop attributes still need to be set in order to activate the drag & drop support, so the application can control if this tree will be source and/or target. <br>
+            Default: NO.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILESTARGET
+         </td>
+         <td>
+            (non inheritable) Enable or disable the drop of files. <br>
+            Default: NO, but if DROPFILES_CB is defined when the element is mapped then it will be automatically enabled. <br>
+            This is NOT related to the drag&drop of nodes inside the tree.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPEQUALDRAG
+         </td>
+         <td>
+            (non inheritable) if enabled will allow a drop node to be equal to the drag node. <br>
+//          Used only if SHOWDRAGDROP =Yes. <br>
+            In the case the nodes are equal the handler return value is ignored and nothing is done after.
+         </td>
+        </tr>
+        <tr>
+         <td>
+//        SHOWDRAGDROP
+         </td>
+         <td>
+            (non inheritable) Enables the internal drag and drop of nodes, and enables the DRAGDROP_CB handler. Default: "NO". <br>
+?           Works only if MARKMODE=SINGLE. Drag & Drop attributes are NOT used.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td>
+          <b>Handlers:</b>
+         </td>
+         <td>
+<!--
+            Inherits all handlers of the <a href>IupCanvas</a>, but redefines a few of them. <br>
+??ERM??     Including <a href>CLICK</a>, <a href="gSetHandler.htm#LEAVEWINDOW_CB">LEAVEWINDOW_CB</a>,
+?           <a href="gSetHandler.htm#FOCUS_CB">FOCUS_CB</a>, and <a href>MOUSEMOVE</a>.
+            To allow the application to use those handlers the same handlers are exported with the "FLAT_" prefix using the same parameters.<br>
+            They are all called before the internal handlers and if they return <a href>TG_IGNORE</a>
+            the internal handlers are not processed.
+            <br>
+            <br>
+//?         Drag & Drop attributes and handlers are supported, but SHOWDRAGDROP must be set to NO.
+
+--DEFER
+--  
+--  
+--X
+        -- As it currently stands only branch nodes are subject to deferred loading:
+        -- it is assumed that checked and image (being the only two things it makes any
+        -- possible sense to defer on a leaf node) can be set sufficiently quickly at 
+        -- the parent branch level for all the immediate leaves.
+-->
+            Set using eg <a href>gSetHandler</a>(tree,"CHECKED",checked) <small>[in that one case 
+            having also enabled it with <a href>gSetAttribute</a>(tree,"CHECKED",true)]</small>
+          <br><a name=CHKHAND></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CHECKED
+         </td>
+         <td>
+            Action generated when a node is (manually) checked or unchecked.
+            <br>
+            <br>
+            procedure checked([<a href>gdx</a> id,] <a href>sequence</a> nodes,
+                                                              <a href>integer</a> ndx)
+            <br>
+            <br>
+            id: (optional) identifier of the gTree element that activated the event.<br>
+            nodes: A sequence in the <a href="#tech" onclick="opentech()">internal</a> format, of the entire tree.<br>
+            ndx: The index of the item which has just been checked or unchecked.
+            <br>
+            <br>
+            Only ever invoked when the identically-named <a href>CHECKED</a> attribute has been set to 
+            <a href>true</a>, but that does <i>not</i> mean you also have to have a handler as well:
+            the <a href="#DATA">DATA</a> (ie the same thing as nodes) can be fetched at any time, and:<br>
+            To determine all checked nodes, assuming &gt;1 may have been checked, you must iterate all down the [flat] tree.
+          <br><a name=DEFERRED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DATA
+         </td>
+         <td>
+            A deferred loading handler, invoked for any branches with expanded set to -1, when actually needed and not before,
+            which is usually when the branch is first displayed <small>(vs first expanded, ie perhaps one step sooner than you might first imagine)</small>.<br>
+            Deferred loading is not worthwhile for a tree the size of the one shown above, but it certainly could be when 
+            loading a hard drive, eg right click on C:\Windows, select Properties, watch it start counting and imagine staring 
+            at a blank screen until it finishes <small>- still quite noticeable even on a decent SSD, but back in the day on 
+            spinning rust it often took over <i>ten minutes!</i> I should perhaps note that Windows 11 (and maybe 10) incoporates 
+            a drastic improvement over previous versions for a similar operation on C:\, technically a bit of a downgrade in that 
+            it is much faster but there is no file count, and they may yet extend that everywhere.</small>
+<!--
+            <br>
+            <br>
+            Deferred loading is quite straightforward: you get the specific node details from the original,<br>
+            always expanded with the standard defaults to a length of 6.
+-->
+            <br>
+            <br>
+            <a href>sequence</a> subbranch = defer_load_data([<a href>gdx</a> tree,] 
+                                                                            <a href>sequence</a> subbranch)
+            <br>
+            <br>
+            tree: (optional) the gTree to which this applies.<br>
+            subbranch: a sequence of length 6 <small>(a "filled-in" version of the length 2..6 <a href="#EXAMPLE">nested</a> node)</small>,
+            <!--which can usually be modified in situ (see note),--> as per the following:
+            <br>
+            <br>
+           <small>
+<!--eucode>
+    global enum TGTDL_TEXT,         -- 1
+                TGTDL_EXPANDED,     -- 2    
+                TGTDL_CHECKED,      -- 3
+                TGTDL_IMAGE,        -- 4
+                TGTDL_USERDATA,     -- 5
+                TGTDL_CHILDREN      -- 6
+</eucode-->
+<pre>
+<font color="#008080">    global enum</font><font color="#004600"> TGTDL_TEXT</font><font color="#0000FF">,        </font><font color="#000080"><i> -- 1</i></font>
+<font color="#004600">                TGTDL_EXPANDED</font><font color="#0000FF">,    </font><font color="#000080"><i> -- 2    </i></font>
+<font color="#004600">                TGTDL_CHECKED</font><font color="#0000FF">,     </font><font color="#000080"><i> -- 3</i></font>
+<font color="#004600">                TGTDL_IMAGE</font><font color="#0000FF">,       </font><font color="#000080"><i> -- 4</i></font>
+<font color="#004600">                TGTDL_USERDATA</font><font color="#0000FF">,    </font><font color="#000080"><i> -- 5</i></font>
+<font color="#004600">                TGTDL_CHILDREN     </font><font color="#000080"><i> -- 6</i></font>
+</pre>
+           </small>
+            <br>
+            The text can be used for sanity checks or updated from say "loading...".<br>
+            The expanded flag will be -1 and you *must* set it to <a href>true</a> or more likely <a href>false</a>.<br>
+            <small>[Should you set all expanded flags to <a href>true</a> it would immediately defer-load the lot.]</small><br>
+            Checked, image, and userdata can likewise be overidden now.<br>
+            The real payload needing replacement however is children, of course, not that it actually always has to be.
+            <br>
+            <br>
+            It is/was your choice whether the information needed now was stored in the children or userdata slot. <br>
+            The latter is I suppose a more logical place to put such things but may need a dummy checked/img to be specified before it, 
+            whereas children is perhaps more simply always last [in the <a href="#EXAMPLE">nested</a> form], and a perfectly reasonable 
+            way to effectively auto-discard info that will never be needed again.
+<!-- nice try, but a bust: reinstate this if ever fixed
+            <br>
+            <br>
+            Aside: should you fetch <a href="#DATA">DATA</a> within this routine, you&apos;ll find the specific userdata/children 
+            have been auto-nulled over the call, for reference count reasons <small>(not that you are actually told which specific
+            entry it is, nor should you really need to know)</small>.
+            Note that both may still share refcounts with the original nodes parameter (especially were that a constant) or
+            (less likely) subsequently returned subbranches: it should always be fine to replace subbranch[TGTDL_USERDATA] 
+            in its entirely (ditto TGTDL_CHILDREN) but a <a href>deep_copy</a>() may sometimes be required 
+            for deeper subscripts and similar - pretty rare I expect, and never were things created in local variables that 
+            have since dropped out of scope.
+-->
+            <br>
+            <br>
+            While the nodes parameter as specified when the control is first created and/or <a href="#DATA">DATA</a> can be 
+            either <a href="#EXAMPLE">nested</a> or <a href="#tech" onclick="opentech()">internal</a> form, the returned 
+            subbranch[TGTDL_CHILDREN] <i>must</i> however always be in the <a href="#EXAMPLE">nested</a> form 
+            <small>(besides, getting all those numeric indices spot on when you&apos;re half way down a table
+            you don&apos;t even own does not sound like fun, and you should be grateful theGUI is doing all the 
+            vnc updates, not you)</small>. It is in fact permitted to return 0 in [TGTDL_CHILDREN], on the understanding
+            the children themselves have already been specified (briefest of checks on that only) and you were actually
+            deferring some other work needed on text..userdata, for instance you might be using fancy images and not want
+            to generate thousands of them up-front, and/or prioritise the ones the user is actually looking at.
+            <br>
+            <br>
+            Note that deferred loading might be invoked one step earlier than you might first imagine, for instance the
+            above <a href="#EXAMPLE">example</a> could be written with nodes of <code>{"Figures",-1}</code>: even when
+            closed the gTree would not know whether it was a leaf or a branch, and in the latter case whether it had
+            zero or more children to determine whether a '+' should be displayed. Similarly should you display all the
+            drives on your system, it would likely want to perform a top-level <a href>dir</a>() on all of
+            them first, to get their display correct. It would be perfectly permissible to initially create the tree with 
+            dummy empty closed nodes that displays instantly and use an <a href>IDLE_ACTION</a> 
+            to replace them one-by-one, see [DEV not yet written] see demo/theGUI/gTree2.exw for an example of just that, which loads all hard drives. 
+            What it should not do, of course, is hammer down all the branches whose parents were collapsed, that is unless 
+            you actually wanted it to, and of course you would normally defer load as many nodes in whatever you have just 
+            loaded as you can, by putting -1s in <i>their</i> expanded (and <a href>false</a> in this 
+            node&apos;s expanded).
+            <br>
+            <br>
+            Here is the above nested form modified to defer load all branches, with the trick that all children are
+            actually already in place (in practice they are left in the nested/non-displayable form until the deferred
+            load takes place, and in fact this way the root children starts off and ends up as {2,3,4,5,6,7} rather than
+            the {2,3,9,12,13,14} as shown <a href="#tech" onclick="opentech()">below</a> for the non-deferred load). 
+            I would ideally like to be able to defer-load leaf nodes, but the ideal place to do the deferred loading is in 
+            tg_tree_get_widest(), and for good reason that does not "dive into" closed branches or leaf nodes, and in fact 
+            needed extra code to deal with empty branches, so at least for now deferred loading is branch-only.
+            <br>
+            <br>
+           <small>
+<!--eucode>
+sequence nodes = {"Figures",-1,         -- branch with 6 children
+                  {"Other",             -- leaf
+                  {"triangle",-1,       -- branch with 3 children
+                   {"equilateral",
+                    {"isoceles",-1,{"acute","obtuse"}},
+                    "scalenus"}},
+                  {"parallelogram",-1,{"square","diamond"}},
+                  "2D",{"3D",-1,{}},    -- 1 leaf, 1 empty branch
+                  {"4D",-1,{"some","other","branch"}}}}
+</eucode-->
+<pre>
+<font color="#004080">sequence</font><font color="#000000"> nodes</font><font color="#0000FF"> = {</font><font color="#008000">"Figures"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,        </font><font color="#000080"><i> -- branch with 6 children</i></font>
+<font color="#800000">                  {</font><font color="#008000">"Other"</font><font color="#0000FF">,            </font><font color="#000080"><i> -- leaf</i></font>
+<font color="#008080">                  {</font><font color="#008000">"triangle"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,      </font><font color="#000080"><i> -- branch with 3 children</i></font>
+<font color="#00FF00">                   {</font><font color="#008000">"equilateral"</font><font color="#0000FF">,</font>
+<font color="#000080">                    {</font><font color="#008000">"isoceles"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">{"acute"</font><font color="#0000FF">,</font><font color="#008000">"obtuse"}</font><font color="#000080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                    "scalenus"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font>
+<font color="#008080">                  {</font><font color="#008000">"parallelogram"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"square"</font><font color="#0000FF">,</font><font color="#008000">"diamond"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font>
+<font color="#008000">                  "2D"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"3D"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{}</font><font color="#008080">}</font><font color="#0000FF">,   </font><font color="#000080"><i> -- 1 leaf, 1 empty branch</i></font>
+<font color="#008080">                  {</font><font color="#008000">"4D"</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"some"</font><font color="#0000FF">,</font><font color="#008000">"other"</font><font color="#0000FF">,</font><font color="#008000">"branch"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">}</font>
+</pre>
+           </small>
+            <br>
+            And here is perhaps the simplest possible deferred loader, as mentioned relying on children already being in place, 
+            expanding all branches, as noted above triggering an immediate full-depth load which kinda defeats the whole purpose
+            / is not in general a very good idea, all <a href>false</a> or t/f in user data would be much more 
+            sensible, but at least making the effort to <i>not</i> mark empty branches as expanded, since they cannot be 
+            <small>(and stating that being why I decided against just using <a href>false</a> here)</small>:
+            <br>
+            <br>
+           <small>
+<!--eucode>
+function defer_load_data(sequence subbranch) 
+    subbranch = deep_copy(subbranch) -- see note
+    subbranch[TGTDL_EXPANDED] = subbranch[TGTDL_CHILDREN]!={}
+    return subbranch
+end function
+gSetHandler(tree,"DATA",defer_load_data)
+</eucode-->
+<pre>
+<font color="#008080">function</font><font color="#000000"> defer_load_data</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> subbranch</font><font color="#0000FF">) </font>
+<font color="#000000">    subbranch</font><font color="#0000FF"> =</font><font color="#7060A8"> deep_copy</font><font color="#0000FF">(</font><font color="#000000">subbranch</font><font color="#0000FF">)</font><font color="#000080"><i> -- see note</i></font>
+<font color="#000000">    subbranch</font><font color="#0000FF">[</font><font color="#004600">TGTDL_EXPANDED</font><font color="#0000FF">] =</font><font color="#000000"> subbranch</font><font color="#0000FF">[</font><font color="#004600">TGTDL_CHILDREN</font><font color="#0000FF">]!={}</font>
+<font color="#008080">    return</font><font color="#000000"> subbranch</font>
+<font color="#008080">end function</font>
+<font color="#7060A8">gSetHandler</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000">"DATA"</font><font color="#0000FF">,</font><font color="#000000">defer_load_data</font><font color="#0000FF">)</font>
+</pre>
+           </small>
+            <br>
+            I suspect there is a minor flaw in call_func/call_proc(), not releasing reference counts early enough. I will
+            have to do some further (deep and probably messy) analysis, but other matters are pressing, so for now left as
+            "deep_copy() required".
+<!--            
+            Currently under GTK it is {treeview,iter,path}, under WinAPI it is {treeview,TreeIdx}, and under p2js it is a 
+            HTMLUListElement: you may be able to do a few dirty little debug tricks with it, but should cease and desist 
+            from doing anything like that in the finished code, plus those details may well change in a future release.<br>
+            Note it makes little or no sense to use a single/the same branchopen handler on multiple treeviews.
+            <br>
+            <br>
+            Should you not want a user to open a branch, simply don&apos;t put any children in there in the first place.
+            <br>
+            <br>
+            Deferred loading is not worthwhile for a tree the size of the one shown above, but it certainly would be when 
+            loading a hard drive (for instance, try right clicking on C:\Windows, select Properties, and watch it start 
+            counting, then imagine staring at a blank screen until it finishes) or perhaps a database containing several 
+            decades-worth of detailed historical information. 
+            <br>
+            <br>
+//          The <a href="gTreeAddNodes.htm">gTreeAddNodes example</a> showcases deferred loading, however you are free to 
+            replace "tree_data" with anything you like[/can massage into the right format], including a database or even an 
+            (ideally asynchronous) remote fetch that triggers that code (in the main thread) when it completes.
+-->
+            <br><a name=SELHAND></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          SELECTED
+         </td>
+         <td>
+            Action generated when a node is selected.
+            <br>
+            <br>
+            procedure selected([<a href>gdx</a> id,] <a href>sequence</a> nodes,
+                                                               <a href>integer</a> ndx)
+            <br>
+            <br>
+            id: (optional) identifier of the gTree element that activated the event.<br>
+            nodes: A sequence in the <a href="#tech" onclick="opentech()">internal</a> format, of the entire tree.<br>
+            ndx: The index of the selected item in nodes.
+            <br>
+            <br>
+            Alternatively the identically-named <a href="#SELECTED">SELECTED</a> attribute can be used on-demand, which yeilds ndx,
+            though you would probably also need to fetch the <a href="#DATA">DATA</a> to make any use of it, ie the same thing as 
+            the nodes parameter here, or perhaps <a href="#DATA">DATA+</a> to perform an in-situ update (ditto here).
+            <br>
+            <br>
+            There are also SELECTED handlers on a <a href="gList.htm#SELHAND">gList</a> and <a href="gTable.htm#SELHAND">gTable</a>,
+            were you looking for them.
+            <br>
+         </td>
+        </tr>
+
+<!--
+        <tr>
+         <td>
+          BRANCHCLOSE_CB
+         </td>
+         <td>
+            Event generated when a branch is collapsed. <br>
+            This event occurs when the user clicks the "-" sign on the left of the branch, or when double clicks the branch, or hits Enter on an expanded branch. 
+            <br>
+            <br>
+            function branchclose_cb(<a href>Ihandle</a> ih, <a href>integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. 
+            <br>
+            <br>
+            Returns: <a href>TG_IGNORE</a> for the branch not to be closed, or 
+            <a href>TG_DEFAULT</a> for the branch to be closed.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXECUTELEAF_CB
+         </td>
+         <td>
+            Event generated when a leaf is to be executed. <br>
+            This event occurs when the user double clicks a leaf, or hits Enter on a leaf. 
+            <br>
+            <br>
+            function executeleaf_cb(<a href>Ihandle</a> ih, <a href>integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          EXECUTEBRANCH_CB
+         </td>
+         <td>
+            Event generated when a branch is executed. <br>
+            This event occurs when the user double clicks a branch, or hits Enter on a branch. <br>
+            Is is called before the BRANCH*_CB handlers.
+            <br>
+            <br>
+            function executebranch_cb(<a href>Ihandle</a> ih, <a href>integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier.  
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DRAGDROP_CB
+         </td>
+         <td>
+//?         Event generated when an internal drag & drop is executed. Only active if SHOWDRAGDROP=YES.
+            <br>
+            <br>
+            function dragdrop_cb(<a href>Ihandle</a> ih, <a href>integer</a> drag_id, drop_id, isshift, iscontrol)
+            <br> 
+            <br> 
+            ih: identifier of the element that activated the event. <br>
+            drag_id: Identifier of the clicked node where the drag start. <br>
+            drop_id: Identifier of the clicked node where the drop were executed. -1 indicates a drop in a blank area.<br>
+            isshift: flag indicating the shift key state. <br>
+            iscontrol: flag indicating the control key state.
+            <br>
+            <br>
+            Returns: if returns <a href>TG_CONTINUE</a>, or if the handler is not defined 
+//          and SHOWDRAGDROP=YES, then the node is moved to the new position. <br>
+            If Ctrl is pressed then the node is copied instead of moved. <br>
+            If the drop node is a branch and it is expanded, then the drag node is inserted as the first child of the node. <br>
+            If the branch is not expanded or the node is a leaf, then the drag node is inserted as the next brother of the drop node.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          RIGHTCLICK_CB
+         </td>
+         <td>
+            Event generated when the right mouse button is pressed over a node.
+            <br>
+            <br>
+            function rightclick_cb(<a href>Ihandle</a> ih, <a href>integer</a> id)<br>
+            ih: identifier of the element that activated the event. <br>
+            id: node identifier. 
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DROPFILES_CB
+         </td>
+         <td>
+            [Windows and GTK Only] Event generated when one or more files are dropped in the element.
+         </td>
+        </tr>
+-->
+        <tr>
+         <td class="techbtn">
+          also
+          <img id="Timg" />
+         </td>
+         <td>
+            <a href>KEY</a>: All common handlers are supported.
+          <br><a name=tech></a>
+         </td>
+        </tr>
+        <tr id="Technicalia" class="hiddenRow">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            The nested form <a href="#EXAMPLE">above</a> is automatically converted into the equivalent internal flat form:
+            <br>
+            <br>
+           <small>
+<!--eucode>
+   {{`Figures`,{2,3,9,12,13,14},0,-1,0,0,0,1,-1,8}, -- [1] (branch with 6 children, open)
+    {`Other`,0,1,-1,0,0,0},                         -- [2] (leaf)
+    {`triangle`,{4,5,8},1,-1,0,0,0,0,-1,3},         -- [3] (branch with 3 children)
+    {`equilateral`,0,3,-1,0,0,0},                   -- [4] (leaf)
+    {`isoceles`,{6,7},3,-1,0,0,0,0,-1,2},           -- [5] (branch with 2 children)
+    {`acute`,0,5,-1,0,0,0},                         -- [6] (leaf)
+    {`obtuse`,0,5,-1,0,0,0},                        -- [7] (leaf)
+    {`scalenus`,0,3,-1,0,0,0},                      -- [8] (leaf)
+    {`parallelogram`,{10,11},1,-1,0,0,0,1,-1,2},    -- [9] (branch with 2 children, open)
+    {`square`,0,9,-1,0,0,0},                        -- [10] (leaf)
+    {`diamond`,0,9,-1,0,0,0},                       -- [11] (leaf)
+    {`2D`,0,1,-1,0,0,0},                            -- [12] (leaf)
+    {`3D`,{},1,-1,0,0,0,0,-1,0},                    -- [13] (branch, empty)
+    {`4D`,{15,16,17},1,-1,0,0,0,0,-1,3},            -- [14] (branch with 3 children)
+    {`some`,0,14,-1,0,0,0},                         -- [15] (leaf)
+    {`other`,0,14,-1,0,0,0},                        -- [16] (leaf)
+    {`branch`,0,14,-1,0,0,0}}                       -- [17] (leaf)
+</eucode-->
+<pre>
+<font color="#0000FF">   {</font><font color="#800000">{</font><font color="#008000">`Figures`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000080"><i> -- [1] (branch with 6 children, open)</i></font>
+<font color="#800000">    {</font><font color="#008000">`Other`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                        </font><font color="#000080"><i> -- [2] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`triangle`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">,        </font><font color="#000080"><i> -- [3] (branch with 3 children)</i></font>
+<font color="#800000">    {</font><font color="#008000">`equilateral`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                  </font><font color="#000080"><i> -- [4] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`isoceles`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,          </font><font color="#000080"><i> -- [5] (branch with 2 children)</i></font>
+<font color="#800000">    {</font><font color="#008000">`acute`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                        </font><font color="#000080"><i> -- [6] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`obtuse`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                       </font><font color="#000080"><i> -- [7] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`scalenus`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                     </font><font color="#000080"><i> -- [8] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`parallelogram`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">10</font><font color="#0000FF">,</font><font color="#000000">11</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">,   </font><font color="#000080"><i> -- [9] (branch with 2 children, open)</i></font>
+<font color="#800000">    {</font><font color="#008000">`square`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                       </font><font color="#000080"><i> -- [10] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`diamond`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                      </font><font color="#000080"><i> -- [11] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`2D`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                           </font><font color="#000080"><i> -- [12] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`3D`</font><font color="#0000FF">,</font><font color="#008080">{}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                   </font><font color="#000080"><i> -- [13] (branch, empty)</i></font>
+<font color="#800000">    {</font><font color="#008000">`4D`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">15</font><font color="#0000FF">,</font><font color="#000000">16</font><font color="#0000FF">,</font><font color="#000000">17</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">,           </font><font color="#000080"><i> -- [14] (branch with 3 children)</i></font>
+<font color="#800000">    {</font><font color="#008000">`some`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                        </font><font color="#000080"><i> -- [15] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`other`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,                       </font><font color="#000080"><i> -- [16] (leaf)</i></font>
+<font color="#800000">    {</font><font color="#008000">`branch`</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">14</font><font color="#0000FF">,-</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">}                      </font><font color="#000080"><i> -- [17] (leaf)</i></font>
+</pre>
+           </small>
+            <br>
+            While not actually very difficult to follow, it is of course far too tedious to be typing that sort of stuff in by hand.<br>
+            There may very well be cases where building the flat form is in fact much easier than constructing a <a href="#EXAMPLE">nested</a> form.<br>
+            <small>[uses private enum TG_TREE_(TEXT | CHILDREN | PARENT | WIDTH | CHECKED | IMAGE | USERDATA | EXPANDED | WIDEST | VNC)]</small><br>
+
+<!-- this adds nothing...
+            <small>[See tg_tree_convert_nested_to_flat() in demo\theGUI\hTree.exw <small>[or theGUI.e]</small> if interested, and perhaps 
+            copy/tweak that should it be needed.]</small><br>
+            While few applications might want to provide the tree already in that form, you might for instance want to bury some of
+            those numeric indices within your userdata, perhaps for deferred loading purposes, or maybe you want to keep track of which 
+            images you have loaded and reuse rather than recreate them, especially should it be easier to store them in each tree rather 
+            than in multiple separate tables for multiple separate trees.
+            <br>
+            <br>
+-->
+            In this flat form, each leaf and branch node must respectively be:
+            <br>
+            <br>
+            <pre>
+    {desc,     0    ,parent,width/-1,checked,image,userdata} 
+    {desc,{children},parent,width/-1,checked,image,userdata,expanded,widest/-1,vnc}
+            </pre>
+            <br>
+            where children and parent are expressed as (node rather than display) indices (see next paragraph), <br>
+            width/widest of -1 are replaced within the redraw process, with width being that of this node and widest being a node index 
+            (oft reset to -1) within it found by scanning all widths taking expanded/collapsed into account,<br>
+            and on branches the last element, vnc, is the uber-critical visible node count. It is at least the number of direct children,
+            and expanding/collapsing auto-propagates changes right up to the root, for both vnc and widest. <br>
+            The total number of visible lines at any moment in time (after any necessary deferred loading has completed) is obviously 
+            just 1 when the root is collapsed or a leaf node, and 1+nodes[1][vnc] when expanded. That value is also the maximum possible 
+            <i>display index</i>, and along with widest/width sets the <a href>VIEWPORT</a> aka scrollbars.
+            <br>
+            <br>
+            Internally a gTree uses two forms of index: display being 1..1[+vnc] and node being 1..<a href>length</a>(nodes).<br>
+            The internal flat structure is specifically designed to make it relatively painless to convert between them. <br>
+<!-- ??
+            Naturally both types of index refer to the internal flat form rather than the nested form of nodes. 
+-->
+            Most programs, however, should <i>never</i> have to deal with display indices themselves. 
+            <br>
+            <br>
+            The vnc of 8 in [1] includes 6 direct children plus 10,11 since 9 is expanded,
+            and were [9] collapsed, the 2 would be deducted from [1] making it just 6.<br>
+            The total vnc is always one more than vnc[1], or 1 if [1] is collapsed.<br>
+            Expanding/collapsing a branch does not change its vnc, but propagates a change
+            to the vnc of its parent and continues that all the way up to the root node.<br>
+            The vnc of 3 in [3] is the three direct children and were [5] expanded, it would
+            become 5 and, assuming [3] were expanded, the 2 also be added to the vnc of [1].<br>
+<!--
+            The now commented-out lines show (all of) what is needed when [5] open, [3] not.<br>
+--                     {"triangle",{4,5,8},1,-1,0,0,0,0,-1,5},          -- [3] (branch with 3 children)
+--                     {"isoceles",{6,7},3,-1,0,0,0,1,-1,2},            -- [5] (branch with 2 children,open)
+-->
+            Technically speaking vnc propagation upwards should stop when it finds a collapsed
+            parent branch, but of course the user cannot see a collapsed branch within said
+            in order to be able to click/expand it, so that would only apply if you are for
+            some strange reason performing an auto-expand but stopping/only on hidden bits.
+<!-- let's not publish potential problems!...
+            <br>
+            Actually it might very well apply were you replacing part of a collapsed branch,
+            if for instance a user expanded a branch, initiating a deferred load, and then
+            managed to collapse it before the latter came back with an answer.
+-->
+            <br>
+            <br>
+            Fairly obviously, the expanded/checked/image/userdata fields are copied verbatim from the <a href="#EXAMPLE">nested</a> form 
+            and the same notes for those four fields equally apply.
+<!--
+             Branch nodes are always length 10, whereas
+            leaf nodes are length 7 <small>(not that it would cry should those limits be exceeded)</small>.
+-->
+            <br>
+            <br>
+            Should you be at all curious as to how you might best display a tree, as I certainly was, and handle expand/collapse
+            efficiently, and including scrolling and deferred loading aspects, well that is the structure I came up with<i>!</i><br>
+            See demo\theGUI\hTree.exw for implementation details <small>(hopefully copied into theGUI.e/js by the time you read this)</small>.<br>
+<!--
+            See demo\theGUI\hTree.exw for implementation details <small>(which has by now all been transferred to theGUI.e/js)</small>.<br>
+-->
+            Note mouse and keyboard handling may not be fully operational in hTree.exw, but should in gTree.exw. <small>[^DEV^]</small>
+
+<!--
+<small>
+ <pre>          
+--  nodes is (at least logically) a flat sequence of:
+--
+--          {children,  parent[, checked, image[, userdata]]}
+--
+--  where:
+--
+--          children: 0 for a leaf node
+--                    {{idx of child nodes}, e/c, vnc}
+--                    anything else: deferred loading required
+--              e/c: expanded (<a href>true</a>)/collapsed (<a href>false</a>) flag
+--              vnc: visible nodes count (uber-critical!)
+--          text: a descriptive string for the node
+--          parent: 0 for [1] only, else nodes[parent][children] shd link back
+--          checked: (semi-optional) <a href>true</a>/<a href>false</a>, ignored if CHECKED is <a href>false</a>
+--                          if CHECKED is <a href>true</a> all nodes must be >= length 4
+--          image: (semi-optional) a gImage or <a href>NULL</a>, ignored if IMAGES is <a href>false</a>
+--                              if IMAGES is <a href>true</a> all nodes must be >= length 5 (nah, use a stock image)
+--          userdata: (optional) ignored by theGUI (as are any > 6th elements)
+--
+--  nodes[1] is the root node, everything apart from children is ignored. Must be present.
+--  children: The DATA handler is expected to replace any non-0 or length-3 values as part
+--  of its deferred loading process, if any. Freshly loaded branches should always have an
+--  e/c of <a href>false</a> and a vnc of 0At the point of display it must be 0 or a length-3 sequence, however when
+--  The meaning of a non-zero atom children is entirely up to the application: it is atom
+--  in case you want to use some kind of handle. It may also be a sequence with the first 
+--  element non-integer, for further flexibility. An error occurs if it's neither 0 nor a 
+--  length-3 sequence, at the point of trying to display it after performing any required 
+--  deferred loading. Defer-loading might also be used on leaf nodes to create or set the
+--  image and/or checked flag.
+ </pre>
+</small>
+    <br>
+-->
+<!--            
+            IupFlatTree has three types of images: one associated to the leaf, one to the collapsed branch and the other to the expanded branch. <br>
+            Each image can be changed, both globally and individually.
+            <br>
+            <br>
+            The predefined images used in IupFlatTree can be obtained by means of function <a href>IupGetHandle</a>(). <br>
+            The names of the predefined images are: IMGLEAF, IMGCOLLAPSED, IMGEXPANDED, IMGBLANK (blank sheet of paper) and IMGPAPER (written sheet of paper). <br>
+            By default:
+            <br>
+            <br>
+            "IMAGELEAF" uses "IMGLEAF" <br>
+            "IMAGEBRANCHCOLLAPSED" uses "IMGCOLLAPSED" <br>
+            "IMAGEBRANCHEXPANDED" uses "IMGEXPANDED"
+            <br>
+            <br>
+            "IMGBLANK" and "IMGPAPER" are designed for use as "IMAGELEAF"
+            <br>
+            <br>
+            The default images are 16x16 pixels on standard resolution and 24x24 pixels on high resolution (4k displays), 
+            but you can force the use of the high resolution images by defining the global attribute "TREEIMAGE24" to "Yes".
+            <br>
+            <br>
+            All imagens do NOT need to have the same size, but it is recommended that a pair of branch open and branch collapsed to have the same size.
+            <br>
+            <br>
+            IMGEMPTY can be used as branches or leafs to clear the image (a totally transparent image).
+-->
+            <br>
+            <br>
+            I stuck with a perhaps slightly dated look, one that I know handles optional images and checkboxes, but it should be more 
+            fiddly and tedious rather than actually difficult to make it use a different set of images and pixel-size calculations. 
+            One possibility might be to allow <a href="#IMAGE">IMAGE</a> to accept a strictly-ordered set of ~14 replacement images, 
+            and the line height currently fixed at 18 instead garnered from them (and/or maybe the <a href>FONT</a>). 
+            Even quite different hover effects probably wouldn&apos;t be all that tricky.
+            <br>
+            <br>
+            All trees must have a single root, however and likewise I suspect it would be more fiddly than actually difficult 
+            to auto-hide a root with a description of "" (the empty string), <small>[and perhaps the second one <i>isn&apos;t</i>]</small>
+            and prevent/show no way to ever collapse it, ie give the appearance, if not the actual reality, of multiple roots 
+            <small>(a gTree absolutely needs precisely one top-level vnc/widest held somewhere)</small>.
+            However, right now several other matters are more pressing, for me.<br>
+            Obviously, feel free to experiment with demo\theGUI\hTree.exw and send me anything useful you come up with.<br>
+            <small>[Do check the warnings at the top and test on gTree.exw before wasting any time fixing minor mouse/key issues.]</small>
+<!--
+            so at least for now have left it using a layout/look&feel I already know works for that. It is not particularly
+            difficult to define some new images and tweak a few pixel sizes calculations, but 
+            As this is a <a href="g_paranormal.htm">paranormalised function</a>, and with no expectation that you should attempt to memorise 
+            this lot, except maybe "qraa", you can assume that all of the following are potentially perfectly valid, with the fairly obvious 
+            restriction that any parameters <i>must</i> be in strict qraa-order, and no args without attributes:
+            <br>
+            <br>
+<small>
+[!--eucode>
+                        gTree(nodes)
+                        gTree(nodes, branchopen)
+                        gTree(nodes, attributes)
+                        gTree(nodes, attributes, args)
+                        gTree(nodes, branchopen, attributes)
+                        gTree(nodes, branchopen, attributes, args)  -- (the full set)
+</eucode--]
+<pre>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">                        gTree</font><font color="#0000FF">(</font><font color="#000000">nodes</font><font color="#0000FF">,</font><font color="#000000"> branchopen</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">) </font><font color="#000080"><i> -- (the full set)</i></font>
+</pre>
+</small>
+            <br>
+            Note that in practice ?rid is actually defined as <a href>object</a>, and attributes as
+            a <a href>sequence</a> rather than a string, however both are thoroughly verified to 
+            be of the documented types, after being repositioned via theGUI/paranormalise_qraa()[?].
+-->
+            <br><a name=advanceduse></a>
+            <h3>Advanced Use</h3>
+            gGetAttribute(tree,"DATA") <small>(nb not "DATA+", since that would just encourage you to attempt these operations on a nullified tree)</small> returns 
+            sequence {nodes, tctrl} where nodes is the <a href="#tech">internal flat form</a> and tctrl is a set of normally internal routines for advanced use:
+            <br>
+            <br>
+<small>
+<!--eucode>
+--      {
+--       integer vnc = tg_tree_vnc(gdx tree)    -- visible node count [1..length(nodes)]
+--       integer d = tg_tree_n2d(gdx tree, integer n) -- convert a node index to a display index 
+--       integer n = tg_tree_d2n(gdx tree, integer d) -- convert a display index to a node index 
+--       tg_tree_collapse_node(gdx tree, integer n)
+--       tg_tree_expand_node(gdx tree, integer n)
+--      }
+-- aka
+integer {tg_tree_vnc,
+         tg_tree_n2d,
+         tg_tree_d2n,
+         tg_tree_collapse_node,
+         tg_tree_expand_node} = tctrl
+</eucode-->
+<pre>
+<font color="#000080"><i>--      {
+--       integer vnc = tg_tree_vnc(gdx tree)    -- visible node count [1..length(nodes)]
+--       integer d = tg_tree_n2d(gdx tree, integer n) -- convert a node index to a display index 
+--       integer n = tg_tree_d2n(gdx tree, integer d) -- convert a display index to a node index 
+--       tg_tree_collapse_node(gdx tree, integer n)
+--       tg_tree_expand_node(gdx tree, integer n)
+--      }
+-- aka</i></font>
+<font color="#004080">integer</font><font color="#0000FF"> {</font><font color="#000000">tg_tree_vnc</font><font color="#0000FF">,</font>
+<font color="#000000">         tg_tree_n2d</font><font color="#0000FF">,</font>
+<font color="#000000">         tg_tree_d2n</font><font color="#0000FF">,</font>
+<font color="#000000">         tg_tree_collapse_node</font><font color="#0000FF">,</font>
+<font color="#000000">         tg_tree_expand_node</font><font color="#0000FF">} =</font><font color="#000000"> tctrl</font>
+</pre>
+</small>
+            <br>
+            You would typically examine nodes to gather what needs to be done, nullify your copy <i>before</i> expand/collapse, and possibly re-fetch 
+            things to see what else might need doing, which may need to be some time later, after any deferred loading has had a chance to occur.
+            <br>
+            <br>
+            All scrolling and positioning is performed via the <a href>SCROLLSIZE</a> and <a href>VIEWPORT</a>.<br>
+            The top line of the viewport is (generally) some multiple of the line_height, aka use
+            <br>
+            <br>
+<small>
+<!--eucode>
+    integer {sw,sh} = gGetAttribute(tree,"SCROLLSIZE"),
+      {ox,oy,vw,vh} = gGetAttribute(tree,"VIEWPORT"),
+//      line_height = sh/tg_tree_vnc(tree), 
+        line_height = sh/(tg_tree_vnc(tree)+1), -- temp??
+           top_line = floor(oy/line_height),
+          view_rows = floor(vh/line_height)
+</eucode-->
+<pre>
+<font color="#004080">    integer</font><font color="#0000FF"> {</font><font color="#000000">sw</font><font color="#0000FF">,</font><font color="#000000">sh</font><font color="#0000FF">} =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000">"SCROLLSIZE"</font><font color="#0000FF">),
+      {</font><font color="#000000">ox</font><font color="#0000FF">,</font><font color="#000000">oy</font><font color="#0000FF">,</font><font color="#000000">vw</font><font color="#0000FF">,</font><font color="#000000">vh</font><font color="#0000FF">} =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">tree</font><font color="#0000FF">,</font><font color="#008000">"VIEWPORT"</font><font color="#0000FF">),</font>
+<font color="#000080"><i>//      line_height = sh/tg_tree_vnc(tree), </i></font>
+<font color="#000000">        line_height</font><font color="#0000FF"> =</font><font color="#000000"> sh</font><font color="#0000FF">/(</font><font color="#000000">tg_tree_vnc</font><font color="#800000">(</font><font color="#000000">tree</font><font color="#800000">)</font><font color="#0000FF">+</font><font color="#000000">1</font><font color="#0000FF">),</font><font color="#000080"><i> -- temp??</i></font>
+<font color="#000000">           top_line</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#000000">oy</font><font color="#0000FF">/</font><font color="#000000">line_height</font><font color="#0000FF">),</font>
+<font color="#000000">          view_rows</font><font color="#0000FF"> =</font><font color="#7060A8"> floor</font><font color="#0000FF">(</font><font color="#000000">vh</font><font color="#0000FF">/</font><font color="#000000">line_height</font><font color="#0000FF">)</font>
+</pre>
+</small>
+            <br>
+            as the starting point for any positional work, and if you want to move the <a href>VIEWPORT</a> I think you know what to do. 
+            Fairly obviously expand/collapse will change the vnc, and possibly trigger deferred loading, but the latter does not actually happen until 
+            the next display, and there may very well be cases where you should start a timer to finish your work after that has had a chance to occur.
+            It should go without saying that n +/-1 has no meaning at all, instead node index navigation must occur via parent/child links as documented 
+            <a href="#tech">above</a>, whereas d +/-1 (obviously bound to 1..vnc) corresponds to the visible screen. All I can really say is good luck,
+            you might also find some useful clues by inspecting the source code of tg_tree_key_handler().
+            <br>
+         </td>
+        </tr>
+       </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

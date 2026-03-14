@@ -13,12 +13,13 @@
           <b>Definition:</b>
          </td>
          <td>
-            include xpGUI.e
+            include theGUI.e
            <br>
            <br>
-            gSetAttributes(<a href="gdx.htm">gdx</a> id, 
-                           <a href="string.htm">string</a> attributes, 
-                           <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+            gSetAttributes(<a href>gdx</a> id, 
+                           <a href>string</a> attributes, 
+                           <a href="html/glossary.htm#dwordseq">dword_seq</a> args={}<small>,
+                           <a href>integer</a> nFrames=1</small>)
          </td>
         </tr>
         <tr>
@@ -26,34 +27,40 @@
           <b>Description:</b>
          </td>
          <td>
-            Sets several attributes of an interface element or elements.
+          Set several attributes on one or more interface elements.
           <br>
           <br>
             id: Identifier(s) of the interface element(s).<br>
-            attributes: Four cases exist:<br>
+            attributes: Two cases exist:<br>
             <ul>
 <!-- maybe/DEV: Five/Three:
             <li> attributes is a dword sequence rather than string, treated as "==", attributes (see next) and args must be {}.</li>
--- or maybe just that one option... (and just crash when porting, in gSetAttributres that is, not xpGUI_from_pGUI.exw)
+-- or maybe just that one option... (and just crash when porting, in gSetAttributres that is, not theGUI_from_pGUI.exw)
 -->
-            <li> "==": args is a pair-list, eg 
-                {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>, <i>attr<small><sub>1</sub></small></i>}, 
-                 {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>, <i>attr<small><sub>2</sub></small></i>},...}<br>
-                Elements of args may also be triplets, which trigger a 
-                <code><a href="sprintf.htm">sprintf</a>(<i>attr<small><sub>i</sub></small></i>, <i>arg3<small><sub>i</sub></small></i>)</code>.</li>
+            <li> "==": args is a pair|triplet list, as in
+                {{<i>&ldquo;name<small><sub>1</sub></small>&rdquo;</i>, <i>attr<small><sub>1</sub></small></i>[, <i>args<small><sub>1</sub></small></i>]}, 
+                 {<i>&ldquo;name<small><sub>2</sub></small>&rdquo;</i>, <i>attr<small><sub>2</sub></small></i>[, <i>args<small><sub>2</sub></small></i>]},...}<br>
+                Triplets trigger a 
+                <code><a href>sprintf</a>(<i>attr<small><sub>n</sub></small></i>,<i>args<small><sub>n</sub></small></i>)</code>,
+                which obviously crashes when <i>attr<small><sub>n</sub></small></i> is not a string.</li>
+<!-- ditched, as never used:
             <li> leading '=' followed by comma-separated names, eg 
                 <i>&ldquo;=name<small><sub>1</sub></small>,
                            name<small><sub>2</sub></small>,...&rdquo;</i><br>
                  then args is {<i>attr<small><sub>1</sub></small></i>, <i>attr<small><sub>2</sub></small></i>,...} of the 
                  correct/exact/matching length.<br>
-                 Note that any desired <a href="sprintf.htm">sprintf</a>() would have to be explicitly coded.</li>
+                 Note that any desired <a href>sprintf</a>() would have to be explicitly coded.</li>
+-->
 <!-- or just delete both these [DEV] -->
-            <li> "=!=": (planned) run-time warning =&gt; compiler pause for next, see comments.</li>
-            <li> string with the attributes in the format 
+<!--
+            <li> "=!=": (planned) run-time warning &rArr; compiler pause for next, see comments.</li>
+-->
+            <li> <small>[legacy]</small> string with the attributes in the format 
             <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
                       name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
-                 when args!={} this case invokes a <code><a href="sprintf.htm">sprintf</a>(attributes,args)</code>.</li>
+                 when args!={} this case invokes a <code><a href>sprintf</a>(attributes,args)</code>.</li>
             </ul>
+            <small>nFrames: Fine grained control for error handling, intended primarily for internal use.<br>
          </td>
         </tr>
         <tr>
@@ -61,7 +68,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          Supported.
+          Supported <small>(except for nFrames which is simply ignored)</small>.
          </td>
         </tr>
         <tr>
@@ -69,36 +76,108 @@
           <b>Comments:</b>
          </td>
          <td>
+            Most interface elements can be created with an optional implicit inline invocation of gSetAttributes(), which can make code 
+            much cleaner than invoking this function directly/subsequently, as the example below shows.
+            <br>
+            <br>
 <!--
             Note that pGUI (and C) use a string-only version in the format
             <i>&ldquo;name<small><sub>1</sub></small>=attr<small><sub>1</sub></small>, 
                       name<small><sub>2</sub></small>=attr<small><sub>2</sub></small>,...&rdquo;</i><br>
-            which needs re-working into one of the above two forms when porting to xpGUI, likewise any
+            which needs re-working into one of the above two forms when porting to theGUI, likewise any
             <span class="illegal">IupSetAttributesf</span>() and <span class="illegal">IupSetAtt</span>().
 .-->
-            Fairly obviously the (new in 1.0.4) pair-list/names-only attributes is a trivial loop with individual values of any type.<br>
-            The rest of this section is about the older all-string/sprintf handling <small><i>(/me wonders how/why I ever coped!)</i></small>:
+            Fairly obviously the "==" case is a trivial loop invoking 
+            <a href>gSetAttribute</a>(id,name<small><sub><i>i</i></sub></small>,attr<small><sub><i>i</i></sub></small>) 
+            with individual values of any type.
             <br>
             <br>
-            Parses the (post-sprintf) attributes string and invokes 
-            <a href="gSetAttribute.htm">gSetAttribute</a>(id,name<small><sub><i>i</i></sub></small>,attr<small><sub><i>i</i></sub></small>) 
-            for each pair in turn. This routine itself does not care or check whether id is a single or a sequence of ids <small>[ditto 
-            names/pairs]</small>, and instead leaves all such handling to the "without-s" routine. 
+            The legacy string-only case requires a more involved parsing operation and that attribute values must be expressed(/ible) in 
+            textual form: a <a href>bool</a>, for instance, can be set using "1"/"0", "true"/"false", "YES"/"NO", 
+            "ON"/"OFF" and similar, or multiple values using say "240x80" or "{240,80}", as documented for the specific attribute.
             <br>
             <br>
-            Most interface elements can be created with an optional implicit inline invocation of gSetAttributes(), which can make code 
-            much cleaner than invoking this function directly, as examples 2 and 3 below show.
+            This routine itself does not care or check whether id is a single or sequence of ids, <!--small>[ditto 
+            names/pairs]</small--> and instead leaves all such handling to the "without-s" routine. 
+            <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+<!--
+          <b>Example 1:</b>
+         </td>
+         <td>
+[!--eucode>
+-- Select the appropriate file dialog type and title.
+gSetAttributes(filedlg, iff(bOpen?`DIALOGTYPE=OPEN, TITLE=Open`
+                                 :`DIALOGTYPE=SAVE, TITLE=Save`))
+-- or --:
+string os = iff(bOpen?`Open`:`Save`)
+gSetAttributes(filedlg, "==",{{`DIALOGTYPE`,upper(oc)},{`TITLE,`oc}})
+</eucode--]
+<pre>
+</pre>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 2:</b>
+-->
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+gButton(dlg,"ACTIVE=TRUE") -- (no image this way)
+gButton(dlg,"==",{{"ACTIVE",true},{"IMAGE",xpm}})
+</eucode-->
+<pre>
+<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"ACTIVE=TRUE"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (no image this way)</i></font>
+<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000">"=="</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{</font><font color="#008000">"ACTIVE"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"IMAGE"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+            <small>Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it,
+            but of course there would be no difficulty whatsoever extracting attr/arg into a separate following statement or two that
+            invokes <nobr>gSetAttribute[s]()</nobr>.<br></small>
+         </td>
+        </tr>
+        <tr>
+         <td class="techbtn">
+          <b>See Also:</b>
+          <img id="Timg" />
+         </td>
+         <td>
+          <a href>gSetAttribute</a>,
+          <a href>gGetAttribute</a>,
+          <a href>gButton</a>,
+          <a href>gDropDown</a>,
+          <a href>gList</a>
+          <br><a name=tech></a>
+         </td>
+        </tr>
+        <tr id="Technicalia" class="hiddenRow">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            While I might sometimes feel like consigning the legacy string-only stuff to the dustbin, a single string can be neater 
+            and easier to write, besides there is a quite fair bit of legacy code that uses it, so it stays, and always will.
             <br>
             <br>
-            Fairly obviously, attribute values must be expressed(/ible) in textual form, but a <a href="integer.htm#bool">bool</a>, for
-            instance, can be set using "1"/"0", "true"/"false", "YES"/"NO", "ON"/"OFF" and similar, as documented for the specific attribute, 
-            with (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href="gSetAttribute.htm">gSetAttribute</a>(id,"SOMEFLAG",flag) or
-            <a href="gSetAttribute.htm#gSetInt">gSetInt</a>(id,"SOMEFLAG",flag) being some of the more obvious and straightforward choices.
+            However, any potential problems, especially errors parsing embedded quotes, equals, and commas, or cannot be expressed in
+            string form or doing so fails to transfer a <a href>delete_routine</a>() properly, should be addressed 
+            by switching to the non-legacy "==" form or using <a href>gSetAttribute</a>() directly, one at a time.
+<!--
+            with (say) "SOMEFLAG=%t, ...", {flag, ...} or a separate <a href>gSetAttribute</a>(id,"SOMEFLAG",flag) or
+            <a href>gSetInt</a>(id,"SOMEFLAG",flag) being some of the more obvious and straightforward choices.
+-->
             <br>
             <br>
-            Multiple values can be set using eg "240x80" or "{240,80}" syntax, note however that '{' and '}' are treated the same as double
+<!--
+            , note however that '{' and '}' are treated the same as double
             quotes and (currently) <i>cannot</i> be nested (specifically, that is, when gSetAttributes is breaking up the attributes string
-            into fragments to relay on to the <a href="gSetAttribute.htm">gSetAttribute</a>() routine). It may however be possible to contain
+            into fragments to relay on to the <a href>gSetAttribute</a>() routine). It may however be possible to contain
             nested {} in double quotes, eg `NAME="{1,{2,3}}"`, not that any such cases are currently needed, or have been extensively tested.
             <br>
             <br>
@@ -108,24 +187,26 @@
             While quotation marks <i>are</i> parsed, so for example gSetAttributes(id,`TITLE="Address Book", SIZE=500x300`) works fine, 
             there is however quite simply <i>no way</i> to include literal quotation marks in a value when using gSetAttributes(). At a push
             it might be possible to make it support doubly-escaped strings such as "\\\"" or `\"` (both identical and no \ in either after 
-            parsing), but I&rsquo;m not keen and would probably struggle to justify the potential additional confusion that would probably 
-            introduce. Any such potentially confusing fields must be set individually using <a href="gSetAttribute.htm">gSetAttribute</a>() 
+            parsing), but I&apos;m not keen and would probably struggle to justify the potential additional confusion that would probably 
+            introduce. Any such potentially confusing fields must be set individually using <a href>gSetAttribute</a>() 
             directly. If there is any doubt, especially with settings that are not fixed constants, just do them one at a time.
+-->
+<!--
             <br>
-            <br>
-[DEV: I should just do this...]<br>
+[DEV: I should just do this... NOT!!]<br>
             It is not inconceivable this string-only stuff will one day be consigned to the dustbin, where it rightly belongs, bar legacy 
-            code. To that end, it is planned for the fourth case to start showing a run-time warning (first time only), with "=!=" being 
+            code. 
+            To that end, it is planned for the fourth case to start showing a run-time warning (first time only), with "=!=" being 
             a quick temporary trick, that generates a compile-time message stall rather than annoy real end-users, before finally removing
-            all this stuff, over the course of several releases of phix/xpGUI. That won&rsquo;t happen until pGUI is no longer part of the
-            standard distro, but will continue to be available as a separate download, which is all some way off yet and assumes that xpGUI
+//          all this stuff, over the course of several releases of phix/theGUI. That won&apos;t happen until pGUI is no longer part of the
+            standard distro, but will continue to be available as a separate download, which is all some way off yet and assumes that theGUI
             will manage to outshine it in every way, which is not yet a given either.
-            
+-->         
 <!-- [FIXED]
             <br>
             <br>
-            Note also that hex values require quotes, eg gSetAttributes(ih,"FGCOLOR=#008000") does not work but 
-            gSetAttributes(ih,`FGCOLOR="#008000"`) does. [DEV test me]
+            Note also that hex values require quotes, eg gSetAttributes(ih,"FGCLR=#008000") does not work but 
+            gSetAttributes(ih,`FGCLR="#008000"`) does. [DEV test me]
 -->
 <!--
             <br>
@@ -133,147 +214,53 @@
             While the most common use is to set several attributes on a single element, it is also possible to set the same attribute(s) on
             several elements, as example 2 of <a href="gSetAttribute.htm#eg2">gSetAttribute</a>() shows, though that bool would obviously
             need to be made into a string for <i>this</i> "with-s" routine, to avoid a typecheck.
+            <br>
+            <br>
 -->
-            <br>
-            <br>
 <!--
 //          The function <span class="illegal">IupSetAttributesf</span> has been removed, since that functionality is now provided by the optional 
 //          <code>string attributes="", sequence args={}</code> parameters on all relevant element creation routines (with non-default
 //          values triggering an internal invocation of this very routine).<br>
 //          Likewise the <span class="illegal">IupSetAtt</span> function has been removed, see example 2 below, though admittedly when a non-null name has
-//          been provided that may require extra <a href="IupSetHandle.htm">IupSetHandle</a>() calls (which, btw, is equivalent
+//          been provided that may require extra <a href>IupSetHandle</a>() calls (which, btw, is equivalent
 //          to making the handle global, and therefore potentially troublesome).<br>
 -->
+
             C code that uses nested IupSetAtt[ributes[f]]() calls should normally be converted into a single 
             <a href="g_paranormal.htm">paranormalised function</a> call when possible, otherwise be broken down into consecutive 
             statements that all get passed the same id, and/or explicit variables created (suitably/sensibly/nicely named) for 
             any (previously anonymous) inner elements. Sometimes that can be a bit of a drag, but more often than not the code
             ends up both easier to read and easier to modify at some later date.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 1:</b>
-         </td>
-         <td>
-<!--eucode>
--- Select the appropriate file dialog type and title.
-gSetAttributes(filedlg, iff(bOpen?`DIALOGTYPE=OPEN, TITLE=Open`
-                                 :`DIALOGTYPE=SAVE, TITLE=Save`))
-</eucode-->
-<pre>
-<font color="#000080"><i>-- Select the appropriate file dialog type and title.</i></font>
-<font color="#7060A8">gSetAttributes</font><font color="#0000FF">(</font><font color="#000000">filedlg</font><font color="#0000FF">,</font><font color="#7060A8"> iff</font><font color="#800000">(</font><font color="#000000">bOpen</font><font color="#0000FF">?</font><font color="#008000">`DIALOGTYPE=OPEN, TITLE=Open`</font>
-<font color="#0000FF">                                 :</font><font color="#008000">`DIALOGTYPE=SAVE, TITLE=Save`</font><font color="#800000">)</font><font color="#0000FF">)</font>
-</pre>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 2:</b>
-         </td>
-         <td>
-<!--eucode>
-gButton(dlg, "=ACTIVE,IMAGE",{true,xpm}) -- or:
-gButton(dlg, "==",{{"ACTIVE",true},{"IMAGE",xpm}})
-</eucode-->
-<pre>
-<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "=ACTIVE,IMAGE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- or:</i></font>
-<font color="#7060A8">gButton</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#008000"> "=="</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"ACTIVE"</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#800080">{</font><font color="#008000">"IMAGE"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#800080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
-</pre>
-            Admittedly that is more of an example of when <i>not</i> to use gSetAttributes(), or more accurately implicitly inline it,<br>
-            but of course there would be no difficulty whatsoever extracting attr/arg into [a] separate following gSetAttribute[s]().<br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>Example 3:</b>
-         </td>
-         <td>
+            <br>
+            <br>
             Translate C code such as
             <br>
             <small><br>
-             <code>list = IupList(); IupSetAtt(NULL, list, "VALUE", "3", "1", "Brazil", "2", "USA", "3", "Japan", "4", "France", NULL);</code>
-            <br></small>
-            <br>
-             &nbsp;&nbsp;to
-            <br>
-            <small><br></small>
 <!--eucode>
-gdx list = gDropDown(changed,"=OPTIONS,VALINT",{{"Brazil","USA","Japan","France"},3})
+list = IupList();
+IupSetAtt(NULL,list,"VALUE","3","1","Brazil","2","USA","3","Japan","4","France",NULL);
+-- to
+gdx list = gDropDown(changed,"==",{{"OPTIONS",{"Brazil","USA","Japan","France"}},{"VALUE",3}})
 -- or
-gdx list = gDropDown({"Brazil","USA","Japan","France"},changed,"VALINT=3")
+gdx list = gDropDown({"Brazil","USA","Japan","France"},changed,"VALUE=3")
 </eucode-->
 <pre>
-<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"=OPTIONS,VALINT"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#800080">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#800080">}</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">list</font><font color="#0000FF"> =</font><font color="#7060A8"> IupList</font><font color="#0000FF">();</font>
+<font color="#FF0000">IupSetAtt</font><font color="#0000FF">(</font><font color="#004600">NULL</font><font color="#0000FF">,</font><font color="#000000">list</font><font color="#0000FF">,</font><font color="#008000">"VALUE"</font><font color="#0000FF">,</font><font color="#008000">"3"</font><font color="#0000FF">,</font><font color="#008000">"1"</font><font color="#0000FF">,</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"2"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"3"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"4"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#0000FF">,</font><font color="#004600">NULL</font><font color="#0000FF">);</font>
+<font color="#000080"><i>-- to</i></font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"=="</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">{</font><font color="#008000">"OPTIONS"</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#008000">"VALUE"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- or</i></font>
-<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"VALINT=3"</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"Brazil"</font><font color="#0000FF">,</font><font color="#008000">"USA"</font><font color="#0000FF">,</font><font color="#008000">"Japan"</font><font color="#0000FF">,</font><font color="#008000">"France"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"VALUE=3"</font><font color="#0000FF">)</font>
 </pre>
-            <small><br></small>
+            <br></small>
             Which creates a <del>list</del> dropdown with country names and defines Japan as the selected/default option.<br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="gSetAttribute.htm">gSetAttribute</a>,
-          <a href="gGetAttribute.htm">gGetAttribute</a>,
-          <a href="gButton.htm">gButton</a>,
-          <a href="gDropDown.htm">gDropDown</a>,
-          <a href="gList.htm">gList</a>
+            <small>[Those may look a little odd when placed side-by-side like that, <a href>gDropDown</a> explains the 
+            <a href="g_paranormal.htm">paranormalisation</a> that makes them <i>both</i> work just fine, aka there is an "optional" 
+            "OPTIONS" as the first parameter on the last one.]</small><br>
          </td>
         </tr>
        </table>
-        <div style="clear:both;height:1px;"> </div>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

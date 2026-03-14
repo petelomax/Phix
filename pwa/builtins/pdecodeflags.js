@@ -41,7 +41,7 @@
         let /*string*/ desc = $subse($subse(FlagSet,i),2);
         let /*atom*/ flag = $subse($subse(FlagSet,i),1);
         if (flag===0) {
-            if (i!==1) { crash("9/0"); } // sanity check
+//          if i!=1 then ?9/0 end if -- sanity check
             // (I suspect ^ means there is some logic error setting up FlagSet,
             // (else I suppose you could just ignore entries>1 with a flag of 0.)
             if (v===0) {
@@ -73,4 +73,4 @@
         res = sprintf("0x%x%s%s",["sequence",v,sep,res]);
     }
     return res;
-}
+} decode_flags.$sig="FPNS,1";

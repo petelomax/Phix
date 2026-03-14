@@ -6,7 +6,7 @@
      <stripped>
       <h1 class="title">sockets</h1>
       <div id="mainSection">
-        The file builtins/sockets.e (not an autoinclude) contains routines for low-level handling of network sockets.
+        The file builtins\sockets.e (not an autoinclude) contains routines for low-level handling of network sockets.
         <br>
         <br>
         Most (client) applications will not use sockets directly, but although <a href="libcurl.htm">libcurl</a> can perform all 
@@ -16,7 +16,7 @@
         <br>
         <br>
         Based heavily on the work of Brett A. Pantalone (Windows), and Irv Mullins, jbrown and Pete Eberlein (Linux), the file 
-        builtins/sockets.e (not an autoinclude) is intended to unify those code bases into a single cross-platform file, while
+        builtins\sockets.e (not an autoinclude) is intended to unify those code bases into a single cross-platform file, while
         adding 64-bit support (achieved via extensive reworking to <a href="cffi.htm">cffi</a>). 
         At the time of writing, the library is Windows only, however the Linux API is apparently almost identical, so (touch wood) 
         it should be fairly straightforward (any volunteers?).
@@ -143,9 +143,8 @@
             Invoked when socket/bind/listen/select/accept/recv/connect/send/etc return SOCKET_ERROR or otherwise indicate failure.
             <br>
             <br>
-            Note that SOCKET_ERROR effectively means "go fetch the real error" and obviously there is no point in passing that 
-            along inside an "if res=SOCKET_ERROR then" conditional branch (nor any real harm, apart from proving to everyone that 
-            you don&rsquo;t quite know what you&rsquo;re doing).
+            Note that SOCKET_ERROR effectively means "go fetch the real error" and there is no real harm passing that from within 
+            an "if res=SOCKET_ERROR then" construct, apart from broadcasting that you don&apos;t really know what you&apos;re doing.
             <br>
             <br>
             Also note that many Windows WSA codes are the same as the Linux equivalents, eg WSAEWOULDBLOCK == EWOULDBLOCK. 
@@ -423,7 +422,7 @@
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
 <!-- DEV maybe/not sure we need this/no examples
-            <b>accept</b>(atom sock, pSockAddr=NULL, integer len=socklen) -- permits an incoming connection attempt on a socket.
+            <b>accept</b>(atom sock, pSockAddr=<a href>NULL</a>, integer len=socklen) -- permits an incoming connection attempt on a socket.
 -->
             <b>accept</b>(atom sock) -- permits an incoming connection attempt on a socket.
             </dt><dd class="pad">
@@ -496,10 +495,10 @@
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
            <a name=closesocket></a>
-            <i>procedure&nbsp;</i>
+            <i>atom sock =&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            atom sock = <b>closesocket</b>(atom sock) -- close a socket
+            <b>closesocket</b>(atom sock) -- close a socket
             </dt><dd class="pad">
             <br>
             There should be a matching closesocket() call for every <a href=#socket>socket</a>() call.
@@ -582,26 +581,26 @@
             atom addrinfo =&nbsp;
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>new_addrinfo</b>(integer family=NULL, socktype=0, flags=NULL) -- allocate an addrinfo structure
+            <b>new_addrinfo</b>(integer family=<a href>NULL</a>, socktype=0, flags=<a href>NULL</a>) -- allocate an addrinfo structure
             </dt><dd class="pad">
             family: AF_UNSPEC, AF_INET, etc.<br>
             socktype: SOCK_STREAM, etc.<br>
             flags: combination of AI_PASSIVE .. AI_FILESERVER<br>
             NB: you should NOT invoke freeaddrinfo(res), instead memory will be automatically reclaimed when it 
-            drops out of scope or is explicitly set to NULL.
+            drops out of scope or is explicitly set to <a href>NULL</a>.
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
             <nobr>integer error =&nbsp;</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>getaddrinfo</b>(<a href="string.htm">nullable_string</a> node_name, service_name, atom pHints, pResult)
+            <b>getaddrinfo</b>(<a href>nullable_string</a> node_name, service_name, atom pHints, pResult)
             </dt><dd class="pad">
             protocol-independent translation from an ANSI host name to an address.<br>
             node_name: eg "207.46.197.32" (pHints of AI_NUMERICHOST) or "www.contoso.com"<br>
             service_name: service name or port number (optional)<br>
             pHints: typically from new_addrinfo()<br>
-            pResult: an <a href="allocate.htm">allocate_word</a>() that recieves a pointer to a result list.<br>
+            pResult: an <a href>allocate_word</a>() that recieves a pointer to a result list.<br>
             Should invoke freeaddrinfo(pResult) when done.
             </dd></dl>
           </td></tr>
@@ -609,14 +608,14 @@
             <nobr>atom res =&nbsp;</nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>get_ai_field</b>(atom addrinfo, string field) -- simple <a href="get_struct_field.htm">get_struct_field</a>() wrapper (since id_taddrinfo is not global)
+            <b>get_ai_field</b>(atom addrinfo, string field) -- simple <a href>get_struct_field</a>() wrapper (since id_taddrinfo is not global)
             </dt><dd class="pad">
             addrinfo: usually a pResult from getaddrinfo(). A result from new_addrinfo() is also legal, but contents are as put in anyway<br>
             field: as below plus "ai_addrlen", "ai_addr", or "ai_next". Translate eg "ptr = ptr->ai_next" to `ptr = get_ai_field(ptr,"ai_next")`<br>
             A field of "ai_family" yields AF_UNSPEC, AF_INET, etc<br>
             A field of "ai_socktype" yields SOCK_STREAM, etc<br>
             A field of "ai_protocol" yields IPPROTO_TCP, etc<br>
-            A field of "ai_canonname" probably wants a <a href="peek_string.htm">peek_string</a>(res)<br>
+            A field of "ai_canonname" probably wants a <a href>peek_string</a>(res)<br>
             </dd></dl>
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">

@@ -13,14 +13,14 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="sequence.htm">sequence</a> res = filter(<a href="sequence.htm">sequence</a> s,
-                                                          <a href="string.htm">rid_string</a> rs,
-                                                          <a href="object.htm">object</a> userdata={},
-                                                          <a href="string.htm">string</a> rangetype="")
+         <a href>sequence</a> res = filter(<a href>sequence</a> s,
+                                                          <a href>rid_string</a> rs,
+                                                          <a href>object</a> userdata={},
+                                                          <a href>string</a> rangetype="")
          <br>
           <i>-- or --</i>
          <br>
-         <a href="integer.htm">integer</a> res = filter_count(<small><i>&lt;ditto&gt</i></small>)
+         <a href>integer</a> res = filter_count(<small><i>&lt;ditto&gt</i></small>)
         </td>
         </tr>
         <tr>
@@ -28,19 +28,19 @@
           <b>Description:</b>
          </td>
          <td>
-            Select only those elements from a <a href="sequence.htm">sequence</a> that pass a specified test.
+            Select only those elements from a <a href>sequence</a> that pass a specified test.
             <br>
             <br>
             s: the sequence to be examined<br>
-            rs: if string, one of the 9 builtin tests, otherwise (the <a href="routine_id.htm">routine_id</a> of) a function that implements the test<br>
+            rs: if string, one of the 9 builtin tests, otherwise (the <a href>routine_id</a> of) a function that implements the test<br>
             userdata: a range, set, pivot, or object optionally passed to said function<br>
             rangetype: for rs="in"/"out" only, inclusive/exclusive qualifiers or "" for subset handling.
             <br>
             <br>
-            filter() returns a sequence containing some subset of the elements originally provided in s, which could possibly be {} aka none.<br>
-            filter_count() returns the same as <a href="length.htm">length</a>(filter()), but without constructing and discarding an intermediate sequence,
-            with obvious reduced memory and therefore increased performance implications, however you should be aware the compiler may be able to optimise 
-            a specific longhand loop in ways it cannot hope to match with the more generic code inside filter(), should performance be critical.
+            filter() returns a subset of the elements in s, which could be {} aka none.<br>
+            filter_count() returns the same as <a href>length</a>(filter()), but without constructing and discarding intermediates.<br>
+            Be aware the compiler may be able to optimise a specific longhand loop in ways it cannot hope to match with the more generic code 
+            inside filter(), should performance be critical.
          </td>
         </tr>
         <tr>
@@ -56,17 +56,17 @@
           <b>Comments:</b>
          </td>
          <td>
-            You can supply your own test (as a <a href="routine_id.htm">routine_id</a>) or use one of the nine built-ins 
-            ("&lt;", "&lt;=", "=", "!=", "&gt=", "&gt;", "notbits", "in", or "out").
+            Supply your own test (as a <a href>routine_id</a>) or use one of the nine built-ins 
+            <small>"&lt;",<wbr>"&lt;=",<wbr>"=",<wbr>"!=",<wbr>"&gt=",<wbr>"&gt;",<wbr>"notbits",<wbr>"in",<wbr>"out"</small>
+            or the aliases 
+            <small>"lt",<wbr>"le",<wbr>"eq",<wbr>"==",<wbr>"ne",<wbr>"ge",<wbr>"gt" (must be lowercase)</small>.
             <br>
-            <br>
-            <h2>built-ins (string rs)</h2>
-            As well as those nine just listed, the aliases "lt","le","eq","==","ne","ge","gt" may also be used (must be lowercase).
-            <br>
-            <br>
-            When rs is "in" or "out", rangetype can be one of five values: {"[]","[)","(]","()",""}. <br>
-            For the first four cases userdata must be a sequence of two (lo/hi) values, with [|] indicating inclusive, (|) exclusive.<br>
-            For the fifth case, userdata is a set, and elements are kept depending on whether they are found in that set or not.
+
+            <h3>built-ins (string rs)</h3>
+
+            When rs is "in" or "out", rangetype can be one of five values: {"[]",<wbr>"[)",<wbr>"(]",<wbr>"()",<wbr>""}. <br>
+            For the first four cases userdata must be a sequence of two (lo/hi) values, with [|] indicating inclusive, (|) exclusive,
+            whereas for the fifth(/"") userdata is a set, with elements kept depending on whether they are found therein or not.
             <br>
             <br>
             When rs is one of the string or bit comparison ops, userdata is the value to test against, some examples are given below.
@@ -76,8 +76,8 @@
             contain some additional edge cases that have arisen since this documentation was written and that way perhaps answer any 
             remaining questions you may have about how all these built-ins behave (ditto for user-provided functions).
             <br>
-            <br>
-            <h2>supplied function (integer fn := rs)</h2>
+
+            <h3>supplied function (integer fn := abs(rs))</h3>
             fn should be a function that accepts at least one parameter. The optional userdata value of {} is only passed to fn if 
             it <i>needs</i> it: should fn have no second parameter or the second parameter is optional (already has a default), it 
             will <b>not</b> get passed the above default. If fn accepts/needs 3 parameters it will get (s[i],i,s).
@@ -85,16 +85,21 @@
             obviously, even if the first parameter of fn is defaulted it <i>will</i> still get passed each s[i] in turn.
             <br>
             <br>
-            fn() is expected to return a <a href="logicops.htm#tf">true</a>/<a href="logicops.htm#tf">false</a> result indicating 
-            whether to keep or discard each element.<br>
+            fn() is expected to return a <a href>true</a>/<a href>false</a> result indicating 
+            whether to keep or discard each element, inverted when rs is negative.<br>
             fn() can accept 1, 2, or 3 parameters. Without any <a href="procedures.htm#optionalparams">optional parameters</a>, 
             when userdata is {} it is invoked as f(s[i]), f(s[i],i), or f(s[i],i,s) respectively, otherwise it is invoked as 
             f(s[i],userdata) or f(s[i],i,userdata). The presence of any optional parameters basically encourages filter() to pass 
             the <i>fewest</i> parameters possible, but always >=1.
             In that way, fn() can be recursive and not have done=0 or depth=1 style parameters clobbered by the builtin filter(), 
             though it may end up wiser/necessary to split out any such recursive parts/defaulted args once things outgrow trivial.
-            This handling of defaulted parameters is also consistent with <a href="apply.htm">apply</a>(), though for different
+            This handling of defaulted parameters is also consistent with <a href>apply</a>(), though for different
             and perhaps slightly less convincing reasons.
+            <br>
+            <br>
+            <!-- aside: I know I said "inverted when rs is negative" above, but that just don't stand out quite enough... -->
+            When rs is a -ve integer fn, an implicit "not" occurs, as per the example below <small>(which is also implicitly 
+            utilising <a href>hll_string</a> btw)</small>.
             <br>
             <br>
             The rangetype parameter is not used when rs is not "in" or "out", and in fact an error occurs if it is not "".
@@ -147,16 +152,18 @@ function quiksort(sequence s)
 end function
 ?quiksort({5,4,7,2,4,9,1,0,4,32,7,54,2,5,8,445,67})
 ------==> {0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445}
+?filter({{1,2},"string",{3,4}},string) -- {"string"}
+?filter({{1,2},"string",{3,4}},-string) -- {{1,2},{3,4}}
 </eucode-->
 <pre>
 <font color="#000080"><i>-- Using user-defined or builtin functions:</i></font>
 <font color="#008080">constant</font><font color="#000000"> data</font><font color="#0000FF"> = {</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">20</font><font color="#0000FF">,</font><font color="#000000">19</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">10</font><font color="#0000FF">}
 ?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#7060A8"> even</font><font color="#0000FF">)        </font><font color="#000080"><i> -- ==&gt; {8, 20, 2, 10}</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#7060A8"> odd</font><font color="#0000FF">)         </font><font color="#000080"><i> -- ==&gt; {5, 19, 3}
--- Using 'in' and 'out' with a set (same data as above):</i></font>
+-- Using &apos;in&apos; and &apos;out&apos; with a set (same data as above):</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {5,8,3}</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "out"</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">6</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- ==&gt; {20,19,2,10}
--- Using 'in' and 'out' with inclusive/exclusive ranges:</i></font>
+-- Using &apos;in&apos; and &apos;out&apos; with inclusive/exclusive ranges:</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;=3 &amp; &lt;=8) -- ==&gt; {5,8,3}</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "[)"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;=3 &amp; &lt;8)  -- ==&gt; {5,3}</i></font>
 <font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#000000">data</font><font color="#0000FF">,</font><font color="#008000"> "in"</font><font color="#0000FF">, </font><font color="#800000"> {</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000"> "(]"</font><font color="#0000FF">)</font><font color="#000080"><i> -- (aka &gt;3 &amp; &lt;=8)  -- ==&gt; {5,8}</i></font>
@@ -178,6 +185,8 @@ end function
 <font color="#008080">end function</font>
 <font color="#0000FF">?</font><font color="#000000">quiksort</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">9</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">32</font><font color="#0000FF">,</font><font color="#000000">7</font><font color="#0000FF">,</font><font color="#000000">54</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">5</font><font color="#0000FF">,</font><font color="#000000">8</font><font color="#0000FF">,</font><font color="#000000">445</font><font color="#0000FF">,</font><font color="#000000">67</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#000080"><i>------==&gt; {0,1,2,2,4,4,4,5,5,7,7,8,9,32,54,67,445}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008000">"string"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004080">string</font><font color="#0000FF">)</font><font color="#000080"><i> -- {"string"}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">filter</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008000">"string"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,-</font><font color="#004080">string</font><font color="#0000FF">)</font><font color="#000080"><i> -- {{1,2},{3,4}}</i></font>
 </pre>
          </td>
         </tr>
@@ -190,14 +199,15 @@ end function
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
-          <a href="apply.htm">apply</a>
+          <a href>apply</a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -210,7 +220,7 @@ end function
             <br>
             <br>
             Not all of these options will necessarily make perfect sense in all cases, for instance something like 
-            <a href="find.htm">find_all</a>() might be better in that it delivers a more actionable result.
+            <a href>find_all</a>() might be better in that it delivers a more actionable result.
             <br>
             <br>
             Judicious use of functional programming style techniques can both shorten code and greatly improve clarity.<br>
@@ -223,8 +233,8 @@ end function
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-
+       <div style="clear:both;height:1px;"> </div>
+       <br>
       </div>
      </stripped>
     </get>

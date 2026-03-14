@@ -233,7 +233,9 @@ else
 --else
     if choppath then    -- added 5/3/2010
             filelen = length(filepath)
-            if 11+filelen+length(lineno)+msglen>79 then
+-- bumped 15/11/24:
+--          if 11+filelen+length(lineno)+msglen>79 then
+            if 11+filelen+length(lineno)+msglen>131 then
                 -- chop the path to make more space for the message
                 for j=filelen to 1 by -1 do
                     if find(filepath[j],"\\/") then

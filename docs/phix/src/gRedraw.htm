@@ -13,10 +13,10 @@
           <b>Definition:</b>
          </td>
          <td>
-            include xpGUI.e
+            include theGUI.e
             <br>
             <br>
-            gRedraw(<a href="gdx.htm">gdx</a> id, integer flags=0b111)
+            gRedraw(<a href>gdx</a> id)
          </td>
         </tr>
         <tr>
@@ -24,10 +24,11 @@
           <b>Description:</b>
          </td>
          <td>
-            Redraw and/or update the size and layout of all controls in the same dialog. 
+            Update the size and layout of all controls in the same dialog, and then, obviously, redraw them. 
             <br>
-            id: Identifier of the interface element.<br>
-            flags: (currently unused, see nores).
+            <br>
+            id: Identifier of the interface element.
+            <br>
          </td>
         </tr>
         <tr>
@@ -43,38 +44,104 @@
           <b>Notes:</b>
          </td>
          <td>
+            Redrawing too often can slow things down, however be advised that doing so at most once per second (and when the
+            last is done) may make some program which actually stalls on the 2237th item appear to stall on some random item
+            in the 21xx range, and no generic quick fix for that sort of thing springs to mind other than to put up with the 
+            slowdown while finding out precisely which item deserves deeper investigation.
+            <br>
+         </td>
+        </tr>
+        <tr>
+         <td class="techbtn">
+          <b>See Also:</b>
+          <img id="Timg" />
+         </td>
+         <td>
+          <a href>gShow</a>
+<!--          <a href>IupPopup</a>, -->
+<!--          <a href>IupDestroy</a> -->
+          <br><a name=tech></a>
+         </td>
+        </tr>
+        <tr id="Technicalia" class="hiddenRow">
+         <td>
+          <a href="glossary.htm#technicalia">
+           <b>Technicalia</b>
+          </a>
+         </td>
+         <td>
+            You may have to invoke this manually quite often, and wonder why (eg) gSetAttribute() does not do it automatically:
+            <br>
+            <br>
+            Suppose a gSplit has:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+    adj = left_panel_width - max(left_panel_width-adj,left_panel_min)
+    left_panel_width -= adj
+    right_panel_width += adj
+    gSetAttribute(left_panel,"SIZE",{left_panel_width,left_panel_height})
+    gSetAttribute(right_panel,"SIZE",{right_panel_width,right_panel_height})
+    gRedraw(split)
+</eucode-->
+<pre>
+<font color="#000000">    adj</font><font color="#0000FF"> =</font><font color="#000000"> left_panel_width</font><font color="#0000FF"> -</font><font color="#7060A8"> max</font><font color="#0000FF">(</font><font color="#000000">left_panel_width</font><font color="#0000FF">-</font><font color="#000000">adj</font><font color="#0000FF">,</font><font color="#000000">left_panel_min</font><font color="#0000FF">)</font>
+<font color="#000000">    left_panel_width</font><font color="#0000FF"> -=</font><font color="#000000"> adj
+    right_panel_width</font><font color="#0000FF"> +=</font><font color="#000000"> adj</font>
+<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">left_panel</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">left_panel_width</font><font color="#0000FF">,</font><font color="#000000">left_panel_height</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">right_panel</font><font color="#0000FF">,</font><font color="#008000">"SIZE"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">right_panel_width</font><font color="#0000FF">,</font><font color="#000000">right_panel_height</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gRedraw</font><font color="#0000FF">(</font><font color="#7060A8">split</font><font color="#0000FF">)</font>
+</pre>
+            </small>
+            <br>
+            The very last thing you would want is for the first size setting to shrink the entire window, before the second call 
+            restores it to the original size, and even if the flicker was barely noticeable, you certainly wouldn&apos;t want it
+            to reposition everything outside the gSplit, twice, or for that matter be told about that, twice.
+            <br>
+            <br>
             There were <i>five</i> similar routines in pGUI, namely 
-            <a href="IupRedraw.htm">IupRedraw</a>(), 
-            <a href="IupRefresh.htm">IupRefresh</a>(), 
-            <a href="IupRefreshChildren.htm">IupRefreshChildren</a>(), 
-            <a href="IupUpdate.htm">IupUpdate</a>(), and
+            <a href>IupRedraw</a>(), 
+            <a href>IupRefresh</a>(), 
+            <a href>IupRefreshChildren</a>(), 
+            <a href>IupUpdate</a>(), and
             <a href="IupUpdateChildren.htm">IupUpdateChildren</a>(), 
-            and I always ended up experimenting until finding the one (particular combination that) did precisely what I wanted. <br>
+            and I always ended up experimenting until finding the one (particular combination that) did precisely what I wanted.<br>
+            The switch to fully emulated controls has (so far) made any such distinctions completely unnecessary.
+            <br>
+<!--
             The flags parameter is, in time, intended to cover these three basic needs:<br>
             <ul>
-            <li> do/don&rsquo;t bother to recalculate all the sizes and positions.</li>
-            <li> resize (but don&rsquo;t reposition) just the one field, because it might now have longer text.</li>
+            <li> do/don&apos;t bother to recalculate all the sizes and positions.</li>
+            <li> resize (but don&apos;t reposition) just the one field, because it might now have longer text.</li>
             <li> do it now (if invoked from a busy-loop) or just queue the update.</li>
             </ul>
             Right now the routine is possibly a little more brutal than it needs to be, and might degrade performance
-            a little bit, especially when updating a single status field several thousand times a second, but I&rsquo;ll 
+            a little bit, especially when updating a single status field several thousand times a second, but I&apos;ll 
             investigate that further if and when it becomes necessary, and not before. [In most cases a simple test on
             how long since the last update suffices, but something that stalls badly on (say) the 2237th and 9863rd 
             may quite possibly end up showing a random thing rather than the one it is actually struggling with, that
             is, should you have put that sort of time() test around your screen updates.]
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href="gShow.htm">gShow</a>
-<!--          <a href="IupPopup.htm">IupPopup</a>, -->
-<!--          <a href="IupDestroy.htm">IupDestroy</a> -->
+-->
          </td>
         </tr>
        </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

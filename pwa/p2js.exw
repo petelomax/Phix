@@ -71,6 +71,7 @@
 -- SUG: optimise eg x*y + (x+y) to (x+1)*y + x (from https://www.codeproject.com/Articles/5304605/Creating-Shellcode-from-any-Code-Using-Visual-Stud )
 -- online, for ideas: https://algorithm-visualizer.org/ (and obvs codepen, etc)
 --
+--puts(1,"")
 
 --/*
 -- other things to avoid... (5/5/21)
@@ -216,6 +217,7 @@ ym
 zIndex
 
 --DEV taken back out:
+    {"substr",                          BADT,    T_substr                            := 26128},
     {"key",                             BADT,   T_key                               := 9212},
     {"name",                            BADT,   T_name                              := 9936},
     {"add",                             BADT,   T_add                               := 1460},
@@ -760,7 +762,7 @@ end function
 
 --global string src -- now in p2js_basics...
 --integer src_offset    -- (for js embeddded in html) [ now in p2js_basics]
-bool pGUI, xpGUI, pMPFR, pSHA256, pTIMEDATE
+bool pGUI, theGUI, pMPFR, pSHA256, pTIMEDATE
 --bool pGUI, pOpenGL, pMPFR, pSHA256, pTIMEDATE
 
 --function load(string src="", integer ext=0)
@@ -774,13 +776,16 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
     src = IupGetAttribute(mle, "VALUE")
     src_offset = 0
     pGUI = false
-    xpGUI = false
+    theGUI = false
 --  pOpenGL = false
     pMPFR = false
     pSHA256 = false
     pTIMEDATE = false
 --  integer ext = IupGetInt(ctype,"VALUE")
+--?{"load_tokens",ext}
     integer ext = IupGetInt(mtype,"VALUE")
+--?{"load_tokens",ext}
+
 --  elsif ext=0 then
 --      ?9/0 -- (sanity check)
 --  end if
@@ -817,8 +822,8 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
             src_offset = length(split(pre,'\n'))-1
 --aside: js->phix will not resurrect an "include [`..\pGUI\`]opengl.e .. (yet) [or can we do it from comment??]
             pGUI = match("pGUI.js",pre)!=0
-            xpGUI = match("xpGUI.js",pre)!=0
-            if xpGUI then pGUI = false end if
+            theGUI = match("theGUI.js",pre)!=0
+            if theGUI then pGUI = false end if
 --          pOpenGL = match(`..\pGUI\opengl.e`,pre)!=0 -- ???!
             pMPFR = match("mpfr.js",pre)!=0
             pSHA256 = match("sha256.js",pre)!=0
@@ -835,6 +840,7 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
         end if
         tokenise()
         if not tok_error() then
+--?{"<load_tokens",ext}
             return true
         end if
     end if
@@ -1517,7 +1523,13 @@ function treeify(sequence ast, bool bRoot=true)
 
 --16/5/22 (handle the new T_for/T_in construct)
 --  if length(ast)!=2 then ?9/0 end if
-    if length(ast)!=2 then
+--8/9/25:
+    if length(ast)=3
+    and ast[1]=T_switch then
+        -- handle {T_switch,aste,with_fallthrough}
+        ast[1] = iff(ast[3]?"switch (fallthrough)":"switch")
+        ast = ast[1..2]
+    elsif length(ast)!=2 then
         if length(ast)!=3 
         or ast[1]!=`vardef` 
 --13/11/22:
@@ -1561,12 +1573,13 @@ function treeify(sequence ast, bool bRoot=true)
     object {nodetype, children} = ast
     if integer(nodetype) then
         if nodetype=T_with
-        or nodetype=T_without then
+        or nodetype=T_without
+        or nodetype=T_withpop then
             children = children[1..1]
         elsif nodetype=T_include then
 --?children
 --if not find(strip_builtin(children[1]),{"pGUI.e",`..\pGUI\opengl.e`,"mpfr.e","sha256.e","timedate.e"}) then
-            if not find(strip_builtin(children[1]),{"pGUI.e","xpGUI.e","opengl.e",
+            if not find(strip_builtin(children[1]),{"pGUI.e","theGUI.e","hGUI.e","opengl.e",
                              "mpfr.e","sha256.e","timedate.e","pComN.ew"}) then
                 restore_source(children[2])
             end if
@@ -1779,7 +1792,8 @@ procedure run(string src, Ihandle mtype)
 --          test(testexw,src,get_interpreter(bQuote:=false,bPrefW:=true))
             test(testexw,src,get_interpreter(true,machine_bits(),platform(),true))
 --get_interpreter(bool bQuote=false, object mb=machine_bits(), integer plat=platform(), bool bPrefW=false)
-        elsif ext="html" then
+--      elsif ext="html" then
+        elsif find(ext,{"html","htm"}) then
             test(testhtm,src,"open")
         else
             cannot_run(ext)
@@ -1965,7 +1979,7 @@ procedure rebuild_builtins_and_run_tests()
     bBuiltinAliases = true
     for i=1 to length(rebuild_required) do
         string ri = strip_builtin(rebuild_required[i]), output
-        if find(ri,{"pGUI.e","xpGUI.e","mpfr.e","sha256.e"}) then
+        if find(ri,{"pGUI.e","theGUI.e","hGUI.e","mpfr.e","sha256.e"}) then
             -- [see p2js_scope.e/check_builtins()]
 --          ?"rebuild_required includes "&ri&"..."
             crash("rebuild_required includes "&ri&"...")
@@ -2025,6 +2039,7 @@ Likewise pwa/src/test.js is transpiled to phix/js and compared line-by-line to t
 end procedure
 
 function show_stuff(string what)
+--?{"show_stuff",what,ext}
 
 --30/9/21: (before we crash!)
     if bSaveIni then save_ini() end if
@@ -2049,7 +2064,8 @@ function show_stuff(string what)
         sequence {filepaths, filenames} = columnize(apply(true,get_file_path_and_name,{dropfiles,false}))
         IupFileList(filenames, filepaths, openFile, main_dlg, config, "Recent Files")
 
-    elsif what="CTRLF5" then
+    elsif what="CTRLF5"
+      or (what="RUN" and IupGetInt(ctype,"VALUE")=HTML) then
 
         run(IupGetAttribute(multitext,"VALUE"),ctype)
 
@@ -2269,6 +2285,7 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
         else
 
 --if what="OUTPUT" then ?{"show_scope",what} end if
+--if what="RUN" then ?{"RUN",ext} end if
 --trace(1)
             sequence ast = parse()
             if parse_error() then
@@ -2305,7 +2322,7 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
             else
 
                 integer oval = IupGetInt(otype,"VALUE")
-                string output = generate_source(ast,oval,src_offset,pGUI,xpGUI,pMPFR,pSHA256,pTIMEDATE)
+                string output = generate_source(ast,oval,src_offset,pGUI,theGUI,pMPFR,pSHA256,pTIMEDATE)
 --              string output = generate_source(ast,oval,src_offset,pGUI,pOpenGL,pMPFR,pSHA256,pTIMEDATE)
 
                 if what="OUTPUT" then
@@ -2402,6 +2419,7 @@ end function
 --end function
 
 function run_cb(Ihandle /*run_btn*/)
+--?{"run_cb",ext}
     return show_stuff("RUN")
 end function
 
@@ -2570,7 +2588,8 @@ procedure create_main_dialog()
         {} = IupConfigLoad(config)
         chosen = IupList(Icallback("chosen_cb"),"DROPDOWN=YES,EXPAND=HORIZONTAL")
     end if
-    ctype = set_extensions(IupList(Icallback("ctype_cb"),`DROPDOWN=YES`),1)
+--  ctype = set_extensions(IupList(Icallback("ctype_cb"),`DROPDOWN=YES`),1)
+    ctype = set_extensions(IupList(Icallback("ctype_cb"),`DROPDOWN=YES`),0)
     Ihandle ch_box = IupHbox({choose_file,chosen,ctype},"MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL")
     multitext = IupText("MULTILINE=YES, EXPAND=YES, FORMATTING=YES")
 --  multitext = IupText("MULTILINE=YES, EXPAND=YES")
@@ -2640,7 +2659,7 @@ procedure create_main_dialog()
     else
         load_ini()
         IupConfigDialogShow(config, main_dlg, "MainWindow")
---?"rebuild_builtins_and_run_tests() disabled p2js.exw line 2195"
+--?{"rebuild_builtins_and_run_tests() disabled p2js.exw line",source_line()}
         rebuild_builtins_and_run_tests()
     end if
 
@@ -4426,16 +4445,16 @@ main()
 
 -- v0:
 --/*
-function quit_cb(Ihandle /!*self*!/)
-    return IUP_CLOSE
-end function
-
-IupOpen()
-Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
-        label = IupLabel("Hello World","EXPAND=YES, ALIGNMENT=ACENTER:ACENTER"),
-        vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"),
-        dlg = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
-IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
+--  function quit_cb(Ihandle /!*self*!/)
+--      return IUP_CLOSE
+--  end function
+--
+--  IupOpen()
+--  Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
+--          label = IupLabel("Hello World","EXPAND=YES, ALIGNMENT=ACENTER:ACENTER"),
+--          vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"),
+--          dlg = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
+--  IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
 --*/
 --?IupGetAttribute(dlg,"RASTERSIZE")
 --IupSetAttribute(dlg,"RASTERSIZE",NULL)
@@ -4640,20 +4659,20 @@ open folder:
 --*/
 
 /*
-const solution = (arr) => {
-    let l = arr.length;
-    function sumt(i) {
-        let c = (i+1)*2, res = 0;
-        if (i<l && arr[i]!=-1) { res = arr[i]+sumt(c-1)+sumt(c); }
-        return res;
-    }
-    let left = sumt(1), right = sumt(2);
-    console.log("left:"+left);
-    console.log("right:"+right);
-    if (left>right) { return "Left"; }
-    if (left<right) { return "Right"; }
-    return "";
-}
+--const solution = (arr) => {
+--  let l = arr.length;
+--  function sumt(i) {
+--      let c = (i+1)*2, res = 0;
+--      if (i<l && arr[i]!=-1) { res = arr[i]+sumt(c-1)+sumt(c); }
+--      return res;
+--  }
+--  let left = sumt(1), right = sumt(2);
+--  console.log("left:"+left);
+--  console.log("right:"+right);
+--  if (left>right) { return "Left"; }
+--  if (left<right) { return "Right"; }
+--  return "";
+--}
 console.log(solution([1, 4, 100, 5]));
 
 const solution = (arr) => {

@@ -46,17 +46,19 @@
        <br>
        <br>
         In all cases <b><a href="shortcircuit.htm">short-circuit</a></b> evaluation is used for expressions containing
-        <b>and</b> or <b>or</b>.
-       <br>
-        <a name=tf></a>
+        <b>and</b> or <b>or</b>. <!-- - for instance in <code>i!=0 and s[i]</code> a false lhs makes the overall expression 
+        false, without attempting the rhs or suffering a subscript error when doing so, likewise true for the lhs of 
+        <code>i=0 or s[i]</code>.-->
+       <br><a name=tf></a>
        <br>
         The constants TRUE, True, true, FALSE, False, and false are automatically builtin to the Phix compiler. There is
         no difference between the different cases, which makes for one less thing you have to remember.
        <br>
        <br>
-        You may also find these operators applied to numbers other than 1 or 0. The rule is:
-        zero means false and non-zero means true. So for instance, replacing variable names
-        (which might make more sense) with literal values to show exactly what is going on:
+        You may also find these operators applied to numbers other than 1 or 0. <br>
+        The rule is: zero means false and non-zero means true.<br> 
+        <!--So for instance, r--> Replacing variable names
+        <!--(which might make more sense)--> with literal values to show exactly what is going on:
 <!--eucode>
         5 and -4    -- 1 (true)
         not 6       -- 0 (false)
@@ -66,21 +68,25 @@
 <font color="#008080">        not</font><font color="#000000"> 6      </font><font color="#000080"><i> -- 0 (false)</i></font>
 </pre>
         One could argue the above is relatively poor practice. The equivalent expressions "5!=0 and -4!=0" 
-        and "6==0" yield the same results and (at least when using sensible variable names rather than those 
-        meaningless literals, and likewise false rather than 0) can communicate the intent with greater clarity. 
-        Should there be any cases where the latter forms generate slightly less efficient code, they should be
-        logged as a bug in the compiler. 
-        There are, however, countless instances of this sort of practice in legacy code, far too many to ever 
-        fully eradicate, especially given that attempts to do so are likely to introduce new bugs (even if 
-        they are <a name=sb></a>schr&ouml;dinbugs<sup><small><a href="#sb1" onclick="opentech()">1</a></small></sup>),
-        plus there is also the trick (often seen as !! in other programming languages) of using not not to 
-        prove something is or cast it to a bool.
+        and "6==0" yield the same results and can communicate the intent with greater clarity, at least when using 
+        sensible variable names rather than those meaningless literals, and likewise false rather than those three 
+        trailing 0s. Should there be any cases where the latter forms generate slightly less efficient code, they 
+        should be logged as a bug in the compiler. 
+        There are, however, countless instances of that sort of thing in legacy code, far too many to ever fully 
+        eradicate, especially given that attempts to do so are likely to introduce new bugs (even if they are 
+        <a name=sb></a>schr&ouml;dinbugs<sup><small><a href="#sb1" onclick="opentech()">1</a></small></sup>),
+        plus there is also the trick of using "not not" to prove something is or cast it to a bool (often seen as 
+        "!!" in other programming languages), though I will say the frontend is generally pretty keen on coercing
+        things to 0/1, especially in the near vicinity of/results from these logic operations (aka test it first,
+        as in you might not need "not not" anyway).
         <br>
         <br>
-        One case worth mentioning is the popular idiom <code>[not] find(needle,haystack)</code>, for which 
-        encouraging the programmer to tack "=0" or "!=0" onto the end does not really improve anything, and 
-        smacks of pedantry and pettiness, but of course there is exactly the same 0 means false and anything 
-        else means true.
+        One case worth mentioning is the popular idiom <code>[not] find(needle,haystack)</code>. Encouraging the 
+        programmer to tack ["=0" or] "!=0" onto said does not really improve anything, and smacks of pedantry and 
+        pettiness, but of course using a bare find() like that relies on exactly the same principle of 0 means false 
+        and anything else means true (which can also be a good argument in favour of 1-based indices over 0-based, 
+        and partially explains why some languages [without -ve subscripts] represent false as -1, which of course 
+        I deem deeply flawed).
         <br>
         <br>
         Parenthesis is required to mix different logical operators in a single expression, as explained 
@@ -90,85 +96,94 @@
        <table>
         <col style="width: 12%"/>
         <tr>
-         <td>
-          <nobr><b>See Also:</b></nobr>
+         <td class="techbtn">
+          <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
-          <a href="and_bits.htm">and_bits</a>,
-          <a href="or_bits.htm">or_bits</a>, 
-          <a href="xor_bits.htm">xor_bits</a>, and
-          <a href="not_bits.htm">not_bits</a>, which are the corresponding bitwise functions, or the
+          <a href>and_bits</a>,
+          <a href>or_bits</a>, 
+          <a href>xor_bits</a>, and
+          <a href>not_bits</a>, which are the corresponding bitwise functions, or the
           <a href="ARM___dpo.htm">ARM data processing operations</a>.
 <!-- DEV
           You may also have landed on this page when looking for the and, or, xor, and not inline assembly (#ilASM) instructions.
 -->
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
           </a>
          </td>
          <td>
-            <a name=sb1></a><sup><small><a href="#sb">1</a></small></sup>schr&ouml;dinbug: a bug that occurs after the programmer notices that the code 
-            should never have worked in the first place, then typically manifests itself all over the shop, hampering attempts to rectify it, for reasons 
-            you can never quite grasp and despite having passed all tests with flying colours for donkey&rsquo;s years. Typically the modified code works
-            just fine, but you cannot actually test it without first eradicating the eighteen other near-identical bugs that have suddenly decided to
-            start triggering, for no obvious reason other than the fact they too were all always obviously just waiting to go wrong.<br>
-            Not to be confused with a heisenbug: a bug that disappears when one attempts to study it.
-            <small>(A cute name but an incorrect reference. The quantum mechanical property of things changing when you observe them is the observer effect, 
-            not the Heisenberg uncertainty principle, however observereffectbug is simply just not as cute or funny.)</small>
+            <!--br--><a name=sb1></a>
+            <sup><small><a href="#sb">1</a></small></sup>schr&ouml;dinbug: a bug that occurs after the programmer notices that the code 
+            should never have worked in the first place, despite having passed all tests with flying colours for donkey&apos;s years. 
+            Typically the modified code works just fine, but you cannot actually test it without first eradicating the eighteen other 
+            near-identical bugs that have suddenly decided to start triggering, for no obvious reason other than the fact they too were 
+            all always obviously just waiting to go wrong and you simply cannot understand why they never have.<br>
+            Not to be confused with a heisenbug: a bug that disappears when one attempts to study it <small>(which incidentally refers 
+            to the observer effect, as first proposed by Heisenberg, rather than the Heisenberg uncertainty principle)</small>.
+            There is also a mandelbug, which is a bug whose causes are so complex that the deeper a developer goes into the code the more 
+            bugs they find, forever. <!--typically manifesting themselves all over the shop, hampering attempts to rectify them, --X>   
+            for reasons <X!--you--X>they can never quite grasp.-->
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
-        <br>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
       </div>
      </stripped>
     </get>

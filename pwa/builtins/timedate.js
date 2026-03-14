@@ -151,7 +151,7 @@ let /*sequence*/ $DSTrule = ["sequence"]; // rules for start and end days of DST
 function $addDSTrule(/*object*/ rule) {
     $DSTrule = append($DSTrule,rule);
     return length($DSTrule);
-}
+} $addDSTrule.$sig="FO";
 const $EU = $addDSTrule(["sequence",3,25,10,25,1]);               // Last Sunday in March to Last Sunday in October       (Europe)
 const $US = $addDSTrule(["sequence",3,8,11,1,1]);                 // Second Sunday in March to first Sunday in November   (North America)
 const $AU = $addDSTrule(["sequence",10,1,4,1,1]);                 // First Sunday in October to first sunday in April     (South Australia)
@@ -295,7 +295,9 @@ $validtd = $repe($validtd,DT_HOUR,["sequence",0,23]);
 $validtd = $repe($validtd,DT_MINUTE,["sequence",0,59]);
 $validtd = $repe($validtd,DT_SECOND,["sequence",0,59]);
 //  $validtd[DT_DOW] = {0,7}
-$validtd = $repe($validtd,DT_DOW,["sequence",0,999]); // accomodate milliseconds
+//9/10/24...
+//  $validtd[DT_DOW] = {0,999}   -- accomodate milliseconds
+$validtd = $repe($validtd,DT_DOW,["sequence",0,1000]); // accomodate milliseconds
 $validtd = $repe($validtd,DT_DOY,["sequence",0,366]);
     // (the following two entries are updated in override_timezone)
 $validtd = $repe($validtd,$DT_TZ,["sequence",0,length($timezones)]);
@@ -310,7 +312,9 @@ $validtd = $repe($validtd,$DT_DSTZ,["sequence",0,length($timezones)]);
     if (sequence(s) && compare(length(s),DT_SECOND)>=0) {
         for (let i=1, i$lim=length(s); i<=i$lim; i+=1) {
             si = $subse(s,i);
-            if (!integer(si)) { return 0; }
+            if (i!==DT_MSEC) {
+                if (!integer(si)) { return 0; }
+            }
             [,vmin,vmax] = $subse($validtd,i);
             if (vmin<=vmax) {
                 if (compare(si,vmin)<0 || compare(si,vmax)>0) {
@@ -327,7 +331,7 @@ $validtd = $repe($validtd,$DT_DSTZ,["sequence",0,length($timezones)]);
         return 1;
     }
     return 0;
-}
+} timedate.$sig="TO";
 /*with trace*/
 /*global*/ function timedelta(/*atom*/ weeks=0, /*atom*/ days=0, /*atom*/ hours=0, /*atom*/ minutes=0, /*atom*/ seconds=0, /*atom*/ milliseconds=0, /*atom*/ microseconds=0) {
 //
@@ -359,7 +363,7 @@ $validtd = $repe($validtd,$DT_DSTZ,["sequence",0,length($timezones)]);
 //  attempting to apply timedeltas to any correspondingly incompatible timeframes.
 //
     return (((((weeks*7+days)*24+hours)*60+minutes)*60+seconds)+milliseconds*.001)+microseconds*.000001;
-}
+} timedelta.$sig="FNNNNNNN,1";
 //  Format Strings (modified)
 //  Date and time format elements for parsing/printing are defined by the following groups of characters:
 //
@@ -454,29 +458,29 @@ let /*sequence*/ $months = repeat(0,$langmax),
 $months = $repe($months,$en,["sequence","January","February","March","April","May","June","July","August","September","October","November","December"]);
 //12/1/2020:
 //$day_names[$en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
-$day_names = $repe($day_names,$en,["sequence","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]);
+$day_names = $repe($day_names,$en,["sequence","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Anyday"]);
 //Google Translate (manually re-ascii-fied):
 //$months[de] = {"Januar","Februar","Marz","April","Mai","Juni","Juli",
 //              "August","September","Oktober","November","Dezember"}
-//$day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
+//$day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Anytag"}
 //$months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
 //              "Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
-//$day_names[es] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"}
+//$day_names[es] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","??"}
 //$months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesakuu",
 //              "Heinakuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
-//$day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
+//$day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai","anytai"}
 //$months[fr] = {"Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet",
 //              "Aout","Septembre","Octobre","Novembre","Decembre"}
-//$day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
+//$day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Anydi"}
 //$months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio",
 //              "Agosto","Settembre","Ottobre","Novembre","Dicembre"}
-//$day_names[it] = {"domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato
+//$day_names[it] = {"domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato","anydi"}
 //$months[nl] = {"Januari","februari","maart","april","mei","juni","juli",
 //              "augustus","september","oktober","november","december"}
-//$day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
+//$day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","anydag"}
 //$months[pt] = {"Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho",
 //              "Agosto","Setembro","Outubro","Novembro","Dezembro"}
-//$day_names[pt] = {"domingo","segunda","terca","quarta","quinta","sexta","sabado"}
+//$day_names[pt] = {"domingo","segunda","terca","quarta","quinta","sexta","sabado","??"}
 $td_ordinals = $repe($td_ordinals,$en,["sequence","st","nd","rd","th"]);
 //$td_ordinals[fr] = {"er","e"} --??
 
@@ -552,7 +556,7 @@ function $isDSTr(/*timedate*/ td, /*integer*/ ruleidx) {
         return prevSun<ed;
     }
     crash("9/0"); // should never happen
-}
+} $isDSTr.$sig="FPI";
 //DEV move to test routine?
 //if $isDSTr({2015, 8, 1},$EU)=0 then ?9/0 end if
 //if $isDSTr({2015,12,25},$EU)=1 then ?9/0 end if
@@ -564,7 +568,7 @@ function $get_DST_rule(/*timedate*/ td, /*integer*/ DT_TZX) {
     let /*integer*/ tz = $subse(td,DT_TZX);
     if (tz===0) { return 0; }
     return $subse($tzDSR,tz);
-}
+} $get_DST_rule.$sig="FPI";
 //DEV??
 //function isDST(timedate td)
 //integer dsrule = $get_DST_rule(td,$DT_TZ)
@@ -575,7 +579,7 @@ function $get_DST_rule(/*timedate*/ td, /*integer*/ DT_TZX) {
 /*global*/ function get_tzid(/*string*/ tz) {
 // for testing purposes only
     return find(tz,$timezones);
-}
+} get_tzid.$sig="FS";
 //global function get_tzdesc(object tz)
 //-- tz should be a string, eg "GMT", or an integer from td[$DT_TZ] or td[$DT_DSTZ]
 //-- use format_timedate(td,"tz") to get $timezones[tz] (ie "" or "" -> "GMT" etc)
@@ -633,7 +637,7 @@ function $get_DST_rule(/*timedate*/ td, /*integer*/ DT_TZX) {
         $validtd = $repe($validtd,2,length($timezones),["sequence",$DT_TZ]);
         $validtd = $repe($validtd,2,length($timezones),["sequence",$DT_DSTZ]);
     }
-}
+} override_timezone.$sig="PSSNOS,1";
 function $timedate_to_julian_day(/*timedate*/ td) {
 //
 // A julian day is the number of days since Jan 1st 4713 BC in the julian calandar,
@@ -661,13 +665,13 @@ function $timedate_to_julian_day(/*timedate*/ td) {
     y += 4800-m1;
     m += 12*m1-3;
     return (((((d+floor((153*m+2)/5))+365*y)+floor(y/4))-floor(y/100))+floor(y/400))-32045;
-}
+} $timedate_to_julian_day.$sig="FP";
 //
 //?$timedate_to_julian_day({2000,1,1,0,0,0,0,0})
 //?jd2({2000,1,1,0,0,0,0,0})
 //?$timedate_to_julian_day({1500,1,1,0,0,0,0,0})
 //?jd2({1500,1,1,0,0,0,0,0})
-function $julian_day_to_timedate(/*integer*/ jd, /*integer*/ hour, /*integer*/ mins, /*integer*/ secs, /*integer*/ ms) {
+function $julian_day_to_timedate(/*integer*/ jd, hour, mins, secs, /*atom*/ ms) {
 // convert an integer julian day back to {y,m,d} form, and throw in the passed h,m,s
     let /*integer*/ l = jd+68569;
     let /*integer*/ i, j;
@@ -682,7 +686,7 @@ function $julian_day_to_timedate(/*integer*/ jd, /*integer*/ hour, /*integer*/ m
     m = (j+2)-12*l;
     y = (100*(n-49)+i)+l;
     return ["sequence",y,m,d,hour,mins,secs,ms];
-}
+} $julian_day_to_timedate.$sig="FIIIIN";
 
 /*local*/ const $DAY_IN_SECONDS = (24*60)*60; // (=86400)
 function $timedate_to_seconds(/*timedate*/ td) {
@@ -694,9 +698,10 @@ function $timedate_to_seconds(/*timedate*/ td) {
     let /*atom*/ s = ($subse(td,DT_HOUR)*60+$subse(td,DT_MINUTE))*60+$subse(td,DT_SECOND);
     if (compare(length(td),DT_MSEC)>=0) { s += $subse(td,DT_MSEC)/1000; }
     return ($timedate_to_julian_day(td)-2440588)*$DAY_IN_SECONDS+s;
-}
+} $timedate_to_seconds.$sig="FP";
 function $seconds_to_timedate(/*atom*/ seconds) {
-    let /*integer*/ days, minutes, hours, milliseconds;
+    let /*integer*/ days, minutes, hours;
+    let /*atom*/ milliseconds;
 //22/3/18:
 //  days = floor(seconds/$DAY_IN_SECONDS)
     days = floor(seconds/$DAY_IN_SECONDS)+2440588;
@@ -705,21 +710,24 @@ function $seconds_to_timedate(/*atom*/ seconds) {
     seconds -= hours*3600;
     minutes = floor(seconds/60);
     seconds -= minutes*60;
-//15/6/24
+//15/6/24 (for https://rosettacode.org/wiki/Sync_subtitles#Phix undone for 
+//             https://rosettacode.org/wiki/Time_conventions_and_conversions?#Phix ...)
 //  milliseconds = floor((seconds-floor(seconds))*1000)
-    milliseconds = round((seconds-floor(seconds))*1000);
+//  milliseconds = round((seconds-floor(seconds))*1000)
+//  milliseconds = floor(round((seconds-floor(seconds))*10000)/10)
+    milliseconds = round((seconds-floor(seconds))*10000)/10;
     seconds = floor(seconds);
     return $julian_day_to_timedate(days,hours,minutes,seconds,milliseconds);
-}
+} $seconds_to_timedate.$sig="FN";
 
-/*global*/ function adjust_timedate(/*sequence*/ td, /*atom*/ delta) {
+/*global*/ function adjust_timedate(/*sequence*/ td, /*atom*/ delta, /*bool*/ bGregorian=true) {
     let /*integer*/ [,y,m,d] = td, dsrule, tz, stz;
 //15/6/24:
     let /*bool*/ y0m0 = (y===0) && (m===0);
     td = deep_copy(td);
     if (y0m0) {
         td = $repss(td,1,3,["sequence",2024,1,1]); [,y,m,d] = td; }
-    assert(y>=1752,"date prior to introduction of Gregorian calendar");
+    assert((bGregorian===false) || y>=1752,"date prior to introduction of Gregorian calendar");
     if (m<1) {
         while (true) {
             m += 12;
@@ -813,7 +821,7 @@ function $seconds_to_timedate(/*atom*/ seconds) {
 //1/5/24:
     if (ltd<9 && compare(ltd,length(td))<0) { td = $subss(td,1,ltd); }
     return td;
-}
+} adjust_timedate.$sig="FPNI,1";
 
 /*global*/ function set_timezone(/*timedate*/ td, /*string*/ newtz) {
 //
@@ -859,7 +867,7 @@ function $seconds_to_timedate(/*atom*/ seconds) {
     }
     td = $repe(td,$DT_TZ,tz);
     return td;
-}
+} set_timezone.$sig="FPS";
 
 /*global*/ function change_timezone(/*timedate*/ td, /*string*/ newtz) {
 //
@@ -907,7 +915,7 @@ function $seconds_to_timedate(/*atom*/ seconds) {
         td = adjust_timedate(td,hourdelta*3600);
     }
     return td;
-}
+} change_timezone.$sig="FPS";
 const $edescs = ["sequence","literal character mismatch",
                            "unrecognised",
                            "number expected",
@@ -948,7 +956,7 @@ function $nxtch(/*string*/ s, /*integer*/ idx, /*integer*/ ch, /*integer*/ upper
         }
     }
     return true;
-}
+} $nxtch.$sig="FSIIII";
 //Aside:
 // I've put quite a few break statements in the switch constructs, but because the latter are not
 //  declared "with fallthrough", they achieve nothing and represent the default behaviour anyway.
@@ -1103,7 +1111,7 @@ function $next_fmt(/*string*/ fmt, /*integer*/ fmtdx) {
         $ecxtra = $conCat("ch is ", ch);
     }
     return ["sequence",ecode,fmtdx,ftyp,fcase,fsize,ch];
-}
+} $next_fmt.$sig="FSI";
 function $to_space(/*string*/ s) {
 // error messsage helper. shrink s to first space
     for (let i=2, i$lim=length(s); i<=i$lim; i+=1) {
@@ -1114,7 +1122,7 @@ function $to_space(/*string*/ s) {
         }
     }
     return s;
-}
+} $to_space.$sig="FS";
 function $td_get_number(/*string*/ s, /*integer*/ idx, /*integer*/ nsize) {
 // an nsize of 1..3 means 1 or 2 or 3, above that must be exact
     let /*integer*/ ch, n, asize = 1, sidx = idx+1;
@@ -1141,7 +1149,7 @@ function $td_get_number(/*string*/ s, /*integer*/ idx, /*integer*/ nsize) {
         return ["sequence",3,idx,0]; // "number expected"
     }
     return ["sequence",0,sidx,n];
-}
+} $td_get_number.$sig="FSII";
 function $get_any(/*string*/ s, /*integer*/ idx, /*sequence*/ stringset, /*integer*/ ssize, /*integer*/ scase, /*string*/ desc) {
 // ssize can be 2 for $ampm, 3 for an abbreviation, and 4 means full length
     for (let i=1, i$lim=length(stringset); i<=i$lim; i+=1) {
@@ -1167,7 +1175,7 @@ function $get_any(/*string*/ s, /*integer*/ idx, /*sequence*/ stringset, /*integ
     }
     $ecxtra = sprintf(`%s expected in "%s" at position %d, not "%s"`,["sequence",desc,s,idx+1,$to_space($subss(s,idx+1,-1))]);
     return ["sequence",2,idx,0]; // "unrecognised"
-}
+} $get_any.$sig="FSIPIIS";
 function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
 // see parse_date_string()
     let /*integer*/ sdx = 0,  // chars processed in s
@@ -1187,11 +1195,13 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                     hour = 0, 
                     minute = 0, 
                     second = 0, 
-                    msecs = 0,  // (returned in dayofweek)
+//      msecs = 0,  -- (returned in dayofweek)
                     pm = 0,  // 1=am, 2=pm
-                    dayofweek = 0, 
+//      dayofweek = 0,
                     dayofyear = 0, 
                     tz = 0;
+    let /*atom*/ msecs = 0,  // (returned in dayofweek)
+                 dayofweek = 0;
     $ecxtra = 0;
     if (equal(length(fmt),0)) {
         ecode = 9;
@@ -1311,6 +1321,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                         crash("9/0"); // should never happen
                 }
                 if ((ecode===0) && (day<1 || day>31)) { // (more tests below)
+//?{"day",day}
                     ecode = 6;
                 }
                 break;
@@ -1350,10 +1361,17 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                     ecode = 20;
                     break;
                 }
-//              {ecode,sdx,second} = $td_get_number(s,sdx,fsize)
                 [,ecode,sdx,second] = $td_get_number(s,sdx,2);
-                if ((ecode===0) && (second<0 || second>59)) {
-                    ecode = 14;
+                if (ecode===0) {
+                    if (second<0 || second>59) {
+                        ecode = 14;
+//15/10/24 (for https://rosettacode.org/wiki/Time_conventions_and_conversions#Phix )
+                    } else if ((compare(sdx,length(s))<0 && (equal($subse(s,sdx+1),0X2E))) && ((equal(fmtdx,length(fmt))) || (!equal($subse(fmt,fmtdx+1),0X2E)))) {
+                        sdx += 1;
+                        let /*integer*/ wassdx = sdx;
+                        [,ecode,sdx,msecs] = $td_get_number(s,sdx,3);
+                        dayofweek = msecs*power(10,(wassdx-sdx)+3);
+                    }
                 }
                 break;
             case $MSEC:
@@ -1362,6 +1380,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
                     if (msecs<0 || msecs>999) {
                         ecode = 22;
                     } else {
+                        // note: "ms" expects a 3-digit integer 000.999.
                         dayofweek = msecs;
                     }
                 }
@@ -1438,7 +1457,8 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
         ecode = 19;
     }
 //added 20/11/19:
-    if (((((ecode===0) && (year!==0)) && (month!==0)) && (day!==0)) && compare(day,days_in_month(year,month))>0) {
+    if (((((ecode===0) && year>=1752) && (month!==0)) && (day!==0)) && compare(day,days_in_month(year,month))>0) {
+//?{year,month,day,days_in_month(year,month)}
         ecode = 6;
     }
     if (ecode!==0) { return ["sequence",ecode,$subse($edescs,ecode),$ecxtra]; }
@@ -1450,7 +1470,7 @@ function $parse_one(/*string*/ s, /*string*/ fmt, /*integer*/ partial) {
 
     // return matches the result from date(), plus a timezone(/0)
     return ["sequence",year,month,day,hour,minute,second,dayofweek,dayofyear,tz];
-}
+} $parse_one.$sig="FSSI";
 //(local)
 let /*sequence*/ $default_parse_fmts;
 //sequence $default_parse_fmts = {}
@@ -1487,7 +1507,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
         $default_format = $subse(parse_fmts,out_fmt);
     }
     $allow_partial = partial;
-}
+} set_timedate_formats.$sig="PPOI,1";
 
 /*global*/ function parse_date_string(/*string*/ s, /*sequence*/ fmts=$default_parse_fmts, /*integer*/ partial=$allow_partial) {
 //
@@ -1534,7 +1554,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
         if (!equal(length(res),3)) { return res; }
     }
     return res; // fail the lot
-}
+} parse_date_string.$sig="FSPI,1";
 
 /*global*/ function format_timedate(/*timedate*/ td, /*string*/ fmt=$default_format) {
 //
@@ -1588,9 +1608,10 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
                     dayofyear, 
                     minute, 
                     second, 
-                    msecs, 
+//      msecs,
                     tz, 
                     pftyp = -1;
+    let /*atom*/ msecs;
     let /*object*/ x;
     $ecxtra = 0;
     if (equal(length(fmt),0)) {
@@ -1874,7 +1895,7 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
     if (!equal(fmtdx,length(fmt))) { crash("9/0"); } // should never happen
     if (equal(length(res),0)) { crash("9/0"); } // should never happen
     return res;
-}
+} format_timedate.$sig="FPS,1";
 // maybe:
 //global function new_timedate(integer year, integer month, integer day, integer hour=0, integer minute=0, integer seconds=0, integer dow=0, integer doy=0, object tz=0)
 //timedate td
@@ -1929,11 +1950,16 @@ let /*string*/ $default_format = "h:mpm Dddd Mmmm ddth, yyyy";
 /*global*/ function timedate_diff(/*timedate*/ td1, /*timedate*/ td2, /*integer*/ term=0) {
     let /*atom*/ delta = $timedate_to_seconds(td2)-$timedate_to_seconds(td1);
     if (term!==0) {
-        let /*atom*/ tsec = $subse(["sequence",((365.25*24)*60)*60,((30*24)*60)*60,(24*60)*60,60*60,60,1],term);
-        delta = trunc(delta/tsec)*((term===DT_YEAR) ? ((365*24)*60)*60 : tsec);
+        let /*atom*/ tsec = $subse(["sequence",((365.25*24)*60)*60,((30*24)*60)*60,(24*60)*60,60*60,60,1],abs(term));
+        if (term>0) {
+            delta = trunc(delta/tsec)*((term===DT_YEAR) ? ((365*24)*60)*60 : tsec);
+        } else {
+//          delta = trunc(delta/tsec)*iff(term=DT_YEAR?365*24*60*60:tsec)
+            delta = delta/tsec;
+        }
     }
     return delta;
-}
+} timedate_diff.$sig="FPPI,1";
 /* test code:
 include builtins\timedate.e
 

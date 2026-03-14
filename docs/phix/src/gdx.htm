@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">gdx</h1>
+      <h1 class="title">gdx (/m/c/p)</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,10 +13,10 @@
           <b>Definition:</b>
          </td>
          <td>
-            include xpGUI.e
+            include theGUI.e
             <br>
             <br>
-            gdx <i>identifier</i> <small>[= gDialog/gTreeView/...(...)]</small>
+            gdx <i>identifier</i> <small>[= gDialog/gTree/...(...)]</small>
          </td>
         </tr>
         <tr>
@@ -24,26 +24,48 @@
           <b>Description:</b>
          </td>
          <td>
-            Type. A non-negative <a href="integer.htm">integer</a>, being 0/NULL or an integer index into the private control tables of xpGUI,
-            or a flat sequence of them (which may sometimes contain embedded nulls).
+            Type. On desktop/Phix, a non-negative <a href>integer</a>, being 0/<a href>NULL</a> 
+            or a positive integer index into the private control tables of theGUIe, or HtmlElement in theGUI.js, or a flat 
+            <a href>sequence</a> of them (which may sometimes contain embedded nulls).
             <br>
             <br>
             Use this to define interface element variables. It is probably <a href="usingtypes.htm#can">unwise</a> to use this to determine 
             whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', {3,4,5}, {'6'}) may pass, the latter only 
             when 54(==#36=='6') or more interface elements have been defined, it does however check [each element] is a non-negative integer 
-            between zero (inclusive) and the current control table length. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it 
-            is never an inherent error for a variable declared as type gdx to hold such.
+            between zero (inclusive) and the table length, at least on desktop/Phix. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, 
+            but it is never an inherent error for a variable declared as type gdx to hold such.
 <!--
-//          <br>
-//          <a name=gdc></a>
-//          <br>
-//[DEV I might yet ditch <a href="gImage.htm">gImage</a>()...]<br> - erm, I might yet resurrect this...
-//          A <b>gdc</b> is either a single gdx from <a href="gCanvas.htm">gCanvas</a>() <X!X--(but <i>not</i> 
-//          <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a>/<a href="gBox.htm">gSplit</a>)--X>
-//          <X!X--(or therefore <a href="gGraph.htm">gGraph</a>/<a href="gList.htm">gList</a>/<a href="gTable.htm">gTable</a> and suchlike)--X>
-//          or a single (sequence) result from <a href="gImage.htm">gImage</a>(). Note the latter is <b>not</b> an interface element and 
-//          <i>cannot</i> be added to a layout hierarchy. A gdc may not be NULL.
+            <br>
+            <br>
+            CLASSNAME For debugging purposes, and with some caution, you can use <code><a href>string</a> res = <b>gdx_name</b>(id)</code>
+            to obtain a short descriptive string, "Dialog".."TextView", or "Image"/"Pixbuf"/"NULL", but it may return gibberish or crash if 
+            given, say, a routine_id. The version of this in theGUI.js currently simply always returns "gdx_name".
 -->
+
+            <br><a name=gdm></a>
+            <br>
+            Additionally, <small><i>(feel free to fallback to plain integers rather than fret about memorising this lot)</i></small><br>
+            A <b><a href="gImage.htm">gdm</a></b> is a <a href>gImage</a> (not a gdx/odd
+              -ve<small><sup><a href="#negative" onclick="opentech()">1</a></sup></small>).
+              A <b><a href="gImage.htm">gdn</a></b> is the nullable/sequence version of that.<br>
+            A <b><a href="gCanvas.htm">gdc</a></b> is a single <a href>gCanvas</a> (which is a gdx) or gdm (which isn&apos;t).<br>
+            A <b><a href="gPixbuf.htm">gdp</a></b> is a <a href>gPixbuf</a> (not a gdx/even
+              -ve<small><sup><a href="#negative" onclick="opentech()">1</a></sup></small> or a <a href>sequence</a>,
+            designed to support <a href="functions.htm#pbr">automatic pbr</a> in <a href>gPixbuf_from_Pixels</a>).<br>
+            A <b><a href="gCanvas.htm">gcp</a></b> is a gdc(/gdm) or <i>integer</i> gdp.<br>
+            A <b><a href="gCanvas.htm">gcps</a></b> is gdc or (any) gdp, used with assert(not sequence(),"gPixbuf must be theGUI-owned") to better place the error.<br>
+
+            These six additional types are primarily intended for internal/documentation/clarity purposes, but can freely be used anywhere 
+            else they might help. Also, but private, a <b><a href="gGetAttribute.htm">gcx</a></b> is a non-null single gdx or gdm or gdp, 
+            with <b><a href="gSetAttribute.htm">gcxs</a></b> the sequence-able version of that, those two intended only for use within
+            theGUI.e itself <small>(and incidentally <i>no</i> equivalents in theGUI.js)</small>.<br>
+            See the <a href="gPixbuf.htm#fsum">feature summary</a> of gPixbuf, and the <a href="gCanvas.htm#func">gCanvas drawing functions</a> 
+            where these are most used. <!--These are all (solely) designed to improve error detection and clarify the documentation,0--> 
+<!--
+            It should be obvious when/where you need to/could use gdm/n/p and maybe gcp for (single) images and pixbufs, anywhere an application 
+            needs those <i>or</i> gdx should simply fallback to using plain integers.
+-->
+            <br>
          </td>
         </tr>
         <tr>
@@ -53,17 +75,16 @@
          <td>
           Supported, or at least understood by pwa/p2js and mapped to "let /*gdx*/" aka (almost) completely ignored, since JavaScript is a 
           <a href="glossary.htm#typeless">typeless</a> language.
-          As per <a href="usingtypes.htm#can">unwise</a>, xpGUI.js does not even have a fake version, which <i>you should not ever want anyway</i>.<br>
-          Note that on desktop/Phix a gdx is an integer (index to private tables) whereas in JavaScript it is in fact the HtmlElement.<br>
-          Therefore, an application should refrain from printing, comparing (etc) gdx variables, except perhaps during initial debugging.<br>
+          As per <a href="usingtypes.htm#can">unwise</a>, theGUI.js does not even have a fake version, which <i>you should never want anyway</i>.
+          Applications should refrain from test/print of gdx variables, except during debugging on desktop/Phix.<br>
           <small>[Equality tests and find() are in fact fine, but <code>gdxvar1 &lt; gdxvar2</code> and similar are potentially problematical.]</small>
 <!--
             
           A statement such as ?{"clicked",id} might print {"clicked",5} on the desktop but {"clicked","&lt;HtmlElement&gt;"} in a browser,<br>
           however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.
-            <a name=gdxp2jsuse></a>
-          To be blunt, application code has no real business doing much with a gdx other than passing it back to xpGUI, or comparing it for  
-          equality against other known gdx, using = or != or <a href="find.htm">find</a>() and similar, which all work just as they should 
+            <br><a name=gdxp2jsuse></a>
+          To be blunt, application code has no real business doing much with a gdx other than passing it back to theGUI, or comparing it for  
+          equality against other known gdx, using = or != or <a href>find</a>() and similar, which all work just as they should 
           under p2js, but not &lt;[=] or &gt[=], etc. It may also be possible to use a gdx as a key to a <a href="dict.htm">dictionary</a> 
           (for instance) and that will certainly work on desktop/Phix, but unfortunately I simply cannot guarantee that will work consistently 
           on all browsers and/or operating systems, due to the implicit use of &lt; and &gt;.
@@ -79,61 +100,88 @@
           <b>Example:</b>
          </td>
          <td>
+<!--            <small>-->
 <!--eucode>
-include xpGUI.e
-
-gdx quit_bt = gButton("Quit")
+include theGUI.e
+gdx quit_btn = gButton("Quit",gQuit)
 </eucode-->
 <pre>
-<font color="#008080">include</font><font color="#000000"> xpGUI.e
-</font>
-<font color="#7060A8">gdx</font><font color="#000000"> quit_bt</font><font color="#0000FF"> =</font><font color="#7060A8"> gButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">)</font>
+<font color="#008080">include</font><font color="#000000"> theGUI.e</font>
+<font color="#7060A8">gdx</font><font color="#000000"> quit_btn</font><font color="#0000FF"> =</font><font color="#7060A8"> gButton</font><font color="#0000FF">(</font><font color="#008000">"Quit"</font><font color="#0000FF">,</font><font color="#7060A8">gQuit</font><font color="#0000FF">)</font>
 </pre>
+<!--            </small>-->
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
-          <a href="gButton.htm">gButton</a>
-          <a name=tech></a>
+          <a href>gButton</a>,
+          <a href>gQuit</a>
+          <br><a name=tech></a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
           </a>
          </td>
          <td>
-            Note the pGUI distinctions between IupHandl(e|n)[s] have been dropped in favour of crashing when some element/container 
-            cannot be created or attempting to use a NULL or multiple handle[s] inappropriately. One thing in particular is that
+            The pGUI distinctions between IupHandl(e|n)[s] have been dropped in favour of crashing when some element cannot 
+            be created or attempting to use a null or multiple handle[s] inappropriately. One thing in particular is that
             IupG/SetAttribute(NULL,...) being equivalent to IupG/SetGlobal(...) has been completely dropped, in favour of having
             gGet/SetAttribute(NULL,...) immediately crash, since that <i>should</i> help catch a few more silly little slip-ups.
             <br>
             <br>
-            Also it is now a more routine-specific choice as to whether an [embedded] NULL is ignored or invalid, for instance the parent of 
-            a new dialog can be NULL, and gDestroy() [which you might be handling within a try/catch, and initialising things to NULL] skips 
-            any that were not needed or some other failure occurred before they were created, but (eg) gSetAttribute() as just said will crash.
+            It is now a more routine-specific choice as to whether an [embedded] null is ignored or invalid, for instance 
+            the parent of a new dialog can be null, whereas <!--and gDestroy() [say, which does not actually exist yet, and you might be 
+            handling within a try/catch, initialising things to null] could skip any that were not needed or some other failure 
+            occurred before they were created, but--> (eg) <small>[as it should]</small> gSetAttribute() crashes.
             <br>
             <br>
-            Likewise the distinction between Ihandle and Ihandles has also been ditched, but you will for instance get an error should you try
-            to specify more than one parent (and in some cases child) when creating a new interface element.
+            Likewise the distinction between Ihandle and Ihandles has also been ditched, but you will for instance get an error 
+            should you try to specify more than one parent (and in some cases child) when creating a new interface element.
 <!-- why put silly ideas...
 //          <br>
 //          <br>
 //          I could fairly easily be persuaded to (re-)introduce some optional types, and may well quietly do so anyway, such as<br>
 //          &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gFrame, gGetDialog..gGetParent, and gGetAttribute),<br>
-//          &nbsp;&nbsp;gds - must be a sequence (eg gH/Vbox and gTabs), and<br>
+//          &nbsp;&nbsp;gds - must be a <a href>sequence</a> (eg gH/Vbox and gTabs), and<br>
 //          &nbsp;&nbsp;gdn - may contain nulls (no specific internal use springs to mind),<br>
-//          however they would probably be more useful within an application than internally by xpGUI.e, and these documents are
+//          however they would probably be more useful within an application than internally by theGUI.e, and these documents are
 //          probably best kept/easier to digest with just the one single gdx type.
 -->
+            <br>
+            <br>
+            Note that <a href>gDrawImage</a>() and <a href>gDrawText</a>() are 
+            actually defined with gcp canvas rather than the documented gdc, along with <a href="assert.htm">assert</a>(not gdp), 
+            to provide a more helpfully placed runtime error message. Likewise <a href>gDrawLine</a>() 
+            through to <a href>gDrawRect</a>() actually use gcps+assert instead of gcp.
+            <br>
+            <br>
+            Setting variables of any gdm/gdc/gdp/gcp variables to null, non-integer, or (except gdp) sequence triggers a 
+            typecheck error (on desktop/Phix), assuming the compiler doesn&apos;t throw a wobbly first. Of course 
+            <a href>gcd</a>() is something else entirely.
+            <!--, and gdi (instead of gdm) just didn&apos;t sit right with me.-->
+            <br>
+            <br>
+            <a name=negative></a><small><sup><a href="#gdm">1</a></sup></small>
+            Incidentally, gdm/gdp variables are[/can be] negative indices to different private internal tables in theGUI, 
+            and in order to help differentiate between them, at least on desktop/Phix, theGUI makes <br>
+            gdm odd, as -id*2+1 aka -1, -3, -5, .. and using [(-gdm+1)/2] internally, and <br>
+            gdp even, as -id*2 aka -2, -4, -6, .. and using [-gdp/2] internally, or a 2d <a href>sequence</a>. <br>
+            Under pwa/p2js a gdm is a HtmlElement and although a plain -ve would do, integer gdp follow the same convention.<br>
+            A gdp being <a href>integer</a> or <a href>sequence</a> determines ownership by theGUI
+            or the application proper, but in all cases it means precisely one <a href>gPixbuf</a>, not several. 
+            <br>
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
        <br>
        <br>
        <br>

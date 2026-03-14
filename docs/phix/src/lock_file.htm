@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href="integer.htm">integer</a> i1 = lock_file(<a href="integer.htm">integer</a> fn, <a href="integer.htm">integer</a> locktype, <a href="sequence.htm">sequence</a> range)
+         <a href>integer</a> i1 = lock_file(<a href>integer</a> fn, <a href>integer</a> locktype, <a href>sequence</a> range)
          </td>
         </tr>
         <tr>
@@ -30,7 +30,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-          <a href="notpgui.htm"><span class="illegal">Not supported</span></a>.
+          <a href="notp2js.htm#nofileio"><span class="illegal">Not supported</span></a>.
          </td>
         </tr>
         <tr>
@@ -43,16 +43,15 @@
             or writing it. <br>
             Under Linux, there are two types of locks that you can request using the locktype parameter.<br>
             Under Windows the locktype parameter is ignored, but should be an integer.<br>
-            Ask for a <b><i>shared</i></b> lock when you intend to read a file, and you want to 
-            temporarily block other processes from writing it. <br>
-            Ask for an <b><i>exclusive</i></b> lock when you intend to write to a file and you 
-            want to temporarily block other processes from reading or writing it. <br>
+            Use a <b><i>shared</i></b> lock to read a file while blocking other writes. <br>
+            Use an <b><i>exclusive</i></b> lock to write a file while blocking other reads and writes. <br>
             It is ok for many processes to simultaneously have shared locks on the same file, but 
-            only one process can have an exclusive lock, and that can happen only when no other 
+            only one process can have an exclusive lock, and that can only happen when no other 
             process has any kind of lock on the file.
             <br>
             <br>
             The following constants are pre-defined:
+            <br>
 <!--
          </td>
         </tr>
@@ -65,8 +64,8 @@ global constant LOCK_SHARED = 1,
                 LOCK_EXCLUSIVE = 2
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">global constant</font><font color="#004600"> LOCK_SHARED</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, 
-</font><font color="#004600">                LOCK_EXCLUSIVE</font><font color="#0000FF"> =</font><font color="#000000"> 2</font>
+<font color="#008080">global constant</font><font color="#004600"> LOCK_SHARED</font><font color="#0000FF"> =</font><font color="#000000"> 1</font><font color="#0000FF">, </font>
+<font color="#004600">                LOCK_EXCLUSIVE</font><font color="#0000FF"> =</font><font color="#000000"> 2</font>
 </pre>
 <!--
          </td>
@@ -84,10 +83,9 @@ global constant LOCK_SHARED = 1,
             In the current release for Linux, locks always apply to the whole file, and you should specify {} for this parameter.
           <br>
           <br>
-            If it is successful in obtaining the desired lock, lock_file() will return <a href="logicops.htm#tf">true</a> (1), otherwise 
-            <a href="logicops.htm#tf">false</a> (0).<br>
+            If it is successful in obtaining the desired lock, lock_file() will return <a href>true</a> (1), otherwise <a href>false</a> (0).<br>
             lock_file() does not wait for other processes to relinquish their locks. <br>
-            You may have to call it repeatedly before the lock request is granted, possibly with a short <a href="sleep.htm">sleep</a>() between tries.
+            You may have to call it repeatedly before the lock request is granted, possibly with a short <a href>sleep</a>() between tries.
           <br>
           <br>
             On Linux, these locks are called advisory locks, which means they are not enforced by the operating system. <br>
@@ -116,20 +114,18 @@ unlock_file(v, {})
 close(v)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#004080">integer</font><font color="#000000"> v
-</font><font color="#004080">atom</font><font color="#000000"> t
-v</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"visitor_log"</font><font color="#0000FF">,</font><font color="#008000"> "a"</font><font color="#0000FF">) </font><font color="#000080"><i> -- open for append
-</i></font><font color="#000000">t</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()
-</font><font color="#008080">while not</font><font color="#7060A8"> lock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#004600"> LOCK_EXCLUSIVE</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)</font><font color="#008080"> do
-    if</font><font color="#7060A8"> time</font><font color="#0000FF">() &gt;</font><font color="#000000"> t</font><font color="#0000FF"> +</font><font color="#000000"> 60</font><font color="#008080"> then
-</font><font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "One minute already ... I can't wait forever!\n"</font><font color="#0000FF">)
-</font><font color="#7060A8">        abort</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">)
-</font><font color="#008080">    end if
-</font><font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- let other processes run
-</i></font><font color="#008080">end while
-</font><font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#008000"> "Yet another visitor\n"</font><font color="#0000FF">)
-</font><font color="#7060A8">unlock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)
-</font><font color="#7060A8">close</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">)</font>
+<font color="#004080">integer</font><font color="#000000"> v</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font color="#0000FF">(</font><font color="#008000">"visitor_log"</font><font color="#0000FF">,</font><font color="#008000"> "a"</font><font color="#0000FF">) </font><font color="#000080"><i> -- open for append</i></font>
+<font color="#004080">atom</font><font color="#000000"> t</font><font color="#0000FF"> =</font><font color="#7060A8"> time</font><font color="#0000FF">()</font>
+<font color="#008080">while not</font><font color="#7060A8"> lock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#004600"> LOCK_EXCLUSIVE</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)</font><font color="#008080"> do
+    if</font><font color="#7060A8"> time</font><font color="#0000FF">() &gt;</font><font color="#000000"> t</font><font color="#0000FF">+</font><font color="#000000">60</font><font color="#008080"> then</font>
+<font color="#7060A8">        puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000"> "One minute already ... I can&apos;t wait forever!\n"</font><font color="#0000FF">)</font>
+<font color="#7060A8">        abort</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">)</font>
+<font color="#008080">    end if</font>
+<font color="#7060A8">    sleep</font><font color="#0000FF">(</font><font color="#000000">5</font><font color="#0000FF">)</font><font color="#000080"><i> -- let other processes run</i></font>
+<font color="#008080">end while</font>
+<font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#008000"> "Yet another visitor\n"</font><font color="#0000FF">)</font>
+<font color="#7060A8">unlock_file</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">,</font><font color="#800000"> {}</font><font color="#0000FF">)</font>
+<font color="#7060A8">close</font><font color="#0000FF">(</font><font color="#000000">v</font><font color="#0000FF">)</font>
 </pre>
          </td>
         </tr>
@@ -146,13 +142,13 @@ v</font><font color="#0000FF"> =</font><font color="#7060A8"> open</font><font c
           <b>See Also:</b>
          </td>
          <td>
-          <a href="unlock_file.htm">unlock_file</a>,
-          <a href="flush.htm">flush</a>,
-          <a href="sleep.htm">sleep</a>
+          <a href>unlock_file</a>,
+          <a href>flush</a>,
+          <a href>sleep</a>
          </td>
         </tr>
        </table>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

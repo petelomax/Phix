@@ -7,7 +7,8 @@
 
 /*global*/ function log10(/*atom*/ n) {
 //Added 26/9/22:
-    if (integer(n) && n>0) {
+//  if integer(n) and n>0 then
+    if ((n>0 && (n!==n-1)) && (n===floor(n))) {
         // (sadly not quite as efficient as log2)   
         let /*atom*/ t = 1, r = 0;
         while (t<=n) {
@@ -16,12 +17,14 @@
             r += 1;
         }
     }
-    return log(n)*INVLN10;
-}
+//  return log(n) * INVLN10
+    return log(n)*.43429448190325182765;
+} log10.$sig="FN";
 
 /*global*/ function log2(/*atom*/ n) {
 //Added 26/9/22:
-    if ((integer(n) && n>0) && (equal(and_bits(n,n-1),0))) { // "if Kernigans bit counter would yield 1"
+//  if integer(n) and n>0 
+    if (((n>0 && (n!==n-1)) && (n===floor(n))) && (equal(and_bits(n,n-1),0))) { // "if Kernigans bit counter would yield 1"
         // KBC says and_bits(xxx1{0},xxx0{1}) is xxx0{0}, ie
         // least significant set bit is cleared - clever, eh?
         let /*integer*/ t = 1, r = 0; // 2^0==1
@@ -34,4 +37,4 @@
 //</26/9/22>
 //  return log(n) * INVLN2
     return log(n)*1.44269504088896340739;
-}
+} log2.$sig="FN";

@@ -1,0 +1,630 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">theGUI</h1>
+      <div id="mainSection">
+<!--
+        <i><b>*Draft*</b>: in particular expect many pages copied verbatim from the pGUI docs to contain broken/cross links.<br>
+        Pay particular attention to any ? against an attribute as that indicates it has not yet been implemented/tested.</i>
+        <br>
+        <br>
+        xpGUI is the Phix Cross Platform Graphical User Interface.
+-->
+        theGUI is <i>The</i> Hyper Easy Graphical User Interface.
+        <div id="accordion">
+         <ul>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Easy to learn and use - the API was inspired by that of IUP but is even simpler <small>(about four times imo)</small>.
+            </div>
+            <div class="body">
+             <small>
+                At the time of writing theGUI (but not including OpenGL) has just <a href="tgtypes.htm#All">140</a> global constants and 
+                <a href="tgtypes.htm#Alle">105</a> entry points, plus<br>
+                to be fair (but still not including OpenGL) <a href="gSetAttribute.htm#All">114</a> named attributes and 
+                <a href="gSetHandler.htm#All">20</a> named handlers, a combined total of 379,<br>
+                or just 356 if not counting aliases, <!--<i>not</i> expected to grow much],--> which must make it one of the smallest and easiest ever. In comparison:<br>
+                pGUI (which it is intended to replace) has ~450 entry points, 640 global constants, over 70 named handlers <br>
+                and well over 500 named attributes, which makes it about 1,660 in all (w/o OpenGL).<br>
+<!--
+                The only bits I consider missing are <a href="dragndrop.htm">DRAG/DROP</a>, 
+                <a href="IupButton.htm#FLAT">FLAT</a>, <a href="IupText.htm#IupMultiLine">MULTILINE</a>, 
+                <a href="IupText.htm#PASSWORD">PASSWORD</a>, <a href="common.htm#THEME">THEME</a>, and
+                <a href="IupCanvas.htm#TOUCH">TOUCH</a>, <br>
+                which apart from themes can probably be added reasonably easily. I should admit there are no equivalents, as <br>
+                yet, for <a href>IupDial</a>, <a href>IupCalendar</a>, 
+                <a href>IupDetachBox</a>, <a href>IupExpander</a>, 
+                <a href>IupGetParam</a>, <a href>IupGridBox</a>, 
+                <a href>IupMultiBox</a>, <a href>IupScrollBox</a>, <br>
+                <a href>IupLoadImage</a> (bar <a href="gImage.htm#example">xpm</a>), 
+                <a href>IupScintilla</a>, or <a href>IupWebBrowser</a>, 
+                none of which I regard as show-stoppers.<br>
+                I will also claim that <a href>SPACE</a> and <a href>VIEWPORT</a> 
+                are significant improvements over anything available in pGUI/IUP.<br>
+-->
+                The GTK3 dlls contain (I can back this up) <i>at least</i> 21,774 public entry points - and that&apos;s not including any <br>
+                of an equally frankly frightening number of constants, structures, and callbacks (or OpenGL).<br>
+<!--
+                <small>[It amuses me to <i>know</i> that (frinst) a GtkLabel is one of the simpler things in GTK, almost as complicated as the
+                <i>entirety</i> of theGUI,<br>
+                &nbsp;having as it does at least 280 methods, 63 properties, and 18 signals, yet <i>still</i> no coloured background<i>!</i>]</small><br>
+-->
+                The mini.chm I built ages ago from MSDN has 22,451 pages and indexes 12,135 things from WinAPI, no<br>
+                OpenGL, and not all of which is going to be GUI related, though fwiw my gut instincts say maybe around &frac23; is. <br>
+                The JavaScript DOM might actually boil down to something more reasonable, all I can say is that my time in <br>
+                the browser development tools is generally utterly dominated by paging through seemingly <i>endless</i> <br>
+                screenfuls of functions and attributes and nested prototypes on each and every element node.<br>
+                Of course (other search engines/sites exist) googling things and searching StackOverflow is pretty easy, but <br>
+                generally speaking for the most part only <i>after</i> you already know the names of things to look for.<br>
+<!--
+                Not that theGUI has anything like all the bells and whistles of those, you understand, but should [eventually] <br>
+                contain most things you actually need, 
+-->
+                The whole point of theGUI is not so much to be complete, but instead easy to fix and extend. While anything static<br>
+                should be fine, some moving things (esp rotating polygons) may be a tad sluggish, but should improve over time. <br>
+                It may not have all the bells and whistles, however I reject the apparently common premise that a "proper" API <i>must</i> <br>
+                be tortuously complicated and difficult and confusing to make it flexible and powerful. Other libs will no doubt be <br>
+                better at blitzing billions of bits but for boring business basics I am pretty confident this lib and these docs will <br>
+                knock spots off anything similar you have ever seen.
+<!--
+                <br>
+                <br>
+                However there are several things which are specifically <i><b>not</b></i> supported: <br>
+                Alpha blending aka partial transparency: on the list but not a high priority and unlikely any time soon.<br>
+                Backend-specific, eg GTK&apos;s global menus, or anti-utf8 behaviour such as Windows-1252 filenames.<br>
+                Destroy/insert screen elements dynamically - at least for now visible on/off will have to suffice.<br>
+                Drag & drop - not fundamentally opposed, but if you&apos;ve ever read the 6-part catch22 series, which isn&apos;t even <br>
+                slightly cross-platform, you&apos;ll know why I&apos;m saying "not me". I will however implement whatever theEditor needs.<br>
+                Explict x,y control positioning (aka floating) - would simply <i>never</i> work cross-platform/desktop/browser/phone, <br>
+                and besides the nested hierarchy/abstract layout approach turns out in fact to be much easier anyway.<br>
+                Flat buttons with 36 layout options and 4 different ways of padding/spacing - you just do not need all that, ok?<br>
+                Multiline edit fields, apart from anything I can reasonably take from theEditor and make a permanent part of theGUI.<br>
+                Multiple languages or screens, Scintilla and WebBrowser - I&apos;m good, but you do know I&apos;m <i>not</i> God, right?<br>
+                Technically not single instance either, and certainly never p2js-compatible, but demo\theGUI\single_instance.exw <br>
+                is perfectly fine on desktop/Phix, on Windows and Linux, and not exactly difficult to follow anyway.<br>
+                Themes - again not fundamentally opposed, just, and I carefully checked this, not in my job description.
+                <br>
+                <br>
+                I still think it&apos;s worth a quick spin even if one or more of those sounds like a show-stopper, <br>
+                and of course I&apos;m always open to assistance for anything on (or not on) that list.
+-->
+                <br>
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            No reliance on native controls, except for menus, or resorting to the lowest common denominator <small>(WIP)</small>.
+            </div>
+            <div class="body">
+             <small>
+                It seems a slam-dunk decision to use platform-native controls, and in fact the first verion of theGUI did precisely that, 
+                however it turns out to be completely wrong. Of course I fully agree that the user should hardly notice the use of emulated 
+                rather than real controls, but near-perfect emulation is actually much easier than first feared. With native controls you end 
+                up fighting to make them behave consistently and find the lowest common denominator, which all goes away with emulated controls. 
+                Resizing and layout management becomes trivial, in comparison with sending messages to individual controls and watching it 
+                propagate knock-on changes in a completely unwanted fashion. One of the most difficult problems with using native controls was
+                figuring out their exact size and what secret margins they might have, which suddenly ceased to be any kind of issue at all. 
+                Dealing with mouse and keyboard input on emulated controls is surprisingly trivial, at least that is after the one-off cost
+                of making the basic <a href>CLICK</a>, <a href>KEY</a>,
+                <a href>MOUSEMOVE</a>, <a href>MOUSEWHEEL</a>, and (perhaps)
+                <a href>MOUSELEAVE</a> handlers as cross-platform consistent as possible, as opposed to dealing
+                with a plethora of control-specific messages, especially those with poorly documented but critical "high-bits" flags.
+<!--
+                Emulating mouse and keyboard input on an emulated control is also trivial (apart from actually moving the mouse pointer), 
+                as opposed to the complete nightmare it is on native controls, especially when you don&apos;t know the precise {x,y} 
+                to send a mouse message to. 
+-->
+                Still very much a work-in-progress, and admittedly I haven&apos;t yet finished anything with a pop-up, or written my own 
+                versions of <del>hit-tests</del> and focus handling (and perhaps MOUSELEAVE). 
+<!--
+                however there was nothing appropriate for a <a href>gGraph</a> which turned out much easier than first feared, and along with <br>
+                mounting difficulties trying to get the various backends to behave consistently lead me to try a similar approach on <br>
+                <a href>gList</a>, <a href>gTable</a>, <a href>gTree</a>, and then <a href>gTabs</a>,
+                which cemented the deal and I now plan to do the same for all controls.<br>
+                except perhaps <br>
+                for them being slightly better! Using native controls also leads you towards a lowest common denominator: should <br>
+                something not work on say GTK3 the temptation is to disallow it on all other backends, in the name of consistency, <br>
+                but few if any users are going to complain that (for instance) you <i>can</i> put a checkbox on the right of the text, even <br>
+                when they are supposedly (/actually) running on top of GTK.<br>
+                I&apos;ve also done most of the work needed for <a href>gButton</a> and <a href>gText</a>,
+                including the platform-specific display differences, <br>
+                which of course adds some work but it&apos;s still far less than fighting with the natives. Admittedly I haven&apos;t made much <br>
+                of a start on anything else, and nothing with a pop-up. 
+-->
+<!--
+                I could probably do <a href>gMenu</a> as well, but that&apos;s one thing I got <br>
+                working well enough not to bother messing with. 
+-->
+<!--
+                There is another (as yet still potential) benefit: complete control <br>
+                over layout management, especially on GTK. For instance should you want to "rob Peter to pay Paul" in the way a <br>
+                <a href>gSplit</a> does, <small>(and I&apos;ve lined up some proof-of-concepts for that for when things 
+                go fully-emulated)</small> you do not have to deal with a <br>
+                flurry of messages that you have to somehow ignore or even undo once the dust settles. With native controls you <br>
+                have to send each a resize/reposition message individually, which especially on GTK propagates up and down the <br>
+                layout hierarchy immediately, sending a bunch of messages about what it has done between each and often putting <br>
+                things already done out of whack, whereas with emulated controls none of that happens. No attempt, however, has <br>
+                yet been made to draw any of these on another (parent) canvas, or let them have their own independent 
+                <a href>FONT</a> and <br>
+                similar via an (optional) <a href>gImage</a>-like buffer, 
+                which will almost certainly be needed at some point, along with my own <br>
+                versions of hit-tests and focus handling <small>(already got the latter to defeat the GTK garbage, just needs using on WinAPI)</small>.
+--->
+                <br>
+                <br>
+                I don&apos;t normally like advertising vaporware, but it&apos;s clearly the way things are almost inevitably going.
+                <br>
+                <br>
+                If you look in the technicalia of 
+                <a href="gButton.htm#hImages">gButton</a>,
+                <a href="gCalendar.htm#hImages">gCalendar</a>,
+                <a href="gCheckBox.htm#hImages">gCheckBox</a>,
+<!--                <a href="gDatePick.htm#hImages">gDatePick</a>,-->
+                <a href="gDialog.htm#hImages">gDialog</a> (for js only),
+                <a href="gDropDown.htm#hImages">gDropDown</a>,
+                <a href="gMenu.htm#hImages">gMenu</a>,
+                <a href="gSpin.htm#hImages">gSpin</a>,
+                <a href="gTabs.htm#hImages">gTabs</a>, or
+                <a href="gText.htm#hImages">gText</a>,
+                you should see some screenshots of native controls taken to implement their emulation, and you should take those
+                as a guide for what I need for any other look and feel you would like me to try and recreate. In particular I
+                need to be able to zoom in and count pixels and sample their colours, including any hover-effects and the like.
+                Try and avoid jpeg and other lossy image formats that will only serve to distort things, and of course crop to
+                the minimum size, rather than fullscreens that I don&apos;t need or even know where I should be looking.
+                Sometimes you will indeed need to take a fullscreen image and crop it, for instance drop-downs that extend past
+                the window boundary, or that vanish as soon as the Alt key is pressed. Some words along with the pictures will 
+                of course help, but I&apos;m sure you know the age-old adage. I should perhaps note that I&apos;m personally
+                not too keen on wasting time on p(r)etty little animations, that is of the stock-control-element variety, and 
+                have no advice on capturing those micro-second existant images or timings, but I&apos;d try and help someone 
+                else out as best I could.
+                <br>
+                <br>
+                There are several hButton..hTree.exw demos that contain all the things involved, with the latter clocking in 
+                at one and a half thousand lines or so, which is probably the most complicated it gets. 
+                Of course once a control has been emulated on one platform, the next is a fairly straightforward variation on 
+                that, in contrast to reading documentation which is quite often more convoluted for a single control than these 
+                entire [theGUI] docs!
+                <br>
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            With the deepest regret, unfortunately there is at best only very limited support for assistive technologies.
+            </div>
+            <div class="body">
+             <small>
+                My sincere apologies, theGUI applications are unlikely to score well on accessibility, in particular screen readers.<br>
+                Were it a simple matter of registering a callback that could answer queries, I&apos;d be all over it, but it seems it must, <br>
+                on Windows be some full-blown COM object <small>(apparently an IUIAutomationProxyFactory that creates IRawElementProviderSimple <br>
+                interfaces)</small> that would likely take me over a decade to master, what little I&apos;ve read about GTK suggests it may need <br>
+                <a href="gMainLoop.htm#GTK4"><span class="illegal">GTK4</span></a> and even then a GtkAccessible interface that only works 
+                on GtkWidget derived controls, and alas semantic <br>
+                HTML for emulated controls on a single canvas simply isn&apos;t possible. Any actually useful suggestions welcome.
+                <br>
+                <br>
+                OTOH, it should be fairly easy to write (say) theGUI.AT.e which (amongst other things?) logs a focus callback to announce their tips,<br>
+                at least that is by someone who knows what is actually needed/helpful and what system settings should be honoured, and perhaps  <br>
+                when settled make that a permanent part of theGUI.e/js. However it&apos;d be part of the app itself rather than any third party add-on, <br>
+                which means of course even should it end up being better than anything else currently available, it&apos;d likely still "score" a big fat 0/10
+                <br>
+             </small>
+            </div>
+           </div>
+          </li>
+          <li>
+           <div class="panel">
+            <div class="header">
+            Minimal dependencies - requires a working GTK install on Linux, or just a Windows OS, or just a browser.
+            </div>
+            <div class="body">
+             <small>
+                I should probably admit that all development and testing has occurred on Windows 10/11 (plus VirtualBox).<br>
+                I should also say I&apos;m only testing GTK2/3, with <a href="gMainLoop.htm#GTK4"><span class="illegal">GTK4</span></a> 
+                (and prettiness) left as an exercise for someone else.<br>
+                Oh, you do actually need some kind of computing device, and it currently has to have an x86/64 chip inside,<br>
+                though one of the main motivations for starting theGUI was making ARM a worthwhile target for Phix version 2.
+                <br>
+                <br>
+                Currently targets Windows (my main focus is to get that perfect), Linux (via GTK), and a web browser (for the <br>
+                most part, I&apos;m only concerned about single-canvas under p2js). Android/iOS support will (one day) be via PWA <br>
+                (Progressive Web Application) since bundling the slightly-tweaked p2js output with five or so other files is a slam <br>
+                dunk compared to the utter madness that is Java/Kotlin/Flutter/Gradle and the like, plus you <i>can</i> convert a PWA <br>
+                into an APK and (hopefully) upload it to Google Play, the Microsoft Store, or iOS App Store, not that I personally <br>
+                plan on spending any money to prove that can be done.
+<!---
+                APK: There are some very tentative plans to <br>
+                target Java/Android, code name p4a, with similar limitations to p2js, though that will require loads of extra <br>
+                gunk to be installed, in particular since there is no other way to create properly signed apk that I know of, <br>
+                the full Android Studio, gradle, etc. Note that p4a is not expected (at least not by my fair hands) to support <br>
+                <a href>gSplit</a>, <a href>gDatePick</a>, or <a href="gDropdown.htm">gDropdown</a>, 
+                and <a href>gMenu</a> (hamburger-style) is pretty low down on my list, but it should <br>
+                (hopefully) manage everything else, and (eventually, but a long, long way off yet) OpenGL.
+-->
+             </small>
+            </div>
+           </div>
+          </li>
+<!-- maybe, there would be a dozen or so controls that would need everything from focus boxes to tooltips...
+          <li>
+           <div class="panel">
+            <div class="header">
+            Minimal reliance on native controls - a DIY approach turns out to be much easier and delivers precise control.
+            </div>
+            <div class="body">
+             <small>
+                Drops the frankly naive idea that an application will somehow be "better" if it uses native controls.<br>
+                The fear that familiar-looking controls are hard or costly to draw youself turns out to be utterly false.<br>
+                The natural belief that you can get additional functionality for "free" turns out to be utterly false.<br>
+                In practice the cost of re-implementing "free" features is usually less than coping with the hidden costs.<br>
+                The additional power and control you get makes any additional effort required completely worthwhile.<br>
+                For instance element resize under GTK is often useless: you beg/plead before it decides to do something else.<br>
+                The one exception is a canvas: should you ask for say 20x30 then, ta-da, that&apos;s precisely what you get.<br>
+                A <a href>gCanvas</a> already has completely <a href="gCanvas.htm#fakescroll">fake scrollbars</a> 
+                and is already used to implement <a href>gGraph</a>, <a href>gList</a>, 
+                <a href>gTable</a>, and <a href>gTabs</a>, <br>
+                and similar is planned for gButton, gLabel, gMsgBox, and maybe gCheckbox, gProgressBar, gSlider, gSpin, and 
+                gTree, <br>
+                <del>but gDatePick, gDropDown, gText unlikely,</del> and probably not ever gDialog<del>, gMenu, gFrame, and gSplit</del>.<br>
+                The technicalia dropdown in <a href="gTabs.htm#hImages">gTabs</a> depicts some issues native controls inflict.
+             </small>
+            </div>
+           </div>
+          </li>
+-->
+          <li>
+           <div class="panel">
+            <div class="header">
+            Zero build overhead - no additional compiler/toolchain needed, just edit &amp; go.
+            </div>
+            <div class="body">
+             <small>
+                Of course some bugs may be difficult to find/remedy, but if you can edit theGUI source code, you&apos;re done, <br>
+                unless you need the same fix in both theGUI.e and theGUI.js, which is (hopefully) also a pretty trivial step.
+                <br>
+                <br>
+                Note however targetting Java/Android will likely be quite the faff, should that ever become an actual thing.
+             </small>
+            </div>
+           </div>
+          </li>
+<!--
+          <li>
+           <div class="panel">
+            <div class="header">
+            Platform dependent functionality only as steps towards platform independent code.
+            </div>
+            <div class="body">
+             <small>
+                For instance load image from disk &rArr; local constant, to stop the browser throwing stupid CORS errors on localhost.<br>
+                That said, there is no prohibition on and no expectation that you will never need minor platform-specific tweaks.
+             </small>
+            </div>
+           </div>
+          </li>
+-->
+<!--
+          <li>
+           <div class="panel">
+            <div class="header">
+            A picture is worth a thousand words, so they say...
+            </div>
+            <div class="body">
+             <small>
+                Since theGUI is a <i>graphical</i> library, it makes sense to show some <i>pictures</i> of what to expect, like the one just below.
+                <small>(Let me know of any others I should add.)</small><br>
+                To be fair, JavaScript is pretty well served, IUP is not too bad (faring better on the newer IupFlat* controls), but
+                I cannot recall seeing a single image anywhere at all in either the official GTK or WinAPI documentation. Go figure.
+             </small>
+            </div>
+           </div>
+          </li>
+-->
+<!--
+          <li>
+           <div class="panel">
+            <div class="header">
+            Focus on the problem, not the solution.
+            </div>
+            <div class="body">
+             <small>
+                Perhaps there is a bogus argument that making a GUI too easy will mislead someone into thinking that programming is easier than it is,
+                but ultimately a GUI interface is just a means to an end, and less time spent fretting on it means more available elsewhere.
+                Should something need an awful lot of faffing about, at least you are in a position to add/get it added into the core theGUI far easier 
+                than anything else I can think of, not that everything will automatically slip in effortlessly, of course.
+             </small>
+            </div>
+           </div>
+          </li>
+-->
+<!-- hmm, this is known as advertising your failures...
+          <li>
+           <div class="panel">
+            <div class="header">
+            Try as hard as reasonably possible to be a shade less highly opinionated.
+            </div>
+            <div class="body">
+             <small>
+                Such as: proper scrollbars? <i>NO</i>, you want these disappearing/hard to see and difficult to use ones, or <br>
+                up/down arrows? <i>NO</i>, you want these dirty great ugly plus and minus buttons, or<br>
+                26 pixels tall? <i>34</i> pixels, that&apos;s obviously what you meant and the smallest size we do...<br>
+                However some of the extremely arrogant opinions of different backends like that(/of GTK) will no doubt seep through.
+             </small>
+            </div>
+           </div>
+          </li>
+-->
+          <li>
+           <div class="panel">
+            <div class="header">
+            Using a GUI should ideally be perhaps 5% of the effort required to write a (real) program, not over 50%.
+            </div>
+            <div class="body">
+             <small>
+                Nuff said. Of course most trivial demos here such as next, or a <a href>gGraph</a> with static data, are inevitably the full 100%.
+             </small>
+            </div>
+           </div>
+          </li>
+         </ul>
+         <script>
+            initAccordion();
+         </script>
+<!--
+        Lowest common denominator
+        Load image from disk...
+        Example (with image)
+        Status/todo
+        <br>
+        <br>
+        The public API was initially modelled on that of IUP, carefully reworked to lie squarely between the simplest thing that could possibly ever work, 
+        and the easiest possible interface to learn and use. Some may feel it falls a little short in some areas, especially those not absolutely needed, 
+        such as loading images from disk - what little there is tends to be platform-specific and therefore officially unsupported, and instead relying on 
+        informal routines and utilities to get such into data constants that can easily be converted into (or already are) a suitable image format. Any and
+        all such non-cross-platform features should be clearly marked and terminate with a clear no-nonsense message when run on an inappropriate platform.
+        <br>
+        <br>
+        It has deliberately been made as simple as possible, both in use and internal complexity, but without knowingly sacrificing functionality, except 
+        for a few patently single-platform features. It has been designed to be <a href="glossary.htm#failfast">fail fast</a>, so that errors are reported 
+        as soon as and as close as posible to their origin, as opposed to quietly ignoring them and potentially leading to a catastrophic and misleading 
+        error on some completely unrelated later statement. If it can do all I want, and run all the demos on rosettacode, that should be enough (flw). 
+        Not that you really need to know, it uses:<br>
+        * WinAPI on Windows (ie %windir%(System32|SysWOW64)\user32.dll and friends),<br>
+        * GTK on Linux (such as gtk_window_new(), from some already-installed gtk package), and<br>
+        * a hand_crafted pwa/theGUI.js (ie <a href="javascript.htm#createElement">document.createElement</a>() and similar) in a web browser.<br>
+        Incidentally, the "xp" has <i>nothing</i> to do with Windows XP, which I last used well over a decade before starting theGUI,<br>
+        and in fact all development occured on Windows 10 (including various Linux distros in VirtualBox), as did most testing.<br>
+        &nbsp;&nbsp;<small><i>(I might well revert to "pGUI", once the IUP-based original is fully deprecated/outshined in every way...)</i></small><br>
+<X!X-- ? gUI.e ? Nah, I ditched "Gui.e" for a reason... --X>
+        Implemented in demo\theGUI\theGUI.e for desktop/Phix and pwa\theGUI.js for use under pwa/p2js.<br>
+        It is a planned <a href="tgport.htm">replacement for pGUI</a>, specifically to alleviate Linux installation issues more than anything else, <br>
+        and designed to be as simple and intuitive as possible, and hopefully nothing short of an utter joy to use.
+<X!--
+        but easily extendable.<br>
+        Unlike pGUI, theGUI will only contain js-compatible things, and perhaps some non-js pieces I actually need.<br>
+        On Windows, uses the native windows API but can be made to use GTK, for testing purposes only.<br>
+        On Linux, uses GTK and assumes that is already installed, and besides IUP does/did so too anyway.<br>
+        In a browser, uses pwa/theGUI.js which is a laboriously hand-crafted drop-in replacement.<br>
+//      The Windows part is based on Arwen, pGUI.js only needs fairly superficial mods, guess I&apos;ll wing it for GTK<sup><small>1</small></sup>.<br>
+        To avoid confusion, none/few of the Windows API, Arwen, GTK, or IUP-style globals/names are exposed or (re-)used.<br>
+--X>
+<X!X--  <small>(Note that ppGUI.js is currently being used for some delta debugging, with theGUI.js being a
+        modified copy of [parts of] that, and relevant diffs manually maintained as comments)<br></small>   --X>
+        <br>
+        <br>
+//      Conspicuously absent/incomplete items include PADDING, GAP, and <a href>EXPAND</a> attributes for 
+        <a href="tglayout.htm">Layout Management</a>, normalisation, modal popups, single instance and drag/drop handling, 
+//      and a scrollable <a href="gCanvas.htm#PLANNED">gCanvas</a>. 
+        The majority of attributes and callbacks are tagged with a '?' indicating their incomplete/untested status. <br>
+        No work at all on <a href="opengl.htm">OpenGL/WebGL</a> has even started, either.<br>
+        That said, I&apos;m pretty pleased with the state of the mini <a href="tgelements.htm">gallery of element screenshots</a> which gives a 
+        nice though possibly slightly optimistic overview.
+        <br>
+        <br>
+        Of course, you can ask me (nicely) to improve something, but being fully open source with no setup or packaging issues, <br>
+        there should be no real barrier to do so yourself. Also, with not one or two but three examples of how to do everything, <br>
+        it should be as straightforward as possible to squidge in any other back-end you can think of. Bear in mind, however, that<br>
+        especially on the <a href="tglayout.htm">layout management</a> side of things, I&apos;ve largely gone with "do what GTK does" 
+        and you may hit problems <br>should the underlying mechanisms for that be simply too different.
+        <br>
+        <br>
+        Layout and positioning use a <a href="tglayout.htm#BoxModel">box model</a>, primarily for compatibility with JavaScript.<br>
+        Elements can be resized or hidden/shown at will, however there really is very little benefit to letting a programmer transmogrify <br>
+        a possibly quite complex nested hierarchy in sudden and unexpected ways, hence theGUI simply foregoes all of that kind of thing.<br>
+        That may mean, for example, you need to define a layout with both a top and side menu, but only one showing at any given time.<br>
+        Uses an attribute system (as per/nicked from IUP) to further keep the API nice and simple.
+        <br>
+        <br>
+        <a href="tgtypes.htm">Types</a>: theGUI uses a pretty minimal set of types, plus the odd helper utility<br>
+        <a href="tgattr.htm">Attributes</a>: attributes control and configure almost everything in theGUI<br>
+        <a href="tgcontainers.htm">Containers</a>: parent interface elements supported in theGUI<br>
+        <a href="tgelements.htm">Elements</a>: child interface elements supported in theGUI<br>
+        <a href="tgctrl.htm">Control</a>: startup, shutdown, and everything inbetween<br>
+        <a href="opengl.htm">OpenGL/WebGL</a>: for rendering 2D and 3D vector graphics<br>
+        <a href="tgport.htm">porting from pGUI</a>: a brief guide<br>
+-->
+        <h3 style="margin-bottom: 0;">Example</h3>
+          <div style="float:left; padding: 0 0 0 20px;">
+            <small>
+<!--eucode>
+include theGUI.e   -- demo\theGUI\gLabel.exw
+gdx lbl = gLabel(`This is a label`),
+    hbx = gHbox({lbl},`SPACE=AROUND`),
+    dlg = gDialog(hbx,`gLabel`,`SIZE=240x80`)
+gMainLoop(dlg)
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> theGUI.e  </font><font color="#000080"><i> -- demo\theGUI\gLabel.exw</i></font>
+<font color="#7060A8">gdx</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#7060A8"> gLabel</font><font color="#0000FF">(</font><font color="#008000">`This is a label`</font><font color="#0000FF">),</font>
+<font color="#000000">    hbx</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">lbl</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">`SPACE=AROUND`</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">hbx</font><font color="#0000FF">,</font><font color="#008000">`gLabel`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
+</pre>
+            </small>
+          </div>
+          <div style="float:right; padding: 02px 80px 0 0;">
+            <img alt="gLabel" src="images/gLabel.png" width="240" height="80"/>
+          </div>
+          <div class="clear"></div>
+
+        For the whirlwind aerial tour, visit <a href="tgelements.htm">Elements</a> and click on each of the twenty-one images to see the code that made it.<br>
+        You should also be able to run Phix\pdemo.exw (currently still pGUI), filter on theGUI.e, and run each of the examples that shows.<br>
+        Also try demo\Edix\theEditor.exw <small>(very much an empty shell in which I plan to start sharing as much gui-agnostic Edita code as I can)</small>.
+
+        <h3>Roadmap / todo</h3>
+
+<!--        The layout manager - needs to be done in baby steps would be the understatement of the year.<br>-->
+<!--
+        The all-important layout manager has finally gurgled into life, but probably still needs quite a bit of finessing, esp margins, gaps, etc.<br>
+        All element sizes must be known/stored pixel-perfect, even/esp when they differ between the different backends (bugs can be hard to spot).<br>
+-->
+<!--        Last few elements: <a href>gImage</a> variants...<br> -->
+<!--
+        All attributes with a ? next to them still need actually implementing or at least thorough testing.<br>
+        Anything with ?? next to it means "" and/or that documentation entry may yet need completely rewriting.<br>
+        I still regularly break things, but at least that is significantly improving my delta debugging skills.<br>
+        demo\theGUI\scroller.exw uses 100% fake scrollbars, similar may be needed elsewhere to overcome (eg) GTK obstinacy.<br>
+-->
+        <!--so you might want to try including theGUI[2|3].e in some of the examples.<br>-->
+<!-- DONE, [!!!] see SCROLLSIZE and VIEWPORT.
+        Scrollable canvas: Consider the following four ways to create (/specify sizes on) a trivial dialog with just a canvas:
+        <ul>
+        <li>gDialog(gCanvas()) - silly small size of no practical use, and no-one should care.</li>
+        <li>gDialog(gCanvas(),"SIZE=100x100") - canvas automatically fills/shrinks to fit.</li>
+        <li>gDialog(gCanvas("SIZE=100x100,EXPAND=NO")) - fixed size canvas, dialog initially large enough (within reason).</li>
+        <li>gDialog(gCanvas("SIZE=400x400,EXPAND=NO"),"SIZE=100x100") - fixed size canvas, initially with scrollbars.</li>
+        </ul>   
+        Similar behaviour should occur when the canvas is a <a href="tglayout.htm#SoleChild">sole child</a>, especially of gTabs 
+        and gFrame, or its siblings are fixed size.<br>
+//      The REDRAW handler needs to know/honour when top left is {0,0} or something else (or maybe paint all would be ok).<br> [VIEWPORT!!]
+        The file demo\theGUI\scrolla.exw contains a win32-only version of the sort of thing I&apos;m after [similar for GTK/JS rqd].<br>
+-->
+<!--
+        Add <a href>SCROLLSIZE</a> and <a href>VIEWPORT</a> handling to <del><a href>gList</a>
+        and</del> <a href>gTable</a> (fully automatic), and possibly <a href>gGraph</a> (when explicitly set).<br>
+-->
+<!--        Some brave soul might fancy chancing their arm at using <a href="hh_xlib.htm">xlib</a> as a backend, but not me!<br>-->
+
+<!--        <h3>Immediate plans</h3>-->
+        <ul>
+<!--        <li>gSplit: do roughly what I did for scroller.exw, ie implement locally then transfer the code (eg backup.0002\scroller.7724(..8135).exw)</li>-->
+<!--        <li>getting EXPAND/SPACE to do anything at all in demo\theGUI\gH(|V)box might be nice.</li> FIXED!! -->
+<!--        <li><a href>gDatePick</a>: write a (simple) hll version for GTK, initially in demo\theGUI\gDatePick.exw.</li> [DONE, 27/9/24] -->
+<!--        <li><a href>gList</a>: mouse/keyboard handling[!-- (might do that in theEditor)--]</li>-->
+<!--
+        <li><a href>gTable</a>: mouse/keyboard handling, and probably needs to be made more like the gList API</li>
+-->
+        <li>Current focus is on replacing all the "native" controls with canvas-based ones <small>(as per second point above)</small>.</li>
+        <!--, and that way finally put an end to the ridiculous resize shouting matches and the like with the underlying API.-->
+<!-- (may still be some niggles, but at least I've cleaned up the docs...)
+        <li>Sort out the mess I made of gGetTextExtent(/GTK3)...</li>
+-->
+        <li><a href>gTabs</a>: insert/delete/swap tabs (might now be trivial, needed for theEditor)</li>
+<!--        <li><a href="gTree.htm">gTree<del>View</del></a>: allow "no icons", and/or app-provided ones (wip)</li>-->
+<!--        <li>"" (et al) almost certainly also needs some further fixes to the layout manager.</li>-->
+        <li>get <a href>SCROLLSIZE</a> (etc) working in a browser <small>(hTable/h_scrollbars.e seems the way forward)</small>.</li>
+        <li>port every existing pGUI example to theGUI, and of course get all that can working in a browser.</li>
+        <li>Work on integrating with OpenGL not started at all, but hopefully that should prove reasonably superficial.</li>
+        <li>Speaking of integrating, pdemo should probably also allow open in p2js, or via that in browser <small>(as well as desktop/Phix)</small>.</li>
+        <li>theGUI.js is always likely to lag behind theGUI.e: in my experience desktop-&gt;browser is <i>far</i> easier than browser-first.</li>
+        <li>Ultimately, this paves the way for Phix on ARM, since with no viable GUI that would be pretty pointless.</li>
+<!--    <li>xpLaura: ha ha</li> -->
+<!--    <li>pHelp.. </li> -->
+<!--
+        <li>log api calls/unit testing - g_proc/g_func?</li>
+        <li>rewriting <a href>gDrawArc</a>() with similar innards to <a href>gDrawPolygon</a>()
+            for WinAPI is a tedious but necessary chore.</li>
+-->
+        </ul>
+<!--
+//      <sup><small>1</small></sup> Help welcome, and/or better (non-heredoc) GTK documentation.
+//      <small><sup><small>1<small></sup> Forgive me for saying this, but the GTK documentation is by far the worst 
+        I have ever seen in my entire life.<br>
+        The GTK documentation has zero meaningful structure; every routine is independently defined with almost no 
+        cross-references whatsoever, and all in segregated implementation "units" without any explanation.<br>
+        Every page has a tempting search box, that bluntly rejects anything in the wrong "unit". <br>
+        Of course there are without doubt many sound reasons for breaking something like that down into multiple
+        implementation units, but there is no excuse for ramming that irrelevant technical detail into the face of
+        every single person that uses the finished product or tries to navigate around the documentation, apart 
+        from the almost inevitable bipolar "but di-docgen is just <i>so</i> cool, and <i>entirely</i> to blame".<br>
+        I am certainly thankful that google exists.. and in fact I have resorted to Dependency Walker just to get 
+        a list of the available functions, and it is quite something that running that 12 times is way easier than 
+        navigating the official help documents!! <br>
+        Either you know the name of the function needed, or if you don&apos;t, why <i>should</i> the docs bother to help??<br>
+        Of course I am aware of the difficulties and similar deficiencies in my own docs, but absolutely refusing to even
+        acknowledge there is a problem frankly just astonishes me.</small>
+-->
+        <h3>Licence</h3>
+        As stated in the <a href="licence.htm">introduction</a>. You may freely use theGUI in an otherwise closed source commercial 
+        proprietary application, but any modifications, bugfixes, and enhancements to theGUI itself must be made public - besides
+        you probably would not want to have to manually re-apply any such changes to every new release.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

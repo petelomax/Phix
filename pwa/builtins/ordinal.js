@@ -17,7 +17,7 @@
     if ((r<=0 || r>4) || (equal(remainder(n,100),r+9))) { r = 1; }
     let /*string*/ res = $subse(["sequence","th","st","nd","rd"],r);
     return res;
-}
+} ord.$sig="FN";
 let /*integer*/ $oinit = false;
 let /*sequence*/ $twenties, $decades, $orders, $irregs, $ordinals;
 
@@ -45,15 +45,15 @@ Vigintillion        10^63
     $orders = ["sequence",["sequence",power(10,15),"quadrillion"],["sequence",power(10,12),"trillion"],["sequence",power(10,9),"billion"],["sequence",power(10,6),"million"],["sequence",power(10,3),"thousand"]];
     [,$irregs,$ordinals] = columnize(["sequence",["sequence","one","first"],["sequence","two","second"],["sequence","three","third"],["sequence","five","fifth"],["sequence","eight","eighth"],["sequence","nine","ninth"],["sequence","twelve","twelfth"]]);
     $oinit = true;
-}
+} $inito.$sig="P";
 
 /*local*/ function $twenty(/*integer*/ n) {
     return $subse($twenties,mod(n,20)+1);
-}
+} $twenty.$sig="FI";
 
 /*local*/ function $decade(/*integer*/ n) {
     return $subse($decades,mod(n,10)-1);
-}
+} $decade.$sig="FI";
 
 /*local*/ function $hundred(/*integer*/ n) {
     if (n<20) {
@@ -62,7 +62,7 @@ Vigintillion        10^63
         return $decade(mod(floor(n/10),10));
     }
     return $conCat($conCat($decade(floor(n/10)), 0X2D), $twenty(mod(n,10)));
-}
+} $hundred.$sig="FI";
 
 /*local*/ function $thousand(/*integer*/ n, /*string*/ withand) {
     // (aside: p2js.exw/insert_dollars() 
@@ -74,7 +74,7 @@ Vigintillion        10^63
         return $conCat($conCat(withand, $twenty(floor(n/100))), sphun);
     }
     return $conCat($conCat($conCat($twenty(floor(n/100)), sphun), " and "), $hundred(mod(n,100)));
-}
+} $thousand.$sig="FIS";
 
 /*local*/ function $triplet(/*atom*/ n) {
     let /*atom*/ order, high, low;
@@ -112,7 +112,7 @@ Vigintillion        10^63
         }
     }
     return res;
-}
+} $triplet.$sig="FN";
 
 /*local*/ function $spell(/*atom*/ n) {
     let /*string*/ res = "";
@@ -122,7 +122,7 @@ Vigintillion        10^63
     }
     res = $conCat(res, $triplet(n), false);
     return res;
-}
+} $spell.$sig="FN";
 
 /*global*/ function ordinal(/*atom*/ n, /*bool*/ bJustSpell=false) {
     if (!$oinit) { $inito(); }
@@ -144,7 +144,7 @@ Vigintillion        10^63
         }
     }
     return s;
-}
+} ordinal.$sig="FNI,1";
 
 /*global*/ function ordinant(/*atom*/ n) {
     // returns never, [minus] once, twice, or n,nnn times.
@@ -157,4 +157,4 @@ Vigintillion        10^63
     } else { res = $conCat(res, $conCat(ordinal(n,true), " times"), false);
     }
     return res;
-}
+} ordinant.$sig="FN";

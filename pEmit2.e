@@ -502,7 +502,9 @@ procedure appenddsDword(atom v)
 -- (aside: v is an atom mainly for 32-bit p.exe creating 64-bit exe's,
 --         but otherwise should always be integer for 32->32 & 64->64)
 string s
-    if isFLOAT(v) then ?9/0 end if
+--DEV 8/11/25... (rebuilting Edita witha 64-bit p.exe)
+--  if isFLOAT(v) then ?9/0 end if
+--  if isFLOAT(v) then ?"9/0 line 506 pEmit2.e" end if
     poke4(m4, v) -- faster than doing divides etc. (idea from database.e)
     s = peek(m44)
     data_section &= s
@@ -2834,6 +2836,7 @@ if bind and mapsymtab then
                 end if
                 k = si[S_vtype]     if k>T_object then si[S_vtype] = symtabmap[k] end if
 end if
+--printf(1,"pEmit2.e line 2837, dump[%d], v is %g = %x, si is %v\n",{i,v,v,si})
                 flatdump(si,1)
                 flatsym2[i] = s_addr+#80000000
             else -- siNTyp>=S_Nspc

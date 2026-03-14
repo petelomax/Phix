@@ -6,28 +6,46 @@
      <stripped>
       <h1 class="title">unit_test</h1>
       <div id="mainSection">
-        The file builtins/unit_test.e (an autoinclude) implements a simple unit testing framework for Phix.
+        The file builtins\unit_test.e (an autoinclude) implements a simple unit testing framework for Phix.
         <br>
         <br>
-        Unit testing should be a vital weapon in any half-decent programmer&rsquo;s arsenal, and can be key to a
-        <a href="glossary.htm#failfast">fail fast</a> approach.<br>
+        Unit testing should be a vital weapon in any half-decent programmer&apos;s arsenal.<br>
         It should be just as easy to write a (permanent) unit test as it is to perform that test (once) manually.
         <br>
         <br>
-        The theory is simply that if all the components of a system are working correctly, then there is a much
-        higher probability that a system using those components can be made to work correctly. I might also add
-        that debugging a component in isolation is much easier than leaving it until everything else is ready.
+        The theory is simply that if all the components of a system are working correctly, there is a much higher 
+        probability that a system using those components can be made to work correctly. I might also add that 
+        debugging a component in isolation is often much easier than leaving it until everything else is ready.
+        Admittedly the scariest/trickiest bugs are good components stitched together incorrectly, alas I 
+        can&apos;t help you there.
+        <br>
+        <br>
+        While a strict <a href="glossary.htm#failfast">fail fast</a> approach is sometimes better served via
+        <a href>assert</a>[eq](), one of the key goals of a unit test suite is to allow work
+        to continue on the matter at hand even when it introduces issues in dependent components, whereas using
+        asserts forces immediate rectification. That said, if any error is going to actually be <i>in</i> the
+        thing you are currently working on, asserts may be the more logical choice, and besides you could always
+        temporarily replace a troublesome one with (say) ?"fixme line 1173". Note that I would still consider 
+        asserts to be "unit tests" even though they are not using this specific component.
         <br>
         <br>
         Unit tests not only completely eliminate an otherwise extremely tedious phase of the release cycle, but also 
         grant the confidence to make changes that could instead be just far too frightening to even contemplate. 
         I can tell you with absolute certainty and utter seriousness that the phix compiler simply could not have 
-        been written without the help of unit testing, full stop. <br>
+        been written without the help of unit testing, full stop. 
         While they do not actually use these routines, a quick scan of any of the sixty-odd tests\tnn***.exw files 
         (which predate this) will reveal plenty of opportunities for using test_equal() and friends. <br>
         If I have to spend five or twenty-five minutes crafting the perfect test, and then never have to worry about 
         it ever again, for me that sounds like an absolute bargain and a long-term timesaver that will repay that
         effort many times over in the months and years to come.
+        <br>
+        <br>
+        Personally, I don&apos;t believe in pedantically adding pointless unit tests to every tiny little corner of 
+        a system, but whenever you fix a bug that got out the door or <i>somehow</i> laid dormant for months or years,
+        then it is indefensible not to add a line or two that ensures that same bug <i>never</i> resurfaces again.
+        Likewise shortly after implementing something takes longer than initially expected is the perfect time to
+        quickly prove you got it right, and ensure you never have to return to that tricky bit of code wondering
+        which recent-ish change has triggered a bug/actually exercises that path for the first time in history.
         <br>
         <br>
         These routines are fully supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>,
@@ -36,7 +54,7 @@
         routines, with some (GUI-based) means of kicking off the "after" part, probably however needing some new
         and as yet unwritted "get_test_results" routine to explicitly enable/disable some buttons and hide/show
         some messages. The (un-paused) message displays do however all work just fine, and any program that uses
-        these routines with 100% [hidden] success rates probably won&rsquo;t need any modification at all.
+        these routines with 100% [hidden] success rates probably won&apos;t need any modification at all.
        <br>
        <h3>Example:</h3>
        <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
@@ -60,22 +78,21 @@ test_summary()
          </div>
         </div>
        </div>
-        <br>
-        If all goes well, no output is shown, and the program carries on normally. 
+        If all goes well, no output is shown, and the program carries on normally. <br>
         You can easily force [summary/verbose] output, crash/prompt on fail, etc.
         <br>
         <br>
-        Note that I have used many of the same routine names as Euphoria, but the parameters are
-        all different [esp their order] and therefore they are not compatibile...<br>
-         In particular you have to give every test a name in Euphoria, whereas here
-         such things are optional. Also, Euphoria works by putting tests in files
-         named "t_*" and running eutest, whereas here they are part of the app, and
-         will start failing on live systems (eg) if not properly installed.
+        <b>NB</b> uses many of the same names as Euphoria, but different parameters [esp order] 
+        and therefore incompatibile...<br>
+        In particular you have to give every test a name in Euphoria, whereas here
+        such things are optional. Also, Euphoria works by putting tests in files
+        named "t_*" and running eutest, whereas here they are part of the app, and
+        will start failing on live systems (eg) when not properly installed.
 <!--
          [If you want unit tests to "go away" in production releases, you just need
           eg "global constant UNIT_TESTS = false" and litter "if UNIT_TESTS then"
           throughout your code, and maybe something along similar lines to the way
-          that docs/phix/makephix.exw/readtoc() verifies that pglobals.e matches 
+          that docs\phix\makephix.exw/readtoc() verifies that pglobals.e matches 
           banner.htm, but in your standard build script (assuming you have one).  ]
 -->
 <!--
@@ -108,7 +125,7 @@ test_summary()
           dl {margin:0;padding:0;}
           dt {margin:0;padding:0;}
           dd {margin:0;padding:0;}
-          dd.pad {padding-left:12em;}
+          dd.pad {padding-left:1em;}
         </style>
         <div id="nopad" class="nopad" align="left">
          <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
@@ -205,9 +222,9 @@ test_summary()
             abort_test: TEST_ABORT/TEST_QUIET/TEST_CRASH as follows
             <br>
             <br>
-            if TEST_ABORT then <a href="abort.htm">abort</a>(1) on failure, after showing the summary,<br>
+            if TEST_ABORT then <a href>abort</a>(1) on failure, after showing the summary,<br>
             if TEST_QUIET then quietly carry on (the default), <br>
-            if TEST_CRASH then <a href="crash.htm">crash</a>("unit test failure (name)"), immediately.<br>
+            if TEST_CRASH then <a href>crash</a>("unit test failure (name)"), immediately.<br>
             You may, of course, change this at will for critical and not-so-critical tests or test sections/modules.<br>
             <br>
             The default setting of TEST_QUIET makes unit test failures a gentle but persistent reminder.<br>
@@ -248,9 +265,9 @@ test_summary()
             if TEST_PAUSE_FAIL pause on failure (the default).<br>
             You can use integer to_wait = <b>get_test_pause</b>() to retrieve the current setting.<br>
             Under <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a> the module
-            always behaves as TEST_QUIET and invoking routine this has no effect whatsoever, since 
+            always behaves as TEST_QUIET and invoking this routine has no effect whatsoever, since 
             there is no way to pause JavaScript execution for keyboard input (doing so would be at
-            odds with the underlying browser&rsquo;s [gui] event loop), not that it should be particularly
+            odds with the underlying browser [gui] event loop), not that it should be particularly
             difficult to restructure some console-based code into something more GUI-friendly.
             </dd></dl>
             <br>
@@ -284,7 +301,7 @@ test_summary()
             <br>
             name: the test section name<br>
             <br>
-            The section/module name is simply a hint to the programmer about where to go to 
+            The section/module name is a simple hint of where to go to 
             fix some problem just introduced/detected, eg after
             <br>
             <br>
@@ -315,21 +332,17 @@ test_summary()
          20 tests run, 19 passed, 1 failed, 95% success
  </pre>
             <br>
-            then you know to look for the "test12" test in the relational section.
-            When required, test_summary(false) is automatically invoked by set_test_module(), and 
-            you must invoke test_summary() at the end, or risk getting no output whatsoever.<br>
-            Just for my sanity, <b>set_test_section</b>() is an alias of set_test_module() (in
-            psym.e) and therefore obviously behaves absolutely identically.<br>
-            Obviously you are free to use any appropriate section names, and if
-            you never invoke set_test_module() they are all lumped in together.<br>
-            Likewise it is perfectly fine if you cannot be bothered to name the individual tests, 
-            just potentially a bit more of a hunt should they trigger.
+            then you know to look for the "test12" test in the relational section. When required, test_summary(false) is automatically invoked by 
+            set_test_module(), and you must invoke test_summary() at the end, or risk getting no output whatsoever.<br>
+            Just for my sanity, <b>set_test_section</b>() is (in psym.e) an identically-behaving alias of set_test_module().<br>
+            Obviously you may use any appropriate section names, and never invoking set_test_module() simply lumps them all together.<br>
+            Likewise not naming individual tests is perfectly fine, just potentially a bit more of a hunt should they trigger.
             <br>
             <br>
-            Suppose you have set_test_module("pGUI:paranormalise") - not actually using these routines but you can find a nice little unit test set 
-            there - I suggest you terminate it with set_test_module("pGUI:paranormalise ends"). Now, if there are no unit tests before the next call
+            Suppose you have set_test_module("theGUI:paranormalise") - not actually using these routines but you can find a nice little unit test set 
+            there - I suggest you terminate it with set_test_module("theGUI:paranormalise ends"). Now, if there are no unit tests before the next call
             to set_test_module() [or test_summary()] then the "xxx ends" remains empty and is quietly ignored. Should anything land in such, then it
-            is someone else&rsquo;s problem for not invoking set_test_module() before starting their tests.
+            is someone else&apos;s problem for not invoking set_test_module() before starting their tests.
 <!--
             If this routine is not called, all output is lumped together<br>
             &nbsp;(and likewise unique names for every individual test are also optional).<br>
@@ -345,8 +358,8 @@ test_summary()
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>test_equal</b>(object a, b, string name="", [sequence args={},]
-                                           bool_or_string bApprox=<a href="logicops.htm#tf">false</a><small><i>,
-                                           bool eq=<a href="logicops.htm#tf">true</a></i></small>)
+                                           bool_or_string bApprox=<a href>false</a><small><i>,
+                                           bool eq=<a href>true</a></i></small>)
             </dt><dd class="pad">
             <br>
             test two values for (approximate) equality
@@ -354,17 +367,17 @@ test_summary()
             <br>
             a, b: the two values which should be equal.<br>
             name: the test name (optional).<br>
-            args: (optional) if not sequence-but-not-string params[5..6] := params[4..5], iyswim, otherwise
-                             if not {} a name=sprintf(name,args) is performed.<br>
+            args: (optional, see <a href="g_paranormal.htm">paranormalisation</a>), triggers 
+                    name=<a href>sprintf</a>(name,args) when present.<br>
             bApprox: use approximate equality, see below (optional).<br>
-            <small><i>eq: for internal use only: <a href="logicops.htm#tf">true</a> means it is test_equal() rather 
+            <small><i>eq: for internal use only: <a href>true</a> means it is test_equal() rather 
             than test_not_equal(), and vice versa.</i></small><br>
 <!--
-            <small>&nbsp;<i>&nbsp;(Ignore that without a matching shim, and you&rsquo;ll mess up the crash(nFrames) handling.)</i></small><br>
+            <small>&nbsp;<i>&nbsp;(Ignore that without a matching shim, and you&apos;ll mess up the crash(nFrames) handling.)</i></small><br>
 -->
             <br>
             When bApprox is false, everything must match exactly (the default). A value of true is the same as "%g", and other
-            <a href="sprintf.htm">sprintf</a>() format strings such as "%5.2f" can be specified, in which case it uses a recursive/nested
+            <a href>sprintf</a>() format strings such as "%5.2f" can be specified, in which case it uses a recursive/nested
             <code>(a==b) or (sprintf(fmt,a)==sprintf(fmt,b))</code> test, in other words the sprintf() are only triggered when actually 
             needed and only apply to pairs of atoms in the same place/depth in (as yet at least) identical shapes/structures.
 <!-- (leave it out!)
@@ -376,7 +389,7 @@ test_summary()
 -->
 <!-- (erm, I might pull this...)
             While for compatibility reasons "abc" and {'a','b','c'} are usually equivalent, that is deemed inappropriate here and any 
-            strings in either of a and b must also be strings in the other, so those <i>won&rsquo;t</i> match.<br>
+            strings in either of a and b must also be strings in the other, so those <i>won&apos;t</i> match.<br>
             Should something fail that you think should pass, or perhaps vice versa, your best bet is probably to write your own close_enough() 
             or approximately_equal() routine and pass the result of that to test_true(), or perhaps test_false(). 
             I will consider incorporating any such code posted (and discussed/debated over) on euforum into the next release. 
@@ -409,11 +422,11 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
           </td></tr>
           <tr><td align="right" style="padding: 0; border-style: none;">
            <a name=test_not_equal></a>
-            <i>procedure&nbsp;</i>
+            <nobr><i>procedure&nbsp;</i></nobr>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
             <b>test_not_equal</b>(object a, b, string name="", [sequence args={},]
-                                               bool_or_string bApprox=<a href="logicops.htm#tf">false</a><small><i>) -- test two values for inequality
+                                               bool_or_string bApprox=<a href>false</a><small><i>) -- test two values for inequality
             </dt><dd class="pad">
             <br>
             a, b: the two values which should <i>not</i> be (approximately) equal.<br>
@@ -430,9 +443,9 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <b>test_true</b>(bool success, string name="", sequence args={}) -- test something is true
             </dt><dd class="pad">
             <br>
-            success: a value which should be <a href="logicops.htm#tf">true</a><br>
+            success: a value which should be <a href>true</a><br>
             name: the test name (optional but recommended)<br>
-            args: if not {}, name=sprintf(name,args) is performed<br>
+            args: if not {}, name=<a href>sprintf</a>(name,args) is performed<br>
             <br>
             Unless set_test_abort(TEST_CRASH) is in force, omitting the name may make it harder to identify the failing test, 
             although when there are only a few tests [in a section/module], that is unlikely to be a significant issue.<br>
@@ -491,7 +504,7 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             <i>procedure&nbsp;</i>
           </td><td align="left" style="padding: 0; border-style: none;">
             <dl><dt>
-            <b>test_summary</b>(<small><i>bool close_log=<a href="logicops.htm#tf">true</a></i></small>) -- show test summary (if appropriate)
+            <b>test_summary</b>(<small><i>bool close_log=<a href>true</a></i></small>) -- show test summary (if appropriate)
             </dt><dd class="pad">
             <br>
             <small><i>close_log: do not provide/for internal use: allows set_test_module() to keep any log file open.</i></small><br>
@@ -505,6 +518,39 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
             </dd></dl>
             <br>
           </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=get_tests_failed></a>
+            <nobr><i>integer n = &nbsp;</i></nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>get_tests_failed</b>() -- 0 if none have
+            </dt><dd class="pad">
+            <br>
+            Returns the total number of tests that have failed, if any.
+            <br>
+            <br>
+            Can be used absolutely (stop all further testing) or relatively, eg:<small><br><br>
+<!--eucode>
+    integer n = get_tests_failed()
+    test_equal(actual,expected,"basic struct setup")
+    if get_tests_failed()==n then // ie basic just passed
+        test_xxx(?,"get struct field")
+        test_xxx(?,"set struct field")...
+    end if
+</eucode-->
+<pre>
+<font color="#004080">    integer</font><font color="#000000"> n</font><font color="#0000FF"> =</font><font color="#7060A8"> get_tests_failed</font><font color="#0000FF">()</font>
+<font color="#7060A8">    test_equal</font><font color="#0000FF">(</font><font color="#000000">actual</font><font color="#0000FF">,</font><font color="#000000">expected</font><font color="#0000FF">,</font><font color="#008000">"basic struct setup"</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#7060A8"> get_tests_failed</font><font color="#0000FF">()==</font><font color="#000000">n</font><font color="#008080"> then</font><font color="#000080"><i> // ie basic just passed</i></font>
+<font color="#000000">        test_xxx</font><font color="#0000FF">(?,</font><font color="#008000">"get struct field"</font><font color="#0000FF">)</font>
+<font color="#000000">        test_xxx</font><font color="#0000FF">(?,</font><font color="#008000">"set struct field"</font><font color="#0000FF">)...</font>
+<font color="#008080">    end if</font>
+</pre>
+            <br>
+            Aside: use of bApprox or similar may make it rather difficult to be certain whether a test will/has passed, without using this.</small>
+            </dd></dl>
+            <br>
+          </td></tr>
          </table>
         </div>
         <div style="clear:both;height:1px;"> </div>
@@ -512,19 +558,68 @@ TEST_SPRINTFG: sprintf("%10g")=sprintf("%10g",b)    -- the list is literally end
         <h2>Regarding BDD, TDD, etc.</h2>
 
         Tests are brilliant, they really are, and inadequate tests are, well, just inadequate. TDD/BDD both risk approaching the problem from 
-        100% the wrong angle, not that I have any objection to writing maybe 10% or even 20% of tests up-front. <br>
+        100% the wrong angle, not that I have any objection to writing maybe 20% or even 50% of tests up-front. <br>
         The very best tests are those that promise (as best anything can) some customer will not re-experience the (apparently) exact same 
         problem this time next week/month - <i>every</i> (non-trivial) maintenance task should result in a new unit test, whether that uses 
-        unit_test.e or is simply a <a href="crash.htm">crash</a>() (/assert) statement. <small>[Of course unit_test.e is intended to alert
+        unit_test.e or is simply a <a href>crash</a>() (/assert) statement.<br> <small>[Of course unit_test.e is intended to alert
         you about a problem without unnecessarily hindering development, whereas a crash() can often stop it dead in its tracks.]</small><br>
         Nearly as good are tests that actively assist in the development process by preventing the re-emergence of bugs that just bit you. <br>
         Utterly useless tests are the ones that can never trigger, and the big problem with TDD/BDD is they are placed front and centre, and 
         <i>worse</i> should they in any way actively deter writing tests that utilise knowledge learnt during implementation. <br>
-        Where TDD/BDD shines is when you know up-front that nothing will be learnt and there will be absolutely no innovation, which is the 
-        very definition of soul-destroying. The same applies to some forms of <a href="OOP.htm">OOP</a> that insist on the creation of
-        entire classes so banal and trivial that TDD/BDD suffices. One good thing about TDD is that it deters the use of toolchains with
-        primitive run-time diagnostics, ie C++, C, Assembler, vs. everything from Java and Python and of course Phix, which at least try to
-        be helpful to the developer.
+        <small>[If you are using TDD/BDD under a dogmatic "<i>all</i> tests must be written up front" and 
+        "<b>no</b> further tests may be added once coding starts", run away now.]<br></small>
+        Where (such) TDD/BDD shines is when you know up-front that nothing will be learnt and there will be absolutely no innovation, which 
+        is the very definition of soul-destroying. The same applies to some forms of <a href>OOP</a> that insist on the creation 
+        of entire classes so banal and trivial that TDD/BDD suffices. One good thing about TDD is that it deters the use of toolchains with
+        primitive run-time diagnostics, ie C++, C, Assembler, as opposed to things like Java and Python and of course Phix, which at least 
+        <i>try</i> to be helpful to the developer.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
         <br>
         <br>
         <br>

@@ -1,4 +1,93 @@
 <html>
+<head></head>
+<body style="width: 100%">
+<script>
+function calcPi({ maxSeconds = 10, maxDigits = 1000, callback }) {
+    let q = 1n, r = 0n, t = 1n, k = 1n, n = 3n, l = 3n;
+    let nr, nn, digitCount = 0, firstrun = true;
+    let piStr = "3."; // start with integer part
+
+    const startTime = performance.now();
+
+    function continueCalcPi() {
+        // quit if time exceeded or maxDigits reached
+        if (performance.now() - startTime > maxSeconds * 1000 || digitCount >= maxDigits) {
+            if (callback) callback(piStr);
+            return;
+        }
+
+        while (true) {
+            if (q * 4n + r - t < n * t) {
+                // append digit
+                if (!(digitCount === 0 && firstrun)) {
+                    piStr += n.toString();
+                    digitCount++;
+                } else {
+                    firstrun = false; // first decimal already included in "3."
+                }
+
+                // prepare next digit
+                nr = (r - n * t) * 10n;
+                n  = (q * 3n + r) * 10n / t - n * 10n;
+                q *= 10n;
+                r  = nr;
+
+                // periodically yield to avoid freezing browser
+                if (digitCount % 500 === 0) {
+                    return setTimeout(continueCalcPi, 0);
+                }
+            } else {
+                nr = (q * 2n + r) * l;
+                nn = (q * k * 7n + 2n + r * l) / (t * l);
+                q *= k;
+                t *= l;
+                l += 2n;
+                k += 1n;
+                n = nn;
+                r = nr;
+            }
+
+/*
+            // stop if maxDigits reached
+            if (digitCount >= maxDigits) {
+                if (callback) callback(piStr);
+                return;
+            }
+
+            // stop if maxSeconds exceeded
+            if (performance.now() - startTime > maxSeconds * 1000) {
+                if (callback) callback(piStr);
+                return;
+            }
+*/
+        }
+    }
+
+    continueCalcPi();
+}
+
+// Example usage:
+const start = performance.now();
+
+calcPi({
+    maxSeconds: 10,
+//2002 in 0.28s
+//5002 in 1.84s
+//10002 in 8.55s
+//10671 in 10.37s
+    maxDigits: 20000,
+    callback: (pi) => {
+        console.log("Pi generated:", pi);
+//      alert("Generated Pi: " + pi);
+        console.log("" + pi.length + " digits in " + ((performance.now() - start) / 1000).toFixed(2) + " s");
+    }
+});
+</script>
+</body>
+</html>
+
+<!--
+<html>
  <head>
  </head>
  <body style="width: 100%">
@@ -44,3 +133,4 @@ calcPi();
   </script>
  </body>
 </html>
+-->

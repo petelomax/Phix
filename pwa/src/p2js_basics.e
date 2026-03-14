@@ -125,7 +125,7 @@ global function strip_builtin(string s)
             s = join_path(p[2..$])
         elsif length(p)>2 then
             if p[1..2] = {`..`,`pGUI`}
-            or p[1..2] = {`..`,`xpGUI`} then
+            or p[1..2] = {`..`,`theGUI`} then
                 -- (probably opengl.e)
                 s = join_path(p[3..$])
             end if

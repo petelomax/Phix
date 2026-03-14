@@ -1,538 +1,392 @@
 --
--- demo\xpGUI\gCanvas.exw
--- ======================
--- 
--- DEV may now well be "working" in xpGUI.js, except for tiny canvas size...
--- DEV does not work on 64-bit GTK... I might /never/ have had that right. [Seems much better 20/8/23...]
+-- demo\pGUI\HelloF.exw
+-- ====================
 --
--- Tests ((32|64)x(WinApi|gUsekGtk), ie fourfold):
---  Is the default window filled and 240x163?
---  Can it be resized (including shrinking)?
---  Are the edges properly anti-aliased and shapes filled? (more of a to-do, that one, on WinAPI anyway)
---   (work for the latter probably best done in aaline.exw rather than here...)
+--  Translation of https://webglfundamentals.org/webgl/webgl-3d-textures-good-npot.html
+--          but using a manually generated texture rather than one loaded from an image.
 --
---requires(64,true) --DEV no resizing under GTK3... (19/10/23) [NOW APPARENTLY FIXED]
-with javascript_semantics
-include xpGUI.e -- DEV silly size under WinAPI [FIXED 20/8/23]
---include xpGUI4.e
---include xpGUI3.e -- DEV [25/8/23] allows some shrinkage under GTK...
---include backup\xpGUI.0220.e -- GOOD
---include backup\xpGUI.0801.e -- GOOD
---include backup\xpGUI.0826.e -- GOOD
---include backup\xpGUI.1004.e -- GOOD
---include backup\xpGUI.1220.e -- GOOD
---include backup\xpGUI.1414.e -- GOOD
---include backup\xpGUI.1475.e -- X
---include backup\xpGUI.1476.e -- X
---include backup\xpGUI.1477.e -- GOOD
---include backup\xpGUI.1483.e -- GOOD
---include backup\xpGUI.1486.e -- GOOD
---include backup\xpGUI.1487.e -- GOOD
---include backup\xpGUI.1488.e -- BAD
---include backup\xpGUI.1490.e -- BAD
---include backup\xpGUI.1502.e -- X
---include backup\xpGUI.1507.e -- BAD
---include backup\xpGUI.1530.e -- BAD
---include backup\xpGUI.1531.e -- BAD
---include backup\xpGUI.1532.e -- BAD
---include backup\xpGUI.1533.e -- BAD
---include backup\xpGUI.1535.e -- BAD
---include backup\xpGUI.1542.e -- BAD
---include backup\xpGUI.1545.e -- X
---include backup\xpGUI.1572.e -- BAD
---include xpGUI2.e
---DEV [20/8/23] Won't permit size reduction.... (xpGUI3.e does, although it gives me a 242x156 window[ie +2,-7])
---DEV [23/8/23] Now better, but limited to initial size...
---DEV [2/12/23 under WinAPI w,h get 238,124 but under GTK they get 12,14...
---gUseGTK()
---ERM: why are **ALL** these XPG_NW,0??
---{"xpg_shifta","oxoy(orig)",{205,87'W'},"rxry(adj)",{0,0},"nxny(new)",{205,87'W'},"xy(old)",{205,87'W'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{177,55'7'},"rxry(adj)",{0,0},"nxny(new)",{177,55'7'},"xy(old)",{177,55'7'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{158,71'G'},"rxry(adj)",{0,0},"nxny(new)",{158,71'G'},"xy(old)",{158,71'G'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{54'6',23},"rxry(adj)",{0,0},"nxny(new)",{54'6',23},"xy(old)",{54'6',23},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{67'C',97'a'},"rxry(adj)",{0,0},"nxny(new)",{67'C',97'a'},"xy(old)",{67'C',97'a'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{181,9},"rxry(adj)",{0,0},"nxny(new)",{181,9},"xy(old)",{181,9},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{164,31},"rxry(adj)",{0,0},"nxny(new)",{164,31},"xy(old)",{164,31},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{1,0},"rxry(adj)",{0,0},"nxny(new)",{1,0},"xy(old)",{1,0},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{121'y',47'/'},"rxry(adj)",{0,0},"nxny(new)",{121'y',47'/'},"xy(old)",{121'y',47'/'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{218,109'm'},"rxry(adj)",{0,0},"nxny(new)",{218,109'm'},"xy(old)",{218,109'm'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{225,62'>'},"rxry(adj)",{0,0},"nxny(new)",{225,62'>'},"xy(old)",{225,62'>'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{120'x',109'm'},"rxry(adj)",{0,0},"nxny(new)",{120'x',109'm'},"xy(old)",{120'x',109'm'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{1,62'>'},"rxry(adj)",{0,0},"nxny(new)",{1,62'>'},"xy(old)",{1,62'>'},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{92'\',0},"rxry(adj)",{0,0},"nxny(new)",{92'\',0},"xy(old)",{92'\',0},"XPG_NW",0}
---{"xpg_shifta","oxoy(orig)",{211,47'/'},"rxry(adj)",{0,0},"nxny(new)",{211,47'/'},"xy(old)",{211,47'/'},"XPG_NW",0}
+--  Converted to pGUI by Pete Lomax
+--
+--  This can be run online [http://phix.x10.mx/p2js/HelloF.htm here], and also works on desktop/Phix
+--
+with javascript_semantics   -- (OpenGL ES 2.0 compatible) [YEAH!!]
+requires("1.0.1")
+include pGUI.e
+include opengl.e
+--
+-- Pete's super quick intro to OpenGL/WebGL		(copied from the docs)
+-- ========================================
+--
+--  First and foremost you need to define all the points/vertices and faces of the model.
+--  For a 2D 'F' draw three rectangles, one upright and two rungs. We will treat that as 3 faces.
+--  There are four distinct x (left/right) values and five distinct y (up/down) values, and 12 vertices, 
+--  two of which are the same point (where the upright and the top rung meet). 
+--  For a 3D 'F' replicate that with a different z (front/back), now we have 24 vertices.
+--  The right hand side of the upright needs (splitting into) two faces and the left hand side of both rungs have none, plus
+--  the top of the upright and the top of the top rung are in practice merged together into a single face.
+--  In total we have 16 faces[1], each of which we are going to specify as two triangles[2].
+--  [1] Just to clarify and not of any great significance, 6 of those faces are flat and 5 each are horizonal/vertical edge-on.
+--  [2] While OpenGL 1.0's glBegin() supported quads and polygons, OpenGL ES 2.0 and WebGL stop at triangles.  
+--
+--  Let that all sink in. If you cannot imagine or arrange a few suitable things on the desktop in front of you to resemble 
+--  a 3D 'F', and verify the numbers above (esp 16), then I'm afraid to say you are a lost cause.
+--  Don't worry about the units: internally OpenGL maps everything to 0.0..1.0 or -1.0..+1.0 as needed anyway (I think),
+--  along with the "camera" position, so just use the numbers you find easiest. Do however bear in mind that we are
+--  (probably) going to be rotating about {0,0,0}, so making that the "centre of gravity" usually helps, though of
+--  course you can specify things more naturally and then add/subtract some {dx,dy,dz} to/from every point.
+--  See sequence F_positions below.
+--
+--  It is important to note that each face can be drawn using two triangles in 144 different ways, which could have a significant
+--  impact when it comes to applying textures. There are two diagonals that split a rectangle into two triangles, but you can start 
+--  on any one of those four, and draw by starting on any of the three corners of a triangle and go clockwise or anticlockwise, so 
+--  4*3*2*3*2=144. On top of that we have different pixel coordinates for Canvas Draw and OpenGL, as well as low-level differences 
+--  between OpenGL (on the desktop) and WebGL (as in a browser). We need to take the simplest possible route here (and we do).
+--
+--  Next we want to apply a texture to each of those faces. This is a simple matter of matching each and every vertex previously 
+--  specified to the corresponding position on the texture. We can make things much simpler by declaring the faces in a consistent
+--  manner and applying textures using a standard platform-specific approach, which means opengl.e vs opengl.js in this context.
+--  Applying a world map to a sphere needs a bit more math and probably more triangles, but it is basically the same. 
+--
+--  The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling glVertexAttribPointer() 
+--  with the right size, type, and possibly stride settings, and finally glDrawArrays() with the desired mode, here GL_TRIANGLES, not 
+--  forgetting the total length. Of course there are all sorts of other things to achieve smoothing, rotation, lighting effects, and 
+--  so on, but this quick little intro endeth here. The following notes are all very specific to this particular program.
+--
+-- First define a 2D 'F' as follows
+--
+--      [1] {0,150}  {30,150}  {100,150}
+--            +---------+----------+
+--            |         |          |
+--      [2]   | {30,120}+----------+{100,120}
+--            |         |
+--            |         |
+--      [3]   |  {30,90}+------+{67,90}
+--            |         |  X   |
+--      [4]   |  {30,60}+------+{67,60}
+--            |         |
+--            |         |
+--            |         |
+--            +---------+
+--      [5] {0,0}    {30,0}
+--
+-- Use twelve 3-letter contants named (up|tr|mr)((l|r)|(t|b)),
+--              eg upl is the x co-ord for the upright's left.
+--
+-- [1] aka {upl,upt}, {upr,upt}=={trl,trt}, {trr,trt}
+-- [2] aka                       {trl,trb}, {trr,trb}
+-- [3] aka                       {mrl,mrt}, {mrr,mrt}
+-- [4] aka                       {mrl,mrb}, {mrr,mrb}
+-- [5] aka {upl,upb}, {upr,upb}
+--
+-- The translations simply shift {x,y,z} such that {0,0,0} is the
+--  "centre of gravity" (X) rather than front upright botton left,
+--  because rotating about that X point looks so very much better.
+--
+-- Obviously replicate that with z of 0 and 30 for the front and 
+--  back panes, then out of that mess define all of the 16 faces 
+--  that we need to draw the whole thing properly.
+--
+constant tx = -50, ty = -75, tz = -15, -- translations
+          f = 0+tz, b = 30+tz,    -- front and back planes
+-- name the left/right/top/bottom on the 3 front faces:
+ upl = 0+tx, upr =  30+tx, upt = 150+ty, upb =   0+ty,  -- upright 
+ trl =  upr, trr = 100+tx, trt =    upt, trb = 120+ty,  -- top rung
+ mrl =  upr, mrr =  67+tx, mrt =  90+ty, mrb =  60+ty   -- middle rung
 
+-- Define all 24 vertices:- (up|tr|mr)(t|b)(l|r)(f|b)
+constant uptlf = {upl,upt,f},   uptrf = {upr,upt,f},    
+         upblf = {upl,upb,f},   upbrf = {upr,upb,f},    
+         trtlf = {trl,trt,f},   trtrf = {trr,trt,f},    
+         trblf = {trl,trb,f},   trbrf = {trr,trb,f},    
+         mrtlf = {mrl,mrt,f},   mrtrf = {mrr,mrt,f},    
+         mrblf = {mrl,mrb,f},   mrbrf = {mrr,mrb,f},    
 
---bool bUsePoly = true -- (avoids bresenham edges on filled arcs under WinAPI)
-bool bUsePoly = false -- (bresenham edges on filled arcs under WinAPI)
+         uptlb = {upl,upt,b},   uptrb = {upr,upt,b},
+         upblb = {upl,upb,b},   upbrb = {upr,upb,b},
+         trtlb = {trl,trt,b},   trtrb = {trr,trt,b},
+         trblb = {trl,trb,b},   trbrb = {trr,trb,b},
+         mrtlb = {mrl,mrt,b},   mrtrb = {mrr,mrt,b},
+         mrblb = {mrl,mrb,b},   mrbrb = {mrr,mrb,b}
+--
+-- Referring back to the above diagram, we now have:
+-- [1] aka uptlf/b, uptrf/b==trtlf/b, trtrf/b
+-- [2] aka                   trblf/b, trbrf/b
+-- [3] aka                   mrtlf/b, mrtrf/b
+-- [4] aka                   mrblf/b, mrbrf/b
+-- [5] aka upblf/b, upbrf/b
+--
+-- Now define the 16 faces.
+--
+-- Note that while the 24 vertices were named corresponding
+-- to two upright 'F's, when we define each face we will 
+-- use the corners in an order suitable for texture mapping.
+-- I hereby define the "A7" format as {bl,tl,br,tl,tr,br},
+-- ie the six points (aka two triangles) needed to draw it, 
+-- when looking at it from the texture side and orientated
+-- the right way up for that, as a way to simplify things.
+-- The two front faces of the rungs are orientated the same
+-- as the vertex naming, the rest all [up]side[down]ways.
+--
+-- While the following is fairly difficult to type in, and
+-- the polar opposite of flexible, the hope is it will be
+-- less daunting than the more usual "wall of 288 numbers". 
+-- Trust me I had a furrowed brow and used lots of pencil
+-- and paper and rotated my notepad in order to pen these.
+-- Of course you can generate all the vertices and faces 
+-- programmatically in a much more abstract fashion, too.
+--
+constant faces = {{upbrf,upblf,uptrf,upblf,uptlf,uptrf},    -- left column front
+                  {trblf,trtlf,trbrf,trtlf,trtrf,trbrf},    -- top rung front
+                  {mrblf,mrtlf,mrbrf,mrtlf,mrtrf,mrbrf},    -- middle rung front
+                  {upblb,upbrb,uptlb,upbrb,uptrb,uptlb},    -- left column back
+                  {trbrb,trtrb,trblb,trtrb,trtlb,trblb},    -- top rung back
+                  {mrbrb,mrtrb,mrblb,mrtrb,mrtlb,mrblb},    -- middle rung back
+                  {uptlf,uptlb,trtrf,uptlb,trtrb,trtrf},    -- joined up top
+                  {trbrf,trtrf,trbrb,trtrf,trtrb,trbrb},    -- top rung right
+                  {trblb,trblf,trbrb,trblf,trbrf,trbrb},    -- under top rung
+                  {mrtlb,mrtlf,trblb,mrtlf,trblf,trblb},    -- between rungs right
+                  {mrtlf,mrtlb,mrtrf,mrtlb,mrtrb,mrtrf},    -- middle rung top 
+                  {mrbrf,mrtrf,mrbrb,mrtrf,mrtrb,mrbrb},    -- middle rung right
+                  {mrblb,mrblf,mrbrb,mrblf,mrbrf,mrbrb},    -- under middle rung
+                  {upbrb,upbrf,mrblb,upbrf,mrblf,mrblb},    -- below rungs right
+                  {upblb,upblf,upbrb,upblf,upbrf,upbrb},    -- upright bottom (match under rungs)
+        --        {upbrb,upblb,upbrf,upblb,upblf,upbrf},    -- upright bottom (match the uprights)
+                  {upblf,upblb,uptlf,upblb,uptlb,uptlf}},   -- left hand side
+        --
+        -- And sqidge together into the 32 triangles / 96 points that OpenGL likes:
+        --
+        F_positions = flatten(faces,{}), -- (nb be sure to ask for a dword-sequence)
+        --
+        -- Now for the final flourish: since we defined our faces in a consistent manner
+        -- we can reach out to opengl.e/js for a standard texture mapping for all faces.
+        -- More details can be found in the documentation for glSimpleA7texcoords().
+        --
+        F_texture_coordinates = glSimpleA7texcoords(length(faces))
 
---include backup\xpGUI.5875.e -- good fonts
---include backup\xpGUI.5877.e -- good fonts
---include backup\xpGUI.5878.e -- duff fonts (& background)
---include backup\xpGUI.5881.e -- duff fonts (& background)
---include backup\xpGUI.5890.e -- duff fonts
---include backup\xpGUI.5909.e -- duff fonts
---include backup\xpGUI.5960.e -- duff
---include backup\xpGUI.5965.e -- duff fonts
---include backup\xpGUI.3521.e -- good (resize)
---include backup\xpGUI.3524.e -- duff
---include backup\xpGUI.3525.e -- duff
---include backup\xpGUI.3526.e -- duff
---include backup\xpGUI.3527.e -- duff [GTK3 bad]
---include backup\xpGUI.3528.e -- near but off (fonts good) [GTK3 good]
---include backup\xpGUI.3529.e -- duff
---include backup\xpGUI.3530.e -- duff
---include backup\xpGUI.3531.e -- duff
---include backup\xpGUI.3532.e -- duff
---include backup\xpGUI.2290.e -- good (resize) [esp GTK - now in xpGUI3.e]
---include backup\xpGUI.2320.e -- good
---include backup\xpGUI.2321.e -- duff
---include backup\xpGUI.2345.e -- duff
---include backup\xpGUI.2353.e -- duff
---include backup\xpGUI.2406.e -- duff
---include backup\xpGUI.2421.e -- duff
---include backup\xpGUI.2433.e -- duff
---include backup\xpGUI.2229.e -- (same resize flicker - I wonder whether using a gImage would help...)
---include backup\xpGUI.2344.e -- duf (resize)
---include backup\xpGUI.0731.e -- ok
---include backup\xpGUI.0735.e -- ok
---include backup\xpGUI.0739.e -- ok
---include backup\xpGUI.0756.e -- duff
---include backup\xpGUI.0780.e -- duff
---include backup\xpGUI.0810.e -- duff
---include backup\xpGUI.1176.e -- still duff
---include backup\xpGUI.1753.e -- still duff
---include backup\xpGUI.1914.e -- still duff
---include backup\xpGUI.1950.e -- ok
---include backup\xpGUI.1961.e -- ok
---include backup\xpGUI.1962.e -- ok
---include backup\xpGUI.2003.e -- duff
---include backup\xpGUI.2032.e -- duff
---gUseGTK()
+Ihandln dlg
+Ihandle canvas, timer
+cdCanvas cd_canvas
 
---/*
-constant xpm_txt = {
-"24 24 2 1",
-"         c None",
-".        c #000000",
-"                        ",
-"                        ",
-"                        ",
-"                        ",
-"                        ",
-"                  .     ",
-"                ..      ",
-"               ..       ",
-"              ..        ",
-"             ..         ",
-"    ....    ..     ...  ",
-"   .   ..  ..   ....    ",
-"   .   ...........      ",
-"    ....   ....         ",
-"          ..            ",
-"         ...            ",
-"        .  .            ",
-"       .   .            ",
-"       .  .             ",
-"       ...              ",
-"                        ",
-"                        ",
-"                        ",
-"                        "}
---*/
---/*
--- test codewide>1 (assert failure as it stands)
-constant xpm_txt = """
-24 24 2 2
-._ c None
-*_ c #000000
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._*_._._._._._
-._._._._._._._._._._._._._._._._*_*_._._._._._._
-._._._._._._._._._._._._._._._*_*_._._._._._._._
-._._._._._._._._._._._._._._*_*_._._._._._._._._
-._._._._._._._._._._._._._*_*_._._._._._._._._._
-._._._._*_*_*_*_._._._._*_*_._._._._._*_*_*_._._
-._._._*_._._._*_*_._._*_*_._._._*_*_*_*_._._._._
-._._._*_._._._*_*_*_*_*_*_*_*_*_*_*_._._._._._._
-._._._._*_*_*_*_._._._*_*_*_*_._._._._._._._._._
-._._._._._._._._._._*_*_._._._._._._._._._._._._
-._._._._._._._._._*_*_*_._._._._._._._._._._._._
-._._._._._._._._*_._._*_._._._._._._._._._._._._
-._._._._._._._*_._._._*_._._._._._._._._._._._._
-._._._._._._._*_._._*_._._._._._._._._._._._._._
-._._._._._._._*_*_*_._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-._._._._._._._._._._._._._._._._._._._._._._._._
-"""
---*/
---/!*
-constant xpm_txt = """
-24 24 2 1
-. c None
-* c #000000
-........................
-........................
-........................
-........................
-........................
-..................*.....
-................**......
-...............**.......
-..............**........
-.............**.........
-....****....**.....***..
-...*...**..**...****....
-...*...***********......
-....****...****.........
-..........**............
-.........***............
-........*..*............
-.......*...*............
-.......*..*.............
-.......***..............
-........................
-........................
-........................
-........................
-"""
---*!/
---/*
-constant xpm_txt = {
-"32 32 6 1",
-"  s None c None",
-". c #808080",
-"X c #FFFFFF",
-"o c #000000",
-"O c #c0c0c0",
-"+ c #ffff00",
-"    ...................         ",
-"    .XXXXXXXXXXXXXXXXX.o        ",
-"    .XXXXXXXXXXXXXXXXX..o       ",
-"    .XXXXXXXXXXXXXXXXX.O.o      ",
-"    .XXXXXXXXXXXXXXXXX.XO.o     ",
-"    .XXXXXXXXXXXXXXXXX.XXO.o    ",
-"    .XXXXXXXXXXXXXXXXX.oooooo   ",
-"    .XXooOXXXXXXXXXXXXXXXXXOo   ",
-"    .XoOooXXXXXXXXXXXXXXXXXOo   ",
-"    .o+o...XXXXXX.XXXXXXXXXOo   ",
-"    o+..OO.OXXX..XXXXXXXXXXOo   ",
-"   o+Xo+O+.OX..XXXXXXXXXXXXOo   ",
-" oo+X+oO+O.O.XXXXXXXXXXXXXXOo   ",
-"oXOX+XooO+.OOXXXXXXXXXXXXXXOo   ",
-"o+.+++oOoX.OOXXXXXXXXXXXXXXOo   ",
-"o+.O+Oo.o+.O.....XXXXXXXXXXOo   ",
-"o..+O+oo+X.OOXXXXXXXXXXXXXXOo   ",
-" oo.+Oo+X+.OOXXXXXXXXXXXXXXOo   ",
-"   o.+oX+X.O.XXXXXXXXXXXXXXOo   ",
-"    o...XO.OO..XXXXXXXXXXXXOo   ",
-"    .o.oOO.OOXX..XXXXXXXXXXOo   ",
-"    .Xo.ooOOOXXXX.XXXXXXXXXOo   ",
-"    .XXoooOOOXXXXXXXXXXXXXXOo   ",
-"    .XXXOOOOXXXXXXXXXXXXXXXOo   ",
-"    .XXXXOOOXXXXXXXXXXXXXXXOo   ",
-"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
-"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
-"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
-"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
-"    .XXXXXXXXXXXXXXXXXXXXXXOo   ",
-"    .OOOOOOOOOOOOOOOOOOOOOOOo   ",
-"    ooooooooooooooooooooooooo   "}
---*/
---/*
-constant xpm_txt = """
-16 16 5 1
-.        c #000000
-+        c #C0C0C0
-@        c #808080
-#        c #FF0000
-_        c #FFFFFF
-_______________.
-_++++++++++++++.
-_+++++++++++++@.
-_+++++###.++++@.
-_+++#####.++++@.
-_+#######.++++@.
-_+#######.++++@.
-_+++#####.++++@.
-_+++++###.++++@.
-_++++++...++++@.
-_++++++...++++@.
-_++++++...++++@.
-_+++++......++@.
-_+++.........+@.
-_+++++++++++++@.
-_@@@@@@@@@@@@@@.
-"""
---*/
-constant xpm = gImage_from_XPM(xpm_txt)
---DEV: I mangled the above to:
---constant xpm = (xpm_txt)
---which led to a very weird "p2js violation: JavaScript does not support string subscript destructuring" 
---inside printf() from the first line of xpg_lm_dump_ctrls()... Note that an assert(src[1]="gImage") in
---gImageDraw() successfully (but unintentionally) averted the issue... What I did find was that ?"bang"
---(in"") was displayed but ?"crash" not, with the ex.err claiming it had long since left that routine.
---With a bit of luck it's just a duff era somewhere in that statement... (an atom {a,b,c,d} = str[2]).
---I may well have optimised that kind of thing, but not updated the error handling to match properly.
+constant fragment_shader = `
+precision mediump float;
 
+// Passed in from the vertex shader.
+varying vec2 v_texcoord;
 
-function xy_mul(sequence poly, atom xm, ym)
-    poly = deep_copy(poly)
-    for i=1 to length(poly) do
-        for j=1 to length(poly[i]) by 2 do
-            poly[i][j] *= xm
-            poly[i][j+1] *= ym
+// The texture.
+uniform sampler2D u_texture;
+
+void main() {
+   gl_FragColor = texture2D(u_texture, v_texcoord);
+}`
+
+constant vertex_shader = `
+attribute vec4 a_position;
+attribute vec2 a_texcoord;
+
+uniform mat4 u_matrix;
+
+varying vec2 v_texcoord;
+
+void main() {
+  // Multiply the position by the matrix.
+  gl_Position = u_matrix * a_position;
+
+  // Pass the texcoord to the fragment shader.
+  v_texcoord = a_texcoord;
+}`
+
+function load_shader(string shaderSource, integer shaderType)
+    integer shader = glCreateShader(shaderType)
+    glShaderSource(shader, shaderSource)
+    glCompileShader(shader)
+    integer compiled = glGetShaderParameter(shader, GL_COMPILE_STATUS)
+    if not compiled then
+        string fmt = "*** Error compiling shader \'%d\': %s\n",
+               msg = sprintf(fmt,{shader,glGetShaderInfoLog(shader)})
+        sequence lines = split(shaderSource,'\n',false)
+        for i=1 to length(lines) do
+            lines[i] = sprintf("%d: %s\n",{i,lines[i]})
         end for
+        puts(1,msg & join(lines,"\n"))
+        shader = glDeleteShader(shader)
+    end if
+    return shader
+end function
+
+function create_program(sequence shaders)
+    integer program = glCreateProgram()
+    for i=1 to length(shaders) do
+      glAttachShader(program, shaders[i])
     end for
-    return poly
+    glLinkProgram(program)
+    integer linked = glGetProgramParameter(program, GL_LINK_STATUS)
+    if not linked then
+        string lastError = glGetProgramInfoLog(program)
+        puts(1,"Error in program linking:" & lastError)
+        program = glDeleteProgram(program)
+    end if
+    return program
 end function
 
---procedure redraw(gdx canvas)
-procedure redraw(gdx canvas, integer w, h)
---  integer {w,h} = gGetAttribute(canvas,"SIZE"),
-    integer cx = floor(w/2),
-            cy = floor(h/2)
---  ?{"redraw",w,h} -- 238,131 under WinAPI, but 430,221 under GTK...
---?to_rgba(XPG_YELLOW) -- hmm, {255,255,0,0}
---?to_rgba(XPG_RED) -- hmm, {255,0,0,0}
---?gGetTextExtent(canvas,"W")
---  gSetAttribute(canvas,"FGCLR",XPG_GREEN)
---  gCanvasArc(canvas,cx,cy,w,h,0,360)
+integer program = 0
 
-    gSetAttribute(canvas,"FGCLR",XPG_GREEN)
-    gCanvasLine(canvas,0,cy,w-1,cy)
-    gCanvasLine(canvas,cx,0,cx,h-1)
---  gCanvasLine(canvas,0,0,w,h)
---  gCanvasLine(canvas,0,h,w,0)
-    gCanvasArc(canvas,cx,cy,w,h,15,50)
---  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK)
-    gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_NORMAL)
---  gCanvasText(canvas,w*.9,h*.7,"arc",XPG_S,0,XPG_BLACK,XPG_ITALIC)
-    atom dx = (w/2)*cos(15*PI/180), dy = (h/2)*sin(15*PI/180)
-    gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
-    gCanvasText(canvas,cx+dx/2,cy+dy/2,"15",XPG_NE,0,XPG_GREY)
---  gCanvasText(canvas,cx+round(dx/2),cy+round(dy/2),"15",XPG_NE,0,XPG_GREY)
-         dx = (w/2)*cos(50*PI/180); dy = (h/2)*sin(50*PI/180)
-    gCanvasLine(canvas,cx,cy,cx+dx,cy+dy,XPG_DOTTED,1,XPG_GREY)
-    gCanvasText(canvas,cx+dx/2,cy+dy/2,"50",XPG_NE,0,XPG_GREY)
+function canvas_action_cb(Ihandle /*canvas*/)
 
-if bUsePoly then
-    -- These were hand-generated by manually dragging control points to match an overlaid gCanvasArc(),
-    -- that is within the gCanvasPolygon.exw example, and the code needed/added should still be there.
-    -- As per the docs, code that generates this from (say) {cx,cy,w,h,55,165} would be most welcome.
-    sequence psect = xy_mul({{0,117,8,72,42,48},{66,34,91,20,128,5},{195,0},{214,129}},w/430,h/260),
-             pchrd = xy_mul({{337,234,287,256,244,258},{214,258,156,260,34,231},{5,161}},w/430,h/260)
-    gCanvasPolygon(canvas,psect,colour:=XPG_OLIVE)
-    gCanvasPolygon(canvas,pchrd,colour:=XPG_AMBER)
-else
--- bresenham edges (under winAPI):
-    gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR+XPG_FILLED,-1,-1,XPG_OLIVE)
-    gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD+XPG_FILLED,-1,-1,XPG_AMBER)
--- no bresenham lines (under winAPI):
---  gCanvasArc(canvas,cx,cy,w,h,185,265,XPG_SECTOR,-1,-1,XPG_OLIVE)
---  gCanvasArc(canvas,cx,cy,w,h,55,165,XPG_CHORD,-1,-1,XPG_AMBER)
-end if
-    gCanvasText(canvas,w*.3,h*.25,"sector",XPG_CENTRE,0,XPG_BLACK)
-    gCanvasText(canvas,w*.35,h*.85,"chord",XPG_CENTRE,0,XPG_BLACK)
-    atom x3 = w*3/4, y4 = h/4, r = h/6, r2 = r/sqrt(2), r4 = r2/2
---?"red:"
-    gCanvasCircle(canvas,x3,y4,r,colour:=XPG_RED)
---  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED) -- but back still parchment!!!
---  gCanvasCircle(canvas,x3,y4,r,XPG_FILLED,colour:=XPG_RED,fillcolour:=XPG_RED)
---?"/red"
-    gCanvasLine(canvas,x3,y4,x3+r2,y4-r2,-1,1,XPG_GREY)
-    gCanvasText(canvas,x3+r4,y4-r4,"r",XPG_NW,0,XPG_GREY)
-    gCanvasText(canvas,x3,y4,"circle",XPG_S,0,XPG_BLACK)
-    gSetAttribute(canvas,"FGCLR",XPG_GREEN)
-    gCanvasText(canvas,0,0,"0,0",XPG_SE)
-    gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE)
---?sin(90*XPG_DEG2RAD) -- 1
---?cos(90*XPG_DEG2RAD) -- ~0
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SE,90}) -- <crap>[FIXED]
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_SW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,45},colour:={XPG_RED,XPG_BLUE}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,colour:={XPG_RED,XPG_BLUE}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_S,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_W,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_E,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NE,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_N,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_NW,90}) -- GOOD
---  gCanvasText(canvas,cx+1,cy,"w/2,h/2",XPG_NE,{XPG_C,90}) -- <crap>[FIXED]
-    gCanvasText(canvas,w,h,"w,h",XPG_NW)
-    gSetAttribute(canvas,"FGCLR",XPG_BLACK)
-    string degrees = utf32_to_utf8({#00B0})
-    gCanvasText(canvas,w,cy,"0"&degrees,XPG_SW)
-    gCanvasText(canvas,cx,h,"90"&degrees,XPG_NE,style:=XPG_ITALIC)
---  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_ITALIC)
---  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_BOLD)
---  gCanvasText(canvas,cx,h-10,"90"&degrees,XPG_NE,style:=XPG_NORMAL)
-    gCanvasText(canvas,0,cy,"180"&degrees,XPG_SE,style:=XPG_BOLD)
-    gCanvasText(canvas,cx,0,"270"&degrees,XPG_SW,style:=XPG_BOLDITALIC)
-    gCanvasText(canvas,w,cy,"360"&degrees,XPG_NW)
+    if program=0 then -- (do this lot once only! but not before desktop/Phix is ready)
 
---DEV:
---  gSetAttribute(canvas,"LINEWIDTH",2)
-    gCanvasCubicBezier(canvas,10,10,w-10,10,0,h-10,w-10,h-10)
+        program = create_program({load_shader(vertex_shader, GL_VERTEX_SHADER),
+                                  load_shader(fragment_shader, GL_FRAGMENT_SHADER)})
 
---  gSetAttribute(canvas,"LINEWIDTH",5)
---  gSetAttribute(canvas,"LINESTYLE",XPG_CONTINUOUS)
---  gSetAttribute(canvas,"LINESTYLE",XPG_DASHED)
---  gSetAttribute(canvas,"LINESTYLE",XPG_DOTTED)
---  gSetAttribute(canvas,"LINESTYLE",XPG_DASH_DOT)
---  gSetAttribute(canvas,"LINESTYLE",XPG_DASH_DOT_DOT)
---  for px = 20 to 40 by 1 do
---      for py=20 to 40 do
---          gCanvasPixel(canvas,px,py,XPG_BLUE)
---      end for
---  end for
---  gCanvasRect(canvas, 10, 90, 10, 90, true, 5)
---  gCanvasRect(canvas, 10, 90, 10, 90, true)
---  gCanvasRect(canvas, 10, 90, 10, 90, false, 5)
---  gCanvasRect(canvas, 10, 90, 10, 90, false)
---  gCanvasRect(canvas, 10, 90, 10, 90)
---  gCanvasRect(canvas, 0, 118, 0, 46)
---  gCanvasRect(canvas, 0, 240, 0, 180)
+        // Create a buffer for the F_positions and fill it
+        integer position_buffer = glCreateBuffer()
+        // Bind to ARRAY_BUFFER (think of it as ARRAY_BUFFER:=position_buffer)
+        glBindBuffer(GL_ARRAY_BUFFER, position_buffer)
+        {integer size, atom pData} = glFloat32Array(F_positions)
+        glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
 
-    gImageDraw(xpm,canvas,w*.3, h*.3)
---?gCanvasGetFont
---?gGetAttribute(canvas,"FONT")
-end procedure
+        // Create a matching buffer for the F_texture_coordinates and fill it
+        integer texcoord_buffer = glCreateBuffer()
+        glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer)
+        {size, pData} = glFloat32Array(F_texture_coordinates)
+        glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
 
---/* -- works fine:
-function click(gdx canvas, sequence status, integer x, y)
---procedure click(gdx canvas, sequence status)
-    integer {button,pressed,ctrl,shift,alt} = status
-    printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d, x:%d, y:%d)\n",
-             {button,pressed,ctrl,shift,alt,x,y})
---  printf(1,"click(button:%c, pressed:%c, ctrl:%d, shift:%d, alt:%d)\n",
---           {button,pressed,ctrl,shift,alt})
-    return false
+        // Put some text in the center of a canvas/pixel array.
+        // note this is a (bit of a|complete) hack, see docs...
+        integer w = 100, h = 26
+        atom cdx = glCanvasSpecialText(cd_canvas,w,h,20,"Hello!")
+    
+        integer texture = glCreateTexture()
+        glBindTexture(GL_TEXTURE_2D, texture)
+        glTexImage2Dc(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, cdx)
+        // make sure we can render it even if it's not a power of 2
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+        integer position_location = glGetAttribLocation(program, "a_position")
+        glEnableVertexAttribArray(position_location)    // Turn on the position attribute
+        glBindBuffer(GL_ARRAY_BUFFER, position_buffer)  // Bind the position buffer.
+        // Tell the position attribute how to get data out of position_buffer (ARRAY_BUFFER)
+        atom size3 = 3,         // 3 components per iteration (obvs you can inline all these)
+          datatype = GL_FLOAT,  // the data is 32bit floats
+         normalize = false,     // don't normalize the data
+            stride = 0,         // 0 = move fwd size*sizeof(type) each iteration to get next
+            offset = 0          // start at the beginning of the buffer
+        glVertexAttribPointer(position_location, size3, datatype, normalize, stride, offset)
+
+        integer texcoord_location = glGetAttribLocation(program, "a_texcoord")
+        glEnableVertexAttribArray(texcoord_location)    // Turn on the texcoord attribute
+        glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer)  // bind the texcoord buffer.
+        // Tell the texcoord attribute how to get data out of texcoord_buffer (ARRAY_BUFFER)
+        atom size2 = 2          // 2 components per iteration (the rest are same as above)
+        glVertexAttribPointer(texcoord_location, size2, datatype, normalize, stride, offset)
+
+        glEnable(GL_CULL_FACE)
+        glEnable(GL_DEPTH_TEST)
+
+        // Tell it to use our program (pair of shaders)
+        glUseProgram(program)
+    end if
+    return IUP_DEFAULT
 end function
---*/
---/* -- works fine:
---procedure mousemove(gdx canvas, integer x,y)
---procedure mousemove(gdx canvas, integer x,y, left,middle,right)
---procedure mousemove(gdx canvas, integer x,y, bool left,middle,right)
---procedure mousemove(gdx canvas, integer x,y, left,middle,right, ctrl,shift,alt)
-procedure mousemove(gdx canvas, integer x,y, bool left,middle,right, ctrl,shift,alt)
---  ?{"mousemove",x,y}
---  ?{"mousemove",x,y,left,middle,right}
-    ?{"mousemove",x,y,left,middle,right,ctrl,shift,alt}
+
+function map_cb(Ihandle /*ih*/)
+    IupGLMakeCurrent(canvas)
+    cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    return IUP_DEFAULT
+end function
+
+atom field_of_view_radians = 60*CD_DEG2RAD,     -- (currently fixed)
+     model_x_rotation_radians = 20*CD_DEG2RAD,  -- +0.3 per second
+     model_y_rotation_radians = 0*CD_DEG2RAD,   -- -0.2 per second
+     last_time = time()
+
+integer speed = 4 -- (nb movement/frame, not frames/second)
+
+function timer_cb(Ihandle /*ih*/)
+
+    atom this_time = time(),
+        delta_time = this_time-last_time
+    last_time = this_time   // (remember for the next frame)
+
+    // Animate the rotation
+    model_x_rotation_radians += speed*0.3 * delta_time
+    model_y_rotation_radians -= speed*0.2 * delta_time
+
+    // Tell WebGL how to convert from clip space to pixels
+    integer {w, h} = IupGetIntInt(canvas, "RASTERSIZE")
+    glViewport(0, 0, w, h)
+
+    // Clear the canvas AND the depth buffer.
+    glClear(GL_COLOR_BUFFER_BIT || GL_DEPTH_BUFFER_BIT)
+    glClearColor(0.3, 0.3, 0.3, 1.0)
+
+    // Compute the projection, camera, and final view matrices.
+    // Use your favourite search engine for more info on this,
+    // that is the core matrix usage, rather than the m4_xxx().
+    atom aspect = w/h
+    sequence projection = m4_perspective(field_of_view_radians, aspect, 1, 2000),
+        camera_position = {0, 0, 200}, up = {0, 1, 0}, target = {0, 0, 0},
+                 camera = m4_lookAt(camera_position, target, up),
+        view_projection = m4_multiply(projection, m4_inverse(camera)),
+        rotated_about_x = m4_xRotate(view_projection, model_x_rotation_radians),
+      final_view_matrix = m4_yRotate(rotated_about_x, model_y_rotation_radians)
+
+    // Set the final view matrix.
+    {integer size, atom pData} = glFloat32Array(final_view_matrix)
+    glUniformMatrix4fv(glGetUniformLocation(program, "u_matrix"), false, pData)
+
+    // Tell the shader to use texture unit 0 for u_texture
+    glUniform1i(glGetUniformLocation(program, "u_texture"), 0)
+
+    integer num_points = length(F_positions)/3,        -- {x,y,z} per
+            num_coords = length(F_texture_coordinates)/2 -- {x,y} per
+    assert(num_points==num_coords) -- sanity check
+
+    // Draw the geometry.
+    glDrawArrays(GL_TRIANGLES, 0, num_points)
+
+    // Check for errors.
+    while true do
+        integer e = glGetError()
+        if e=GL_NO_ERROR then exit end if
+        printf(1,"GL error %d\n", e)
+    end while
+
+    glFlush()
+    return IUP_DEFAULT
+end function
+
+function key_cb(Ihandle ih, atom c)
+    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
+    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
+    if c=' ' then
+        IupToggleInt(timer,"RUN")
+        last_time = time() -- (avoids sudden jumping)
+    elsif find(c,"+-") then
+        if    c='-' and speed>1 then speed -= 1
+        elsif c='+' and speed<30 then speed += 1
+        end if
+        IupSetStrAttribute(dlg,"TITLE","Hello! F (speed:%d)",{speed})
+    end if
+    return IUP_CONTINUE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=640x480")
+    IupSetCallbacks(canvas, {"MAP_CB", Icallback("map_cb"),
+                             "ACTION", Icallback("canvas_action_cb"),
+                             "KEY_CB", Icallback("key_cb")})
+    dlg = IupDialog(canvas, `TITLE="Hello! F", SHRINK=YES, MINSIZE=120x90`)
+    IupShow(dlg)
+    timer = IupTimer(Icallback("timer_cb"), 1000/40) -- 40 frames/sec, ~0.5% CPU
+    if platform()!=JS then
+        IupMainLoop()
+        dlg = IupDestroy(dlg)
+        IupClose()
+    end if
 end procedure
---*/
-
-gdx canvas = gCanvas(redraw), -- DEV silly size under GTK... (fully resizeable under WinAPI)
---gdx canvas = gCanvas(redraw,`SIZE=238x126`),
---  dialog = gDialog(canvas,`gCanvas`,`SIZE=330x240`)
-    dialog = gDialog(canvas,`gCanvas`,`SIZE=240x156`) -- matches docs
-gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
---gSetAttribute(canvas,"BGCLR",XPG_LIGHT_PARCHMENT)
---?gGetAttribute(dialog,"MINSIZE")
---gSetAttribute(canvas,"FONT","Arial,Italic 9")
---gSetAttribute(canvas,"FONT","Arial, 9")
---gSetHandler(canvas,"CLICK",click)
---gSetHandler(canvas,"MOUSEMOVE",mousemove)
---gSetBodge(canvas,{0,0,0,0})
-gShow(dialog)
---?gGetTextExtent(canvas,"W")
---gSetAttribute(canvas,"SIZE",NULL) -- no help
---gSetAttribute(canvas,"SIZE",{0,0}) -- no help
---?gGetAttribute(canvas,"SIZE") -- (still wrong!)
-gMainLoop()
---?"done"
---wait_key()
---/*
-{"xpg_resize",2,414,221,2561112}
-{"xpg_normalise_sizes",2}
-{"xpg_disperse_user_sizes",2,414,221,{0,0}}
-{"xpg_apply_offsets",2}
-{"xpg_apply_offsets",1}
-{"xpg_apply_offsets",1,0,0,11,15}
-{"xpg_apply_offsets",2,0,0,430,260}
-{"gShow(initial position)",2,745,410,0,0}
-{"xpg_resize",2,414,221,2561112}
-{"redraw",11,15}
-id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0   0   0   0   0  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0   0   0   0   0  27  54 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
---I think we might want: (probably no need for permanant accumsizes)
- 1 Canvas         0   0 414 221   0   0  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0 430 260  11  15  27  54 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
---with w|h*2:
-id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0   0   0   0   0  22  30   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0   0   0   0   0  38  69 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
---with w|h=0:
-id ----ctyp----   x   y   w   h  aw  ah  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0   0   0   0   0   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0   0   0   0   0  16  39 430 260  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
-
-GOOD: (3521)
-{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",203,124'|',{1},0}
-=={"xpg_resize",2,203,124'|',2101580,{234,234,205,156}}
-{"lmgdds",{234,234,205,156},{0,0,203,124'|'},2,32' '}
-{"lmgdds",{234,234,205,156},{0,0,203,124'|'},2,32' '}
-{"lmdus",217,131,219,163,2,32' '}
-{"xpg_lm_disperse_user_sizes",2,217,131,{219,163}}
-{"xwxh",217,131}
-{"xpg_lm_disperse_user_sizes",1,217,131,{0,0}}
-id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0 217 131   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0 217 131   2  32 219 163  0  {1}        CF_MAPPED+CF_NEVER_SHOWN+CF_CLOSE_ON_ESC
-{"xpg_lm_apply_offsets",2,0,0,233,170}
-{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",217,131,{1},13307436}
-{"xpg_WinAPI_resize",2,217,131}
-{"xpg_resize",2,217,131,2101580,{234,234,219,163}}
-{"gShow(initial position)",2,850,458,0,0}
-{"xpg_WinAPI_resize(temp/CANVAS)",2,1,"Dialog",217,131,{1},13307436}
-{"xpg_WinAPI_resize",2,217,131}
-{"xpg_resize",2,217,131,2101580,{850,458,219,163}}
-{"redraw",217,131}
-id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0 217 131   0   0   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0 217 131   2  32 219 163  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
-{850,458,219,163}
-
-BAD:
-=={"xpg_resize",2,203,124'|',22875492,{78'N',78'N',205,156}}
---14,7:
-{"xpg_lm_disperse_user_sizes",2,203,124'|',{219,163}}
-{"xpg_lm_disperse_user_sizes",1,203,124'|',{0,0}}
-{"xpg_lm_apply_offsets",2,0,0,217,131}
-{"lmgdds",{78'N',78'N',203,124'|'},{0,0,201,92'\'},2,32' '}
-{"lmgdds",{78'N',78'N',203,124'|'},{0,0,201,92'\'},2,32' '}
-{"lmdus",217,131,219,163,2,32' '}
-{"xpg_lm_disperse_user_sizes",2,217,131,{219,163}}
-{"xpg_lm_disperse_user_sizes",1,217,131,{11,15}}
-id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0 217 131  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0 217 131  13  47 219 163  0  {1}        CF_MAPPED+CF_NEVER_SHOWN+CF_CLOSE_ON_ESC
-{"xpg_lm_apply_offsets",1,0,0,217,131}
-{"xpg_lm_apply_offsets",2,0,0,231,138}
-{"xpg_resize",2,215,99'c',22875492,{78'N',78'N',217,131}}
-{"xpg_lm_disperse_user_sizes",2,215,99'c',{219,163}}
-{"xpg_lm_disperse_user_sizes",1,215,99'c',{11,15}}
-{"xpg_lm_apply_offsets",1,0,0,215,99'c'}
-{"xpg_lm_apply_offsets",2,0,0,229,106'j'}
-{"gShow(initial position)",2,852,490,0,0}
-{"xpg_resize",2,213,67'C',22875492,{852,490,215,99'c'}}
-{"xpg_lm_disperse_user_sizes",2,213,67'C',{219,163}}
-{"xpg_lm_disperse_user_sizes",1,213,67'C',{11,15}}
-{"xpg_lm_apply_offsets",1,0,0,213,67'C'}
-{"xpg_lm_apply_offsets",2,0,0,227,74'J'}
-{"redraw",213,67'C'}
-id ----ctyp----   x   y   w   h  nw  nh  uw  uh  p  children   flags
- 1 Canvas         0   0 213  67  11  15   0   0  2  0          CF_MAPPED+CF_UNMAPATTR
- 2 Dialog         0   0 213  67  13  47 219 163  0  {1}        CF_MAPPED+CF_CLOSE_ON_ESC
-{852,490,213,67'C'}
-
---*/
+main()
 

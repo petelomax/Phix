@@ -14,7 +14,7 @@
         if (equal(needle,$subse(haystack,i))) { return i; }
     }
     return 0;
-}
+} find.$sig="FOPI,1";
 
 /*global*/ function rfind(/*object*/ needle, /*sequence*/ haystack, /*integer*/ start=-1) {
     if (start<0) { start += length(haystack)+1; }
@@ -22,4 +22,4 @@
         if (equal(needle,$subse(haystack,i))) { return i; }
     }
     return 0;
-}
+} rfind.$sig="FOPI,1";

@@ -15,14 +15,14 @@ function $initd() {
     $dot = ["sequence",0,31,59,90,120,151,181,212,243,273,304,334];
     $dim = ["sequence",31,28,31,30,31,30,31,31,30,31,30,31];
     $t = ["sequence",-1,2,1,4,-1,2,4,0,3,5,1,3];
-    $days = ["sequence","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+    $days = ["sequence","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Anyday"];
     $dinit = 1;
-}
+} $initd.$sig="P";
 
 /*global*/ function is_leap_year(/*object*/ y) {
     if (sequence(y)) { y = $subse(y,DT_YEAR); }
     return (equal(remainder(y,4),0)) && ((!equal(remainder(y,100),0)) || (equal(remainder(y,400),0)));
-}
+} is_leap_year.$sig="FO";
 
 /*global*/ function day_of_year(/*object*/ y, /*integer*/ m=0, d=0) {
 // day of year function, returns 1..366
@@ -30,14 +30,14 @@ function $initd() {
     if (!$dinit) { $initd(); }
     if ((m<1 || m>12) || ((!equal(y,0)) && compare(y,1752)<0)) { return 0; }
     return (d+$subse($dot,m))+(m>2 && is_leap_year(y));
-}
+} day_of_year.$sig="FOII,1";
 
 /*global*/ function days_in_month(/*object*/ y, /*integer*/ m=0) {
     if (sequence(y)) { [,y,m] = y; }     // (extract DT_YEAR,DT_MONTH)
     if (!$dinit) { $initd(); }
     if ((m<1 || m>12) || ((!equal(y,0)) && compare(y,1752)<0)) { return 0; }
     return $subse($dim,m)+((m===2) && is_leap_year(y));
-}
+} days_in_month.$sig="FOI,1";
 /*
 function julianDayOfYear(object ymd) -- returns an integer
 integer year, month, day
@@ -80,8 +80,9 @@ end function
 //      if m=1 then y -=1; m = 12 else m -= 1 end if
 //      d = days_in_month(y, m)
 //  end if
-    if ((((d<1 || d>31) || m<0) || m>12) || ((!equal(y,0)) && compare(y,1752)<0)) { crash("9/0"); }
-    if ((((!equal(y,0)) || (m!==0)) || !bAsText) || d>7) {
+    if ((((d<1 || d>31) || m<0) || m>12) || ((!equal(y,0)) && compare(y,1752)<0)) {
+        d = 8;
+    } else if ((((!equal(y,0)) || (m!==0)) || !bAsText) || d>7) {
         y -= m<3;
         l = (floor(y/4)-floor(y/100))+floor(y/400);
         d += (y+l)+$subse($t,m);
@@ -91,7 +92,7 @@ end function
         return $subse($days,d);
     }
     return d;
-}
+} day_of_week.$sig="FOIII,1";
 
 /*global*/ function week_number(/*object*/ y, /*integer*/ m=0, d=0) {
     // note $days prior to the first monday of the year are
@@ -103,4 +104,4 @@ end function
                     dy = day_of_year(y,m,d)-w52; // (1..366) - (1..7) = -6..365
     if (dy<=0) { return ["sequence",y-1,52]; }
     return ["sequence",y,floor((dy-1)/7)+1];
-}
+} week_number.$sig="FOII,1";

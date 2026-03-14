@@ -25,8 +25,8 @@ end function
     let /*integer*/ current_sub = 0, 
                     substitutes = 
                                   ((atom(error_control)) ? -!error_control : length(error_control));
-//  sequence res = ""
-    let /*sequence*/ res = ((string(source)) ? "" : ["sequence"]);
+    let /*sequence*/ res = "";
+//  sequence res = iff(string(source)?"":{})
     if (integer(column)) {
         if (compare(column,1)<0) { crash("vslice(%d)",column); }
         for (let i=1, i$lim=length(source); i<=i$lim; i+=1) {
@@ -65,7 +65,7 @@ end function
         }
     }
     return res;
-}
+} vslice.$sig="FPOO,3";
 /*
 function vslice(sequence source, atom colno, object error_control=0)
     for i = 1 to length(source) do

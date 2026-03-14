@@ -53,15 +53,16 @@
             gap = floor(gap/3.5)+1;
         }
     }
-}
-function $tagsort(/*integer*/ i, /*integer*/ j, /*sequence*/ data) {
+} sort.$sig="FPI,1";
+
+/*local*/ function $tagsort(/*integer*/ i, /*integer*/ j, /*sequence*/ data) {
 // standard function for a standard $tagsort
 //26/6/20
 //  return compare(data[i],data[j])
     let /*integer*/ c = compare($subse(data,i),$subse(data,j));
     if (c===0) { c = compare(i,j); }
     return c;
-}
+} $tagsort.$sig="FIIP";
 //DEV/SUG column_tagsort???
 
 /*global*/ function custom_sort(/*object*/ custom_compare, /*sequence*/ x, /*object*/ data=["sequence"], /*integer*/ order=ASCENDING) {
@@ -73,13 +74,17 @@ function $tagsort(/*integer*/ i, /*integer*/ j, /*sequence*/ data) {
     let /*integer*/ gap, j, first, last;
     let /*object*/ tempi, tempj;
     let /*sequence*/ args = ["sequence",0, 0];
-    if (atom(data)) {
-        args = $conCat(args, data, false);
+//13/6/25: (merged)
+//  if atom(data) then
+//      args &= data
 //DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway] [seems to have righted itself 14/4/21...]
-    } else if (!equal(data,["sequence"])) {
+//  els
+    if (!equal(data,["sequence"])) {
 //  elsif length(data)!=0 then
-        if (!equal(length(data),1)) { crash("9/0"); }
-        args = append(args,$subse(data,1));
+//13/6/25:
+//      if length(data)!=1 then ?9/0 end if
+//      args = append(args, data[1])
+        args = $conCat(args, data, false);
     } else if (sequence(custom_compare)) {
         //DEV For now. We could add order to tagset() above,
         //             and/or implement that column_tagsort?
@@ -120,8 +125,9 @@ function $tagsort(/*integer*/ i, /*integer*/ j, /*sequence*/ data) {
             gap = floor(gap/3.5)+1;
         }
     }
-}
-function $column_compare(/*object*/ a, /*object*/ b, /*sequence*/ cols) {
+} custom_sort.$sig="FOPOI,1";
+
+/*local*/ function $column_compare(/*object*/ a, /*object*/ b, /*sequence*/ cols) {
 // Local function used by sort_columns()
     for (let i=1, i$lim=length(cols); i<=i$lim; i+=1) {
         let /*integer*/ sgn = 1, 
@@ -140,7 +146,7 @@ function $column_compare(/*object*/ a, /*object*/ b, /*sequence*/ cols) {
         }
     }
     return 0;
-}
+} $column_compare.$sig="FOOP";
 //**
 // Sort the rows in a sequence according to a user-defined
 // column order.
@@ -183,4 +189,4 @@ function $column_compare(/*object*/ a, /*object*/ b, /*sequence*/ cols) {
 /*global*/ function sort_columns(/*sequence*/ x, /*sequence*/ column_list) {
     x = custom_sort($column_compare,deep_copy(x),["sequence",column_list]);
     return x;
-}
+} sort_columns.$sig="FPP";

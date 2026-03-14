@@ -52,7 +52,7 @@
         }
     }
     return res;
-}
+} permute.$sig="FIPI,1";
 
 /*global*/ function permutes(/*sequence*/ s, /*integer*/ cb=0, k=length(s)) {
     // eg permutes("123") ==> {"123","132","213","231","312","321"}
@@ -142,7 +142,7 @@
         }
     }
     return res;
-}
+} permutes.$sig="FPII,1";
 // here's a simplified version I wrote for Go (zebra puzzle), which 
 // needed all permutations of {1,2,3,4,5} [matches permutes(tagset(5))]:
  /*
@@ -179,7 +179,7 @@ end function
         }
     }
     return res;
-}
+} combinations.$sig="FPIIPP,3";
 
 /*global*/ function combinations_with_repetitions(/*sequence*/ s, /*integer*/ k=length(s), at=1, /*sequence*/ res=["sequence"], part="") {
     //
@@ -194,7 +194,7 @@ end function
         }}
     }
     return res;
-}
+} combinations_with_repetitions.$sig="FPIIPP,1";
 /*
 From rc:Permutations with repetitions:
 The task is equivalent to simply counting in base=length(set), from 1 to power(base,n).
@@ -271,6 +271,7 @@ global function combination(integer k, n, sequence set)
 --
 -- return the kth combination of length n items from the given set.
 -- k should be an integer in the range 1 to power(length(set),n)
+--                                              ^^ shd that just be length(set)*n?
 --
     integer l = length(set)
     if k<1 or k>power(l,n) then ?9/0 end if

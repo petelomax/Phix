@@ -20,7 +20,7 @@ function $zl(/*object*/ zlr) {
         res = $subse(zlr,1);
     }
     return res;
-}
+} $zl.$sig="FO";
 
 /*global*/ function sum(/*object*/ a, zlr=0) {
     let /*atom*/ res;
@@ -38,7 +38,7 @@ function $zl(/*object*/ zlr) {
         }
     }
     return res;
-}
+} sum.$sig="FOO,3";
 
 /*global*/ function product(/*object*/ a, zlr=1) {
     let /*atom*/ res;
@@ -56,9 +56,9 @@ function $zl(/*object*/ zlr) {
         }
     }
     return res;
-}
+} product.$sig="FOO,3";
 
-/*global*/ function $average(/*object*/ a, zlr=0) {
+/*global*/ function average(/*object*/ a, zlr=0) {
     let /*atom*/ res;
     if (atom(a)) {
         res = a;
@@ -70,10 +70,51 @@ function $zl(/*object*/ zlr) {
 //          res = sum(s)/l
             res = 0;
             for (let i=1, i$lim=l; i<=i$lim; i+=1) {
-                res += $average($subse(a,i),((atom(zlr)) ? 0 : zlr));
+                res += average($subse(a,i),((atom(zlr)) ? 0 : zlr));
             }
             res /= l;
         }
     }
     return res;
-}
+} average.$sig="FOO,3";
+// see also demo\rosetta\Standard_deviation.exw
+// no attempt is made to apply Bessel's correction.
+/*global*/ function $std_dev(/*object*/ a, zlr=0) {
+    let /*atom*/ res;
+    if (atom(a)) {
+        res = a;
+    } else {
+        let /*integer*/ l = length(a);
+        if (l===0) {
+            res = $zl(zlr);
+        } else {
+            let /*atom*/ mean = 0;
+            res = 0;
+            for (let x$idx = 1, x$lim = length(a); x$idx <= x$lim; x$idx += 1) { let x = $subse(a,x$idx);
+                if (!atom(x)) { x = average(x,zlr); }
+                mean += x;
+                res += x*x;
+            }
+//          mean /= l
+//          res -= mean*mean*l
+            res -= (mean*mean)/l;
+            res /= l;
+            res = sqrt(res);
+        }
+    }
+    return res;
+} $std_dev.$sig="FOO,3";
+/*
+function digital_root(integer n)
+    assert(n>=0)
+    while n>9 do
+        integer tot = 0
+        while n>0 do
+            tot += remainder(n,10)
+            n = floor(n/10)
+        end while
+        n = tot
+    end while
+    return n
+end function
+*/

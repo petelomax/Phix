@@ -7,30 +7,37 @@
       <h1 class="title">with / without</h1>
       <div id="mainSection">
         These special statements affect the way that Phix compiles your program.
-        They are not meant to change the logic of your program, but may affect the 
-        diagnostic information that you get from running your program.
-        See <a href="debugging.htm">Debugging and Profiling</a> for more information.
-        <br>
-        <a name=debug></a>
+        Most are not meant to change the logic of your program, but may affect the diagnostic information 
+        that you get from running your program. 
+        See <a href="debugging.htm">Debugging and Profiling</a> for more information.<br>
+        Two that may genuninely alter behaviour are <a href="#nestedglobals">nested</a> and 
+        <a href>safe_mode</a>.
+        The latter would have no effect in a browser anyway, the rest are all ignored under 
+        <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> except for without js, 
+        or more accurately output as comments.
+
+        <br><a name=debug></a>
         <br>
         <b>without debug</b> prevents the creation of diagnostic and tracing information.
         Default: on, ie <b>with debug</b> only has any effect if there has already been an earlier 
-        without debug. This is typically used in the builtins/VM parts of Phix to help avoid
+        without debug. This is typically used in the builtins\VM parts of Phix to help avoid
         cluttering up any ex.err with excessive and often unhelpful information, especially when
         said pertains to thoroughly tested routines that have not been altered for many years.
         One trick I often use is to wrap a bunch of include statements in without/with debug and
         that way obtain much easier to use ex.err reports, at least temporarily, but I would not
         recommend that be left in for released software.
         The without debug directive also causes any error to be reported on the calling line rather 
-        than within the routine itself, a classic example is <a href="printf.htm">printf</a>(), and 
+        than within the routine itself, a classic example is <a href>printf</a>(), and 
         trust me you would far rather be taken to the line where you have just entered an incorrect 
-        format than the line deep within builtins\VM\pprntfN.e that discovered it.<br>
+        format specifier than the line deep within builtins\VM\pprntfN.e that discovered it.<br>
         Careful/intelligent use of the nFrames parameter of <a href="crash.htm">crash/assert</a>() 
-        can also be used to effect the latter, without resorting to this (rather blanket) directive.
+        can alternatively be used to more selectively effect the latter.
+
+        <br><a name=js></a>
         <br>
-        <br>
-        <b>with js</b> disables/traps the underlying copy-on-write mechanisms, triggering fatal runtime 
-        errors when running code on desktop/Phix that would fail should it be transpiled to JavaScript by 
+        <b>with js</b> (see <a href>deep_copy</a> and/or <a href="notp2js.htm">p2js</a>)
+        disables/traps the underlying copy-on-write mechanisms, triggering fatal runtime errors when 
+        running code on desktop/Phix that would fail should it be transpiled to JavaScript by 
         <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> and subsequently run in a browser.
         Default: off/any, ie <b>without js</b> has no effect on desktop/Phix, unless the compiler detects
         both (with and without) which is treated as an error, and <b>without js</b> also stops
@@ -39,32 +46,72 @@
         a dll/so, read/write files, or something equally illegal from within a browser.<br>
         Note that "with js" is kinda whole-program only and will crash if specified "too late", while
         "without js" could be used to mark a component as browser-incompatible. Should you want to mark 
-        a specific component as browser-only, <a href="requires.htm">requires</a>(JS) is a better idea.
+        a specific component as browser-only, <a href>requires</a>(JS) is a better idea.
         The best way to mark a component as fine on both destktop and browser is a plain old comment.
-        See the <a href="notp2js.htm">Incompatibilities section of pwa/p2js</a> for more information.<br>
+        Components which are part js-compatible and part not need to explicitly wrap specific sections
+        of code in `if <a href>platform</a>()!=JS` or similar, instead of this directive.
+        <br>
+        Also note that desktop/Phix validates that no copy-on-write-semantics-dependent code is executed
+        and therefore p2js will not generate any pass_by_reference-semantics-dependent JavaScript for the
+        codepaths actually executed. Similar checking is simply not possible in a browser and therefore
+        any untested-on-desktop/Phix codepaths may fail mysteriously, consider yourself fully warned.
+        <br>
         Also aliased to <b>with/out javascript</b> and <b>with/out javascript_semantics</b>: obviously "js" 
         is far easier to type, however a search for that on say rosettacode is likely to be less useful 
         than a search for the longest form, and admittedly the middle-length variety is probably no good 
         for either, but there may be times in the docs/examples where that is simply the readability king.
-        <br>
+<!-- probably the better thing is to allow:
+if platform()!=JS then
+include pdir.e
+end if
+On desktop/Phix, the if [just] sets a special flag which allows the "end if" to be skipped/reset it.
+[maybe 3-way: valid/invalid/active?]
+In pwa/p2js, all code inside such a condition should be skipped [/set emitoff] and emit no output.
+Note that "if platform()!=JS then" is treated specially by d/p & p2js and that handling will cease 
+should you add any "and", "or", etc to it.
+<br>
+[DEV planned, not yet implemented]
+<br>
+        There is also a with/without <b>with_js</b> directive, which can be used to wrap the include 
+        statements of desktop-only components without errors or warnings on the understanding you will
+        take care not to invoke anything in said component when running in a browser. Default: on/with,
+        ie <b>without with_js</b> means ignore any "with js" or "without js" in the following include
+        statement[s], and should normally be reset asap, eg/ie:
+without with_js
+include bzstream.e
+with with_js
+-->
+<!-- I could only find these...:
+C:\Program Files (x86)\Phix\builtins\bzstream.e:23 without javascript_semantics    -- incompatible with pwa/p2js (uses a dll/so)
+C:\Program Files (x86)\Phix\builtins\primesieve.e:9 without js
+C:\Program Files (x86)\Phix\builtins\primesieve.e:140 without js
+C:\Program Files (x86)\Phix\builtins\reflections.e:10 without js
+C:\Program Files (x86)\Phix\builtins\sha512.e:23 without javascript_semantics
+-->
+<!--
+        See the <a href="notp2js.htm">Incompatibilities section of pwa/p2js</a> for more information.<br>
+-->
+        <br><a name=profile></a>
         <br>
         <b>with profile</b> enables execution count profiling, which is written to ex.pro when the program
         terminates. Default: off, ie <b>without profile</b> only has any effect if there has already been 
         an earlier with profile, and that can eliminate some noise or hotspots that might be making it 
         difficult to see what is going on elsewhere. Attempts to enable profile and profile_time at any 
         point in the same program triggers a fatal error, even when they do not overlap.
-        <br>
+
+        <br><a name=profile_time></a>
         <br>
         <b>with profile_time</b> enables execution time profiling, otherwise the same as above.
-        Default: off, ie <b>without profile_time</b> works he same way as above too.
-        <br>
-        <a name=safe_mode></a>
+        Default: off, ie <b>without profile_time</b> works as above.
+
+        <br><a name=safe_mode></a>
         <br>
         <b>with safe_mode</b> disables most potentially dangerous features such as file i/o and invoking
         <a href="c_func.htm">c_func/proc</a>() which should make it safer to try out code from an untrusted
         source. It behaves identically to a -safe command line option. See demo\rosetta\safe_mode.exw for 
         further details.
-        <br>
+
+        <br><a name=trace></a>
         <br>
         <b>with trace</b> enables single-stepping through the code as it executes, or creating a ctrace.out 
         file as it runs. Default: off, ie <b>without trace</b> only has any effect if there has already 
@@ -72,27 +119,44 @@
         are available for tracing, as above eliminating regions you do not want to accidentally step into, 
         though you can still step in/over/out using F7/F8/F9.
         Note that with trace effectively does nothing by itself: it marks regions of the code that can be 
-        traced, but you also need call(s) to <a href="trace.htm">trace</a>() to actually start(/stop) it.
+        traced, but you also need call(s) to <a href>trace</a>() to actually start(/stop) it.
         Typically I would add with trace at the top, then trace(1) somewhere lower down, when it actually
         gets round to doing that pesky item[57] or whatever it is that is going wrong.
+
+        <br><a name=withpop></a>
         <br>
+        <b>with/without <a href="tqueue.htm#push">push</a> trace|debug</b> (where push is syntax-coloured 
+        as per the builtin) can pair <b>withpop</b> <i>ditto</i> around selected code that you always/never 
+        want to [conditionally] trace/debug, and saves/restores the setting. Technically you could also use
+        with/without <a href="tqueue.htm#pop">pop</a>, but there would be no difference between the three,
+        in other words "withpop", "with pop", and "without pop" all mean exactly the same, in contrast to 
+        "with push" and "without push", which both save but then set/clear their option respectively. 
+        Eases some development tasks: previously I often found myself having to modify the trace settings 
+        at four or five different places on a semi-regular basis, which soon became very tedious. 
+        No other with/without statements can occur between such a pairing, and they can only be top-level, 
+        not mid-routine.
+
+        <br><a name=type_check></a>
         <br>
         <b>without type_check</b> disables <a href="usingtypes.htm#type">user defined type</a> checking, 
         which can improve performance.
         Default: on, ie <b>with type_check</b> only has any effect if there has already been an earlier 
         without type_check, and generally speaking that is quite a rare thing to (need or want to) do.
-        <br>
+
+        <br><a name=warning></a>
         <br>
         <b>without warning</b> disables selected compile-time warnings such as unused parameters.
         Default: on, ie <b>with warning</b> only has any effect if there has already been an earlier 
         without warning, though in this case it is quite common to use a without/with pair to remove
         a single specific warning while letting earlier and subsequent ones be seen. Note this option
         predates the introduction of <a href="procedures.htm#unnamedparams">un-named parameters</a>
-        and I believe there is no longer any case where you actually need to use without warning.
+        and I believe there is no longer any case where you actually need to use without warning,
+        and in my personal opinion only <i>unfinished programs</i> ever contain it.
         <br>
         <br>
-        Any warnings that are issued will appear on your screen after your program has finished execution. <br>
-        Warnings indicate very minor problems, and will never stop your program from executing.
+        Any warnings typically appear on your screen after your program has finished execution. They
+        indicate very minor problems, and will never stop your program from executing, but can help
+        identify slip-ups, and that way potentially save significant effort.
 <!--
         <b>Note</b>: Phix ships "<b>with <i>without warning</i> disabled</b>", since it is far easier to get code written for Euphoria to work
         on Phix when the compiler is allowed to issue a few helpful warnings. However, I needed without warning for "p -test", and if you feel the
@@ -101,19 +165,19 @@
         <br>
         <br>
 -->
+        <br><a name=nestedglobals></a>
         <br>
-        <br>
-        <a name=nestedglobals></a>
         <b>with nested_globals</b> enables the definition of local constants with <a href="constants.htm#nested">embedded</a> globals.
         Default: off, ie [local] constant S = {A:=1} defines both S and A as local, when enabled S is still local, but A is global, as
         would everything defined via the ":=" syntax be. There is a matching complementary option <b>with nested_locals</b> which causes 
-        global constant S = {A:=1} to define S as global but A as local, and likewise the default is off.
+        global constant S = {A:=1} to define S as global but A as local, and likewise the default is off <small>(but, alas, there is no
+        such thing as <i>with nested_privates</i> <img src="images/ksk-smile.png" alt="smile" />)</small>.
         It would of course be prudent to re-disable asap, to prevent any later innocent and possibly legacy definitions from accidentally 
         defining potentially clashing globals, or failing to define globals that they should. 
         <br>
         <br>
         There was once also a special <b>with</b> <i>number</i> option, which is no longer used and can safely be deleted.<br>
-        Phix also allows <b>console/gui</b>: this is deprecated, see <a href="format.htm">format</a>.
+        Phix also allows <b>console/gui</b>: this is deprecated, see <a href>format</a>.
         <br>
         <br>
 <!--

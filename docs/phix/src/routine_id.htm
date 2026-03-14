@@ -13,7 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> rid = routine_id(<a href="string.htm">string</a> rtn_name)
+          <a href>integer</a> rid = routine_id(<a href>string</a> rtn_name)
          </td>
         </tr>
         <tr>
@@ -29,13 +29,13 @@
             While this is unlikely to go away any time soon, new code should just use the bare routine name, which the compiler treats
             as (aka automatically converts into) a constant integer. You may encounter some cases where that does not quite work, such
             as piecemeal string construction and maybe even the odd forward reference, but even then the recommendation is to refactor 
-            those nasty bits away until it does work, purely on the grounds of it&rsquo;ll doubtless be nicer code.
+            those nasty bits away until it does work, purely on the grounds of it&apos;ll doubtless be nicer code.
             <br>
             <br>
             One subtle point to note is that the compiler has been very finely tuned to deeply understand scopes, and in particular a
             few nuances related to locality of reference at a specific point in a complex nested include hierarchy (oooh errr, listen
             to im) that are lost and are frankly impossible to replicate (and obviously never were) in a routine that looks up a name 
-            in one dirty great big flat symbol table. If you didn&rsquo;t get any of that, the key take-home is that it all goes away 
+            in one dirty great big flat symbol table. If you didn&apos;t get any of that, the key take-home is that it all goes away 
             if you use bare routine names.
             <br>
             <br>
@@ -53,12 +53,13 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-            Supported, although as of 0.8.2 a bare <code>action_cb</code> is equivalent to <code>routine_id("action_cb")</code>, 
-            and is recommended. Note they are small integers on desktop/Phix (almost meaningless indexes into the symbol table),
-            whereas in JavaScript they are the actual function, so avoid things like printing them or tying to use them as some 
-            sort of index or lookup, since that simply won&rsquo;t work. Also be advised that JavaScript is fundamentally a 
-            function-scoped language and there are no namespaces or different scopes for different include files.
-            
+            Supported, although as of 0.8.2 a bare <code>my_rtn</code> is equivalent to <code>routine_id("my_rtn")</code>, 
+            and to be strongly prefered. Note they are small integers on desktop/Phix (almost meaningless indexes into the symbol table),
+            whereas in JavaScript they are the actual function, so avoid things like printing them and in particular [non]-equality
+            ops, eg <code>my_rtn_a &lt; my_rtn_b</code> is likely to yield a completely different result to desktop/Phix, though
+            = and != should be fine. Also be advised that JavaScript is fundamentally a function-scoped language and there are 
+            <i>no</i> namespaces or different scopes for different include files.
+        
 <!--
             <br>
             <br>
@@ -73,11 +74,11 @@ DEV test, then delete:
             and <i>name</i> not followed by '(' are the same, so obviously the latter is recommended - and one less thing 
             for pwa/p2js to potentially get wrong! 
                          In short, if the compiler can
-            figure it out at compile-time, it&rsquo;s fine, whereas 
+            figure it out at compile-time, it&apos;s fine, whereas 
             is not supported. has
             to be able to fu, routine_id("<i>name</i>") and <i>name</i> not followed by '(' are the same. The latter
             (a bare identifier) is fine and recommended, pwa/p2js.exw may or may not succeed in stripping the routine_id("") parts,
-            but it certainly won&rsquo;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
+            but it certainly won&apos;t put them back on in any reverse trip and would therefore fail some reversibility tests.<br>
             Standard/Sane use should be fine.<br>
             <small>(You know what, it might just be fine, I might rescind all that...)</small>
 it is: window["functionName"](arguments);
@@ -86,20 +87,26 @@ it is: window["functionName"](arguments);
             <br>
 <!--
 // (it is)  Also note that get_routine_info() is not supported by p2js: the one place it was really needed, in the heart of 
-//          <a href="apply.htm">apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
+//          <a href>apply</a>(), is coded somewhat differently in p2js.js (with considerably relaxed error checking).
             JavaScript does in fact have an fn.length property, which can be used to determine maxp, however there is no minp,
-            obviously no sig in a <i><a href="glossary.htm#typeless">typeless</a></i> language, and the routine name would be 
+//          obviously no sig in a <i><a href="glossary.htm#typeless">typeless</a></i> language, and the routine name would be 
             a fiddly regex on fn.toString;
             <br>
             <br>
             Likewise s-->
-            Since core components are coded without inline assembly in p2js.js there is no need for hll_stubs.
+            Since core components are coded without inline assembly in p2js.js there is no need for hll_stubs.<br>
+            Note that <code>get_routine_info(integer)</code> yields <code>{1,1,"TO","hll_integer"}</code> on desktop/Phix but 
+            returns <code>{1,1,"TO","integer"}</code> under pwa/p2js, otherwise they should be fairly close, though you should
+            not be overly surprised should stitched-together names or scope issues occasionally cause trouble in a browser.
+            <small>[I would be more inclined to make p2js.exw throw additional fatal errors rather than mangle names, btw.]</small>
             <br>
+<!-- Let's not dwell on past mistakes...
             <br>
-            On a related note, <a href="Icallback.htm">Icallback</a>() is in fact a dummy function in pGUI.js which does not attempt to
-            replicate the safety/sanity checks of <a href="Icallback.htm">cbfunc</a>() - of course that is still valuable when developing
-            on the desktop, and of course if you forego testing things first on the desktop and switch to a direct edit/browser mode
-            of development instead, that&rsquo;s on you. 
+            On a related note, <a href>Icallback</a>() is in fact a dummy function in pGUI.js which does not attempt to
+            replicate the safety/sanity checks of <a href>cbfunc</a>() (both simply gone in theGUI). Of course, should 
+            you forego testing things first on the desktop and switch to a direct edit/browser mode of development instead, that&apos;s 
+            on you. 
+-->
 <!--
             It would be perfectly possible and fairly straightforward for p2js.js to 
             contain a similar dummy routine_id(), just in that case utterly pointless.
@@ -118,7 +125,8 @@ it is: window["functionName"](arguments);
           <br>
             The routine named by rtn_name must be visible, i.e. callable, at the place where routine_id() is used to get the id number. 
             Indirect calls to the routine can appear earlier in the program than the definition of the routine, but the id number can 
-            only be obtained in code that comes <i>after</i> the definition of the routine - see example 2 below.
+            only be obtained in code that comes <i>after</i> the [<a href>forward</a>] definition of the routine 
+            - see example 2 below.
           <br>
           <br> 
             Once obtained, a valid <b>routine id</b> can be used at <b><i>any</i></b> place in the program to call a routine indirectly 
@@ -132,81 +140,106 @@ it is: window["functionName"](arguments);
           <br>
           <br>
              Note that C routines, callable by Phix, also have (non-first-class) routine ids, but from
-             <a href="define_c_proc.htm">define_c_proc</a>() and <a href="define_c_func.htm">define_c_func</a>(), not this.
+             <a href>define_c_proc</a>() and <a href>define_c_func</a>(), not this.
+          <br><a name=aux></a>
          </td>
         </tr>
         <tr>
          <td>
-            <a name=aux></a>
-          <b>Auxillary functions:</b>
+          <b>Auxiliary functions:</b>
          </td>
          <td>
-            {<a href="integer.htm">integer</a> maxp, 
-             <span class="illegal"><a href="integer.htm">integer</a> minp, 
-             <a href="string.htm">string</a> sig</span>[, 
-             <a href="object.htm">object</a> name]} = <b>get_routine_info</b>(<a href="integer.htm">integer</a> rid,
-                                                                              <a href="integer.htm#bool">bool</a> bName=<a href="logicops.htm#tf">true</a>)<br>
+            {<a href>integer</a> maxp, 
+             <a href>integer</a> minp, 
+             <a href>string</a> sig[, 
+             <a href>object</a> name]} = <b>get_routine_info</b>(<a href>integer</a> rid,
+                                                                    <a href>bool</a> bName=<a href>true</a>)<br>
             Returns the maximum and minimum number of parameters, along with a string signature in roottype format ("(P|F|T)&{I|N|S|P|O}"), 
             and optionally the actual name of the routine, except when rid refers to a class method, when -1 is returned 
             <small>(on purpose, since their proper names are kept in builtins\structs.e, and are passed in as text anyway, so you 
-            don&rsquo;t want/need conflicting entries messing up the symtab. You still(/only) get max/min/sig for class methods.)</small>
+            don&apos;t want/need conflicting entries messing up the symtab. You still(/only) get max/min/sig for class methods.)</small>
             <br>
             <br>
-            For instance get_routine_info(<a href="apply.htm">apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
-            with bName=<a href="logicops.htm#tf">true</a> coerces the run-time into populating the symbol table with actual names, 
+            For instance get_routine_info(<a href>apply</a>) yields {3,2,"FOIO","apply"}. Note that invoking this routine
+            with bName=<a href>true</a> coerces the run-time into populating the symbol table with actual names, 
             which may make startup a fraction of a second slower when interpreting, especially on larger programs - hopefully not quite 
-            enough for anyone to actually notice, but if you don&rsquo;t need the name there is not a lot of point asking for it.
+            enough for anyone to actually notice, but if you don&apos;t need the name there is not a lot of point asking for it.
             <br>
             <br>
-            Under <a href="p2js.htm">pwa/p2js</a> <span class="illegal">minp</span> is always 0 and <span class="illegal">sig</span>
-            is always "" (which should hardly be surprising in a <a href="glossary.htm#typeless">typeless</a> language), but maxp and 
-            name are fine, and unlike desktop/Phix there is no associated penalty of populating the symbol table names, so a bName of 
-            <a href="logicops.htm#tf">false</a> is ignored and name is always returned. 
-            The minp and sig are coloured <span class="illegal">illegal</span> here to remind you they will <i>not</i> work in a browser. 
+            Under <a href="p2js.htm">pwa/p2js</a> the sig[,minp] info is tagged on immediately after each routine definition, eg 
+            <code><a href>printf</a>.sig="PISO,2";</code><br>
+            <small>(There may yet be a few hangovers from not originally doing that, and/or some missing builtin sigs... The ',2' sets minp when != maxp.)</small><br>
+<!--
+//          <span class="illegal">minp</span> is always 0 and <span class="illegal">sig</span>
+//          is always "" (which should hardly be surprising in a <a href="glossary.htm#typeless">typeless</a> language), but maxp and 
+//          name are fine, and unlike desktop/Phix there is no associated penalty of populating the symbol table names, so a bName of 
+//          <a href>false</a> is ignored and name is always returned. 
+//          The minp and sig are coloured <span class="illegal">illegal</span> here to remind you they will <i>not</i> work in a browser. 
+//          On deskop/Phix, theGUI.e makes heavy use of sig, whereas theGUI.js has to rely on maxp and trust that transpiled procedures
+//          returning undefined will not in practice be an issue (flw).
+-->
             Also, pwa/p2js does not (as yet) support classes, so none of the remarks relating to that apply, and name is always a string.
             <br>
             <br>
-            On desktop/Phix only, if rid is &lt;=0 (and &gt;-9 as next) the call stack is consulted, with 0 meaning whichever routine 
+<!-- saw some code, didn't test... (23/5/25)
+            On desktop/Phix only, i
+-->
+            If rid is &lt;=0 (and &gt;-9 as next) the call stack is consulted, with 0 meaning whichever routine 
             actually invoked get_routine_info(), and -1 meaning one down from that, and so on.
             <br>
             <br>
             Note that p.exw deliberately invokes get_routine_info(-9) to permanently disable it, that is within p.exe itself, since 
             populating the symtab with actual names mid-compilation kinda spanners everything. In other words this routine is not 
             available to the compiler itself, at least for now. In reality, p.exe is already pre-populated, no issue there, however
-            this and "p p" might or might not trigger armageddon, so I&rsquo;ve played it safe, perhaps for no good reason at all.
+            this and "p p" might or might not trigger armageddon, so I&apos;ve played it safe, perhaps for no good reason at all.
             <br>
             <br>
-            Intended for internal use in routines such as <a href="apply.htm">apply</a>() to make a more informed choice about precisely 
+            Intended for internal use in routines such as <a href>apply</a>() to make a more informed choice about precisely 
             how to invoke a routine, but of course it is also available for use at the application level. It is now used (at runtime) 
-            in structs.e, to check the validity of any getters and setters it finds before invoking them, and twice in pGUI.e, in the
-            <a href="Icallback.htm">Icallback[i]</a>() routine, and to check the <a href="callbacks.htm#K_ANY">K_ANY</a> callback does 
-            not have a time-bomb signature, since I&rsquo;ve managed to put quite a few of those in myself while translating C code.
-            It has also found a fair bit of use in xpGUI.e (and xpGUI.js) to deal with (fully) optional parameters on handlers, for
-            instance <a href="gList.htm#DATA">DATA</a>, <a href="gGraph.htm#DRID">DRID</a>, <a href="gSetHandler.htm#KEY">KEY</a>,
-            <a href="gSetHandler.htm#CLICK">CLICK</a>, and <a href="gSetHandler.htm#MOUSEMOVE">MOUSEMOVE</a>.
+            in structs.e, to check the validity of any getters and setters it finds before invoking them, and 
+<!--
+            twice in pGUI.e, in the
+            <a href="Icallback.htm">Icallback[i]</a>() routine, and to check the <a href>K_ANY</a> callback does 
+            not have a time-bomb signature, since I&apos;ve managed to put quite a few of those in myself while translating C code.
+            It 
+-->
+            has also found a fair bit of use in theGUI.e (and theGUI.js) to deal with (fully) optional parameters on handlers, eg
+<!--            <a href>gList</a> <a href="gList.htm#DATA">DATA</a>, -->
+<!--            <a href>gGraph</a> <a href>DATA</a>,--> <a href>KEY</a>,
+            <a href>CLICK</a>, and <a href>MOUSEMOVE</a>.
+            <small>
+            <br>
+            <br>
+            <b>Warning:</b> There was/is some mixup in p2jskeywords.e whereby the <a href>gdx</a> type and friends were
+            defined as TYPI rather than TYPO (said constants being private to p2js.exw) and consequently the signature of several
+            such routines might be say POII on desktop/Phix but PIII under p2js. <br>
+            Such things should obviously be treated as a bug but there may be several hundred of them that might take a while to iron out. 
+            The length should be correct, at least, and say `sig="POII" or sig="PIII"` can be used as a temporary measure, to get things 
+            working under p2js.
+            </small>
+            <br><a name=get_possible_constant_names></a>
          </td>
         </tr>
         <tr>
          <td>
-            <a name=get_possible_constant_names></a>
           <b>Diagnostics:</b>
          </td>
          <td>
-            <a href="sequence.htm">sequence</a> names = <b>get_possible_constant_names</b>(<a href="object.htm">object</a> v, fdx=0, 
-                                                                                           <a href="integer.htm#bool">bool</a> bGlobal=<a href="logicops.htm#tf">true</a>)
+            <a href>sequence</a> names = <b>get_possible_constant_names</b>(<a href>object</a> v, fdx=0, 
+                                                                               <a href>bool</a> bGlobal=<a href>true</a>)
             <br>
             <br>
             Returns a list of [global] S_Const symtab entry names with [S_value]==v.
             <br>
             <br>
-            fdx: 0 for any, or a file number, usually obtained from <a href="include_paths.htm#includefiles">include_file</a>[s](), or a 
+            fdx: 0 for any, or a file number, usually obtained from <a href>include_file</a>[s](), or a 
             sequence of them.<br>
-            bGlobal: <a href="logicops.htm#tf">true</a>(default) return globals only, <a href="logicops.htm#tf">false</a> gives <i>non-</i>globals only.
+            bGlobal: <a href>true</a>(default) return globals only, <a href>false</a> gives <i>non-</i>globals only.
             <br>
             <br>
             This routine is intended for diagnostic purposes only, and <i>only</i> works when interpreted, <b>not</b> when compiled, and 
             <b>not</b> when transpiled under pwa/p2js. As per example 3 below, should more than one name be returned it is entirely the 
-            programmer&rsquo;s responsibility to further deal with/filter that. 
+            programmer&apos;s responsibility to further deal with/filter that. 
             Even in an otherwise empty file, get_possible_constant_names(1) [ie fdx=0 aka all] returns a list of ~27 builtin constant names.
             <br>
             <br>
@@ -223,50 +256,50 @@ it is: window["functionName"](arguments);
             on the rhs, so instead it can only answer the question "well, what <i>could</i> that 15 have (once) been?". Plus of course a 
             WM_PAINT/15 of interest might very well have originated from somewhere deep inside kernel32.dll anyway, and there simply be 
             no suitable matches for that anywhere at all in the current program.
+          <br><a name=hllstubs></a>
          </td>
         </tr>
         <tr>
          <td>
-          <a name=hllstubs></a>
           <b>hll_stubs:</b>
          </td>
          <td>
-            The file builtins/hll_stubs.e (an auto-include, except as noted below) contains hll verions of many builtins implemented in 
+            The file builtins\hll_stubs.e (an auto-include, except as noted below) contains hll versions of many builtins implemented in 
             assembly, for use when you need a routine_id. Prior to 0.8.2 you would have had to roll your own such mini-shim(s).
             <br>
             <br>
             While you should not really care much, the overwhelming majority of routines documented in this help file are implemented as 
-            standard hll routines (eg <a href="abs.htm">abs</a>), but many what you might call "true builtins" are written in assembly 
+            standard hll routines (eg <a href>abs</a>), but many what you might call "true builtins" are written in assembly 
             for performance or practical reasons, eg you might struggle to use a hll routine as any part of the mechanism for calling a 
-            hll routine, and between them <a href="length.htm">length</a>() and <a href="append.htm">append</a>() are so ubiquitous that 
+            hll routine, and between them <a href>length</a>() and <a href>append</a>() are so ubiquitous that 
             just making those two alone always use a hll wrapper could easily make almost everything (including the compiler itself) 
             run three or four times <a name=slower></a>slower<sup><small><a href="#slower2" onclick="opentech()">2</a></small></sup>.<br>
             It would probably not be helpful (except as noted below) for either you to study or me to document which is which, rather 
-            simply you should just assume anything (genuinely useful) should be available, and let me know of anything that ain&rsquo;t.<br>
+            simply you should just assume anything (genuinely useful) should be available, and let me know of anything that ain&apos;t.<br>
             Equally you should not get too miffed should a new release "upgrade" an existing hll routine to asm in the name of performance,
-            or (as has happened to <a href="find.htm">find</a>(), <a href="match.htm">match</a>() and <a href="repeat.htm">repeat</a>()
+            or (as has happened to <a href>find</a>(), <a href>match</a>() and <a href>repeat</a>()
             already) "downgraded" in the name of simplicity and sanity or enhanced functionality, although that sort of thing should 
             probably only ever matter when grafting on the "hll_" manually, as described below.<br>
-            One thing you should <i>not</i> assume is that everything goes through such wrappers, in fact the vast majority won&rsquo;t.
+            One thing you should <i>not</i> assume is that everything goes through such wrappers, in fact the vast majority won&apos;t.
             <br>
             <br>
             The compiler automatically substitutes routine_id("length") with routine_id("hll_length") and likewise a bare 'length' with 
-            no following '(' with the same implied routine_id.
+            no following '(' with the same implied routine_id (desktop/Phix only).
             <br>
             <br>
             Note the equivalent existing <a href="seqops.htm">sq_xxx</a> routines may prove significantly faster, and perhaps easier.<br>
-            For instance <a href="atom.htm">sq_atom</a>(s) and <a href="apply.htm">apply</a>(s,<a href="atom.htm">atom</a>) both yield
+            For instance <a href>sq_atom</a>(s) and <a href>apply</a>(s,<a href>atom</a>) both yield
             exactly the same results, the former however being noticeably quicker. For completeness, I should also note that
-            <a href="apply.htm">apply</a>(true,[hll_]<a href="atom.htm">atom</a>,{s}) also yields the same results, however
-            <a href="apply.htm">apply</a>(true,<a href="atom.htm">sq_atom</a>,{s}) yields something subtly different.
+            <a href>apply</a>(true,[hll_]<a href>atom</a>,{s}) also yields the same results, however
+            <a href>apply</a>(true,<a href>sq_atom</a>,{s}) yields something subtly different.
             <br>
             <br>
             Also, if you are dynamically constructing the names passed to routine_id, you may need to graft on the "hll_" part yourself. <br>
             The compiler only does so for inline literals and not for anything like "len"&"gth" or apply({"length","integer"},routine_id).<br>
             At the last count, there are some 25 such hll_xxx routines, and despite what I said above I suppose you do need to know which
-            is which to figure out which is going to need the hll_prefix, but you can gather that from builtins/hll_stubs.e easily enough,
+            is which to figure out which is going to need the hll_prefix, but you can gather that from builtins\hll_stubs.e easily enough,
             or if you prefer they are all listed alphabetically in the index of phix.chm (and all linking directly to this very section),
-            just type "hll" in the index and they&rsquo;ll all appear.<br>
+            just type "hll" in the index (of phix.chm) and they&apos;ll all appear.<br>
             Also I would hope obviously this file is only an auto-include in the cases where the compiler has spotted it is needed: if 
             you are having to graft on the "hll_" yourself, then you will probably need to "include hll_stubs.e" explicitly as well.
          </td>
@@ -321,7 +354,7 @@ end function
 <font color="#008080">function</font><font color="#000000"> apply_to_all</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> f</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- apply the specified function to all elements of a sequence</i></font>
 <font color="#008080">    for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">)</font><font color="#008080"> do</font>
-<font color="#000000">        s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> call_func</font><font color="#0000FF">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">s</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">        s</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#7060A8"> call_func</font><font color="#0000FF">(</font><font color="#000000">f</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#000000">s</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#008080">    end for
     return</font><font color="#000000"> s</font>
 <font color="#008080">end function
@@ -372,28 +405,29 @@ if length(wm_only) then res = wm_only end if
             See builtins\VM\prtnidN.e (an autoinclude) for details of the actual implementation.
             <br>
             <br>
-            Note however that the compiler tries very hard to avoid calling/including that code, if things can be resolved at compile-time.
+            Note however the compiler avoids calling/including that code, should things be resolveable at compile time.
             <br>
             <br>
             The get_routine_info() routine is implemented separately, in builtins\get_routine_info.e (another autoinclude)
          </td>
         </tr>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
-          <a href="call_proc.htm">call_proc</a>,
-          <a href="call_func.htm">call_func</a>,
-          <a href="apply.htm">apply</a>,
-          <a href="call_back.htm">call_back</a>,
-          <a href="define_c_func.htm">define_c_func</a>,
-          <a href="define_c_proc.htm">define_c_proc</a>,
-          <a href="ccall.htm">Calling C Functions</a><br>
-          <a name=tech></a>
+          <a href>call_proc</a>,
+          <a href>call_func</a>,
+          <a href>apply</a>,
+          <a href>call_back</a>,
+          <a href>define_c_func</a>,
+          <a href>define_c_proc</a>,
+          <a href="ccall.htm">Calling C Functions</a>
+          <br><a name=tech></a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -554,7 +588,66 @@ old/partially attempted before deciding against:
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

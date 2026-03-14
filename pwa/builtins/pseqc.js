@@ -27,17 +27,17 @@
     src = $conCat($conCat($subss(src,1,index-1), 0X30), $subss(src,index,length(src)));
     src = $repe(src,index,what);
     return src;
-}
+} insert.$sig="FPOI";
 
 /*global*/ function splice(/*sequence*/ src, /*object*/ what, /*integer*/ index) {
     return $conCat($conCat($subss(src,1,index-1), what), $subss(src,index,length(src)));
-}
+} splice.$sig="FPOI";
 
 /*global*/ function head(/*sequence*/ src, /*integer*/ size=1) {
 // if size not specified, returns target[1..1]
     if (compare(size,length(src))>=0) { return src; }
     return $subss(src,1,size);
-}
+} head.$sig="FPI,1";
 
 /*global*/ function tail(/*sequence*/ src, /*integer*/ size=-1) {
 // if size not specified, returns src[2..$]
@@ -45,7 +45,7 @@
     if (size<0) { size += l; }
     if (size>=l) { return src; }
     return $subss(src,(l-size)+1,l);
-}
+} tail.$sig="FPI,1";
 
 /*global*/ function pad_head(/*string*/ src, /*integer*/ size, ch=0X20) {
 // <same as pad(src,size,"HEAD"[,ch])>
@@ -54,7 +54,7 @@
         src = $conCat(repeat(ch,size), src);
     }
     return src;
-}
+} pad_head.$sig="FSII,3";
 //5/2/22
 //global function pad_tail(string src, integer size, ch=' ')
 /*global*/ function pad_tail(/*sequence*/ src, /*integer*/ size, /*object*/ ch=0X20) {
@@ -65,7 +65,7 @@
         src = $conCat(src, repeat(ch,size), false);
     }
     return src;
-}
+} pad_tail.$sig="FPIO,1";
 
 /*global*/ function pad(/*string*/ src, /*integer*/ size, /*string*/ method="BOTH", /*integer*/ ch=0X20) {
     size -= length(src);
@@ -86,21 +86,21 @@
         }
     }
     return src;
-}
+} pad.$sig="FSISI,1";
 
 /*global*/ function remove(/*sequence*/ src, /*integer*/ start, /*integer*/ stop=start) {
     src = $repss(src,start,stop,"");
 //  src = src[1..start-1] & src[stop+1..length(src)]
     return src;
-}
+} remove.$sig="FPII,1";
 
 /*global*/ function replace(/*sequence*/ src, /*object*/ replacement, /*integer*/ start, /*integer*/ stop=start) {
     if (atom(replacement) && (stop!==start)) {
         src = $repss(src,start+1,stop,""); stop = start; }
     src = $repss(src,start,stop,replacement);
     return src;
-}
+} replace.$sig="FPOII,1";
 
 /*global*/ function valid_index(/*sequence*/ s, /*object*/ idx) {
     return (integer(idx) && compare(abs(idx),1)>=0) && compare(abs(idx),length(s))<=0;
-}
+} valid_index.$sig="FPO";

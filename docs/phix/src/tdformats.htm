@@ -24,13 +24,15 @@
         <tr><td>DD</td>     <td>dd</td>         <td>Two-digit day. Single-digit day values are preceded by a zero.</td></tr>
         <tr><td>th</td>     <td>st/TH/ST</td>   <td>Two-character ordinal suffix. (lower/uppercase)  Must immediately follow d/D/dd/DD.</td></tr>
         <tr><td>Ddd</td>    <td>DDD/ddd</td>    <td>Three-character weekday abbreviation.  (capitalised/uppercase/lowercase)</td></tr>
-        <tr><td>Dddd</td>   <td>DDDD/dddd</td>  <td>Full weekday name.  (capitalised/uppercase/lowercase)</td></tr>
+        <tr><td>Dddd</td>   <td>DDDD/dddd</td>  <td>Full weekday name.  (capitalised/uppercase/lowercase, "Anyday" pre-1752)</td></tr>
         <tr><td>doy</td>    <td></td>           <td>Day of year (1..366).</td></tr>
         <tr><td>h</td>      <td>H</td>          <td>One- or two-digit hour.                                    (See am/pm notes below.)</td></tr>
         <tr><td>hh</td>     <td>HH</td>         <td>Two-digit hour. Single-digit values are preceded by a zero. ("")</td></tr>
         <tr><td>m</td>      <td>mm</td>         <td>Two-digit minute. Single-digit values are preceded by a zero.        (<b>NB not M/MM</b>)</td></tr>
-        <tr><td>s</td>      <td>ss/S/SS</td>    <td>Two-digit second. Single-digit values are preceded by a zero.</td></tr>
-        <tr><td>ms</td>     <td></td>           <td>Three-digit millisecond, 000 to 999.</td></tr>
+        <tr><td>s</td>      <td>ss/S/SS</td>    <td>Two-digit second. Single-digit values are preceded by a zero.<br>
+                                                    If <i>not</i> followed by '.' in format but '.' is next in input, 
+                                                    <a href>parse_date_string</a>() sets milliseconds</td></tr>
+        <tr><td>ms</td>     <td></td>           <td>Three-digit millisecond, 000 to 999. NB "7.36" will be read as "7.036", above alone works better<td></tr>
         <tr><td>pm</td>     <td>am/PM/AM</td>   <td>Two-letter am/pm abbreviation, prior hour must exist. (lower/uppercase)</td></tr>
         <tr><td>M</td>      <td></td>           <td>One- or two-digit month number.                                      (<b>NB not m</b>)</td></tr>
         <tr><td>MM</td>     <td></td>           <td>Two-digit month number. Single-digit values are preceded by a zero.  (<b>NB not mm</b>)</td></tr>
@@ -45,45 +47,48 @@
          <td></td>
          <td>
 <!--eucode>
-"YYYY/MM/DD ham tz"                         "Ddd, Mmm dst, yyyy"
-"YYYY/MM/DD ham"                            "Ddd, Mmm dth, yyyy"
-"DD Mmm YY"             "hh:mm"             "DDD, Mmm dST, yyyy"
-"M/D/YY"                "hh:mmpm"           "Ddd, MMM DTH, yyyy"
-"D/M/Y"                 "hh:mm tz"          "Ddd, Mmm dth, YYYY, h:mmpm tz"
-"M/D/Y"                 "hpm tz"            "Ddd, Mmm dth, YYYY, h:mmpm"
-"M/D/YYY"               "hpm"               "Dddd, Mmmm dth, YYYY, h:mmpm"
-"MM/DD/YY"              "h:m:s am"          "Dddd, Mmmm dd, yyyy"
-"M/DD/YY"               "h:m:sam"           "Dddd, Mmmm d, YYYY"
-"M/DD/YYYY"             " (tzz)"            "Dddd d Mmmm yyyy h:mmpm tz"
-"YYYY-MM-DD"                                "Mmmm d, yyyy, hh:mm:ss"
-"D/M/YYYY hpm TZ"                           "Mmmm dth yyyy h:mmam tz"
-"D/M/YYYY hpm (Tzz)"                        "Mmmm dth yyyy h:mmam"
-"dd-Mmm-YY"                                 "Mmmm d yyyy h:mmpm tz"
-"'Today is' Dddd, Mmmm dth, YYYY" -- (put literals in single quotes)
+"YYYY/MM/DD ham tz"                 "Ddd, Mmm dst, yyyy"
+"YYYY/MM/DD ham"                    "Ddd, Mmm dth, yyyy"
+"DD Mmm YY"         "hh:mm"         "DDD, Mmm dST, yyyy"
+"M/D/YY"            "hh:mmpm"       "Ddd, MMM DTH, yyyy"
+"D/M/Y"             "hh:mm tz"      "Ddd, Mmm dth, YYYY, h:mmpm tz"
+"M/D/Y"             "hpm tz"        "Ddd, Mmm dth, YYYY, h:mmpm"
+"M/D/YYY"           "hpm"           "Dddd, Mmmm dth, YYYY, h:mmpm"
+"MM/DD/YY"          "h:m:s am"      "Dddd, Mmmm dd, yyyy"
+"M/DD/YY"           "h:m:sam"       "Dddd, Mmmm d, YYYY"
+"M/DD/YYYY"         " (tzz)"        "Dddd d Mmmm yyyy h:mmpm tz"
+"YYYY-MM-DD"                        "Mmmm d, yyyy, hh:mm:ss"
+"D/M/YYYY hpm TZ"                   "Mmmm dth yyyy h:mmam tz"
+"D/M/YYYY hpm (Tzz)"                "Mmmm dth yyyy h:mmam"
+"dd-Mmm-YY"                         "Mmmm d yyyy h:mmpm tz"
+"'Today is' Dddd, Mmmm dth" -- (put literals in single quotes)
 "'Today''''s date is' Dddd, Mmmm dth, YYYY"
 </eucode-->
 <pre>
-<font color="#008000">"YYYY/MM/DD ham tz"                         "Ddd, Mmm dst, yyyy"
-"YYYY/MM/DD ham"                            "Ddd, Mmm dth, yyyy"
-"DD Mmm YY"             "hh:mm"             "DDD, Mmm dST, yyyy"
-"M/D/YY"                "hh:mmpm"           "Ddd, MMM DTH, yyyy"
-"D/M/Y"                 "hh:mm tz"          "Ddd, Mmm dth, YYYY, h:mmpm tz"
-"M/D/Y"                 "hpm tz"            "Ddd, Mmm dth, YYYY, h:mmpm"
-"M/D/YYY"               "hpm"               "Dddd, Mmmm dth, YYYY, h:mmpm"
-"MM/DD/YY"              "h:m:s am"          "Dddd, Mmmm dd, yyyy"
-"M/DD/YY"               "h:m:sam"           "Dddd, Mmmm d, YYYY"
-"M/DD/YYYY"             " (tzz)"            "Dddd d Mmmm yyyy h:mmpm tz"
-"YYYY-MM-DD"                                "Mmmm d, yyyy, hh:mm:ss"
-"D/M/YYYY hpm TZ"                           "Mmmm dth yyyy h:mmam tz"
-"D/M/YYYY hpm (Tzz)"                        "Mmmm dth yyyy h:mmam"
-"dd-Mmm-YY"                                 "Mmmm d yyyy h:mmpm tz"
-"&rsquo;Today is&rsquo; Dddd, Mmmm dth, YYYY"</font><font color="#000080"><i> -- (put literals in single quotes)</i></font>
-<font color="#008000">"&rsquo;Today&rsquo;&rsquo;&rsquo;&rsquo;s date is&rsquo; Dddd, Mmmm dth, YYYY"</font>
+<font color="#008000">"YYYY/MM/DD ham tz"                 "Ddd, Mmm dst, yyyy"
+"YYYY/MM/DD ham"                    "Ddd, Mmm dth, yyyy"
+"DD Mmm YY"         "hh:mm"         "DDD, Mmm dST, yyyy"
+"M/D/YY"            "hh:mmpm"       "Ddd, MMM DTH, yyyy"
+"D/M/Y"             "hh:mm tz"      "Ddd, Mmm dth, YYYY, h:mmpm tz"
+"M/D/Y"             "hpm tz"        "Ddd, Mmm dth, YYYY, h:mmpm"
+"M/D/YYY"           "hpm"           "Dddd, Mmmm dth, YYYY, h:mmpm"
+"MM/DD/YY"          "h:m:s am"      "Dddd, Mmmm dd, yyyy"
+"M/DD/YY"           "h:m:sam"       "Dddd, Mmmm d, YYYY"
+"M/DD/YYYY"         " (tzz)"        "Dddd d Mmmm yyyy h:mmpm tz"
+"YYYY-MM-DD"                        "Mmmm d, yyyy, hh:mm:ss"
+"D/M/YYYY hpm TZ"                   "Mmmm dth yyyy h:mmam tz"
+"D/M/YYYY hpm (Tzz)"                "Mmmm dth yyyy h:mmam"
+"dd-Mmm-YY"                         "Mmmm d yyyy h:mmpm tz"
+"&apos;Today is&apos; Dddd, Mmmm dth"</font><font color="#000080"><i> -- (put literals in single quotes)</i></font>
+<font color="#008000">"&apos;Today&apos;&apos;&apos;&apos;s date is&apos; Dddd, Mmmm dth, YYYY"</font>
 </pre>
          </td>
         </tr>
         <tr>
-         <td><b>WRONG</b></td>
+         <td class="techbtn">
+          <b>WRONG</b>
+          <img id="Timg" />
+         </td>
          <td></td>
          <td>
 <!--eucode>
@@ -99,7 +104,7 @@
             (But not if minute immedately precedes year or day, since "1:50 [2016] 2nd Jan" is fine, and month immediately preceding hour or day is fine.)
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -119,7 +124,7 @@
             <br>
             At the moment ordinals (1st/2nd/3rd/4th/etc) are only supported in/for english.
             <br>
-            There&rsquo;s a commented-out set_timedate_lang() and google translates for seven other
+            There&apos;s a commented-out set_timedate_lang() and google translates for seven other
             languages besides English, all untested and awaiting approval by someone who speaks it.
             <br>
             Minutes and seconds &lt;10 cannot be printed without a leading 0, but month/day/hours can.
@@ -131,7 +136,7 @@
             <br>
             Obviously uppercase/lowercase format specifiers make no difference on numeric fields.
             <br>
-            A timezone is always parsed and printed in uppercase. Tzz/TZZ/tzz as-is, see tzdesc.
+            A timezone is always parsed and printed in uppercase. Tzz/TZZ/tzz as-is <small>(see tzdesc in src code)</small>.
             <br>
             When am/pm is parsed/printed, it adjusts a previous hour (error if none) appropriately.
             There is no way to print a 12-hour time without also printing an am/pm indicator.
@@ -155,7 +160,7 @@
             if you need more than say eight, it may be time to think of an alternative strategy).
             <br>
             <br>
-            When translating the frankly rather bizzare specifiers of Euphoria&rsquo;s datetime:format(),
+            When translating the frankly rather bizzare specifiers of Euphoria&apos;s datetime:format(),
             which has been renamed as dateformat(), I recommend the following Phix equivalents 
             (following YYYYMMDD hh:mm:ss case rules).
             <br>
@@ -217,21 +222,22 @@
             </div>
             <div style="clear:both;height:1px;"> </div>
             <br>
-            <small><sup><small>1</small></sup></small> ie %(uppercase i or lowercase L) needs to be followed by am/pm/AM/PM (that is, to get the 12-hour format)<br>
-            %u is 1..7 for Monday..Sunday, not directly supported here but see <a href="day_of_week.htm">day_of_week</a>()<br>
-            %w is 0..6 for Sunday..Saturday, ... (words fail me)<br>
+            <small><sup><small>1</small></sup></small> nb %(uppercase i or lowercase L) needs to be followed by am/pm/AM/PM to get the 12-hour format<br>
+            %u is 1..7 for Monday..Sunday, not directly supported here but see <a href>day_of_week</a>()<br>
+            %w is 0..6 for Sunday..Saturday, ... (""/words fail me/<i>why</i> would you ever <i>print</i> that?)<br>
             %s is seconds since 0:00:00am 1/1/1970, erm, ditto... (besides, if you need a nonce, it should be at least 
             to milliseconds accuracy)<br>
             For those in need, a link to the original: <a href="javascript:ExternalLink('exti01');" id="exti01" 
             style="color#9B5565">https://openeuphoria.org/docs/std_datetime.html#_1174_format</a>
             <br>
             The default format of dateformat(), "%Y-%m-%d %H:%M:%S", is equivalent to "YYYY-MM-DD hh:mm:ss", whereas
-            <a href="format_timedate.htm">format_timedate</a>() has a default of "h:mpm Dddd Mmmm ddth, yyyy".
+            <a href>format_timedate</a>() has a default of "h:mpm Dddd Mmmm ddth, yyyy".
             <br>
          </td>
         </tr>
        </table>
-       <img src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
       </div>
      </stripped>
     </get>

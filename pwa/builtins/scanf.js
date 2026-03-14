@@ -104,8 +104,7 @@ function $parse_fmt(/*string*/ fmt) {
                 case 0X62: ftyp = $BINARY;
                     break;
                 case 0X6F: ftyp = $OCTAL;
-                    break;
-                case 0X74: ftyp = $OCTAL;
+//              case 't':               ftyp = $OCTAL -- not Phix!
                     break;
                 case 0X78: ftyp = $HEXADEC;
                     break;
@@ -147,7 +146,7 @@ function $parse_fmt(/*string*/ fmt) {
         }
     }
     return res;
-}
+} $parse_fmt.$sig="FS";
 //constant $bases = {8,16,2,10}  -- NB: oxbd order
 let /*string*/ $baseset;
 let /*sequence*/ $bases;
@@ -164,10 +163,10 @@ function $initb() {
     }
     $bases = ["sequence",8,16,2,10]; // NB: oxbd order
     $binit = 1;
-}
+} $initb.$sig="P";
 let /*integer*/ $scan_ch;
 //NB code from ptok.e relies on there being a \n at the end.
-function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ msign) {
+function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ msign, inbase=10) {
     let /*integer*/ tokvalid;
     let /*atom*/ dec;
     let /*integer*/ exponent;
@@ -183,11 +182,20 @@ function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ 
             if (compare(sidx,length(s))>0) { break; }
             $scan_ch = $subse(s,sidx);
             if ($scan_ch!==0X5F) {
-                if ($scan_ch<0X30 || $scan_ch>0X39) { break; }
+// Erm:
+ /*
+                if base<=36 and $scan_ch>'Z' then $scan_ch = upper($scan_ch) end if
+                scan_ch2 = $baseset[$scan_ch]
+                if scan_ch2>=base then exit end if  
+*/ 
+//              if $scan_ch<'0' or $scan_ch>'9' then exit end if
+                if ($scan_ch<0X30 || $scan_ch>(0X30+inbase)-1) { break; }
 //27/10/15
 //              N += ($scan_ch-'0') / dec
-                fraction = fraction*10+($scan_ch-0X30);
-                dec *= 10;
+//              fraction = fraction*10 + ($scan_ch-'0')
+                fraction = fraction*inbase+($scan_ch-0X30);
+//              dec *= 10
+                dec *= inbase;
                 tokvalid = 1;
             }
             sidx += 1;
@@ -205,6 +213,8 @@ function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ 
             sidx += 1;
             if (compare(sidx,length(s))>0) { break; }
             $scan_ch = $subse(s,sidx);
+// as above.. plus: in base 2, is "e10" 10^10 (as it stands) or 10^2 or 2^10 or 2^2?...
+//                      - methinks the latter, but let's wait for an actual use case...
             if ($scan_ch<0X30 || $scan_ch>0X39) {
                 if ($scan_ch!==0X5F) {
                     if (tokvalid===1) { break; }   // ie first time round only
@@ -253,7 +263,7 @@ function $completeFloat(/*string*/ s, /*integer*/ sidx, /*atom*/ N, /*integer*/ 
         }
     }
     return ["sequence",N*msign,sidx];
-}
+} $completeFloat.$sig="FSINII,3";
 function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
     let /*integer*/ scan_ch2;
     let /*integer*/ msign, base = 0, tokvalid = 1;
@@ -387,7 +397,8 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
                 scan_ch2 = 0X2E;
             }
             if ((scan_ch2!==0X2E) || (($scan_ch===0X65) || ($scan_ch===0X45))) { // exponent ahead
-                return $completeFloat(s,sidx,N,msign);
+//              return $completeFloat(s,sidx,N,msign)
+                return $completeFloat(s,sidx,N,msign,base);
             }
             sidx -= 1;
         } else if (tokvalid===0) { // eg "0b" or "0(16)", ie no actual digits
@@ -401,7 +412,8 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
         if ($scan_ch>=0X30 && $scan_ch<=0X39) { // ".4" is a number
 //          sidx -= 1
             $scan_ch = 0X2E;
-            return $completeFloat(s,sidx,0,msign);
+//          return $completeFloat(s,sidx,0,msign)
+            return $completeFloat(s,sidx,0,msign,base);
         }
         return ["sequence"];
     } else if ($scan_ch===0X23) {
@@ -423,7 +435,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
         return ["sequence",N*msign,sidx];
     }
     return ["sequence"];
-}
+} $get_number.$sig="FSII,3";
 
 /*local*/ function $from_roman(/*string*/ s) {
     let /*integer*/ res = 0, prev = 0;
@@ -435,7 +447,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
         prev = rn;
     }
     return res;
-}
+} $from_roman.$sig="FS";
 
 /*local*/ function $get_roman(/*string*/ s, /*integer*/ sidx, ffi) {
     let /*string*/ romans = ((equal(ffi,$ROMAN)) ? "MDCLXVI" : "mdclxvi");
@@ -448,7 +460,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
         $scan_ch = $subse(s,sidx);
     }
     return ((sidx>r1) ? ["sequence",$from_roman($subss(s,r1,sidx-1)),sidx] : ["sequence"]);
-}
+} $get_roman.$sig="FSII";
 
 /*global*/ function to_number(/*string*/ s, /*object*/ failure=["sequence"], /*integer*/ inbase=10) {
     let /*atom*/ N;
@@ -468,7 +480,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
     }
 //  return {}   -- failure?
     return failure;
-}
+} to_number.$sig="FSOI,1";
 
 /*local*/ function $scanff(/*sequence*/ res, /*string*/ s, /*integer*/ sidx, /*sequence*/ fmts, /*integer*/ fidx) {
     let /*object*/ ffi, tries;
@@ -555,7 +567,7 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
 //      end if
 //  end if
     return res;
-}
+} $scanff.$sig="FPSIPI";
 
 /*global*/ function scanf(/*string*/ s, /*string*/ fmt) {
 //  return $scanff({},s,1,$parse_fmt(fmt),1)
@@ -577,4 +589,4 @@ function $get_number(/*string*/ s, /*integer*/ sidx, inbase=10) {
         }
     }
     return res;
-}
+} scanf.$sig="FSS";

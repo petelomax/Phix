@@ -219,6 +219,8 @@ global constant
 --DEV/SUG:
 --  opSubse1tp = ??,                            -- res := ref[idx], when res is <t> and ref is T_Dsq of <t> (t!=T_integer)
 
+    -- opSubsec is N, ref, idx1..idxN, res                          -- res := ref[idx1][idx2]~[idxN]
+    opSubsec = 37,                              -- opSubse with implied isCompound
     -- 37 spare
 
     --
@@ -595,6 +597,7 @@ global constant
 --  opMfree  = 226,     -- opMfree,addr
 --  opTestN  = 227,     -- opTestN,lblidx
 --  opTestM  = 228,     -- opTestM,lblidx
+--DEV/SUG merge opPlatform,opMachine,opVersion - opMachine now also used for source_line()..
     opPlatform = 225,   -- implements platform() [resolved in pmain.e]
     opMachine = 226,    -- implements machine_bits() [resolved in pmain.e]
     opDiv0 = 227,       -- mapped to :%e02atdb0 in VM\\pDiagN.e (fatal error)
@@ -685,7 +688,8 @@ global constant
     opName("opSubse1i",opSubse1i,6)
     opName("opSubse1is",opSubse1is,6)
     opName("opSubse1ip",opSubse1ip,0)   --??            -- ""
-    opUsed += 1 -- spare
+    opName("opSubsec",opSubsec,-4)
+--  opUsed += 1 -- spare
 
     opName("opJif",opJif,7)
     opName("opJnot",opJnot,7)
@@ -1069,7 +1073,7 @@ global constant
 --  always assumes #ilASM blocks, no matter how trivial thay actually are, 
 --  potentially trash all registers and/or modify all variables. Hence in 
 --  some rare cases #ilASM may actually slow things down, cause additional 
---  loads, and occasionally extra type checking. 
+--  loads, and occasionally extra typechecking. 
 --
 -- Gotcha: what is wrong with this?
 --

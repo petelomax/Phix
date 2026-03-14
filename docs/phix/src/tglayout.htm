@@ -1,0 +1,1467 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">Layout Management</h1>
+      <div id="mainSection">
+        The layout manager at the very heart of theGUI is the sole survivor of a truly epic sortie deep behind enemy lines, most of 
+        which is either still classified or just too embarrassing to repeat.
+<!--
+        , not to mention unhelpful and misleading. Prior to the
+        switch from native to emulated controls really did bear similarities to The Battle of Britain: no plan ever survived first 
+        contact, and sending messages to controls was very like setting off your Spitfires, hoping they returned unscathed, and 
+        praying no lumps of red hot razor sharp schrapnel from their victims landed on your head (and boy did that stuff rain down).
+        Some design decisions 
+21 images</a> depicting the
+-->
+        Some aspects may stem from difficulties that simply evaporated during the switch from native to fully emulated controls.
+        The following assumes you have briefly scanned the <a href="tgelements.htm">gallery of available controls</a>, the rest of 
+        this page is all and only about positioning them relative to each other, within a <a href>gDialog</a>() or 
+        <a href="gDialog.htm#HDR">headerless</a> version of that.
+        <br>
+
+        <h3>Abstract Layout</h3>
+        Originally adopted from IUP and almost mandated by GTK/HTML, it is hard to imagine anything simpler or a need for additional complexity.
+        <!--is still obviously 
+        the only realistic choice for targetting multiple screen sizes, and other than a static non-resizable concrete layout [!--(which 
+        could since the switch to emulated be made available if needed)--] that would require the position of <i>every</i> element to be 
+        explicitly and tediously specified,--> 
+<!--
+        The one thing you seriously don&apos;t want is a tedious pixel-counting exercise for every single control that ends up breaking 
+        whenever a different font or screen size is used (as in WinAPI).<br>
+        <small><i>(however nowt prevents a future version also allowing said concrete layout, making legacy code insisting ctrl23 is at {147,368} 
+        easier to port)</i></small>
+-->
+        Should you prefer a tedious pixel-counting exercise <!--for every single control--> that breaks whenever a different font or screen size 
+        is used (as in WinAPI), that (concrete layout) is available via <a href>gCbox</a>() and not further discussed here.
+<!--
+        <small><i>(Actually, a <a href>gCbox</a> allows said concrete layout, making legacy code insisting ctrl23 is at {147,368} 
+        easier to port, but is not discussed any further here)</i></small>
+--... in the new gCbox.htm: ...--
+        To make legacy code insisting ctrl23 is at {147,368} easier to port, and I strongly recommend against using it for new code, a 
+        gCbox() implements a concrete layout which must be given an explicit size and whereby every child must be given an explicit {x,y}
+        location. If a TITLE is defined, gFrame()-style decorations are drawn, and while gCbox can themselves be nested, any attempt to
+        embed gHbox, gVbox, gFrame, or gSplit trigger a fatal error. A gCbox is not resizable and does not permit EXPAND, GAP, MARGIN, 
+        or SPACE attributes to be set, or pay any heed to EXPAND/MARGIN on any children. Once it works, I recommend immediate conversion
+        to an abstract layout, which for obvious reasons will go much easier if you work top-down rather than bottom-up.
+        A gCbox() statement is syntax-coloured illegal to stress the temporary status.
+-->
+        <br>
+        <br>
+        The main characteristic of the abstract layout approach is that otherwise invisible <a href>gHbox</a>() and 
+        <a href>gVbox</a>() containers define a heirarchy which arranges controls and/or nested subgroups of them 
+        horizontally and vertically respectively <small>(see <a href="gSplit.htm#visualise">gSplit</a>() for a quick visualisation)</small>.<br>
+        Should a dialog be resizeable, something has to absorb any excess space/slack, those two invisible containers are often 
+        the best candidates. Interface element positioning can easily be fine-tuned using margins, gaps, and similar simple rules.
+        <br><a name=SoleChild></a>
+
+        <h3>Sole Child</h3>
+<!--        Specifically here I want to talk about for instance gDialog(gButton) as opposed to gDialog(gHbox({gButton})), if you get my drift.<br>-->
+        When a single visible element is the sole child of a container, and in particular a rather ill-advised (say) gDialog(gButton) as 
+        opposed to gDialog(gHbox({gButton})), the rule book is essentially thrown out the window and the child expanded to fill the entire 
+        container, often precisely as wanted for a <a href>gCanvas</a>(), 
+        <a href>gGraph</a>(), <a href>gList</a>(), <a href>gTable</a>(), 
+        <a href>gTree</a>(), <a href>gFrame</a>(), and <a href>gSplit</a>(), but very unlikely 
+        on a <a href>gButton</a>(), <a href>gDatePick</a>(), <a href>gDropDown</a>(), 
+        <a href>gProgressBar</a>(), <a href>gText</a>(), and quite probably several others. 
+        Of course that also happens intentionally by design on a <a href>gHbox</a>() or <a href>gVbox</a>() but 
+        since they aren&apos;t visible and have all the features/attributes needed to deal with it, that&apos;s fine.
+        <br>
+
+        <h3>The Hard Slam</h3>
+        A term I made up to describle what happens when a dialog is resized to or below the natural minimum, whereby controls glide up and left 
+        until they nestle against each other, but no further and specifically not drifting off-screen nor overlapping. <small>[ChatGPT suggested 
+        Hard Constraints, Hard Minimum, Clamping / Clamped Movement, Collision or Boundary Detection, Bottoming Out, and Non Overlapping, none of 
+        which felt any better.]</small> Arguably, perhaps, it should impose a default <a href>MINSIZE</a>, or maybe
+        scrollbars could (perhaps optionally) appear on the dialog itself, but that&apos;ll have to wait for another day.
+<!--<br> 
+        <b>DEV</b> Note that margins are not properly respected in this regard as yet - I&apos;m actually a little surprised that gaps 
+        don&apos;t mess it up, to be honest, and I&apos;d suggest figuring out why not as the first step to improve margin handling.
+        I can tell you with some confidence that any fix would need to be in tg_lm_disperse_and_accumulate_user_sizes().
+-->
+        <br>
+
+        <h3>Attributes</h3>
+        In practice the layout is perfectly well controlled by a surprisingly small number of entirely optional attributes:<br>
+        <ul>
+        <li><a href>SIZE</a>: Allows the <a href="#natural_size">natural size</a> to be overidden.</li>
+        <li><a href="gSetAttribute.htm#MAXSIZE">MINSIZE/MAXSIZE</a>: Should be pretty self-explanatory.</li>
+        <li><a href>EXPAND</a>: Allows an element or container to grow, widthwise, heightwise, or both.</li>
+<!--    <li><a href="gSetAttribute.htm#SHRINK">SHRINK</a>: Allows an element to be cropped smaller than its natural size (default NO).</li> -->
+        <li><a href>MARGIN</a>: As explained in that link and <a href="#layout_model">shown below</a>, between one and four values.</li>
+        <li><a href>GAP</a>/<a href>SPACE</a>: (gH/Vbox only) Additional space between/around elements.</li>
+        </ul>
+        These often interact with each other, sometimes rather subtly, for instance a <a href="gBox.htm">gH/Vbox</a> typically only expands 
+        in a given direction when at least one child can expand that way. Quite often some trial and error is needed to find the perfect 
+        combination, but that&apos;s usually fairly quick and painless.
+        <br>
+
+        <h3>Window vs. Client sizes</h3>
+        Some controls also have a "client" size as well as the usual "window" <a href>SIZE</a>, for example:
+        <br>
+        <table style="border:0;" width="100%">
+          <tr>
+            <td style="border:0;" width="12.5%"></td>
+            <td style="border:0;">
+              <img src="images/clientsize1.png" width="213" height="80"/>
+            </td>
+            <td style="border:0;" width="12.5%"></td>
+            <td style="border:0;">
+              <img src="images/clientsize2.png" width="136" height="80"/>
+            </td>
+            <td style="border:0;" width="12.5%"></td>
+            <td style="border:0;">
+              <img src="images/clientsize3.png" width="130" height="80"/>
+            </td>
+            <td style="border:0;" width="12.5%"></td>
+          </tr>
+        </table>
+        <br>
+        <br>
+        Naturally the decorations may subtly differ between backends, resulting in a different client size for a given window size, or vice-versa. 
+        While theGUI does the best it can to abstract that away, some cases may benefit from the use of 
+        <a href>gVersion</a>(-1|2) to fine-tune for different backends. Note that even a
+        <a href="gDialog.htm#HDR">headerless window</a> has different window and client sizes, due to the 1-pixel border.
+        Except for the {w,h} passed to a <a href="gCanvas.htm#REDRAW">gCanvas()/REDRAW</a> handler, theGUI only provides the outer window size;
+        should you need the inner size of a dialog or frame then simply ask the sole child of those controls.
+        <br><a name=natural_size></a>
+
+        <h3>Natural sizes</h3>
+        Most visible elements have a <a href="#sizes">natural size</a>, the notable exceptions being <a href>gCanvas</a>(), 
+        <!--and the canvas-derived controls--> <a href>gGraph</a>(), <a href>gList</a>(), <!--a href="gTable.htm">gTable</a>(),-->
+        and <a href>gTree</a>(), which need to be either given an explict user size or allowed to expand into some size explicitly 
+        specified on one of their parent containers. Apart from that, the sizes can easily be accumulated to give a complete dialog a perfectly 
+        reasonable natural size as well (not necessarily stored anywhere), and without the programmer having to specify any positions at all. 
+        Should some things look a little cramped, spacing around and between interface elements can easily be specified using the 
+        <a href>MARGIN</a> and <a href>GAP</a> attributes, and to a lesser/indirect extent
+        <a href>SPACE</a> <small>(when no <a href>EXPAND</a> nicks it first)</small>.
+<!--        , and (sometimes) <a href>PADDING</a> -->
+        Interface elements also have an <a href>EXPAND</a> attribute to control whether/how they fill/react to 
+        their parent container having excess space <small>(which may effectively disable <a href>SPACE</a> handling)</small>.
+        <br><a name=gNormalise></a>
+        
+        <h3>Normalisation</h3>
+        <b>gNormalise</b>(<a href>gdx</a> ids, <a href>atom_string</a> direction="BOTH")
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <small><i>-- gNormalize() is just a simple alias.</i></small><br>
+        ids: a sequence(/group) of elements to be normalised (leaf-only).<br>
+        direction: can also be "HEIGHT", "WIDTH", or single-character (HWB), or 1..3.
+        <br>
+        <br>
+        Sets the same(/max) width/height/both on a set of controls for alignment purposes.<br>
+<!--
+         In particular, normalising the labels before their 
+        corresponding input controls makes the latter line up nicely. Other examples include buttons looking neater when their sizes match
+        instead of being title-sized, or a row of mixed controls being higgledy-piggledy unless they all have the same height. <br>
+        <small>(Aside: for the lattter, the same effect could be achieved by making them expandable heightwise, and extra box-nesting 
+                        may be needed, either way.)</small>
+-->
+<!--??
+Alternatively you could tediously set the sizes manually, and watch it break when a different font is used.
+         changes.max Sometimes you may want to line things up, which is achieved by setting them to the same (largest) natural :<br>
+        This routine should be invoked before any elements are displayed, with [as yet] no mechanism to later change your mind.<br>
+-->
+<!--
+        <br>
+        <br>
+        Groupings are naturally processed in the order given, so should any group hope to influence another it must be declared first.<br>
+        All elements must be in the same <a href>gDialog</a>(), but can be anywhere within the layout hierarcy, specifically in 
+        different <a href="gBox.htm">gH/Vbox</a>. <br>
+-->
+        Elements can be normalised widthwise in one set(/call) and heightwise in another.<br>
+<!--
+        , but there is no iterating or back-propagating<sup>&dagger;</sup>.<br>
+        It is hardly rocket science to tweak sizes, hence should this not quite meet your needs my advice is to do precisely that by hand. <br>
+-->
+        It is probably worth saying a gNormalise() isn&apos;t really any different to a bunch of 
+        <a href>gSetAttribute</a>(<a href>SIZE</a>) calls,<br>
+        therefore should this in any way not quite meet your specific needs my advice is to do precisely that by hand. <br>
+<!--
+        <sup>&dagger;</sup> Hence, at least theoretically, repeating the exact same normalisation may occasionally in fact actually help.<br>
+        Note elements can still expand/shrink to fit their containers <i>after</i> normalisation.
+        <br>
+        <br>
+-->
+        Also, epandable elements are naturally normalised in the cross orientation of any parent container, such that a gVbox grants expandable
+        children the same width, and (as part of that process) the container "inherits" the max/sum of child sizes. Since containers generally
+        obtain their sizes, that is when not explicitly specified, by summing the post-normalised sizes of their children, that pretty much rules
+        them out, besides, as just stated, performing the explicit equivalent manually should not in practice be particularly difficult.
+<!--
+        performing from being 
+        e latter happens 
+        at a completely different stage, each group of ids must be either all-leaf or all-container, though actually in the first release only
+        leaf elements may be normalised, containers will have to wait for another day.
+
+        for now at least attempts to normalise containers of any kind trigger a fatal error.
+        Given therefore that normalisation 
+        occurs at completely different stages for leaf and container nodes, it is probably unwise to try and mix them. 
+        <sup>&Dagger;</sup>One key difference between gNormalise() and setting SIZEs is that container (but not leaf) normalisations are
+        oft-revisited by the layout manager.
+-->
+<!--
+        unless/the only way to stop that being to make a child container non-expandable.
+        Containers also naturally "inherit" any normalisation of their children (with added margins, etc). If at all possibile all normalisation
+        should occur on "leaf" elements, and in some cases better results may be obtained by deliberately introducing hidden elements specifically
+        for that purpose. When a container is normalised, first and foremost and fairly obviously,and with suitable checks in place to enforce this,
+        no content of that container can appear anywhere else in the jnormalisation group. Secondly, "leaf" normalisation is done in three stages:
+        1st, copy all natural sizes to normal sizes, 2nd, update selected normal sizes, 3rd, accumulate the normal sizes up the dialog hierarchy,
+        whereas "container" normalisation occurs as part of that third step.
+>>>
+        Hence attempts to apply normalisation
+        to any containers could give highly unpredictable or even fatal results, esp. should any of its [grand]children also be in the same group.
+        <br>
+        <br>
+        Note that normalisation is a pretty low priority on desktop/Phix, and way further down under pwa/p2js.
+-->
+        <br><a name=BoxModel></a>
+
+        <h3>The HTML/CSS Box Model</h3>
+        <p align="center"><img alt="boxlayout" src="images/boxlayout.png" width="230" height="129"/></p>
+
+        <a name=layout_model></a>
+        You may recognise the above from the Browser Development Tools, theGUI uses a similar but slightly extended model:
+        <br>
+        <br>
+        <p align="center"><img alt="layout" src="images/layout.png" width="230" height="122"/></p>
+
+        The three main changes are:<br>
+        Only <a href>gButton</a>, <a href>gProgressBar</a>, <a href>gText</a> (ditto <a href>gDatePick</a>, <a href>gDropDown</a>), and 
+        a <a href>gFrame</a> (slightly indented at the top) actually need a border, and to be perfectly blunt I cannot see any practical 
+        benefit in allowing a programmer to play silly monkeys with those specific versions of a border.<br>
+        (Besides, anyone sufficiently motivated can easily add a tweaked and enhanced copy of any of the existing standard controls anyway.)<br>
+        Secondly, there does not want to be any padding on a progress bar, a gFrame can rely on the margin of its sole child, and 
+        the other four are better handled by auto-centering the content within an overidden <a href>SIZE</a> 
+        anyway, hence (and to get it out the door a bit quicker) theGUI does not actually/currently have any border or padding settings.
+        The upshot of all that is the layout manager only has to deal with/worry about margins, with gaps being pretty much the same 
+        thing/implemented as such in theGUI.js, which makes my life at least much simpler.<br>
+        Third and lastly, a gap between the elements in a gH/Vbox can be specified along with a five-way mechanism for distributing any 
+        excess space when (and only when) there are <i>no</i> expanding children that absorb it first. The five settings on the right
+        show how horizontal slack may be distributed on a gHbox, with (in green) that vertical slack may be applied to the TOP and/or
+        BOTTOM of those children that do not themselves expand vertically. I&apos;m sure you can imagine the equivalent diagram for a 
+        gVbox. Note that in the cross-orientation, BETWEEN is meaningless and treated as RIGHT/BOTTOM, whereas AROUND causes identical 
+        effects to CENTRE.
+        <br>
+        <br>
+        The <a href>SIZE</a> does <i><b>not</b></i> include any margins, which are always taken care of by the parent container.
+        <!--, and for that matter the consequences of any gap or space settings.--> 
+        Should you want to know the size of some inner blue bit, ask that child. <!--, and likewise should you ever
+        need it you can get the outer size off the parent container <small>(perhaps one one specifically introduced solely for size
+        retrieval purposes)</small>.-->
+        The margin (pastel orange part) as well as any gaps/space is displayed in the BGCLR of the container whereas the contents (blue/green) 
+        that of the child elements, or at least ostensibly initialised to that, and all canvas/image/redraw handler sizes reflect that. 
+        The margins, along with any border/padding (of the implicit and non-overrideable kind), are not necessarily the neat rectangle
+        shown, but may well turn out to be rather more blocky and bar-chart-like.
+        <br>
+<small><small>
+        <h3>Garbage?</h3>
+        Some old stuff I&apos;m not quite ready to delete just yet, probably best ignored
+        <br>
+        <br>
+        <hr>
+        <br>
+<!--
+        When one or more of the above elements <i>are</i> present, 
+        the programmer is expected to either size them individually <i>or</i> specify a size on the dialog (still useful even when the
+        dialog is shown fullscreen, for when the user clicks on that top right "restore down" middle button), and in the latter case the 
+-->
+        The layout manager is responsible for initially determining some sizes, and also swings into action when a dialog is manually resized, 
+        expanding and arranging elements as needed to fully occupy it, hopefully in an aesthetically pleasing manner.
+<!--        , as it does when the user manually resizes a dialog. -->
+        Note the accumulated sizes may also (one day) form a natural <a href>MINSIZE</a> for the dialog, and 
+        setting a dialog size that otherwise seems unnecessary may still be of benefit when the top right "restore down" middle button is 
+        clicked, especially when the dialog is initially shown maximised.
+        <br>
+        <br>
+        One common issue is determining the ideal default initial size for a dialog. One trick <!--[I used to do something similar in IUP, 
+        where incidentally RASTERSIZE seemed rather less flakey than SIZE]--> is after manually resizing a dialog, executing a suitably 
+        placed ?<a href="gGetAttribute.htm#SIZE">gGetAttribute</a>(dlg,`SIZE`) shows what you want, or use &lt;Alt Prt Scr&gt; to take 
+        a window snapshot then paste into mspaint to see what it says in the statusbar. Of course theGUI should always give you something
+        fairly reasonable, but expecting it to deliver "the most aesthetically pleasing in context" as a default would be a bit extreme.
+        Note there isn&apos;t yet an equivalent for <a href>IupConfigDialogShow</a>() [maybe desktop-only].
+        You&apos;ll notice on(/off) <a href="tgelements.htm">Elements</a> I&apos;ve made them all 240x80 to line up nicely, just as an 
+        example or 21 and a bit of a "yeah, even me too" thing.
+        <br>
+        <br>
+        Overall, this approach requires relatively little effort on the part of the programmer, needing very little if any tedious pixel counting.
+
+<!--
+//      , and get things recognisable and serviceable. However,
+//      there will also be differences in the appearance and sizes of several native controls, such as a <a href>gButton</a>(),
+//      and depending on how fussy you are, it is amost inevitable there will be some minor platform-specific tweaks in the final polish.
+//      You might, for example, want to specify different initial window sizes on GTK and WinAPI, to get the (also different) optimal client
+//      sizes, once all the accumulated differences have been taken into account. On a cheerier note, if a <a href>gCanvas</a>()
+//      is the prime focus, or indeed full-screen, that is measured in pixels and on similar hardware will be pretty much identical no matter 
+//      what OS or backend is used.
+-->
+        <br>
+        <br>
+        Since the layout is only evaluated on initial display and resize, leisurely performance would in fact be perfectly 
+        acceptable, and fretting over 0.1s, or in practice significantly less, would be utterly pointless. 
+        Breaking the problem down into several small and well-defined steps should make things much easier to maintain and extend, 
+        even though the overall process may not be easy to grasp at a glance, and it would be completely counter-productive to 
+        merge any of the stages detailed below.
+
+        <!-- - there is in fact no guarantee of consistent behaviour for some of the 
+        "dafter" cases on different backends (esp GTK), that is when no <a href="gBox.htm">gH/Vbox</a> are involved.  For instance the
+        <a href>gButton</a>() example sneaks in a crafty little <a href>gHbox</a>(), and without that the
+        button would completely fill the dialog. -->
+<!--
+        Note that in general such behaviour is <i>not</i> deliberately or explicitly
+        implemented or enforced by theGUI, but rather instead (sometimes) inherited from whatever backend it is using, though there may 
+        well be some code which <i>assumes</i> it would happen or irons out some backend difference and that way effectively <i>does</i> 
+        implement/enforce it. At the time of writing it does not seem to affect/afflict a <a href>gFrame</a>(), unless
+        that is explicitly told to expand.
+-->
+        <br>
+<!--
+        <hr>
+        In truth that design was heavily influenced by the need to make the native controls of several disparate backends obey,
+        which no longer has any bearing on the matter.
+        <br>
+-->
+        <ul>
+<!--    <li>tg_lm_traverse() <small><i>(apply one of the following payloads)</i> [NOT YET WRITTEN]</small></li>-->
+        <li>tg_lm_get_dialog_decoration_size() <small><i>(reasonably likely to need minor tweaks)</i></small></li>
+<!--    <li>tg_lm_set_element_sizes() <small><i>(set [SZ_NATURAL_W/H], elements only, no margins)</i></small></li>
+        <li>tg_lm_gather_normal_groups() <small><i>(for next)</i></small></li>
+        <li>tg_lm_normalise_sizes() <small><i>(set [SZ_NORMAL_W/H])</i></small></li>-->
+        <li>tg_lm_accumulate_sizes() <small><i>(containers only, initial/sum/max [SZ_W/H] plus margin+gap)</i></small></li>
+        <li>tg_lm_apply_space() <small><i>(for next, implements the SPACE attribute on h/vbox)</i></small></li>
+        <li>tg_lm_disperse_user_sizes() <small><i>(final/expanded [SZ_W/H/X/Y], applies/respects margin+gap)</i></small></li>
+<!--        <li>tg_lm_apply_sizes_and_offsets() <small><i>(apply [SZ_W/H/X/Y])</i></small></li>-->
+        <li>tg_lm_dump_ctrls() <small><i>(debug aid)</i></small></li>
+        </ul>
+<!--
+        When single-canvas, the layout manager mostly just puts its feet up.
+        <br>
+        <br>
+        <hr>
+        <br>
+        <br>
+        ., and in fact it is better to add new ones, even if that means yet more traversals of the dialog hierarchy, to 
+        the extent there is now a generic routine for that which applies the different (tiny) payloads.
+        The layout manager at the very heart of theGUI is the sole survivor of an outrageously overcomplicated design process, 
+        the full details of which would serve merely to obscure matters.<br>
+        The layout manager at the very heart of theGUI is the sole survivor of a surprisingly convoluted design process, 
+//      full details serving merely to obscure matters.<br>
+        Some design decisions may seem opaque without the full history, but actual usage should be straightforward and when not quite 
+        as expected, at least you can take solace from not needing to know all the ins and outs of every possible backend. 
+        Many of the early stumbling blocks, mainly beating into submision the native controls of HTML/JS, GTK, and WinAPI, and adding
+        dirty little hacks when they refuse to agree, simply fell by the wayside once a fully emulated approach was adopted. 
+        
+Variant 1 — Pragmatic & understated
+
+//The layout manager has taken shape only after a long series of prototypes, diversions, and revisions—far too many to catalogue usefully here. 
+//With native toolkit differences largely neutralised by emulating controls ourselves, many earlier constraints have simply fallen away. 
+//Not every design choice will be fully unpacked, nor need it be. 
+//The manager runs only when a window first appears or is resized, so efficiency is secondary to clarity: 
+each of the small, well-defined stages 
+should be easy to understand, debug, and extend, even if the overall process is less so. 
+And in the simple single-canvas case, it barely has anything to do at all.
+
+Variant 2 — More reflective, hints at the journey
+
+//Reaching this layout manager design has meant navigating a fair number of blind alleys and course corrections—less a straight line and more an exploration. 
+//Now that controls are emulated rather than taken from HTML/JS, GTK, or WinAPI, many of the old cross-toolkit tensions simply no longer apply. 
+//Some decisions may seem opaque without that history, but the result is straightforward in practice: 
+//the manager runs only at creation and resize, where even leisurely performance would be acceptable. 
+Each stage in the process is intentionally small and comprehensible, even if the overall flow is not something one grasps at a glance. 
+In the single-canvas case, of course, it mostly steps aside.
+
+Variant 3 — Slightly drier, technical tone
+
+//The layout manager presented here is the product of a lengthy design cycle involving numerous discarded approaches—details that are neither necessary nor helpful to revisit. 
+//With control emulation replacing HTML/JS, GTK, and WinAPI widgets, earlier incompatibilities have largely evaporated. 
+//Some choices may resist full explanation, but the guiding aims remain constant: simplicity within each stage and ease of debugging and extension. 
+//Because layout is evaluated only on initial display and resize events, raw speed is not a driving concern. In the single-canvas scenario, its role is minimal.
+
+Variant 4 — More narrative, lightly humorous understatement
+
+//This layout manager is what survived a surprisingly twisty design process—one with enough false starts and u-turns that recounting them would only obscure the result. 
+//By emulating controls instead of relying on HTML/JS, GTK, or WinAPI directly, most of the old incompatibilities have quietly disappeared. 
+//Not every decision will seem obvious without that backstory, and that’s fine. 
+//The manager runs only on first display and resize, where even leisurely computation would be acceptable. 
+What matters is that each of its stages remains simple to reason about and maintain. 
+And if your application is just a single canvas, well, the layout manager mostly puts its feet up.
+
+Variant 5 — Shortest, most concise
+
+//After many iterations and discarded paths, the layout manager has settled into a form that no longer carries the old HTML/JS, GTK, and WinAPI constraints
+// - we now emulate controls, and much of that complexity has vanished. 
+//Some decisions may seem unexplained, but the emphasis is on clarity within each stage rather than on defending every detail. 
+Since layout runs only at creation and resize, performance is a non-issue. In fact, for a simple single-canvas window, it has almost nothing to do.
+
+Excellent, number 4 is the current favourite, lets have a look at another five, why not
+
+Here are five more variants in the spirit of #4—light, understated, and hinting at the long road behind the design:
+
+Variant 6 — Calm, measured, slightly wry
+//This layout manager is the result of a design path that wandered more than once—enough that retracing it would obscure more than it clarifies. 
+//By moving to emulated controls instead of native HTML/JS, GTK, or WinAPI widgets, many of the old frictions have simply fallen away. 
+//Some design choices may appear unmotivated without that history, but the intent is straightforward: keep each stage easy to read, debug, and adapt. 
+//Since layout runs only during initial display and window resizing, sheer performance matters far less than plain understandability. 
+And in windows hosting a lone canvas, it has barely any work at all.
+
+Variant 7 — Slightly more candid, relaxed tone
+//The layout manager grew out of a fair number of experiments—some promising, some not—and the full story is best left untold. 
+//With native toolkit quirks now sidestepped by emulating controls outright, many past complications have become irrelevant. 
+//A few decisions might seem mysterious without that context, but each step is designed to be clear and maintainable on its own. 
+//Because it runs only when a window first appears or changes size, raw speed isn’t the priority. 
+In the simple one-canvas case, it mostly nods politely and steps aside.
+
+Variant 8 — More matter-of-fact, understated
+//After several rounds of trial, error, and rethinking, the layout manager has reached a shape that no longer has to placate HTML/JS, GTK, and WinAPI quirks; 
+//emulation has rendered many of those issues moot. Not every choice is documented in depth, nor needs to be. 
+//The goal is for each stage to remain small, obvious, and easy to modify. 
+//Since layout is computed only on initial display and resizing, efficiency is comfortably secondary. 
+And for a single-canvas window, its role is almost ceremonial.
+
+Variant 9 — Slightly playful, but still concise
+//The layout manager you see here is what emerged after numerous prototypes were built, tweaked, abandoned, revived, and retired again
+// - a history better hinted at than explained. 
+//By emulating controls instead of relying on native ones, many of the previous cross-platform headaches have quietly vanished. 
+//A few choices may appear quirky without that backstory, yet each stage stands on its own as simple and maintainable. 
+//Performance isn’t a concern when it runs only on startup or resize. And if the window is just a canvas? It barely breaks a sweat.
+
+Variant 10 — Tidy, minimalist, gently self-aware
+//This layout manager is the end product of a meandering design process whose detours need not be revisited. 
+//With control emulation taking the place of HTML/JS, GTK, and WinAPI widgets, many earlier complications no longer apply. 
+//Some decisions may not be fully justified here, but each stage remains intended to be readable and easy to extend. 
+//Efficiency is of little consequence given it runs only when a window appears or is resized. 
+//In the single-canvas scenario, its workload is almost nonexistent.
+
+If you’d like another batch with a slightly different tone—more formal, more humorous, stronger emphasis on platform unification—I can generate more.
+
+-->
+<!--
+        Two of the main goals of theGUI are:
+        <ul>
+        <li>Reasonably consistent behaviour across different backends/platforms.</li>
+        <li>Simple layout declarations [!--without pixel-counting--] that are naturally resizeable.
+            <small>[if <a href="gDialog.htm#RESIZE">RESIZE</a>!=NO]</small></li>
+        </ul>
+        It must also enforce a model (which this page explains) that will work everywhere:
+        <ul>
+        <li>HTML/CSS/JavaScript uses nested &lt;div&gt; and a <a href="#BoxModel">box model</a>.</li>
+        <li>WinAPI demands parent-first declaration and pixel offsets.</li>
+        <li>GTK is <i>very</i> highly opinionated, but we only need &lt;1% of it.</li>
+        </ul>
+        Almost certainly precisely because for the past three decades it has been so very heavily used, far more than the other two 
+        combined (ie GTK and WinAPI), HTML/CSS/JavaScript already deals very effectively with everything being discussed, and as 
+        king it gets to set the groundrules, not the other two. Hence theGUI uses an abstract layout model, whereby otherwise invisible 
+        <a href>gHbox</a> and <a href>gVbox</a> containers arrange their children horizontally and vertically 
+        respectively, in a similar fashion to that required by HTML/CSS/JavaScript and GTK. 
+-->
+<!--    , rather than explicit positions. -->
+<!--
+        whereas in
+        contrast were the latter explicitly specified by the programmer, it would be exceedingly difficult and perhaps even utterly 
+        impossible to construct any form of hierarchy suitable for HTML/CSS that would then generate even remotely similar results.
+-->
+<!--
+        For WinAPI, we can easily/in fact make the gH/Vbox "virtual" and calculate the needed offsets, and
+        in practice [!--GTK is so highly opinionated on such matters--] it turns out much easier to effectively disable the internal layout 
+        manager of GTK, use GtkFixed containers (tellingly IUP does so too), and use the same logic as WinAPI <small>(albeit non-virtual)</small>.
+        <br>
+        <br>
+        Both GTK and HTML/JS allow parent and child controls to be created in any order, then "glued together" by a separate routine call, 
+        such as gtk_container_add() or parent.appendChild(), whereas WinAPI demands a parent-first declaration order and would terminate 
+        with ERROR_TLW_WITH_WSCHILD = 1406 for non-compliance. Ultimately, theGUI requires a child-first declaration order, so you can put 
+        something in the <nobr>child[ren]</nobr> <nobr>parameter[s]</nobr> of nested declarations such as hbox({lbl,txt}), and uses a 
+//      separate automatic <a href="gMap.htm">gMap</a>() phase to comply with any (esp WinAPI) backend-specific restraints. In other words 
+        we collect the entire layout hierarchy upfront but defer the actual creation until we have sufficient information to do it in 
+        whatever order we like/need. There is of course no reason to fret: you should be aware we are working under certain constraints 
+        but one of the main aims of theGUI is to iron out and abstract away such differences for you automatically.
+-->
+<!--
+        Almost certainly precisely because for the past three decades it has been so very heavily used, far more than the other two 
+        (ie GTK and WinAPI) combined, HTML/CSS/JS already deals very effectively with everything being discussed, though as king and
+        as per the <a href="#BoxModel">box model</a> below, it gets to set the groundrules, not the other two.
+-->
+<!--    , which would probably be painfully problematical under HTML/CSS/JS anyway. Some of the finer points may need to be gleaned from the longer version below.-->
+
+<!--
+ under GTK <small>(being, like I said, highly opinionated)</small> [erm, it does exactly that under WinAPI, too!!]
+, and ruthlessly ignores attempts to make it smaller, assuming you have no desire to provide dozens of lines of ugly CSS for a CSSProvider, just for GTK
+        One key point to note, especially during initial experiments and when reading the examples, is that several are deliberately a
+        direct sole child of the dialog, which makes the element expand to fill the dialog naturally, specifically the 
+        However most of the other examples, in particular <a href>gButton</a>(), <a href>gCheckbox</a>(), 
+        <a href>gDatePick</a>(), <a href>gDropDown</a>(), <a href>gLabel</a>(), and 
+        <a href>gText</a>(), all wrap the element(s) in otherwise invisible containers <a href>gHbox</a>(), 
+        <a href>gVbox</a>(), or both, to <i>prevent</i> such expansion.
+        Should a dialog be resizeable, something has to take up the excess space/slack, and those two invisible containers are often 
+        the best candidates, and offer <a href>GAP</a>, <a href>MARGIN</a>, and <a href>SPACE</a> 
+        settings to control how they do so.<br>
+-->
+<!--
+the visible child elements of a dialog are held in a suitably nested 
+        hierarcy, hopefully reasonably intuitive, of 
+        <h3>Long version</h3>
+-->
+
+<!--        <br><a name=BoxModel></a>-->
+<!--
+        <h3>The HTML/CSS Box Model</h3>
+        <p align="center"><img alt="boxlayout" src="images/boxlayout.png" width="166" height="129"/></p>
+-->
+<!--
+        HTML/CSS/JavaScript uses a box model, you may recognise the above from the Browser Development Tools, only with border used as (eg) 
+        <a href>gText</a>() dictates, and pretty much everything is constructed from nested &lt;div&gt; - even the trusty old 
+        &lt;table&gt;, &lt;tr&gt;, &lt;th&gt;, &lt;td&gt; are [these days] just div in disguise, and you could achieve <i>exactly</i> the 
+        same effect as &lt;table&gt; using &lt;div&gt; with either class-based or inline CSS.
+-->
+<!--
+        <br><a name=margin></a>
+        <br>
+        In JavaScript, the margins can be set with anything between one and four values:<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px: all four margins will be 50px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px: the top and bottom margins will be 50px, left and right margins will be 10px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px 20px: the top margin will be 50px, left and right 10px, and bottom 20px<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;50px 10px 20px 30px: the top margin will be 50px, right 10px, bottom 20px, and left 30px<br>
+        and we may as well adopt a near-identical but cross-platform scheme, ie/eg 50 or<small>[...]</small> "50x10x20x30" or {50,10,20,30}.<br>
+[!--        <small>(Aside: The ability to specify margins in units other than pixels will/may be added at a later date.)<br></small> --]
+        In other words, margin, border, and padding all spell trbl <img src="images/sml-smile.png" alt="smile" />.
+        <br>
+        <br>
+-->
+<!--
+        It turns out we only really need a (fixed width 1) border on just six controls: <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+        <a href>gButton</a>, 
+        <a href>gDatePick</a>, 
+        <a href>gDropDown</a>, 
+        <a href>gFrame</a>, 
+        <a href>gProgressBar</a>, and
+        <a href>gText</a>.<br>
+        You would not want any padding on a progress bar, a gFrame can rely on the margin of its sole child, and the default spacing
+        for the other four is is perfectly acceptable and probably better specified by auto-center of a <a href>SIZE</a>
+        anyway, hence (and to get it out the door a bit quicker) theGUI does not have any border or padding settings.
+        In many but not all cases theGUI[.e/.js] actually has to set wxh as in the above diagram, but that little detail should be completely 
+        abstracted away. The natural and user sizes include any such automatic border and padding, but not its own margin, though the margins 
+        of any child elements are obviously properly taken into account.
+-->
+<!--
+        , where it is a fixed non-overrideable width of 1, and there is no sense allowing it to be set on 
+        any other control, so from a theGUI [user] perspective, we can forget about that.
+        Technically speaking, the <a href>SIZE</a> attribute refers to the inner (blue) content box, with any
+        such drawn hard against the top left. For gButton, gDatePick, gDropDown, and gText <X!--(some of the) controls just listed --X> we 
+//      also allow a <a href>PADDING</a> so we can put the border in the right place, and in practice any such 
+        is (/will be) effectively the difference between any specified size and the natural size.
+        Obviously <a href>MARGIN</a> can and should be used instead of padding and would have much the same 
+        effect on all other (borderless) controls, and that is <i>never</i> subtracted from any usersize. 
+        Assuming controls can take care of their own borders and padding, -->
+<!--
+        <br>
+        <br>
+        There is no getting around that basic model, whatever we do simply <i>has</i> to be expressible in terms of nested containers with margins. <br>
+        No particular problem there, just explicitly stating a simple and completely undeniable fact. While there are in fact options for both a
+        <a href>GAP</a> and equivalents for <a href>SPACE</a> on a flexbox which we will no doubt take advantage of,
+        were there not (or issues arise) we could achieve what we need by tweaking the margins, which is probably what a flexbox quietly does anyway.
+-->
+<!--
+        nIn particular, 
+        should we want, say, a <a href>GAP</a>, we have to (be able to) do it in terms of margins (which we can).
+-->
+<!--
+        It is not so much that model being actually reimplemented on the desktop, but rather that everything we say and do regarding sizes and 
+        positioning is or can be expressed in those or similar terms.
+        <br>
+-->
+<!--        <h3>Native sizes (window and client)</h3>
+//      Because of the dynamic nature of the abstract layout, theGUI elements implicitly have many types of size, <br>
+//      but the native (/actual) elements have only two types of size: window and client. <br>
+//      The window size (red below) reflects the bounding rectangle of the element including any outer decorations. <br>
+//      The client size (blue below) reflects the space for any content/children, excluding any decorations around them. <br>
+//      For many elements those two sizes are equal, but for several containers they are quite different, some examples:
+-->
+<!--
+//      There is no benefit to allowing such details to "bleed through" to the application developer, but equally there simply cannot be an absolute 
+//      guarantee there will be no cases where (eg) GTK might need/want (say) a slightly smaller margin.
+//      The sizes in theGUI (user, natural and current) described below are (in theory at least) all related to the window size. <br>
+//      Note that in their own ways both GTK and WinAPI are highly opinionated on such matters: GTK generally only "speaks" client sizes, and 
+//      in fact the docs adamantly state you <i>cannot</i> get/set the window size (in truth G<i><b>D</b></i>K <i>does</i> kinda know), whereas WinAPI 
+//      normally (with a couple of exceptions) operates on windows sizes, however apparently since Windows Vista there is now an undocumented
+//      "invisible 8 pixel border" somewhere. You would think that if you did somehow get hold of both sizes (and WinAPI certainly purports to
+//      that) you could simply subtract one from the other to determine the decoration sizes, but it is just not that simple, so instead theGUI
+//      resorts to various hard-coded numbers, which may warrant further tweaks depending on [OS] versions, hardware, and system settings.
+//      Of course HTML/CSS/JavaScript can be just as obstinate, for instance just now I asked for the getComputedStyle() of a &lt;div width=238
+//      height=131&gt; and despite pasting a screenshot into mspaint and carefully cropping it, to prove it really was 238x131, that routine 
+//      returned 241.165x163, which was lovely. Also note that different backends have different opinions about a <a href>gMenu</a>
+//      on a dialog and the raw api may include or exclude space for that in the client size.
+//      <br>
+//      <br>
+//      In any case such differences should be and are abstracted away by theGUI, and you should barely notice even if the numbers/adjustments 
+//      just mentioned are (sometimes) slightly wrong, and of course for anything that isn&apos;t spot on, then just like any other bug, if it 
+//      can be repeated, it can almost certainly be fixed.<br>
+//      <small>[For the JS hiccup just mentioned, as an example, theGUI.js now simply uses the pixel perfect accurate attributes directly, which of 
+//      course if truth be told it put there itself anyway, rather than ever bothering to invoke that particular useless filthy lying dirty scumbag 
+//      of a function <img src="images/sml-smile.png" alt="smile" />.]</small>
+-->
+<!--
+//      <br>
+//      <br>
+//      The internal read-only native client size is used only to reposition the elements in the abstract layout, but is available using the 
+//      <a href="gGetAttribute.htm#CLIENTSIZE">CLIENTSIZE</a> attribute should it be needed for any reason. You can actually set it on a
+//      <a href>gDialog</a>, which may lead to more conststent (inner) behaviour. [DEV: needs more testing]<br>
+-->
+
+<!--
+        There is no support for normalising containers, or updating normalisation after mapping/initial display when manually/explicitly updating
+        the size/text of one (or more) of the elements involved. [Were containers allowed, at the very least there would need to be additional code
+        to ensure none of their children were in the same group(s).] The precise behaviour of elements which are part of more than one normalisation 
+        group is formally undefined, as in it will end up with the largest width/height of at least some of the groups but not necessarily all of 
+        them. However it should be fine to normalise widthwise in <i>one</i> group and heightwise in another <i>one</i>. Should normalisation not 
+        behave as required, you are expected to explicitly set all the element sizes manually instead, and/or perhaps also set some sizes on some 
+        containers.<br>
+        Note this is quite different from <a href>IupNormalizer</a>.
+-->
+<!--
+        <del>Right now I cannot decide whether to implement this as</del> see (when I write it) --Z>
+//      gNormalise({ids},"WIDTH|HEIGHT|BOTH")<br>
+<Z!Z--
+                <del>or have named groupings on individual elements,</del> and/or everything in a h/vbox... It may also require mulitple passes
+        to update the natural sizes and re-accumlulate them upwards, until no more changes occur...<br>
+--X>
+?       The NORMALWIDTH, NORMALHEIGHT, and NORMALBOTH attributes on gHbox and gVbox achieve much the same effect, however
+        they apply to all top level elements, with no way to achieve any finer control such as selected or nested elements.<br>
+<X!X--
+?       Note that only visible elements can actually be normalised: If you have (say) gVbox({gHbox,gHbox}) then the two
+        children are (with the default <a href>EXPAND</a> in place) automatically given the same width, 
+        however there is no facility to automate same width/height on two or more disjoint gHbox/gVbox, though you can use a fixed 
+        SIZE setting.<br>
+        <small>(That should hardly be particularly suprising given that h/vbox are virtual under WinAPI.)</small><br>
+-->
+<!--
+        <h3>Attributes</h3>
+        Layout management observes and is controlled by just a small handful of attributes:<br>
+        <ul>
+        <li><a href>SIZE</a>: Allows the natural size to be overidden.</li>
+        <li><a href="gSetAttribute.htm#MAXSIZE">MAXSIZE/MINSIZE</a>: Should be self-explanatory.</li>
+        <li><a href>EXPAND</a>: Allows an element or container to grow, widthwise, heightwise, or both.</li>
+[!--    <li><a href="gSetAttribute.htm#SHRINK">SHRINK</a>: Allows an element to be cropped smaller than its natural size (default NO).</li> --]
+//      <li><a href>MARGIN</a>: As per the <a href="#BoxModel">box model</a> above.</li>
+        <li><a href>GAP</a>/<a href>SPACE</a>: (gH/Vbox only) Additional space between/around elements.</li>
+        </ul>
+        These often interact with each other, sometimes rather subtly, for instance a <a href="gBox.htm">gH/Vbox</a> typically only expands 
+        in a given direction if at least one of its children is capable of expanding in that same direction. Often a bit of trial and error 
+        is required to find the perfect combination.
+        <br>
+        <br>
+        The intention is that these attributes should all be set before the first <a href>gShow</a>, updates to them after that
+        are not expected to be particularly well supported, though an explicit <a href>gRedraw</a>() might help. One common
+        issue is that a <a href>gLabel</a>() might get a natural size from the initial text, and updates to that appear clipped.
+        The correct solution is to ensure it is properly expanded/aligned from the get-go, rather than try to force updates to the natural
+        size and corresponding reductions to some surrounding spacing. Likewise try and design a UI so that controls stay in the same place
+        rather than jiggle about when different app-specific options are selected, except as positioned by the layout manager for any given 
+        containing dialog size.
+        <br>
+-->
+<!--
+        <h3>Inheritance</h3>
+        Note that the inheritance model differs somewhat between pGUI and theGUI. While some aspects such as fonts inherit as you might 
+//      hope and expect, I found having GAP/MARGIN[!--/PADDING etc--] apply to all child elements as well as the immediate (container) just 
+        annoying <small>(You want an extra 5 pixels? Sure, here you go, and that five-level nested sub-child gets 25 pixels, that&apos;s 
+        what you meant, <i>obviously</i>. Having N-prefixed (etc) versions of all these attributes never felt quite right either. Of course
+        whenever inheritance is not right for desktop/Phix there is a whole heap of extra work to stop CSS from being stupid as well.)</small>
+        Hopefully <a href>gSetAttribute</a>({elements},..) should help when that sort of thing <i>is</i> actually wanted.
+        Of course no-one should expect legacy/freshly ported code to run flawlessly without at least <i>some</i> minor tweaks anyway.
+-->
+<!--
+        <h3>CSS flexbox <small>(implementation in theGUI.js for the HTML/CSS/JavaScript backend)</small></h3>
+        Delightfully complicated, delivers a frankly <i>ludicrous</i> level of control over positioning and alignment of items. <br>
+        It would be absurd for theGUI.js not to take advantage of all that power, and it would be absurd to replicate every bit of all
+        that functionality in theGUI.e for desktop/Phix, equally CSS grid may be even more powerful, but beyond our needs. The following 
+        is a severely abridged definition of a flexbox, limited to those parts that theGUI.js actually uses <small>(and is probably more
+        for my benefit than yours)</small>.
+        <br>
+        <br>
+        element.style.display = "none" - when <a href>VISIBLE</a> is false.<br>
+        container.style.display = "flex" - a <a href="gBox.htm">gH/vbox</a>().<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[not used: block|compact|grid|initial|inherit|inline[-*]|list-item|marker|run-in|table[-*]]</i></small><br>
+        <br>
+        container.style.flexDirection = "row" - a <a href>gHbox</a>().<br>
+        container.style.flexDirection = "column" - a <a href>gVbox</a>().<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[not used: row-reverse|column-reverse|initial|inherit]</i></small><br>
+        <br>
+        container.style.justifyContent = "flex-start" - <a href>SPACE</a>=RIGHT/BOTTOM.<br>
+        container.style.justifyContent = "flex-end" - <a href>SPACE</a>=LEFT/TOP.<br>
+        container.style.justifyContent = "center" - <a href>SPACE</a>=CENTRE.<br>
+        container.style.justifyContent = "space-between" - <a href>SPACE</a>=BETWEEN.<br>
+        container.style.justifyContent = "space-evenly" - <a href>SPACE</a>=AROUND.<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[above is primary axis. not used: space-around|initial|inherit]</i></small><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[space-evenly splits 1-1-1-1, whereas space-around is 1-2-2-1, which I find ugly.]</i></small><br>
+        <br>
+        <small>
+        <i>container.style.alignItems - not used: see alignSelf.<br></i>
+        <i>container.style.flexWrap - nowrap / not used: wrap|wrap-reverse|initial|inherit.<br></i>
+        <i>container.style.alignContent - not used (due to nowrap).<br></i>
+        </small>
+        <br>
+[!--
+        <i>container.style.alignItems = "stretch" - Default for expandable children, see alignSelf.<br></i>
+        <i>container.style.alignItems = "flex-start" - Default for non-expandable children.<br></i>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[above is cross axis. not directly used, no equivalent: baseline|initial|inherit]</i></small><br>
+--]
+        child.style.alignSelf = "stretch" - expandable child (<a href>SPACE</a> ignored).<br>
+        child.style.alignSelf = "center" - non-expandable child with <a href>SPACE</a>=CENTRE/AROUND.<br>
+        child.style.alignSelf = "flex-start" - non-expandable child with <a href>SPACE</a>=RIGHT/BOTTOM/BETWEEN.<br>
+        child.style.alignSelf = "flex-end" - non-expandable child with <a href>SPACE</a>=LEFT/TOP.<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[above is cross axis. not used: auto|baseline|initial|inherit]</i></small><br>
+        <br>
+        child.style.flexBasis = "auto" - expandable child, but see note.<br>
+        child.style.flexBasis = number - child of a <a href>gSplit</a>(). [!--small>[when <a href="gSplit.htm#FRAC">FRAC</a>!=-1]</small--]<br>
+        child.style.flexBasis = "0" - non-expandable child.<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[above is primary axis. not used: initial|inherit]</i></small><br>
+        <br>
+[!--        child.style.flexGrow - used to implement a <a href>gSplit</a>(), with <a href>sum</a>() matching width/height.<br></i>--]
+        <small>
+        <i>child.style.order - not used.<br></i>
+        <i>child.style.flexGrow - not used: (number|initial|inherit) relies on flexBasis instead.<br></i>
+        <i>child.style.flexShrink - not used: (number|initial|inherit) relies on flexBasis instead.<br></i>
+        &nbsp;&nbsp;&nbsp;&nbsp;<i>[the shorthands flex (grow/shrink/basis) and flexFlow (dir/wrap) are for puny humans, not theGUI.js!]</i><br>
+        </small>
+        <br>
+        container.style.columnGap = "Npx" - <a href>GAP</a> on a <a href>gHbox</a>().<br>
+        container.style.rowGap = "Npx" - <a href>GAP</a> on a <a href>gVbox</a>().<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<small><i>[the gap shorthand is for puny humans, GAP is one or t&apos;other, not both.]</i></small><br>
+        <br>
+        <small>
+        <i>element.style.cssFloat - none / not used: left|right|initial|inherit.<br></i>
+        </small>
+        <br>
+        A flex-basis of "auto" lets us down badly on a <a href>gCanvas</a>, stretching it without redrawing while maintaining
+        the aspect ratio, causing them to overflow the container and generally look awful, hence theGUI.js still needs to manually resize them.
+        <br>
+        <br>
+        Otherwise a pretty straightforward mapping. Should you want to learn more about flexbox, I cannot recommend anything better than
+        <a href="javascript:ExternalLink('flext01');" id="flext01" 
+           style="color:#9B5565">https://www.joshwcomeau.com/css/interactive-guide-to-flexbox/</a>
+-->
+
+<!--
+https://www.joshwcomeau.com/css/interactive-guide-to-flexbox/
+https://www.sketchingwithcss.com/samplechapter/cheatsheet.html -- prefixes?
+The flexBasis property specifies the initial length of a flexible item. -- 1 if expands in the primary direction, 0 if not. Or the natural size?? Or auto/uhnused?
+
+--Note: If the element is not a flexible item, the flexBasis property has no effect.
+--
+--object.style.flexBasis = "number|auto|initial|inherit"
+--number    A length unit, or percentage, specifying the initial length of the flexible item(s)
+--auto  Default value. The length is equal to the length of the flexible item. If the item has no length specified, the length will be according to its content
+--initial Sets this property to its default value. Read about initial
+--inherit Inherits this property from its parent element. Read about inherit
+
+        <br>
+-->     
+<!-- aye but why say eet eh bwoy?
+        In practice, theGUI.js can perhaps also use "display: flex;" and friends to smooth a few things out within h/vbox containers, but
+        we&apos;ll quietly gloss over that and perhaps mimic a bit of that automatically, rather than explicitly re-implement flexbox
+        features (and all the rest) for desktop/Phix. In fact theGUI.js uses that and explicitly calculated margins rather than what
+        follows, but the result is pretty much the same.
+-->
+<!--        , apart from or beyond the <a href="gBox.htm#SPREAD">SPREAD</a> attribute of h/vbox. -->
+<!--
+        we can arrange children horizontally/vertically using  with
+        "flex-direction: row/column;", but otherwise let&apos;s stick to "justify-content: flex-start;" and rely 
+        on explicit margins for any finer control.
+
+        <br>
+        <br>
+        (At this stage, lets just get pixels working: later we can consider (eg) something CHARSIZE-based)<br>
+
+        For the purposes of theGUI layout manager, we have to focus exclusively on the spacing within v/hbox, as far as border and padding are concerned 
+        In practice, any internal padding would only have any visual impact on <a href>gButton</a>, 
+        <a href>gText</a>, and possibly <a href>gDatePick</a> controls, being those that
+        actually have a visible border, and even then would achieve nothing and possibly clash with the
+        <a href="#SIZE">SIZE</a> attribute. There isn&apos;t much call for changing the border on those controls,
+        or for that matter adding a border to, say, a <a href>gLabel</a>, so we&apos;ll mention that no more.<br>
+        Single-child containers such as <a href>gDialog</a> and <a href>gFrame</a> would gain nothing
+        from padding that the margin|padding of a nested h/vbox would not provide, and therefore would just muddy the waters, so
+        at least for 0.x releases (ie those not ready for active duty) that won&apos;t be supported.<br?
+        Hence as far as theGUI is concerned, for any visible controls the margin is king, though/and we are at liberty to 
+        use padding [only] on h/vbox containers as part of our layout management.<br>
+-->
+<!--
+        ...padding and border are really part of the child element, 
+        only the (independently settable top/left/right/bottom) margin is suitable for controlling the 
+        layout within a container (which will do just fine, though we want to avoid border-collapse).
+-->
+<!-- No, applying PADDING just feels better:
+        ?A GAP attribute can/could be implemented simply by adjusting the top/left margin on children[2..$].<br>
+        ?Note that for h/vbox (which have no border), theGUI (?also?) applies the left/top padding to [the margin of] every child.?<br>
+        ?Also note that as fas as theGUI is concerned and border/padding of visible elements is treated as content.?<br>
+-->
+<!--
+margin: 10px 5px 15px 20px; top margin is 10px. right margin is 5px. bottom margin is 15px. left margin is 20px.
+margin: 20px auto; Then that means top and bottom margin of 20px and left and right margin of auto. 
+                   And auto means that the left/right margin are automatically set based on the container.
+
+This property can take from one to four values:
+
+One value, like: div {margin: 50px} - all four margins will be 50px
+Two values, like: div {margin: 50px 10px} - the top and bottom margins will be 50px, left and right margins will be 10px
+Three values, like: div {margin: 50px 10px 20px}- the top margin will be 50px, left and right margin will be 10px, bottom margin will be 20px
+Four values, like: div {margin: 50px 10px 20px 30px} - the top margin will be 50px, right margin will be 10px, bottom margin will be 20px, left margin will be 30px
+
+The padding property sets or returns the padding of an element.
+
+This property can take from one to four values:
+
+Both the margin property and the padding property insert space around an element. However, the difference is that margin inserts the space around the border, 
+while padding inserts the space within the border of an element.
+
+One value, like: div {padding: 50px} - all four sides will have a padding of 50px
+Two values, like: div {padding: 50px 10px} - the top and bottom padding will be 50px, left and right padding will be 10px
+Three values, like: div {padding: 50px 10px 20px} - the top padding will be 50px, left and right padding will be 10px, bottom padding will be 20px
+Four values, like: div {padding: 50px 10px 20px 30px} - the top padding will be 50px, right padding will be 10px, bottom padding will be 20px, left padding will be 30px
+
+    margin-top:16px;
+    margin-right: auto;
+    margin-bottom:0;
+    margin-left: auto; 
+
+/*  padding-top:10px;*/
+/*  padding-right:8px;*/
+/*  padding-bottom:10px;*/
+/*  padding-left:8px;*/
+    padding:10px 8px 10px 8px;
+
+We (theGUI) could say: GAP on a h/bbox is added to the margin-left/top of all children except the first....
+
+-->
+
+        <h3>Implementation <small>(in theGUI.e for the GTK and WinAPI backends)</small></h3>
+        The layout manager works by juggling a whole heap of sizes: natural, user, min, max, normalised, and final, and applying margins,
+        initially accumulating sizes up the hierarchy, and then distributing spacing/expansion downwards. Much of the code is a little vague
+        and/or experimental, rather than adhering to some clear easily digestible overall design, since there isn&apos;t one - these docs 
+        are the closest you&apos;ll get to that. The reality is my efforts to come up with a proper design certainly helped to simplify 
+        things a great deal at first, but beyond a certain point started going in circles, so after that I just started trying to use it, 
+        and fixing the many inevitable "bugs" as and when they got in the way. Should you want to study the layout management code, the 
+        relevant (local) routines in theGUI.e all begin with "tg_lm_"/are the only ones that contain "lm", and are all post-mapping:
+        <ul>
+        <li>tg_lm_get_dialog_decoration_size() <small><i>(fudged under GTK)</i></small></li>
+        <li>tg_lm_set_element_sizes() <small><i>(set [SZ_NATURAL_W/H], elements only, no margins)</i></small></li>
+        <li>tg_lm_gather_normal_groups() <small><i>(for next)</i></small></li>
+        <li>tg_lm_normalise_sizes() <small><i>(set [SZ_NORMAL_W/H])</i></small></li>
+        <li>tg_lm_accumulate_sizes() <small><i>(initial/sum/min [SZ_W/H], containers only, adds margin+gap)</i></small></li>
+        <li>tg_lm_apply_space() <small><i>(for next, implements the SPACE attribute on h/vbox)</i></small></li>
+        <li>tg_lm_disperse_user_sizes() <small><i>(final/expanded [SZ_W/H/X/Y], applies/respects margin+gap)</i></small></li>
+        <li>tg_lm_apply_sizes_and_offsets() <small><i>(apply [SZ_W/H/X/Y])</i></small></li>
+        <li>tg_lm_dump_ctrls() <small><i>(debug aid)</i></small></li>
+        </ul>
+        
+        <!--br--><a name=sizes></a>
+        Those routines operate on the various internal sizes:<br>
+        <b>Natural:</b> Note that only the "leaf" elements have a natural size
+       (<a href>gButton</a>, <!--2x2 under?-->
+        <a href>gCheckbox</a>, <!--10x16 under?-->
+        <a href>gDatePick</a>, <!--exact?-->
+        <a href>gDropDown</a>, <!--exact?-->
+        <a href>gFrame</a>, <!--???-->
+        <a href>gLabel</a>, <!--0x6 under?-->
+        <a href>gProgressBar</a>, <!--exact?-->
+        <a href>gSlider</a>, <!--16x6 under?-->
+        <a href>gSpin</a>, <!--exact, on the embedded gText?-->
+        <a href>gTabs</a>, <!--(n/a)x1 over?-->
+        <a href>gText</a>, <!--exact?-->
+        <a href>gTable</a>), <!--exact?!-->
+        and consistency is more important than accuracy, besides it is not possible to actually measure (say)
+        the invisible margin some backend decides a text label has. Very likely to differ between backends.<br>
+        Note the natural size of a gFrame is "the text size" rather than "the container size".<br>
+        <b>Normal:</b> the natural sizes after <a href="#gNormalise">normalisation</a>.<br>
+        <b>User:</b> as explicitly supplied by the programmer, if any, ditto min/max.<br>
+        <b>Final:</b> aka SZ_W/H/X/Y.<br>
+        See just before theGUI.e/g_log(), approx line 2350, for some ways to produce logs of what is going on, from what/when the 
+        internal tables are being updated to exactly what you are asking the underlying backend to do, and what it is saying back.
+        Naturally it will probably require extending on each use, but hopefully without reinventing the wheel every time.
+        <br>
+        <br>
+        Be warned that layout management is by far the trickiest part of theGUI and everything it does must have a CSS equivalent /
+        apply to the box model as shown above <small><i>(that list is probably more for my benefit than yours)</i></small>.
+        Getting tg_lm_dump_ctrls() to show that you have calculated everything properly (esp natural sizes) is just the first step: 
+        getting WinAPI and GTK to obey you is altogether another matter entirely. As said, HTML/CSS does things differently, and to 
+        be honest about it, the sole (canvas) child case is really the only thing I (personally) care much about, at least as yet.
+        <!-- <small>(and usually somewhat more obediently)</small>. -->
+        As mentioned above, there are a fair few places where hard-coded adjustments/fudges are used, that probably deserve to be 
+        replaced with the "proper calculation via API", whatever that might actually be. 
+        My attempts to break the task down into eight smaller/simpler pieces (plus one diagnostic routine) have not really helped.
+        There is also an otherwise undocumented gSetBodge() debug aid that I found helpful, at least initially, and which may
+        one day become the basis for some much-needed unit/regression testing (on desktop/Phix only?).
+        <br>
+        <br>
+        While (hopefully) this may make little sense right now, the natural sizes are in fact the most critical aspect of the layout
+        manager: without natural sizes you simply cannot display anything naturally. Being out by even a single pixel is pretty much
+        guaranteed to find a way to accumulate across or down the screen to something pretty ugly pretty fast. It is not helped when
+        a backend (esp GTK3) is obstinately opinionated about such matters and simply ignores anything it deems "too small". What I
+        have tended to do is paste a screenshot, or three dozen, into mspaint, clip, zoom in, and display a grid, then carefully
+        count pixels. The ugliest parts of theGUI.e are where such efforts have resulted in ad-hoc calculations and little constants
+        scattered seemingly at random throughout that source, and even worse, in different places for different backends.
+        <br>
+        <br>
+        Note there is no intention to achieve pixel-perfect consistency between different backends, since they have different 
+        window decorations and fonts, and even GTK2 and GTK3 on the same box are visually rather (rudely/arrogantly) distinct. 
+        Besides, should you display a screenshot of a Windows program on a Linux desktop, or vice versa, it might look a bit 
+        odd and out-of-place, and you are probably more likely to want to hide the standard window decorations in a browser 
+        than on the desktop. Things should however be reasonably similar and more importantly perfectly/intuitively use-able.
+        That said, there is no prohibition on or expectation you will never need minor platform-specific tweaks, and at least 
+        some uses/tests of <a href>gUseGTK</a>() on Windows do actually attain pixel perfection, albeit often 
+        with subtly different background colours.
+        <br>
+        <br>
+<!--
+<hr>
+<hr>
+
+        <b>Short Version:</b> Most interface elements get a sensible "natural size", with the notable exception of
+        <a href>gCanvas</a> (and hence <a href>gGraph</a>) and <a href>gTree</a>.
+        The usual approach is to construct a dialog using nested <a href="gBox.htm">gH/Vbox</a> without worrying about the precise 
+        size or position of anything and just let the layout manager figure it out. When any of the three mentioned is involved, 
+        you would normally specify a size on those or the final size of the dialog and let the layout manager expand them to fit. 
+        In all probability some minor adjustments to spacing and alignment will be required, and it is often a good idea to set an 
+        explicit minimum size on the dialog, which I normally get from a <code>?gGetAttribute(dlg,"SIZE")</code>.
+
+        <h3>Long Version</h3>
+        Properly resizable dialogs can often empower the final end users in ways that static fixed layouts never could,
+        in some cases expanding things where needed and in others possibly freeing up some valuable screen real estate.
+        <br>
+        <br>
+        In short, the old-school method of explicitly specifying the position on every element is not only downright tedious but
+        would never work in the HTML <a href="#BoxModel">box model</a> (or at least be rather difficult), so that&apos;s out.
+        Instead, you can either just specify the desired (initial) dialog size (recommended) and let the layout manager figure 
+        out everything for whatever that contains, or rely on it summing up the natural sizes of the elements it contains. 
+        Note that the latter would typically still need explicit sizes on <a href>gCanvas</a> (and hence 
+        <a href>gGraph</a>), and <a href>gTree</a>, and quite probably 
+        <a href>gSlider</a>, <a href>gProgressBar</a>, and <a href>gText</a> as well, 
+        whereas <a href>gButton</a>, <a href>gCheckbox</a>, <a href>gDatePick</a>, 
+        <a href>gDropDown</a>, <a href>gList</a>, and <a href>gTable</a> are more likely 
+        to get a decent common-sense natural size.
+        In general, theGUI is easier and more likely to work as expected with an explicit size setting on the containing
+        <a href>gDialog</a>, though the more "trivial" dialogs should often simply "just work" without one.
+        <br>
+        <br>
+        The <a href>gHbox</a> and <a href>gVbox</a> containers are the "sand and cement between the bricks",
+        responsible for almost all spacing around and between their child elements, and certainly any and all variable spacing.
+        Technically this model is a closer fit to the underlying GTK and HTML/CSS/JavaScript mechanics (details below) but in any
+        case manually specifying the pixel offsets of every element, as raw WinAPI expects, would be much more tedious, especially
+        in getting things to line up and not overlap or be clipped. While it could theoretically be possible to work backwards
+        from "correct" offsets onto the GTK/CSS models, it might actually be impossible to do so from some "bug-ridden" offsets.
+        The <a href>gDialog</a> and <a href>gFrame</a> containers only have a single child, and
+        likewise only one of the immediate children of a <a href>gTabs</a> control is visible at any given
+        moment, and that occupies <i>all</i> space within them. 
+-->
+        <!--, apart from any <a href>PADDING</a>.-->
+<!--        <i>without any</i> <a href>MARGIN</a>.<br>-->
+
+<!--
+        In any case, manually specifying the pixel offsets of every element is just simply tedious, so instead that gets done automatically.
+-->
+<!--
+        <br>
+        <br>
+        In particular, a <a href>gDialog</a>(<a href>gCanvas</a>()), and similarly for canvas-derived
+        elements <a href>gGraph</a>, <a href>gList</a>, and <a href>gTable</a>, is (almost) 
+        treated as a special case with the canvas always completely filling the dialog, and as such the layout manager has very
+        little to do. The natural size of a canvas is rather small, the size of one character, and hence in such cases you will
+        almost certainly want to specify a [MIN]SIZE on either the canvas or dialog. The "not quite" part of it arises when the 
+        canvas is (explicitly) scrolled, in which case you must/have specified sizes on both. Otherwise the rest of this page is
+        primarily concerned with the handling of [nested] <a href>gVbox</a> and <a href>gHbox</a>.
+        <br>
+        <br>
+        The key take-homes from a nested h/vbox model are:
+        <ul>
+        <li>Every visible element is automatically given a <i>natural size</i> that ensures the contents are fully displayed.</li>
+        <li>Containers get a natural size width/height sum and sufficient height/width for the largest of their children.</li>
+//      <li>Elements and containers may be assigned straightforward <a href>EXPAND</a>/MARGIN/PADDING/SIZE (etc) attributes.</li>
+        <li>When a dialog is created/resized the layout manager uses the above to reposition/resize them and their children.</li>
+        </ul>
+        While some elements (esp. <a href>gCanvas</a>) may benefit from being given an explicit size, it is not 
+        normally needed on things like <a href>gButton</a> and <a href>gLabel</a>, and sometimes
+        the outer <a href>gDialog</a> benefits, but it is fairly unusual to need/want a size on other containers.<br>
+        For gDialog(gCanvas("400x400")), the dialog is automatically made large enough to contain that canvas.<br>
+        For gDialog(gCanvas(),"200x200"), the canvas is automatically made large enough to fill that dialog.<br>
+        For gDialog(gCanvas("400x400"),"200x200") there would naturally be automatic scrollbars around the canvas.<br>
+        When the dialog is subsequently manually resized, everything should continue to cope/look and feel quite natural.
+-->
+<!--
+        <br>
+        <br>
+        To-do: add a pretty picture here (once it actually works)...<br>
+ <pre>
+        Example (gFrame annotated)          Source code
+            XXXXXXXXXXXXXXXXX               buttons = gHbox({gLabel("EXPAND=HORIZONTAL"),gButton("OK"),gButton("Cancel")}),
+            X               X                dialog = gDialog(gVbox({canvas,buttons}))  
+            XXXXXXXXXXXXXXXXX
+ </pre>
+        <br>
+        <br>
+        Run demo\theGUI\lmdemo??.exw (the above), play with the "Show frames?" toggle, and then try reading/running/resizing 
+        demo\theGUI\gSample.exw for something a bit more involved, or any of the many other demos in that directory.
+        <br>
+-->
+<!--
+        <h3>Internals</h3>
+        The following contains far more detail than you really need to know for day-to-day use, but I think it is important to
+        document at least some of the design decisions, and it should be helpful for anyone wishing to take a deeper dive into
+        the inner workings of theGUI.
+
+        <br>
+        <br>
+        WinAPI has absolutely <i>no layout managment at all</i>, instead the programmer is expected to provide/set 
+        explicit (pixel) offsets/sizes - that&apos;s fine; we&apos;re instantly committed to <i>having</i> to 
+        write our own layout manager, which is exactly what IUP does anyway. 
+        Both HTML/CSS and GTK pretty much force us to adopt a nested container model, though WinAPI does not actually 
+        have anything like that, hence in practice theGUI maps (fake) hbox/vbox to internal/hidden pixel offsets when 
+        using the WinAPI backend. Again, no big deal.
+        <br>
+        <br>
+        GTK: to cut a long story short, we <i>could</i> faff about trying to convince the gtk layout manager to do 
+        our bidding, or just use GtkFixed containers (tellingly IUP uses them too) and that way leave ourselves in 
+-->
+<!--        the same boat as WinAPI - which just means we can use a bit of shared code.<br>-->
+<!--        the same boat as WinAPI - and use some shared code.<br>-->
+<!--
+        the same boat as WinAPI - and hopefully use some shared code.<br>
+        The instant I switched from gtk_hbox_new() (ditto vbox) to gtk_fixed_new() I was immediately struck by the 
+        fact that at least five quite thorny issues had, quite simply, just vanished.
+        For instance, GTK delegates expand handling to the container, so preventing (say) a gButton going full-width 
+        in a gVbox would require a nested gHbox the other two backends don&apos;t need, that is unless we effectively 
+        disable the gtk layout manager, as we now do.
+        Note however that GTK is outrageously obstinate
+        in respect to setting and retrieving sizes, and likewise has a mind of its own when it comes to the
+        matter of focus control. In practice theGUI tries to use GTK itself as lightly as possible; whereas cairo 
+        (graphics) and pango (text/fonts) are perhaps more heavily relied and depended on.
+-->
+<!--, ludicrously overcomplicated, and downright pathetic -->
+<!--
+        GTK uses a tantalisingly similar nested control structure to js, with hbox/vbox, all initially looking quite 
+        appealing, but ultimately turns out to be very opinionated, with weird packing rules, a parallel and scantily 
+        documented and virtually unfathomable GtkAlignment(xalign,yalign,xscale,yscale), which tellingly IUP deigned 
+        not to use, and spacing being delegated away from individual controls onto the container - so, for example, 
+        if you wanted to put a button inside a vbox, you simply <i>cannot</i> tell it not to expand horizontally, at 
+        least not without putting it inside a further-nested hbox. That would not be a problem if it was "only" GTK, 
+        but needing things for GTK that you don&apos;t for JS/WinAPI would be quite an issue. Thankfully, there is 
+        a half-hidden GtkFixed(), that tellingly IUP <i>does</i> use, which leaves us in the same boat as WinAPI.
+        <br>
+        <br>
+-->
+<!--
+        In short, whatever we do has to be possible with the HTML/CSS box model, and thankfully that is not the same
+        as saying we have to implement CSS on the desktop - I am breathing a huge sigh of relief at that, but I can 
+        already hear someone somewhere going <i>awww!</i>... 
+-->
+<!-- you wish, HTML/CSS has to be done via the box model!! (now reworded)
+//      It is also fair to say that in the original pGUI.js I struggled to replicate (in JavaScript) whatever it was 
+//      that IUP was doing, whereas in being forced to write all that handling for WinAPI (and deciding to do exactly
+//      the same for GTK) I ended up with some easily transpilable code (a manual step) that could be pasted straight
+//      into theGUI.js often with no further manual editing.
+//      <br>
+//      <br>
+-->
+<!--
+//      It is also fair to say that in the original pGUI.js I struggled to replicate (in JavaScript) whatever it was 
+//      that IUP was doing, whereas in being forced to write all that handling for WinAPI (and deciding to do exactly
+//      the same for GTK) I could do so with the box model firmly in mind from the get-go, and even manually transpile
+//      a few bits of the desktop handler code for use in theGUI.js.
+        <br>
+        <br>
+        Resizing the layout (using the mouse) automatically sets/overrides the user size (even if set programmatically).
+        <br>
+        <br>
+        The following attributes are used to define and control layout management (click them for more details):
+        <br>
+//      <br><a name=MARGIN></a>
+//      <a href>MARGIN</a>: ?It is illegal to specify a margin on any element that is 
+//      not the immediate child of either a <a href>gHbox</a> or <a href>gVbox</a>, and that 
+//      <i>includes</i> any such top-level container, which must instead use the PADDING and ?GAP? attributes instead.
+//      <br>
+//      <br><a name=PADDING></a>
+//      <a href>PADDING</a>: Specifies the fixed internal spacing around any content. 
+//      For <a href>gHbox</a> and <a href>gVbox</a> (only), the left/top is seamlessly added to 
+//      the left/top MARGIN of any child element.
+        <br>
+-->
+<!--
+//      <br><a name=GAP></a>
+//      <a href="gSetAttribute.htm#GAP">GAP</a>: Specifies the initial spacing between any content. Applies to 
+//      <a href>gHbox</a> and <a href>gVbox</a> only, an error occurs on attempting to set this 
+//      on any other control. As with PADDING this is seamlessly added to the MARGIN of any child element.
+//      <br>
+//      <br>
+-->
+<!--
+        The actual layout management is performed in several stages:<br>
+        There is no measurable performance penalty from traversing the hierarchy multiple times, however there <i>is</i>
+        a potential maintenance gain from one pass one task, giving each stage a sensible and meangingful name, and 
+        comparing interim results between backends.<br>
+        The natural sizes are normalised, to the widest/tallest of any normalisation group(s), see below. [not yet attempted]<br>
+//      The normal sizes are accumulated up the hierarchy, such that a gHbox has the sum of the widths of its children
+        and the maximum of their heights, and a gVbox has the maximum of their widths and the sum of their heights, plus
+        any appropriate margins, along with allowances for the standard decorations on a <a href>gDialog</a> 
+        (including any <a href>gMenu</a>), <a href>gFrame</a>, and <a href>gTabs</a>.<br>
+        Any overidden user sizes bubble up the hierarchy, such that in gDialog(gCanvas("100x100")) the dialog expands.<br>
+?X      Likewise any shrinkable elements accumulate a total shrinkable amount/limit up the hierarchy, which is used in 
+        the following instead, should (a user size have been set and) the slack turn out to be negative.<br>
+        The user sizes are distributed down the hierarchy, such that for slack := user-natural, if there are n expandable 
+        children the first gets <small><sup>1</sup></small>&frasl;<small><sub>n</sub><sup>th</sup></small> of slack, then 
+        slack is reduced by that (rounded) amount and n decreased by 1, and that process repeated for any remaining children. 
+        Hence the final (expandable) child gets <small><sup>1</sup></small>&frasl;<small><sub>1</sub><sup>th</sup></small> 
+        or exactly all of the remaining slack, with any required &plusmn;1s being fairly evenly dispersed. In practice it
+        actually pro-ratas based on the natural sizes, but the idea is essentially the same, for instance the expandable
+        widths of {80,20,100} would get {<small><sup>80</sup></small>&frasl;<small><sub>200</sub><sup>th</sup></small>,
+        <small><sup>20</sup></small>&frasl;<small><sub>120</sub><sup>th</sup></small>, and
+        <small><sup>100</sup></small>&frasl;<small><sub>100</sub><sup>th</sup></small>} of any remaining slack.<br>
+        Consequently, the overall effect is that for something like gDialog(gCanvas(),"100x100"), the canvas expands.<br>
+        The visible element offsets can be calculated [and saved] in a separate pass or during either of the previous stage 
+        or the next, but again there are potential maintenace benefits in keeping it separate, and in keeping a permanent
+        copy of those calculations.<br>
+        Finally the results are applied in a backend-specific manner, and so it becomes a six (or more) stage process
+        (as said, not an issue).
+-->
+<!--
+         While that could theoretically be done as part of
+        the previous pass, no measurable performance gain would arise from traversing the hierarchy one less time, and
+        in fact in practice it probably would not matter one jot if there were thirty seven different stages, as long as 
+        you could still give each of them a pithy/sensible/meangingful/intuitive name.<br>
+-->
+<!--
+        Of course if there are no user sizes, there is no slack, and the second stage could be entirely skipped, not that 
+        doing so would ever realise any measurable performance benefits, either. On the other hand, such skipping could
+        let a glitch slip through that does&apos;t show up until a resize, hence it never ever bothers with any of that.
+        <hr>
+        <hr>
+        <small>
+        <br>
+        <br>
+//      ...TBC... (the stuff immediately below is outdated, and below that, things just copied from the pGUI docs)
+-->
+
+<!-- (SUG)
+        This page is a deep dive into all the constraints and workarounds involved, and while it may be helpful to
+        understand what is really going on, the <a href="tglayout_guide.htm">layout guide</a> sub-page is probably
+        a more useful day-to-day reference.
+        The point of this page is to ?share know? and perhaps more importantly <i>elicit corrections</i>.
+explain the implementation
+SUG:
+        Since you've read gSample.exw thare is not much else to say, however ... several common design patterns:
+        The nested versions are for educational purposes only, it is much easier to maintain several sensibly
+        named statements than one single convoluted and potentialy confusing nested statement.
+        <br>
+        <br>
+-->
+<!-- (erm, what am I actually tring to say here??...) -->
+<!--
+        The aim, anyway, is to achieve general consistency between platforms, rather than pixel-perfect agreement.<br>
+        For instance, when a "Quit" button defaults to 33x26 on GTK but 52x30 on WinAPI, no-one should really care.<br>
+        It should (/must) be possible to create responsive layouts, so the same program can be used on a 27&Prime;
+        desktop screen and a 5&Prime; mobile phone, which is not the same as saying that should be automatically
+        achieved without any assistance from the application code, or will work flawlessly without any testing.
+        <br>
+        <br>
+        From my perspective, GTK is probably the most troublesome in that it does what it does, and I have the least 
+        tools/experience in debugging or tweaking it. The developer tools in a web browser permit a much more detailed
+        investigation of what things are doing and many more opportunities for experimenting, and the only (partial)
+        drawback is that many things can end up one step removed in theGUI.css rather than under more direct control. 
+        Finally, on the WinAPI side of things, all that is entirely within theGUI.e, as debuggable and fully under my
+        control as it gets. It is therefore, at least in the first release, more a case of replicating what GTK does,
+        rather than deciding for myself precisely what things should do.
+        <br>
+        <br>
+        
+        At the smaller and of the scale, and more concerned with how things will look at the smallest or natural size, 
+        each individual display element and container uses a box model. 
+-->
+        <!--similar to the one used by HTML/JavaScript/CSS,-->
+<!--
+        which is of course (often incorrectly touted as) the primary mechanism for that, and somehow both ridiculously
+        over-complicated for what it actually achieves and entirely inadequate for our purposes (but we&apos;ll cope).
+
+        Since the advent of HTML5 we have flexbox (and gridbox) so our overall strategy will be something that can be
+        relatively easily mapped to leverage that, and rely a bit less on the traditional box model, especially for any
+        responsive layout style handling. 
+-->
+        <!--
+//      It does however mean some pGUI/IUP layouts may need a bit of a rethink when
+//      that code is ported to theGUI, but that should (hopefully) be a minor issue.-->
+<!--
+        <br>
+        <br>
+        Apart of course from the content, the border is the only (optionally) visible part, padding prevents it looking 
+        too cramped with (say) text hard against the border, while margin prevents controls getting too close, with the
+        borders touching that of the next, or even overlapping. 
+        Note that we do not use the alternative "border-box" style of "box-sizing", whereby w<small>x</small>h includes 
+        the padding and border, instead  the latter default to the natural size of the content. Likewise layout control 
+        (see below) is based on the "flex" display model so there is no margin collapsing [DEV?]. 
+        Sensible defaults are provided for margin, border, and padding, so in most cases you should not need to bother
+        doing anything with these settings, particularly if everything looks OK at the initial/minimal/natural size.
+        <br>
+        <br>
+        <h3>The HTML/CSS flexbox</h3>
+        <p align="center"><img alt="flexbox" src="images/flexbox.png" width="670" height="204"/><br>
+         <small><i>(gratuitously overcomplicated diagram showing a tiny fraction of flexbox capabilities.)</i></small>
+        </p>
+-->
+<!--
+        <p align="center"><img alt="flexbox" src="images/flexbox.png" width="670" height="204"/></p>
+        <center><small><i>(gratuitously overcomplicated diagram showing a tiny fraction of flexbox capabilities.)</i></small></center>
+        <br>
+-->
+<!--
+        To keep things simple, 
+        <ul>
+        <li> display: flex; - basic starting point, at container. I&apos;m just going to ignore inline-flex.</li>
+        <li> flex-direction: row/column; - h/vbox, at container. I&apos;m going to assume/stick to the default of flex-wrap: nowrap;</li>
+        <li> justify-content: flex-start/center/flex-end/space-between/space-around/space-evenly; - at container, see below.</li>
+        <li> align-items:baseline; - at container. I&apos;m just going to ignore stretch/flex-start/center/flex-end.</li>
+        <li> align-content: stretch/flex-start/center/flex-end/space-between/space-around/space-evenly; -- n/a, see below.</li>
+        <li> align-self: stretch/flex-start/center/flex-end/baseline; - at element, ignored.<br>
+        <li> order: <i>number</i>; - at element, ignored.<br>
+        <li> flex-grow: <i>number</i>; - at element, ignored.<br>
+//      <li> flex-shrink: <i>number</i>; - at element, ignored.<br>
+        <li> flex-basis: <i>size</i>; - at element. I&apos;m going to assume/stick to the default of flex-basis: auto;<br>
+        </ul>
+        In short, there is more than enough power there to replicate whatever GTK does, and I&apos;m certainly not keen to implement
+        too much of all that by hand for WinAPI. In particular use of justify_content is/shd be limited to flex-start, and/or maybe
+        space-evenly, and we&apos;re not about to override that per-element. The key takeaway is simply that "it is different".
+
+        <h3>The GTK situation</h3>
+        <p align="center"><img alt="gtklayout" src="images/gtklayout.png" width="240" height="67"/>
+        </p>
+        Many a GTK fanboy will no doubt gleefully use their best Gordon Brittas (the well-intended but hugely incompetent manager)
+        impression and claim the GTK docs are <i>absolutely marvelous</i>. However they are built from <a href="heredoc.htm">heredoc</a>
+        (specifically gi-docgen) and as such are in fact <i>utter garbage</i>. 
+        Thankfully there are plenty of other web pages and tutorials that can be fairly easily found and used to fill in some of the 
+        "no further description is available" and/or do better than "the fill parameter specifies the fill setting", albeit not 
+        necessarily in an entirely consistent manner.
+        <br>
+        <br>
+        gtk_hbox_new(gboolean homogeneous, gint spacing),<br>
+        gtk_box_set_spacing(GtkBox* box, gint spacing)<br>
+        homogeneous: always false here.<br>
+        spacing: gap in pixels between children.<br>
+        gtk_box_pack_start(GtkBox* box, GtkWidget* child, gboolean expand, gboolean fill, guint padding),<br>
+        gtk_box_set_child_packing(GtkBox* box, GtkWidget* child, gboolean expand, gboolean fill, guint padding, GtkPackType pack_type)<br>
+        expand: <a href>false</a> puts widgets together, <a href>true</a> spreads them out.<br>
+        fill: (when expend is true only) <a href>true</a> expands widgets, <a href>false</a> makes gaps.<br>
+        padding: added on either side of the child.<br>
+        pack_type: always GTK_PACK_START(0) here - the child is packed into the start of the box.<br>
+        gtk_container_set_border_width(GtkContainer* container, guint border_width)<br>
+        border_width: space around the hbox.
+        <br>
+        <br>
+        Note there is no visible "border" like HTML/CSS, that&apos;s automatically part of the GTK widget itself, if any.       
+        <br>
+        <br>
+        Finally, of course, theGUI must manually implement the equivalent (unified) behaviour for WinAPI, in absolute pixel placement terms.
+
+//      <h3>The pGUI model</h3>
+        <p align="center"><img alt="gtklayout" src="images/gtklayout.png" width="240" height="67"/>
+        <br>
+         <small><i>(details yet to be completed)</i></small>
+        </p>
+
+        <h3>Alignment and Normalisation</h3>
+        ...
+//      <h3>Expanding and Shrinking</h3>
+        ...
+        <br>
+        <br>
+//      Likewise the best way to manage layout in a browser is a flexbox, so theGUI.e mimics that too.<br>
+//      Hence while PADDING and MARGIN can stay, GAP and IupFill() (from pGUI.e) have to go/be replaced.<br>
+-->
+<!--
+        Hence certain layout attributes, especially GAP, are rather difficult to implement. <br>
+        Layout is generally based on (nested) flex box with space-evenly...<br>
+-->
+<!--
+//      If at all possible, use RASTERSIZE, MARGIN, and PADDING in preference to most anything else (??).<br>
+//?     Note that SIZE is converted to "rem", which obey the browser&apos;s user preferences settings, whereas<br>
+//      RASTERSIZE is the same as "px", and therefore may be more consistent between pwa/p2js and desktop/Phix.<br>
+<br>
+<br>
+//      TBC... (everything below is copied verbatim from pGUI and needs a complete rewrite/rethink)
+        <br>
+//Erm, pGUI had SIZE (relative to font size) and RASTERSIZE (in pixels), where a SIZE would be converted to RASTERSIZE by width*4/charwidth
+//and height*8/charheight. In theGUI all sizes are in pixels. I might add a (read-only) CHARSIZE that returns {w,h}... (would that actually help??)
+//The average size of a character in the default font is 6x15 (since it is a proportional font, the width actually varies between 3 and 11) and
+//that is what the old pGUI.js used, which seemed about right.
+        <br>
+        <br>
+
+        <h2>IUP Sizes</h2>
+        <h3>Natural Size</h3>
+        IUP does not require that the application specifies the size of any element. 
+        The sizes are automatically calculated so the contents of each element is fully displayed. This size is called Natural size. 
+        The Natural size is calculated just before the element is mapped to the native system and every time 
+        <a href>IupMap</a>() is called, even if the element is already mapped.
+        <br>
+        <br>
+        The Natural size of a container is the size that allows all the elements inside the container to be fully displayed. 
+        Then the Natural size is calculated from the inner element to the outer element (the dialog). <br>
+        Important: even if the element is invisible its size will be included in the size of its containers, except when 
+        <a href>FLOATING</a>=Yes.
+        <br>
+        <br>
+        So consider the following code and its result. Each button size is large enough to display their respective text. 
+        If the dialog size is increased or reduced by the size handlers in the dialog borders the buttons do not move or change their sizes.
+        <br>
+        <br>
+        But notice that some controls do not have contents that can provide a Natural size. 
+//      In this case they usually have <a href>SIZE</a> or <a href>RASTERSIZE</a> pre-set.
+        <br>
+        <br>
+        To obtain the last computed Natural size of the control in pixels, use the read-only attribute <a href="gSetAttribute.htm#NATURALSIZE">NATURALSIZE</a> (since 3.6).
+        <br>
+        <br>
+        <h3>User Size</h3>
+//      When the application defines the <a href>SIZE</a> or <a href>RASTERSIZE</a> attributes, 
+        it changes the User size in IUP. The initial internal value is "0x0". <br>
+        When set to <a href>NULL</a> the User size is internally set to "0x0". <br>
+//      If the element is not mapped then the returned value by <a href>SIZE</a> or <a href>RASTERSIZE</a> 
+//      is the User size, if the element is mapped then the returned value is the Current size. <br>
+        To obtain the User size after the element is mapped use the USERSIZE attribute (since 3.12).
+        <br>
+        <br>
+        By default the layout computation uses the Natural size of the element to compose the layout of the dialog, 
+        but if the User size is defined then it is used instead of the Natural size. 
+        In this case the Natural size is not even computed. But there are two exceptions.
+        <br>
+        <br>
+        If the element is a container (not including the dialog) the User size will be used instead of the Natural size only if bigger than the Natural size. <br>
+        So for containers the User size will also act as a minimum value for Natural size.
+        <br>
+        <br>
+        For the dialog, if the User size is defined then it is used instead of the Natural size, but the Natural size of the dialog is always computed. 
+        And if the User size is not defined, the Natural size is used only if bigger than the Current size, so in this case the dialog will always increase its size to fit all its contents. 
+//      In other words, in this case the dialog will not shrink its Current size unless the User size is defined. See the SHRINK attribute guide bellow for an alternative.
+        <br>
+        <br>
+        When the user is interactively changing the dialog size the Current size is updated. 
+        But the dialog contents will always occupy the Natural size available, being smaller or bigger than the dialog Current size.
+        <br>
+        <br>
+//      When <a href>SIZE</a> or <a href>RASTERSIZE</a> attributes are set for the dialog (changing the User size) 
+        the Current size is also reset to "0x0". <br>
+        Allowing the application to force an update of its Window size. To only change the User size in pixels, without resetting the Current size, set the USERSIZE attribute (since 3.12).
+        <br>
+        <br>
+        <h3>Current Size</h3>
+        After the Natural size is calculated for all the elements in the dialog, the the Current size is set based on the available space in the dialog. 
+        So the Current size is set from the outer element (the dialog) to the inner element, in opposite of what it is done for the Natural size. 
+        <br>
+        <br>
+        After all the elements have their Current size updated, the elements positions are calculated, and finally, after the element is mapped, 
+        the Window size and position are set for the native elements. The Window size is set exactly to the Current size.
+        <br>
+        <br>
+//      After the element is mapped the returned value for <a href>SIZE</a> or <a href>RASTERSIZE</a> is the Current size. 
+        It actually returns the native Window size of the element. 
+        Before mapping, the returned value is the User size.
+        <br>
+        <br>
+        Defining the <a href>SIZE</a> attribute of the buttons in the example we can make all have the same size. 
+        (In the following example the dialog size was changed after it was displayed on screen)
+        <br>
+        So when <a href>EXPAND</a>=NO (see below) for elements that are not containers if User size is defined then the Natural size is ignored.
+        <br>
+        <br>
+        If you want to adjust sizes in the dialog do it after the layout size and positioning are done, i.e. after the dialog is mapped or 
+        after <a href>gRedraw</a>() is called.
+        <br>
+        <br>
+        <h3><a href>EXPAND</a></h3>
+        Another way to increase the size of elements is to use the <a href>EXPAND</a> attribute. <br>
+        When there is room in the container to expand an element, the container layout will expand the elements that have 
+        the <a href>EXPAND</a> attribute set to YES, HORIZONTAL or VERTICAL accordingly, even if they have the User size defined.
+        <br>
+        <br>
+        The default is <a href>EXPAND</a>=NO, but for containers is <a href>EXPAND</a>=YES.
+        <br>
+        <br>
+        Using <a href>EXPAND</a> in the example, we obtain the following result:
+        <br>
+        <br>
+        So for elements that are NOT containers, when <a href>EXPAND</a> is enabled the Natural size and the User size are ignored.
+        <br>
+        <br>
+        For containers the default behavior is to always expand or if expand is disabled they are limited to the Natural size. <br>
+        As a consequence (if the User size is not defined in all the elements) the dialog contents can only expand and its minimum size is the Natural size, 
+        even if <a href>EXPAND</a> is enabled for its elements. 
+        In fact the actual dialog size can be smaller, but its contents will stop to follow the resize and they will be clipped at right and bottom.
+        <br>
+        <br>
+        If the expansion is in the same direction of the box, for instance <a href>EXPAND</a>="VERTICAL" in the Vbox of the previous example, then 
+        the expandable elements will receive equal spaces to expand according to the remaining empty space in the box. 
+        This is why elements in different boxes does not align perfectly when <a href>EXPAND</a> is set.
+        <br>
+        <br>
+//      <h3>SHRINK</h3>
+//      To reduce the size of the dialog and its containers to a size smaller than the Natural size the SHRINK attribute of the dialog can be used. <br>
+//      If set to YES all the containers of the dialog will be able to reduce its size. <br>
+//      But be aware that elements may overlap and the layout result could be visually bad if the dialog size is smaller than its Natural size.
+//      <br>
+//      <br>
+//      Notice that in the example the dialog initial size will be 0x0 because it is not defined. <br>
+//      The picture shown was captured after manually resizing the dialog. <br>
+//      So when using SHRINK usually you will also need to set the dialog initial size.
+
+        <h2>Layout Hierarchy</h2>
+        The layout of the elements of a dialog in IUP has a natural hierarchy because of the way they are composed together. 
+        <br>
+        <br>
+        To create a node simply call one of the pre-defined constructors like <a href>IupLabel</a>(), 
+        <a href>IupButton</a>(), <a href>IupCanvas</a>(), and so on. <br>
+        To create a branch just call the constructors of containers like <a href>IupDialog</a>(),
+        <a href>IupFrame</a>(), <a href>IupVbox</a>(), and so on. <br>
+        <br>
+        <br>
+        <h2>Layout Display</h2>
+//      The layout size and positioning is automatically updated by <a href>IupMap</a>(). [??] <br>
+//      <a href="gMap.htm">gMap</a>() also updates the dialog layout[??] even if it is already mapped, so using it or using <a href>gShow</a>() 
+        also updates the dialog layout. 
+        The layout size and positioning can be manually updated using <a href>gRedraw</a>(), even if the dialog is not mapped. [??]
+        <br>
+        <br>
+        After changing containers attributes or element sizes that affect the layout the elements are NOT immediately repositioned. <br>
+        Call <a href>gRedraw</a>() for an element inside the dialog to update the dialog layout. 
+        <br>
+        <br>
+        The Layout update is done in two phases. <br>
+//      First the layout is computed, this can be done without the dialog being mapped. <br>
+        Second is the native elements update from the computed values.
+        <br>
+        <br>
+//      The Layout computation is done in 3 steps: Natural size computation, update the Current size and update the position. 
+        <br>
+        <br>
+        The Natural size computation is done from the inner elements up to the dialog (first for the children then the element). <br>
+//      User size (set by <a href>RASTERSIZE</a> or <a href>SIZE</a>) is used as the 
+        Natural size if defined, if not usually the contents of the element are used to calculate the Natural size. <br>
+//      Then the Current size is computed starting at the dialog down to the inner elements on the layout hierarchy (first the element then the children). <br>
+//      Children Current size is computed according to layout distribution and containers decoration. <br>
+        At the children if <a href>EXPAND</a> is set, then the size specified by the parent is used, else the natural size is used. <br>
+        Finally the position is computed starting at the dialog down to the inner elements on the layout hierarchy, after all sizes are computed. 
+        <br>
+        <br>
+        <h2>Element Update</h2>
+        Usually IUP automatically updates everything for the application, for instance there is no need to force a display update after an attribute is changed. <br>
+        However there are some situations where you need to force an update, for which you would use <a href>gRedraw</a>().
+        <br>
+        <br>
+//?     <a href>IupFlush</a>() - process all events that are waiting to be processed. <br>
+        When you set an attribute, a system event is generated, but remains pending until processed by the event loop. <br>
+//      Sometimes the application needs an immediate result, so calling IupFlush() will process said event and also 
+//      every other event waiting to be processed, so other callbacks could be triggered during an IupFlush() call,
+        for instance a pending gRedraw() may propagate all the way down a dialog hierarchy, invoking several
+        RESIZE_CB and even the REDRAW on a canvas as it goes, as well as respond to recent user input events.
+        <br>
+</small>
+-->
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

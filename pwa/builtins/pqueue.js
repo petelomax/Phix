@@ -121,7 +121,7 @@ let /*sequence*/ $pq, $pqtype, $pqcrid;
 let /*integer*/ $freelist = 0;
 function $pq_compare(/*object*/ priority1, priority2) {
     return compare(priority1,priority2);
-}
+} $pq_compare.$sig="FOO";
 //constant PQ_COMPARE = routine_id("pq_compare")
 function $pq_init() {
     $pq = ["sequence",["sequence"]];
@@ -130,7 +130,7 @@ function $pq_init() {
 //  $pqcrid = {-1}
     $pqcrid = ["sequence",$pq_compare];
     $pqinit = true;
-}
+} $pq_init.$sig="P";
 //global function pq_new(integer t=MIN_HEAP, crid=$pq_compare)
 /*global*/ function pq_new(/*integer*/ t=MIN_HEAP, crid=-2) {
     if ((t!==MIN_HEAP) && (t!==MAX_HEAP)) { crash("9/0"); }
@@ -150,7 +150,7 @@ function $pq_init() {
         $pqcrid = $repe($pqcrid,pqid,crid);
     }
     return pqid;
-}
+} pq_new.$sig="FII,1";
 //global procedure pq_destroy(integer pqid=1, bool justclear=false, integer crid=$pq_compare)
 /*global*/ function pq_destroy(/*integer*/ pqid=1, /*bool*/ justclear=false, /*integer*/ crid=-2) {
     if (!$pqinit) { $pq_init(); }
@@ -164,17 +164,17 @@ function $pq_init() {
         $freelist = pqid;
         $pq = $repe($pq,pqid,0);
     }
-}
+} pq_destroy.$sig="PIII,1";
 
 /*global*/ function pq_size(/*integer*/ pqid=1) {
     if (!$pqinit) { $pq_init(); }
     return length($subse($pq,pqid));
-}
+} pq_size.$sig="FI,1";
 
 /*global*/ function pq_empty(/*integer*/ pqid=1) {
 //  if not $pqinit then $pq_init() end if
     return equal(pq_size(pqid),0);
-}
+} pq_empty.$sig="FI,1";
 
 /*global*/ function pq_add(/*sequence*/ item, /*integer*/ pqid=1) {
 // item is {object data, object priority}
@@ -204,7 +204,7 @@ function $pq_init() {
 //  $pq[pqid][n] = item
     pqp = $repe(pqp,n,item);
     $pq = $repe($pq,pqid,pqp);
-}
+} pq_add.$sig="PPI,1";
 
 /*global*/ function pq_pop(/*integer*/ pqid=1) {
 //  if not $pqinit then $pq_init() end if     -- (would crash next either way)
@@ -226,11 +226,11 @@ function $pq_init() {
     $pq = $repe($pq,n,$subse($subse($pq,pqid),qn),["sequence",pqid]);
     $pq = $repe($pq,pqid,$subss($subse($pq,pqid),1,-1-1));
     return result;
-}
+} pq_pop.$sig="FI,1";
 
 /*global*/ function pq_pop_data(/*integer*/ pqid=1) {
     return $subse(pq_pop(pqid),$PDATA);
-}
+} pq_pop_data.$sig="FI,1";
 
 /*global*/ function pq_peek(/*integer*/ pqid=1) {
 //  if not $pqinit then $pq_init() end if     -- (would crash next either way)
@@ -238,7 +238,7 @@ function $pq_init() {
     let /*sequence*/ result = $subse($subse($pq,pqid),1);
 //  sequence result = deep_copy($pq[pqid][1])
     return result;
-}
+} pq_peek.$sig="FI,1";
 //
 // Traditional queues and stacks
 // =============================
@@ -304,11 +304,11 @@ let /*integer*/ $qfreelist = 0;
         $qtypes = $repe($qtypes,qid,qtype);
     }
     return qid;
-}
+} new_queue.$sig="FI,1";
 
 /*global*/ function new_stack(/*integer*/ qtype=LIFO_QUEUE) { // create a new LIFO queue
     return new_queue(qtype);
-}
+} new_stack.$sig="FI,1";
 
 /*global*/ function destroy_queue(/*integer*/ qid) { // [aliased as destroy_stack() in psym.e]
 //  if not $q_init then init_q() end if
@@ -316,20 +316,17 @@ let /*integer*/ $qfreelist = 0;
     $qtypes = $repe($qtypes,qid,$qfreelist);
     $qfreelist = qid;
     $q = $repe($q,qid,0);
-}
-let destroy_stack = destroy_queue;
+} destroy_queue.$sig="PI"; let destroy_stack = destroy_queue;
 
 /*global*/ function queue_size(/*integer*/ qid) { // [aliased as stack_size() in psym.e]
 //  if not $q_init then init_q() end if
     return length($subse($q,qid));
-}
-let stack_size = queue_size;
+} queue_size.$sig="FI"; let stack_size = queue_size;
 
 /*global*/ function queue_empty(/*integer*/ qid) { // [aliased as stack_empty() in psym.e]
 //  if not $q_init then init_q() end if
     return equal(queue_size(qid),0);
-}
-let stack_empty = queue_empty;
+} queue_empty.$sig="FI"; let stack_empty = queue_empty;
 //[next 3 were aliased in psym.e, but that's not p2js compatible [DEV]]:
 // 4/11/22: proper alias handling, that p2js understands, now added
 //global procedure destroy_stack(integer qid) destroy_queue(qid) end procedure
@@ -358,12 +355,12 @@ let stack_empty = queue_empty;
 //      end if
 //  end if
     $q = $repe($q,qid,qq);
-}
+} push.$sig="PIOI,1";
 //global procedure pushn(integer qid, sequence items, integer qtype=ANY_QUEUE)
 /*global*/ function pushn(/*integer*/ qid, /*sequence*/ items) {
 //  push(qid,items,qtype,false)
     push(qid,items,false);
-}
+} pushn.$sig="PIP";
 //global function pop(integer qid, n=-1, qtype=ANY_QUEUE, bool bPop=true)
 /*global*/ function pop(/*integer*/ qid, n=-1, qtype=ANY_QUEUE, /*bool*/ bPop=true) {
 //  if not $q_init then init_q() end if  -- (would crash next either way)
@@ -403,16 +400,16 @@ let stack_empty = queue_empty;
         result = deep_copy(result);
     }
     return result;
-}
+} pop.$sig="FIIII,3";
 
 /*global*/ function popn(/*integer*/ qid, n, qtype=ANY_QUEUE) {
     return pop(qid,n,qtype);
-}
+} popn.$sig="FIII,5";
 
 /*global*/ function peep(/*integer*/ qid, n=-1, qtype=ANY_QUEUE) {
     return pop(qid,n,qtype,false);
-}
+} peep.$sig="FIII,3";
 
 /*global*/ function peepn(/*integer*/ qid, n, qtype=ANY_QUEUE) {
     return pop(qid,n,qtype,false);
-}
+} peepn.$sig="FIII,5";

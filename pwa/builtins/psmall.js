@@ -32,7 +32,7 @@
         }
     }
     return res;
-}
+} smallest.$sig="FPI,1";
 
 /*global*/ function largest(/*sequence*/ set, /*integer*/ return_index=0) {
     if (equal(length(set),0)) { crash("9/0"); }
@@ -48,4 +48,4 @@
         }
     }
     return res;
-}
+} largest.$sig="FPI,1";

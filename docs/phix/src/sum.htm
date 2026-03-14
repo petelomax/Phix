@@ -13,15 +13,19 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="atom.htm">atom</a> res = sum(<a href="object.htm">object</a> x, zlr=0)
+          <a href>atom</a> res = sum(<a href>object</a> x, zlr=0)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = product(<a href="object.htm">object</a> x, zlr=1)
+          <a href>atom</a> res = product(<a href>object</a> x, zlr=1)
           <br>
           <i>-- or --</i>
           <br>
-          <a href="atom.htm">atom</a> res = average(<a href="object.htm">object</a> x, zlr=0)
+          <a href>atom</a> res = average(<a href>object</a> x, zlr=0)
+          <br>
+          <i>-- or --</i>
+          <br>
+          <a href>atom</a> res = std_dev(<a href>object</a> x, zlr=0)
          </td>
         </tr>
         <tr>
@@ -29,7 +33,8 @@
           <b>Description:</b>
          </td>
          <td>
-            Add or multiply together all elements of x, however deeply nested.
+            Add or multiply together all elements of x, however deeply nested,<br>
+            or calculate their average or standard deviation.
             <br>
             <br>
             x: atom or sequence of items to add or multiply together<br>
@@ -49,24 +54,48 @@
           <b>Comments:</b>
          </td>
          <td>
-            These functions may be applied to an <a href="atom.htm">atom</a> or all elements of a <a href="sequence.htm">sequence</a>.<br>
+            These functions may be applied to an <a href>atom</a> or all elements of a <a href>sequence</a>.<br>
             Note that unlike most of the other math functions there are <i>no</i> separate sq_sum, sq_product, or sq_average routines.
             <br>
             <br>
-            The zlr (zero length result) parameter is only used when x is {}, an empty sequence.
+            The zlr (zero length result) parameter is only used when x is {}, an empty sequence, or contains said.
             <br>
             <br>
-            You might, for instance, rely on sum({},1) to award one bonus point for "no faults", or product({},0) to order zero tons
+            You might, for instance, rely on sum({},1) to award a bonus point for "no faults", or product({},0) to order zero tons
             of concrete when there is no foundation, instead of the mathematically correct defaults which are the other way around.
             <br>
             <br>
-            If zlr is a sequence of length 1, containing a single atom, it is applied to any sum/product calls on (empty) nested subsequences, <br>
-            whereas if zlr is an atom it is applied at the top-level only, and any recursive calls get the standard 0/1 defaults.<br>
+            If zlr is a sequence containing a single atom, it applies to any (empty) nested subsequences, <br>
+            whereas if zlr is an atom it is applied at the top-level only, and recursive calls get standard 0/1 defaults.<br>
             A fatal error occurs if zlr is not an atom or a length 1 sequence containing a single atom.
             <br>
             <br>
-            Note that average() uses the proper recursive application rules, so average({1,3,5,7}) === average({{1,3},{5,7}}) ===
-            average({average({1,3}),average({5,7})}), it is <i>not</i> the same as sum(x)/length(x), except when x is a flat sequence.
+            Note that average() uses the proper recursive application rules, so average({{1,3},6}) === average({average({1,3}),6})
+            === 4, it is <i>not</i> the same as sum(x)/length(x) (=== 5) or sum([flatten]x)/length(flatten(x)) (=== 3.33), except 
+            when x is a flat sequence.
+            Likewise std_dev() quietly replaces any nested sub-sequences with their (single) average before proceeding, and you are
+            expected to do something else (maybe crash) when x!=<a href>flatten</a>(x), should that be needed.
+            What I&apos;m saying is it [only] resorts to recursion when it encounters nested sequence elements, and in contrast 
+            sum/product <i>do</i> give the same results [when zlr is the default] for any x that yield the same flattened x.
+            <br>
+            <br>
+            See also demo\rosetta\Standard_deviation.exw. No attempt is made to apply Bessel&apos;s correction.
+            <br>
+            <br>
+            Aside: the sum of consecutive integers can be calculated as (first+last)*length/2. This works for odd/even length, including 
+            length=1 but not {}, the /2 being ok(/always delivering a whole integer result as expected) since either (f+l) or length is 
+            even [but not/never both], and ascending or descending sequences, with +/- start/finish, including any that cross the zero
+            boundary. For example sum(tagset(4)) == (1+4)*4/2 == 10, and of course the formula is much faster for very long sequences. 
+            Obviously equally applies to average(<i>&lt;flat sequence of consecutive integers&gt;</i>). <br>
+            For products of consecutive positive integers, the <a href>k_perm</a>() routine might be helpful, any that 
+            include 0 produce a 0 result, and all-negative lists are the positive result (ensuring k&lt;=n) times -1 when length odd. 
+            However there is far less scope for any performance gain over product(), since any length 19/21 (for 32/64 bit) <i>will</i> 
+            breach native accuracy limits - that is, when working on a list of strictly consecutive integers.
+<!--
+            Note however that
+            <a href="factorial.htm">factorial<a>() is memoised whereas <a href="factorial.htm">k_perm<a>() isn&aposlt, so in fact
+            the more direct n!/(n-k)! may prove faster, but has much lower accuracy limits, of just n=18/20 for 32/64 bits.
+-->
          </td>
         </tr>
 <!--
@@ -85,12 +114,14 @@
          </td>
          <td>
 <!--eucode>
-atom s = sum({1,2,3,4}),    -- s is 10
-     p = product({1,2,3,4}) -- p is 24
+atom s = sum({1,2,3,4}),      -- s is 10
+     p = product({1,2,3,4}),  -- p is 24
+     a = average({1,2,3,4})   -- a is 2.5
 </eucode-->
 <pre>
-<font color="#004080">atom</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#7060A8"> sum</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">),   </font><font color="#000080"><i> -- s is 10</i></font>
-<font color="#000000">     p</font><font color="#0000FF"> =</font><font color="#7060A8"> product</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- p is 24</i></font>
+<font color="#004080">atom</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#7060A8"> sum</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">),     </font><font color="#000080"><i> -- s is 10</i></font>
+<font color="#000000">     p</font><font color="#0000FF"> =</font><font color="#7060A8"> product</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">), </font><font color="#000080"><i> -- p is 24</i></font>
+<font color="#000000">     a</font><font color="#0000FF"> =</font><font color="#7060A8"> average</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)  </font><font color="#000080"><i> -- a is 2.5</i></font>
 </pre>
          </td>
         </tr>
@@ -103,6 +134,8 @@ atom s = sum({1,2,3,4}),    -- s is 10
          </td>
         </tr>
        </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
       </div>
      </stripped>
     </get>

@@ -56,7 +56,7 @@
 --
 -- Note: s5 is maintained as "sequence of integer", via a #isginfo
 -- ====  statement in pmain.e; here you must always explicitly use
---       intermediate integers (with the implicit type checking it
+--       intermediate integers (with the implicit typechecking it
 --       involves), eg (assuming "object p2details" and "integer k")
 --       instead of:
 --                          s5 &= p2details
@@ -272,6 +272,8 @@ constant P_REG = #0001,
          P_FPU = #0080,
          P_XMM = #0100,
          P_RID = #0200,
+--SUG?:
+--       P_ARMREG = #0400,
          P_RM = or_bits(P_REG,P_MEM),
          P_RI = or_bits(P_REG,P_IMM),
          P_LI = or_bits(P_LBL,P_IMM),
@@ -290,7 +292,10 @@ constant REG32 = {T_eax,T_ecx,T_edx,T_ebx,T_esp,T_ebp,T_esi,T_edi},
          R32 = {T_r8d,T_r9d,T_r10d,T_r11d,T_r12d,T_r13d,T_r14d,T_r15d},
          R16 = {T_r8w,T_r9w,T_r10w,T_r11w,T_r12w,T_r13w,T_r14w,T_r15w},
          R8l = {T_r8l,T_r9l,T_r10l,T_r11l,T_r12l,T_r13l,T_r14l,T_r15l},
-         R8b = {T_spl,T_bpl,T_sil,T_dil,T_r8b,T_r9b,T_r10b,T_r11b,T_r12b,T_r13b,T_r14b,T_r15b}
+         R8b = {T_spl,T_bpl,T_sil,T_dil,T_r8b,T_r9b,T_r10b,T_r11b,T_r12b,T_r13b,T_r14b,T_r15b},
+-- NB r8,9,10 and sp clash... [DEV had to do this to get p64 xpEditer to work]
+--       REGARM = {T_r0,T_r1,T_r2,T_r3,T_r4,T_r5,T_r6,T_r7,T_r8,T_r9,T_r10,T_fp,T_ip,T_sp,T_lr,T_pc}
+         REGARM = {T_r0,T_r1,T_r2,T_r3,T_r4,T_r5,T_r6,T_r7,   0,   0,    0,T_fp,T_ip,T_sp,T_lr,T_pc}
 --/*
 constant r8={"al","cl","dl","bl","ah","ch","dh","bh","r8l","r9l","r10l","r11l","r12l","r13l","r14l","r15l"},
 --DEV    r8b={"al","cl","dl","bl","spl","bpl","sil","dil","r8b","r9b","r10b","r11b","r12b","r13b","r14b","r15b"}, -- (if there is a rex prefix? (#40 will do))
@@ -302,6 +307,7 @@ constant XMM = {T_xmm0,T_xmm1,T_xmm2,T_xmm3,T_xmm4,T_xmm5,T_xmm6,T_xmm7}
 
 integer Z64 -- like/copy of pglobals.e/X64, but with ilASM{[PE64]} etc applied. (should ==X64 when emitON=true, I think)
 -- comment 19/11/14: I think Z64 should be used to control parsing, X64 to control binary output (when emitON=true!).
+integer ZARM -- ...
 
 constant SIZES = {T_byte,T_word,T_dword,T_qword,T_tbyte,T_tword},
          SIZE  = {   1,     2,      4,      8,     10,    -10}
@@ -420,6 +426,9 @@ integer rex
         base = find(ttidx,R64)
         rex = #40
 --      size = 8?
+    end if
+    if base=0 and ZARM=1 then
+        base = find(ttidx,REGARM)
     end if
     if base!=0 then
         if Ch='*' then  -- [i*s+b]
@@ -889,6 +898,12 @@ integer state
                 return get_mem(permitted,size,bSet)
             end if
             getToken()
+--DEV this is what we need, but in [ARM]/not... which is not what Z/XARM do...
+--      elsif ZARM then
+--          reg = find(ttidx,REGARM)
+--          if reg!=0 then
+--              return {P_REG,4,reg}
+--          end if
         else
 --hmm, if (not elsif, see P_XMM!) and_bits(permitted,P_REG) then?
             reg = find(ttidx,REG32)
@@ -903,6 +918,13 @@ integer state
             if reg!=0 then
                 return {P_REG,1,reg}
             end if
+--      elsif ZARM then
+            reg = find(ttidx,REGARM)
+--?{ttidx,REGARM,reg}
+            if reg!=0 then
+                return {P_REG,4,reg}
+            end if
+
             if Z64=1 then
                 reg = find(ttidx,R64)
                 if reg!=0 then
@@ -1550,6 +1572,7 @@ procedure local_label(integer illen)
     end if -- emitON
 end procedure
 
+--with trace
 global procedure ilASM(bool bHllGoto=false)
 integer wasemitON = emitON
 integer opLnpos
@@ -1622,6 +1645,7 @@ if not bHllGoto then
     skipSpacesAndComments()
 end if
     Z64 = X64
+    ZARM = XARM
     if emitON then
 --skipSpacesAndComments()
 --kludge = 1
@@ -1840,12 +1864,12 @@ end if
                         --  mean "create two executables", the additional complexity
                         --  that would introduce does not bear thinking about..)
                         if TokN=32 then
-                            if X64=0 and wasemitON then
+                            if X64=0 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 0
                         elsif TokN=64 then
-                            if X64=1 and wasemitON then
+                            if X64=1 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 1
@@ -1866,26 +1890,31 @@ end if
 --                          end if
 --                      els
                         if ttidx=T_PE32 then
-                            if PE=1 and X64=0 and wasemitON then
+                            if PE=1 and X64=0 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 0
                         elsif ttidx=T_PE64 then
-                            if PE=1 and X64=1 and wasemitON then
+                            if PE=1 and X64=1 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 1
                         elsif ttidx=T_ELF32 then
-                            if PE=0 and X64=0 and wasemitON then
+                            if PE=0 and X64=0 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 0
                         elsif ttidx=T_ELF64 then
-                            if PE=0 and X64=1 and wasemitON then
+                            if PE=0 and X64=1 and XARM=0 and wasemitON then
                                 emitON = 1
                             end if
                             Z64 = 1
--->ARM
+                        elsif ttidx=T_ARM then
+                            if XARM then
+?"9/0 line 1891 pilasm.e" -- not a chance!!
+                                emitON = 1
+                            end if
+                            ZARM = 1
                         else
                             unrecognised = 1
                         end if
@@ -2083,6 +2112,8 @@ end if
 --if fileno=1 then
 --  if emitON then trace(1) end if
 --end if
+--if ttidx=T_mov then trace(1) end if
+--trace(1)
                 op = ttidx
                 mod = find(ttidx,{T_add,T_or,T_adc,T_sbb,T_and,T_sub,T_xor,T_cmp})-1
                 {p1type,p1size,p1details} = get_operand(P_RM,true)
@@ -2095,6 +2126,7 @@ end if
                     permitted = P_RMLI
                 end if
                 -- for eg :%opOpen, specially allow "mov edx,<routine_id>":
+--if op=T_mov then trace(1) end if
                 if op=T_mov
                 and p1type=P_REG
                 and ((Z64=0 and p1size=4) or
@@ -2138,7 +2170,9 @@ end if
                         Aborp("incompatible sizes")
                     end if
                 end if
-                p1size = or_bits(p1size,p2size)
+-- 18/1/26:
+--              p1size = or_bits(p1size,p2size)
+                if p1size=0 then p1size = p2size end if
                 if p1size=0 then
                     if find(p2type,{P_LBL,P_GBL}) then
                         p1size = iff(Z64=1?8:4)
@@ -2304,7 +2338,7 @@ end if
 --  s5 &= 0o241
 --  apnds5dword(offset)
 --else
-
+--trace(1)
                             if p1size=2 
                             or p1size=4 
 --DEV added 28/12/15:
@@ -2644,7 +2678,11 @@ end if
                                     else -- not eax
                                         -- 0o213 0o0r5 m32              -- mov reg,[m32]
                                         xrm = 0o005+reg*8
+if p1size=1 then
+                                        s5 &= {0o212,xrm}
+else
                                         s5 &= {0o213,xrm}
+end if
                                     end if
                                 elsif op=T_cmp then
                                     -- 0o073 0o0r5 m32                  -- cmp reg,[m32]
@@ -2656,7 +2694,11 @@ end if
                                 s5 &= {isVar,0,0,N}
                             elsif sType=S_TVar then
                                 if op=T_mov then
+if p1size=1 then
+                                    s5 &= 0o212                         -- mov_byte
+else
                                     s5 &= 0o213                         -- mov_dword
+end if
                                 elsif op=T_cmp then
                                     -- 0o073 0o1r5 d8                   -- cmp reg,[ebp+d8]
                                     s5 &= 0o073
@@ -4288,7 +4330,10 @@ end if
                 if emitON then
                     s5 &= 0o244
                 end if
-            elsif ttidx=T_movsd then
+--          elsif ttidx=T_movsd then
+            elsif ttidx=T_movsd
+               or ttidx=T_movss then
+                op = iff(ttidx=T_movsd?0o362:0o363)
                 skipSpacesAndComments()
                 if line=tokline and Ch!='}' then
                     {p1type,p1size,p1details} = get_operand(P_XMMM,true)
@@ -4298,7 +4343,8 @@ end if
                         if p2type!=P_MEM then ?9/0 end if
                         if emitON then
                             {scale,idx,base,offset} = p2details
-                            s5 &= {0o362,0o017,0o020}
+--                          s5 &= {0o362,0o017,0o020}
+                            s5 &= {op,0o017,0o020}
                             reg = p1details-1
                             emit_xrm_sib(reg,scale,idx,base,offset)
                         end if
@@ -4307,7 +4353,8 @@ end if
                         if p2type!=P_XMM then ?9/0 end if
                         if emitON then
                             {scale,idx,base,offset} = p1details
-                            s5 &= {0o362,0o017,0o021}
+--                          s5 &= {0o362,0o017,0o021}
+                            s5 &= {op,0o017,0o021}
                             reg = p2details-1
                             emit_xrm_sib(reg,scale,idx,base,offset)
                         end if
@@ -5140,6 +5187,11 @@ movdqu... (64 bit only?)
                     mod = iff(op=T_fbld?4:6)
                     s5 &= 0o337
                     emit_xrm_sib(mod,scale,idx,base,offset)
+                end if
+            elsif ttidx=T_swi then
+                {p1type,p1size,p1details} = get_operand(P_IMM,false)
+                if emitON then
+                    ?"pilasm line 5166 (swi)"
                 end if
             else
 --              if machine=64 then ?9/0 end if  -- aaa and aas and daa and das invalid (but this never supported them anyway)

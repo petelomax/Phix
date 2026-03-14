@@ -46,39 +46,39 @@ function $test_log(/*string*/ fmt, /*sequence*/ args=["sequence"]) {
     if ($log_fn!==0) {
         printf($log_fn,fmt,args);
     }
-}
+} $test_log.$sig="PSP,1";
 function $show_module() {
     if (!equal($prev_module,$module)) {
         $test_log("%s:\n",["sequence",$module]);
         $prev_module = $module;
     }
-}
+} $show_module.$sig="P";
 
 /*global*/ function set_test_verbosity(/*integer*/ level) {
     $verbosity = level;
-}
+} set_test_verbosity.$sig="PI";
 
 /*global*/ function get_test_verbosity() {
     return $verbosity;
-}
+} get_test_verbosity.$sig="F";
 
 /*global*/ function set_test_abort(/*integer*/ abort_test) {
 // abort_test is TEST_ABORT(at summary)/TEST_QUIET/TEST_CRASH(immediately)
     $abort_on_fail = abort_test;
-}
+} set_test_abort.$sig="PI";
 
 /*global*/ function get_test_abort() {
     return $abort_on_fail;
-}
+} get_test_abort.$sig="F";
 
 /*global*/ function set_test_pause(/*integer*/ pause) {
 // pause is TEST_PAUSE/TEST_QUIET/TEST_PAUSE_FAIL (default)
     $pause_summary = pause;
-}
+} set_test_pause.$sig="PI";
 
 /*global*/ function get_test_pause() {
     return $pause_summary;
-}
+} get_test_pause.$sig="F";
 
 /*global*/ function set_test_logfile(/*string*/ filename) {
 // (closed by test_summary([true]))
@@ -87,11 +87,11 @@ function $show_module() {
         $log_fn = open(filename,"w");
         if ($log_fn===-1) { crash("9/0"); }
     }
-}
+} set_test_logfile.$sig="PS";
 
 /*global*/ function get_test_logfile() {
     return $log_fn;
-}
+} get_test_logfile.$sig="F";
 
 /*global*/ function test_summary(/*bool*/ close_log=true) {
     if (($tests_run>0 && $verbosity>=TEST_SUMMARY) || $tests_failed>0) {
@@ -123,11 +123,11 @@ function $show_module() {
     $tests_failed = 0;
     $module = 0;
     $prev_module = 0;
-}
+} test_summary.$sig="PI,1";
 
-/*global*/ function $get_tests_failed() {
+/*global*/ function get_tests_failed() {
     return $tests_failed;
-}
+} get_tests_failed.$sig="F";
 
 /*global*/ function set_test_module(/*string*/ name) {
 //
@@ -160,8 +160,7 @@ function $show_module() {
         test_summary(false);
     }
     $module = name;
-}
-let set_test_section = set_test_module;
+} set_test_module.$sig="PS"; let set_test_section = set_test_module;
 //Instead of this there is now an Alias() in psym.e:
 //global procedure set_test_section(string name)
 //  set_test_module(name)
@@ -169,7 +168,7 @@ let set_test_section = set_test_module;
 function $sn2(/*sequence*/ s) {
     // both/two "\nhelpful strings"?
     return ((((string($subse(s,1)) && length($subse(s,1))) && (equal($subse($subse(s,1),1),0XA))) && string($subse(s,2))) && length($subse(s,2))) && (equal($subse($subse(s,2),1),0XA));
-}
+} $sn2.$sig="FP";
 function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, level) {
 //  string fmt = iff(fdx=1?"  failed: %s: %v should %sequal %v\n"
     let /*string*/ fmt = 
@@ -191,7 +190,7 @@ function $test_result(/*bool*/ success, /*sequence*/ args, /*integer*/ fdx, leve
         }
         $tests_failed += 1;
     }
-}
+} $test_result.$sig="PIPII";
 /*
 local function str_equal(object a, b, string fmt)
     -- a and b always have the same "shape"
@@ -255,12 +254,12 @@ end type
 //?sa
 //?sb
     return (equal(filter(sa,"out","0-."),"")) && (equal(filter(sb,"out","0-."),""));
-}
+} $rec_equal.$sig="FOOS";
 
 /*local*/ function $bool_or_string(/*object*/ o) {
 //  return iff(integer(o) ? o==not not o : string(o))
     return ((integer(o)) ? compare(abs(o),1)<=0 : string(o));
-}
+} $bool_or_string.$sig="TO";
 //*!/
 
 //global procedure test_equal(object a, object b, string name="", atom_or_string epsilon=1e-9, bool eq=true)
@@ -316,29 +315,29 @@ end type
     }
     let /*string*/ ne = ((eq) ? "" : "not ");
     $test_result(success===eq,["sequence",name,a,ne,b],1,4-eq);
-}
+} test_equal.$sig="POOSOOI,1";
 //global procedure test_not_equal(object a, object b, string name="", atom_or_string epsilon=1e-9)
 /*global*/ function test_not_equal(/*object*/ a, /*object*/ b, /*string*/ name="", /*object*/ args=["sequence"], /*$bool_or_string*/ bApprox=false) {
 //  test_equal(a,b,name,epsilon,false)
     test_equal(a,b,name,args,bApprox,false);
-}
+} test_not_equal.$sig="POOSOO,1";
 
 /*global*/ function test_true(/*bool*/ success, /*string*/ name="", /*sequence*/ args=["sequence"]) {
     if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(success,["sequence",name],2,3);
-}
+} test_true.$sig="PISP,1";
 
 /*global*/ function test_false(/*bool*/ success, /*string*/ name="", /*sequence*/ args=["sequence"]) {
     if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(!success,["sequence",name],2,3);
-}
+} test_false.$sig="PISP,1";
 
 /*global*/ function test_pass(/*string*/ name="", /*sequence*/ args=["sequence"]) {
     if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(true,["sequence",name],2,3);
-}
+} test_pass.$sig="PSP,1";
 
 /*global*/ function test_fail(/*string*/ name="", /*sequence*/ args=["sequence"]) {
     if (!equal(args,["sequence"])) { name = sprintf(name,args); }
     $test_result(false,["sequence",name],2,3);
-}
+} test_fail.$sig="PSP,1";

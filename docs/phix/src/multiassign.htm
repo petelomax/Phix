@@ -112,7 +112,7 @@
 </font><font color="#000000">    a</font><font color="#0000FF"> = {</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">}</font>
  </pre>
 -->
-        Subscripts and slices are also permitted (nb only subscripts not slices not under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>); if s is {1,2,3,4} then
+        Subscripts and slices are also permitted (nb only subscripts not slices under <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>); if s is {1,2,3,4} then
 <!--eucode>
     {s[1],s[2..$]} = {s[$],s[1..$-1]}
 </eucode-->
@@ -126,7 +126,7 @@
        <br>
        <br>
         As well as the syntax previously shown in <a href="variables.htm">Variables</a> and <a href="constants.htm">Constants</a>,
-        you can also declare variables as part of (/mid-) multiple assignment, eg
+        you can also declare variables and assign them immediately:
 <!--eucode>
     {string name, integer id} = lookup()
 </eucode-->
@@ -157,7 +157,7 @@
         instead they have to be all new or all pre-existing. It is of course trivial to change (say)
         <code>{a, string b, c} = <i>expr</i></code> by splitting it into two statements: <code>string b; {a,b,c} = <i>expr</i></code>,
         which will make it p2js-compatible. Since JavaScript is a <i><a href="glossary.htm#typeless">typeless</a></i> language it 
-        really couldn&rsquo;t care much less about (the types in) say <code>{integer i, string b} = <i>expr</i></code>, but (unlike 
+        really couldn&apos;t care much less about (the types in) say <code>{integer i, string b} = <i>expr</i></code>, but (unlike 
         Phix) it does <i>not</i> allow say <code>[a, let b]</code> syntax or anything similar (that I could find), although 
         <code>let [a, b]</code> is fine.
        <br>
@@ -188,7 +188,7 @@
 <pre>
 <font color="#0000FF">    {} =</font><font color="#000000"> f</font><font color="#0000FF">()</font>
 </pre>
-        which explicitly discards the result of the function call. Alternatively if you prefer
+        which <a href="assignment.htm#explicitdiscard">explicitly discards</a> the result of the function call. Alternatively if you prefer
         <code>{?} = f()</code>
         has exactly the same effect (however
         <code>? = f()</code> is not legal syntax). Note that Euphoria (imnsho wrongly) allows /implicit/ discarding of function results, 
@@ -224,9 +224,11 @@
         </blockquote>
         <b>Update</b>: actually, you <i>cannot</i> write that "the other way round". Further illustrating the 
         "not smart enough" point, I failed to spot that the rhs is constructed in its entirety before any assignments 
-        on the lhs, hence main would be unassigned whichever way round things were done. As already mentioned elsewhere, 
-        you should <b><i>never</i></b> try to both modify and reference the same variable in a single statement, in 
-        <i>any</i> programming language.
+        on the lhs, unless the compiler has managed to optimise that away, hence main w/could be unassigned whichever 
+        way round things were done. As already mentioned elsewhere, you should <b><i>never</i></b> try to both modify 
+        and reference the same variable in a single statement, in <i>any</i> programming language, except for say 
+        <code>table = modify(table)</code>, where you are releasing and catching something, but otherwise not relying 
+        on any implied [local] order of operation.
        <br>
        <br>
 <!--
@@ -248,10 +250,10 @@
 <font color="#0000FF">    {</font><font color="#000000">idx</font><font color="#0000FF">,</font><font color="#000000"> s</font><font color="#800000">[</font><font color="#000000">idx</font><font color="#800000">]</font><font color="#0000FF">} = &lt;</font><font color="#000000">something</font><font color="#0000FF">&gt;</font>
 </pre>
         Clearly someone could read that and assume it is setting a new idx and then using that new idx to index s, 
-        but it uses the old value, again because of the right-to-left ordering (or nor, as per update above), and 
+        but it uses the old value, again because of the right-to-left ordering (or not, as per update above), and 
         in fact it is technically undefined behaviour, because the compiler is at liberty to save either the address
-        or content of idx before it stores it, that is according to the language specification (which in this case 
-        is that very sentence you just read).<br>
+        or content of idx before it stores it, or in fact if it knows idx is always 3 before the '=', just use that, 
+        according to the language specification (which in this case is that very sentence you just read).<br>
         Avoid, ie use appropriately named temps (enjoying the extra clarity they provide) and split such things 
         into several separate and simpler statements.
        <br>
@@ -319,9 +321,9 @@
 </pre>
         Notice how "mat" goes to s[20..27], s[23..30] or s[26..33].
         Of course in a real world program, we would not normally use fixed literal integers but the results from 
-        <a href="find.htm">find</a>() or <a href="match.htm">match</a>(), and dynamically apply adjustments to those results. 
+        <a href>find</a>() or <a href>match</a>(), and dynamically apply adjustments to those results. 
         Technically it can be made to work, but regardless this sort of stuff is truly horrid, so (except perhaps when 
-        participating in a code obfuscation contest) <i>don&rsquo;t do it!</i>
+        participating in a code obfuscation contest) <i>don&apos;t do it!</i>
         <br>
         <br>
     &lt;/aside&gt;
@@ -331,14 +333,12 @@
        <a href="javascript:ExternalLink('ext338');" id="ext338" 
           style="color:#9B5565">http://rosettacode.org/wiki/Reduced_row_echelon_form#Phix</a> entry. I tried to replace
 <!--eucode>
-sequence temp
         temp = M[i]
         M[i] = M[r]
         M[r] = sq_div(temp,temp[lead])
 </eucode-->
 <pre>
-<font color="#004080">sequence</font><font color="#000000"> temp
-        temp</font><font color="#0000FF"> =</font><font color="#000000"> M</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
+<font color="#000000">        temp</font><font color="#0000FF"> =</font><font color="#000000"> M</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">]</font>
 <font color="#000000">        M</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#000000"> M</font><font color="#0000FF">[</font><font color="#000000">r</font><font color="#0000FF">]</font>
 <font color="#000000">        M</font><font color="#0000FF">[</font><font color="#000000">r</font><font color="#0000FF">] =</font><font color="#7060A8"> sq_div</font><font color="#0000FF">(</font><font color="#000000">temp</font><font color="#0000FF">,</font><font color="#000000">temp</font><font color="#800000">[</font><font color="#000000">lead</font><font color="#800000">]</font><font color="#0000FF">)</font>
 </pre>
@@ -347,7 +347,7 @@ sequence temp
         {M[i],M[r]} = {M[r],sq_div(M[i],M[i][lead])
 </eucode-->
 <pre>
-<font color="#0000FF">        {</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">} = {</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#7060A8">sq_div</font><font color="#800000">(</font><font color="#000000">M</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">]</font><font color="#0000FF">,</font><font color="#000000">M</font><font color="#800080">[</font><font color="#000000">i</font><font color="#800080">][</font><font color="#000000">lead</font><font color="#800080">]</font><font color="#800000">)</font>
+<font color="#0000FF">        {</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">i</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">} = {</font><font color="#000000">M</font><font color="#800000">[</font><font color="#000000">r</font><font color="#800000">]</font><font color="#0000FF">,</font><font color="#7060A8">sq_div</font><font color="#800000">(</font><font color="#000000">M</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">]</font><font color="#0000FF">,</font><font color="#000000">M</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">][</font><font color="#000000">lead</font><font color="#008080">]</font><font color="#800000">)</font>
 </pre>
         It failed miserably when i=r, for the same "right to left" reasons (there is
         nothing wrong with the rhs per se, but the lhs overwrites in the wrong order).
@@ -441,7 +441,8 @@ sequence temp
 <font color="#000000">    s</font><font color="#0000FF"> =</font><font color="#000000"> f</font><font color="#0000FF">(...)
     {...} =</font><font color="#000000"> s</font>
 </pre>
-        is that an ex.err may contain some extra valuable and time saving information, even moreso if you give it a decent name.<br>
+        is that an ex.err may contain some extra valuable and time saving information, even moreso if you give it a 
+        <a href="glossary.htm#namingishard">decent name</a>.<br>
         It would not normally be any slower (or faster) than the one-line version.<br>
         In some cases, however, you may need to explicitly deassign ("s:={}") to avoid some hidden refcounting issue that 
         the one-liner does not exhibit: the compiler aggressively trashes unnamed temps in a way that it obviously will not 
@@ -460,16 +461,17 @@ sequence temp
        <table>
         <col style="width: 8%"/>
         <tr>
-         <td>
+         <td class="techbtn">
           <b>See Also:</b>
+          <img id="Timg" />
          </td>
          <td>
           <a href="variables.htm">variables</a>,
-          <a href="constants.htm">constants</a><br>
-          <a name=tech></a>
+          <a href="constants.htm">constants</a>
+          <br><a name=tech></a>
          </td>
         </tr>
-        <tr id="Technicalia" style="display:none;">
+        <tr id="Technicalia" class="hiddenRow">
          <td>
           <a href="glossary.htm#technicalia">
            <b>Technicalia</b>
@@ -507,7 +509,7 @@ sequence temp
             Should this get really irksome, we /could/ (possibly) enhance the compiler to
             automatically perform
           <code>a[i] = b[j]</code> to complete the operation, but 
-            unless we /really/ have to, I&rsquo;d prefer to avoid such complications. Bearing in 
+            unless we /really/ have to, I&apos;d prefer to avoid such complications. Bearing in 
             mind that we might have to repeat that trick for several terms, the difficulty 
             of adequate testing, the probability of adding further bugs, that it does not
             add any performance overhead, and that it potentially makes debugging easier, 
@@ -565,21 +567,50 @@ sequence temp
             (eg <small><code>{s[i..j]} = x</code></small>), which is thankfully a pretty rare and slightly odd thing to do anyway. Also, JavaScript
             uses String.codePointAt() rather than s[idx] to extract a single (unicode) character, which I can handle, but replacing a character in 
             say <code>s[idx] = ch</code> is performed via <code>s = s.substring(0,idx-1) + String.fromCodePoint(ch) + s.substring(idx);</code>,
-            which is certainly not part of <i>Array</i> destructuring and is therefore not and never will be supported (for strings, that is, it
-            works fine for replacing individual elements of dword-sequences but you cannot set a character of a string, or a slice of anything, 
-            in the lhs of a multiple assignment statement under pwa/p2js).
+            which is certainly not part of <i>Array</i> destructuring and is therefore not and never will be supported (for strings, that is). 
+            It works fine for replacing individual elements of dword-sequences but you cannot set a character of a string, or a slice of anything
+            in the lhs of a multiple assignment statement under pwa/p2js.
 <!-- (for some reason I was thinking that lhs subscripts were not permitted...)
             <br>
             On reviewing this documentation several years after it was first written, I feel compelled to remark on the number of problems and caveats
             that allowing subscripts in multiple assignments introduces, so maybe that is not such a bad thing, then again a little subscript here and
-            there when slapping out a quick n&rsquo; dirty can be mightly handy.
+            there when slapping out a quick n&apos; dirty can be mightly handy.
 -->
           <br>
+          <br>
+            When possible, the compiler is at liberty to optimise away the construction and destructuring of the intermediate sequence, obviously
+            for performance reasons, but that is not in any way guaranteed, and the only way to determine whether that has happened would be to 
+            inspect a list.asm and/or (maybe someday) the JavaScript output (and no doubt some JS implementations will automatically apply that 
+            optimisation or something even better themselves).
           <br>
          </td>
         </tr>
        </table>
-       <img id="Timg" src="images/sprites/tech.open.png" title="Expand/Shrink" alt="Expand/Shrink" style="display:block;clear:both;" onload="setStartT(this);" onclick="changeImageT(this);" />
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
+       <br>
        <br>
        <br>
       </div>

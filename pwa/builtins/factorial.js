@@ -3,10 +3,10 @@
 //
 // factorial.e (an autoinclude)
 //
-let /*integer*/ $finit = 0;
+let /*integer*/ $finit = 0; // (aka flim)
 let /*sequence*/ $fcache;
 
-/*global*/ function $gamma(/*atom*/ z) {
+/*local*/ function $gamma(/*atom*/ z) {
     let /*sequence*/ p = ["sequence",676.5203681218851,
                                      -1259.1392167224028,
                                      771.32342877765313,
@@ -29,7 +29,7 @@ let /*sequence*/ $fcache;
     }
     let /*atom*/ t = z+7.5;
     return ((sqrt(2*PI)*power(t,z+.5))*exp(-t))*x;
-}
+} $gamma.$sig="FN";
 //4/10/22:
 //global function factorial(integer n)
 /*global*/ function factorial(/*atom*/ n) {
@@ -46,15 +46,16 @@ let /*sequence*/ $fcache;
     if (n>0) {
         if (!$finit) {
             $fcache = ["sequence",1];
-            $finit = 1;
+            $finit = ((equal(machine_bits(),32)) ? 171 : 1755);
         }
+        if (n>$finit) { n = $finit; }      // (res==inf)
         for (let i=length($fcache)+1, i$lim=n; i<=i$lim; i+=1) {
-            $fcache = $conCat($fcache, $subse($fcache,-1)*i);
+            $fcache = $conCat($fcache, $subse($fcache,-1)*i, false);
         }
         res = $subse($fcache,n);
     }
     return res;
-}
+} factorial.$sig="FN";
 
 /*global*/ function k_perm(/*integer*/ n, k) {
 //
@@ -65,7 +66,7 @@ let /*sequence*/ $fcache;
         res *= i;
     }
     return res;
-}
+} k_perm.$sig="FII";
 
 /*global*/ function choose(/*integer*/ n, k) {
 //
@@ -75,13 +76,16 @@ let /*sequence*/ $fcache;
 //24/10/22 (from below)
 //  if k>n-k then k = n-k end if
 //  k = min(k,n-k)
-    let /*atom*/ res = 1;
-//  for i=1 to k do
-    for (let i=1, i$lim=min(k,n-k); i<=i$lim; i+=1) {
-        res = (res*((n-i)+1))/i;
+//  if k>n then return 0 end if
+//  atom res = 1
+    let /*atom*/ res = k<=n;
+    if (res) {
+        for (let i=1, i$lim=min(k,n-k); i<=i$lim; i+=1) {
+            res = (res*((n-i)+1))/i;
+        }
     }
     return res;
-}
+} choose.$sig="FII";
 /* alt, from pe 53 overview paper
 function combinations(integer n, r)
     if r>n-r then r = n-r end if

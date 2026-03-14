@@ -1,121 +1,199 @@
 ﻿"use strict";
 //
-// xpGUI.js
-// ========
+// theGUI.js
+// =========
 //
-//  Emulates xpGUI.e in the browser, so (with a little help from p2js) we
+//  Emulates theGUI.e in the browser, so (with a little help from p2js) we
 //  can develop/test on the desktop and publish straight to the web.
+//
+//  The following can be used to pilfer (updated) signatures from desktop/Phix:
+//   (particularly significantly easier for eg gDrawText.$sig="PONNSPIOOO,4";)
+//      include theGUI.e
+//      --include opengl.e
+//      --include mpfr.e
+//      sequence s = get_routine_info(gDrawText)
+//      string sig = s[3]
+//      if s[2]!=s[1] then sig &= sprintf(",%d",s[2]) end if
+//      printf(1," %s.$sig=\"%s\";\n",{s[4],sig})
 //
 requires(JS);
 
 const VK_BS = 0X08,
+      VK_TAB = 0X09,
+      VK_LF = 0X0A,
       VK_CR = 0X0D,
-      VK_DEL = 0XFFFF,
-      VK_DOWN = 0xFF54,
-//    VK_END = 0xFF57,
+      VK_SP = 0X20,
+      VK_LCTRL = 0X13,
+      VK_RCTRL = 0X14,
+      VK_LSHIFT = 0X15,
+      VK_RSHIFT = 0X16,
+      VK_LALT = 0X17,
+      VK_RALT = 0X18,
+      VK_LWIN = 0X19,
+      VK_RWIN = 0X1A,
       VK_ESC = 0X1B,
-      VK_F1 = 0xF1,
-      VK_F2 = 0xF2,
-      VK_F3 = 0xF3,
-      VK_F4 = 0xF4,
-      VK_F5 = 0xF5,
-      VK_F6 = 0xF6,
-      VK_F7 = 0xF7,
-      VK_F8 = 0xF8,
-      VK_F9 = 0xF9,
-      VK_F10 = 0xFA,
-      VK_F11 = 0xFB,
-      VK_F12 = 0xFC,
-//    VK_HOME = 0xFF50,
-//    VK_INS = 0xFF63,
-      VK_LEFT = 0xFF51,
+      VK_CAPSLOCK = 0X1C,
+      VK_NUMLOCK = 0X1D,
+      VK_PAUSE = 0X1E,
+      VK_SCROLL = 0X1F,
+      VK_DEL = 0X7F,
+      VK_UP = 0xAC,
+      VK_DOWN = 0xAD,
+      VK_POUND = 0xB3,
+      VK_LEFT = 0xAE,
+      VK_RIGHT = 0xAF,
+      VK_APPS = 0XA6,
+      VK_INS = 0xA7,
+      VK_HOME = 0xA8,
+      VK_PGUP = 0xA9,
+      VK_PGDN = 0xAA,
+      VK_END = 0xAB,
+      VK_F1 = 0xB1,
+      VK_F2 = 0xB2,
+      VK_F3 = 0xB3,
+      VK_F4 = 0xB4,
+      VK_F5 = 0xB5,
+      VK_F6 = 0xB6,
+      VK_F7 = 0xB7,
+      VK_F8 = 0xB8,
+      VK_F9 = 0xB9,
+      VK_F10 = 0xBA,
+      VK_F11 = 0xBB,
+      VK_F12 = 0xBC,
 //    VK_MIDDLE = 0xFF0B,
-      VK_PGDN = 0xFF56,
-      VK_PGUP = 0xFF55,
-      VK_RIGHT = 0xFF53,
-//    VK_SP = 0X20,
-//    VK_TAB = 0X09,
-      VK_UP = 0xFF52,
-      XPG_CONTINUE = -4,    
-      XPG_DEFAULT = -3,
-      XPG_IGNORE = -2,
-      XPG_CLOSE = -1,
 
-      XPG_CURRENT       = 0xFFF0,   // 0b0000   -- 65520
-      XPG_LEFT          = 0xFFF1,   // 0b0001   -- 65521
-      XPG_RIGHT         = 0xFFF2,   // 0b0010   -- 65522
-      XPG_CENTER        = 0xFFF3,   // 0b0011   -- 65523
-      XPG_MOUSEPOS      = 0xFFF4,   // 0b0100   -- 65524
-      XPG_LEFTPARENT    = 0xFFF5,   // 0b0101   -- 65525
-      XPG_RIGHTPARENT   = 0xFFF6,   // 0b0110   -- 65526
-      XPG_CENTERPARENT  = 0xFFF7,   // 0b0111   -- 65527
-      XPG_TOP           = XPG_LEFT,
-      XPG_TOPPARENT     = XPG_LEFTPARENT,
-      XPG_BOTTOM        = XPG_RIGHT,
-      XPG_BOTTOMPARENT  = XPG_RIGHTPARENT,
+      TG_CONTINUE = -4, 
+      TG_DEFAULT = -3,
+      TG_IGNORE = -2,
+      TG_CLOSE = -1,
 
-      XPG_BLACK             = "#000000",
-      XPG_NAVY              = "#000080",
-      XPG_BLUE              = "#0000FF",
-      XPG_LIGHT_BLUE        = "#4363D8",
-      XPG_TEAL              = "#008080",
-      XPG_DARK_CYAN         = "#00C0C0",
-      XPG_CYAN              = "#00FFFF",
-      XPG_DARK_GREEN        = "#008000",
-      XPG_GREEN             = "#3CB44B",
-      XPG_LIGHT_GREEN       = "#00FF00",
-      XPG_OLIVE             = "#808000",
-      XPG_ORANGE            = "#FF8C00",
-      XPG_AMBER             = "#FFBF00",
-      XPG_DARK_YELLOW       = "#EBEB00",
-      XPG_YELLOW            = "#FFFF00",
-      XPG_INDIGO            = "#4B0082",
-      XPG_PURPLE            = "#911EB4",
-      XPG_DARK_PURPLE       = "#800080",
-      XPG_MAGENTA           = "#FF00FF",
-      XPG_DARK_VIOLET       = "#F032E6",
-      XPG_VIOLET            = "#EE82EE",
-      XPG_DARK_RED          = "#800000",
-      XPG_RED               = "#FF0000",
-      XPG_SLATE             = "#404040",
-      XPG_DARK_GRAY         = "#808080",    XPG_DARK_GREY = XPG_DARK_GRAY,
-      XPG_GRAY              = "#C0C0C0",    XPG_GREY = XPG_GRAY, 
-                                            XPG_SILVER = XPG_GRAY,
-      XPG_LIGHT_GRAY        = "#E4E4E4",    XPG_LIGHT_GREY = XPG_LIGHT_GRAY,
-      XPG_PARCHMENT         = "#FFFFE0",
-      XPG_LIGHT_PARCHMENT   = "#FAF8EF",
-      XPG_WHITE             = "#FFFFFF",
+      TG_CURRENT        = 0xFFF0,   // 0b0000   -- 65520
+      TG_LEFT           = 0xFFF1,   // 0b0001   -- 65521
+      TG_RIGHT          = 0xFFF2,   // 0b0010   -- 65522
+      TG_CENTER         = 0xFFF3,   // 0b0011   -- 65523
+      TG_MOUSEPOS       = 0xFFF4,   // 0b0100   -- 65524
+      TG_LEFTPARENT     = 0xFFF5,   // 0b0101   -- 65525
+      TG_RIGHTPARENT    = 0xFFF6,   // 0b0110   -- 65526
+      TG_CENTERPARENT   = 0xFFF7,   // 0b0111   -- 65527
+      TG_TOP            = TG_LEFT,
+      TG_TOPPARENT      = TG_LEFTPARENT,
+      TG_BOTTOM         = TG_RIGHT,
+      TG_BOTTOMPARENT   = TG_RIGHTPARENT,
+
+// manually translated:
+///!*local*!/ const 
+      TG_BLACK          = 0x000000,
+      TG_NAVY           = 0x000080,
+      TG_BLUE           = 0x0000FF,
+      TG_LIGHT_BLUE     = 0x4363D8,
+      TG_TEAL           = 0x008080,
+      TG_DARK_CYAN      = 0x00C0C0,
+      TG_CYAN           = 0x00FFFF,
+      TG_DARK_GREEN     = 0x008000,
+      TG_GREEN          = 0x3CB44B,
+      TG_LIGHT_GREEN    = 0x00FF00,
+      TG_OLIVE          = 0x808000,
+      TG_ORANGE         = 0xFF8C00,
+      TG_AMBER          = 0xFFBF00,
+      TG_DARK_YELLOW    = 0xEBEB00,
+      TG_YELLOW         = 0xFFFF00,
+      TG_INDIGO         = 0x4B0082,
+      TG_PURPLE         = 0x911EB4,
+      TG_DARK_PURPLE    = 0x800080,
+      TG_MAGENTA        = 0xFF00FF,
+      TG_DARK_VIOLET    = 0xF032E6,
+      TG_VIOLET         = 0xEE82EE,
+      TG_DARK_RED       = 0x800000,
+      TG_MAROON         = TG_DARK_RED,
+      TG_RED            = 0xFF0000,
+      TG_SLATE          = 0x404040,
+      TG_DARK_GREY      = 0x808080,
+      TG_DARK_GRAY      = TG_DARK_GREY,
+      TG_GREY           = 0xC0C0C0,
+      TG_GRAY           = TG_GREY,
+      TG_SILVER         = TG_GREY,
+      TG_LIGHT_GREY     = 0xE4E4E4,
+      TG_LIGHT_GRAY     = TG_LIGHT_GREY,
+      TG_PARCHMENT      = 0xFFFFE0,
+      TG_LIGHT_PARCHMENT = 0xFAF8EF,
+      TG_WHITE          = 0xFFFFFF,
+      $known_colours = ["sequence", ["sequence","TG_BLACK", TG_BLACK],
+                                    ["sequence","TG_NAVY", TG_NAVY],
+                                    ["sequence","TG_BLUE", TG_BLUE],
+                                    ["sequence","TG_LIGHT_BLUE", TG_LIGHT_BLUE],
+                                    ["sequence","TG_TEAL", TG_TEAL],
+                                    ["sequence","TG_DARK_CYAN", TG_DARK_CYAN],
+                                    ["sequence","TG_CYAN", TG_CYAN],
+                                    ["sequence","TG_DARK_GREEN", TG_DARK_GREEN],
+                                    ["sequence","TG_GREEN", TG_GREEN],
+                                    ["sequence","TG_LIGHT_GREEN", TG_LIGHT_GREEN],
+                                    ["sequence","TG_OLIVE", TG_OLIVE],
+                                    ["sequence","TG_ORANGE", TG_ORANGE],
+                                    ["sequence","TG_AMBER", TG_AMBER],
+                                    ["sequence","TG_DARK_YELLOW", TG_DARK_YELLOW],
+                                    ["sequence","TG_YELLOW", TG_YELLOW],
+                                    ["sequence","TG_INDIGO", TG_INDIGO],
+                                    ["sequence","TG_PURPLE", TG_PURPLE],
+                                    ["sequence","TG_DARK_PURPLE", TG_DARK_PURPLE],
+                                    ["sequence","TG_MAGENTA", TG_MAGENTA],
+                                    ["sequence","TG_DARK_VIOLET", TG_DARK_VIOLET],
+                                    ["sequence","TG_VIOLET", TG_VIOLET],
+                                    ["sequence","TG_DARK_RED", TG_DARK_RED],
+                                    ["sequence","TG_MAROON", TG_MAROON],
+                                    ["sequence","TG_RED", TG_RED],
+                                    ["sequence","TG_SLATE", TG_SLATE],
+                                    ["sequence","TG_DARK_GREY", TG_DARK_GREY],
+                                    ["sequence","TG_DARK_GRAY", TG_DARK_GRAY],
+                                    ["sequence","TG_GREY", TG_GREY],
+                                    ["sequence","TG_GRAY", TG_GRAY],
+                                    ["sequence","TG_SILVER", TG_SILVER],
+                                    ["sequence","TG_LIGHT_GREY", TG_LIGHT_GREY],
+                                    ["sequence","TG_LIGHT_GRAY", TG_LIGHT_GRAY],
+                                    ["sequence","TG_PARCHMENT", TG_PARCHMENT],
+                                    ["sequence","TG_LIGHT_PARCHMENT", TG_LIGHT_PARCHMENT],
+                                    ["sequence","TG_WHITE", TG_WHITE] ], 
+      $known_colour_names = vslice($known_colours,1), 
+      $known_colour_values = vslice($known_colours,2),
+
+      TG_CONTINUOUS = 0,
+      TG_DASHED = 1,
+      TG_DOTTED = 2,
+      TG_DASH_DOT = 3,
+      TG_DASH_DOT_DOT = 4,
     
-      XPG_CONTINUOUS = 0,
-      XPG_DASHED = 1,
-      XPG_DOTTED = 2,
-      XPG_DASH_DOT = 3,
-      XPG_DASH_DOT_DOT = 4,
+      TG_NORMAL     = 0x0,
+      TG_BOLD       = 0x1,
+      TG_ITALIC     = 0x2,
+      TG_BOLDITALIC = 0x3,
+
+      TG_FILLED = 0b001, // (nb same as true[/false])
+      TG_CHORD  = 0b010,
+      TG_SECTOR = 0b100,
+
+             // WENS (note absence of both 0b11xx and 0bxx11)
+      TG_C  = 0b0000,   TG_CENTRE    = TG_C,
+      TG_NW = 0b1010,   TG_NORTHWEST = TG_NW,
+      TG_W  = 0b1000,   TG_WEST      = TG_W,
+      TG_SW = 0b1001,   TG_SOUTHWEST = TG_SW,
+      TG_N  = 0b0010,   TG_NORTH     = TG_N,
+      TG_S  = 0b0001,   TG_SOUTH     = TG_S,
+      TG_NE = 0b0110,   TG_NORTHEAST = TG_NE,
+      TG_E  = 0b0100,   TG_EAST      = TG_E,
+      TG_SE = 0b0101,   TG_SOUTHEAST = TG_SE,
     
-      XPG_NORMAL        = 0x0,
-      XPG_BOLD          = 0x1,
-      XPG_ITALIC        = 0x2,
-      XPG_BOLDITALIC    = 0x3,
-
-      XPG_FILLED = 0b001, // (nb same as true[/false])
-      XPG_CHORD  = 0b010,
-      XPG_SECTOR = 0b100,
-
-              // WENS (note absence of both 0b11xx and 0bxx11)
-      XPG_C  = 0b0000,  XPG_CENTRE    = XPG_C,
-      XPG_NW = 0b1010,  XPG_NORTHWEST = XPG_NW,
-      XPG_W  = 0b1000,  XPG_WEST      = XPG_W,
-      XPG_SW = 0b1001,  XPG_SOUTHWEST = XPG_SW,
-      XPG_N  = 0b0010,  XPG_NORTH     = XPG_N,
-      XPG_S  = 0b0001,  XPG_SOUTH     = XPG_S,
-      XPG_NE = 0b0110,  XPG_NORTHEAST = XPG_NE,
-      XPG_E  = 0b0100,  XPG_EAST      = XPG_E,
-      XPG_SE = 0b0101,  XPG_SOUTHEAST = XPG_SE,
+      TG_GTK    = 1,
+      TG_WINAPI = 2,
+      TG_JS     = 3,
     
-      XPG_GTK    = 1,
-      XPG_WINAPI = 2,
-      XPG_JS     = 3;
+      TG_DEG2RAD = PI/180,
+      TG_RAD2DEG = 180/PI,
 
+      GT_WHOLE_FILE = 0,
+      GT_LF_STRIPPED = 1,
+      GT_LF_LEFT = 2,
+      GT_LF_LAST = 4,
+      GT_KEEP_BOM = 8,
+      GT_BINARY = 0x10;
 
 //let $storeAttr = {};  // element-specific attribute handlers/setters
 let $storeAttr; // element-specific attribute handlers/setters
@@ -138,18 +216,21 @@ function $to_bool(val) {
     crash("uh?");
 }
 
-let $ctrlKey  = false, /// or event.ctrlKey, for IupGetInt(NULL,"CONTROLKEY")
-    $shiftKey = false; /// or event.shiftKey, for IupGetInt(NULL,"SHIFTKEY")
+let $altKey   = false,  // saved event.altKey, for gGetGlobalInt("ALTKEY")
+    $ctrlKey  = false,  // saved event.ctrlKey, for gGetGlobalInt("CONTROLKEY")
+    $shiftKey = false,  // saved event.shiftKey, for gGetGlobalInt("SHIFTKEY")
+    $mouseX   = -1,     // saved event.clientX, 
+    $mouseY   = -1;     // saved event.clientY, for gGetGlobalIntInt("MOUSEPOS")
 
 function rgba(/*atom*/ red, green, blue, alpha=0) {
 //function rgba(/*atom*/ red, green, blue, alpha=0xFF) {
 //  if (alpha!=0xFF) {
     if (alpha!=0) {
 //      return sprintf("#%02%02x%02x%02x",["sequence",0xFF-(alpha&0xFF),red&0xFF,green&0xFF,blue&0xFF]);
-        return sprintf("#%02%02x%02x%02x",["sequence",alpha&0xFF,red&0xFF,green&0xFF,blue&0xFF]);
+        return sprintf("#%02x%02x%02x%02x",["sequence",alpha&0xFF,red&0xFF,green&0xFF,blue&0xFF]);
     }
     return sprintf("#%02x%02x%02x",["sequence",red&0xFF,green&0xFF,blue&0xFF]);
-//tryme (performancewise, if/when Julia set works in xpGUI... [no measurable gain in pGUI.js...])
+//tryme (performancewise, if/when Julia set works in theGUI... [no measurable gain in pGUI.js...])
 //  let res = "#";
 //  if (alpha!=0) { res += (alpha&0xFF).toString(16).padStart(2,"0"); }
 //  res += (  red&0xFF).toString(16).padStart(2,"0")
@@ -159,7 +240,7 @@ function rgba(/*atom*/ red, green, blue, alpha=0) {
 // works the same, but above was 10s, this 13s (Julia set)...
 //  let colour = (red&0xFF)*0x10000+(green&0xFF)*0x100+(blue&0xFF);
 //  return colour;
-}
+} rgba.$sig="FNNNN,3";
 
 function to_rgba(/*atom*/ colour) {
     if (string(colour)) {
@@ -174,18 +255,13 @@ function to_rgba(/*atom*/ colour) {
         }
         colour = n;
     }
-//  let alpha = and_bits(colour,0xFF000000)/0x1000000,
-//        red = and_bits(colour,0xFF0000)/0x10000,
-//      green = and_bits(colour,0xFF00)/0x100,
-//       blue = and_bits(colour,0xFF);
     let alpha = (colour & 0xFF000000)/0x1000000,
           red = (colour & 0xFF0000)/0x10000,
         green = (colour & 0xFF00)/0x100,
          blue = (colour & 0xFF);
-//  return ["sequence",red(colour),green(colour),blue(colour),alpha(colour)];
 //  return ["sequence",red,green,blue,255-alpha];
     return ["sequence",red,green,blue,alpha];
-}
+} to_rgba.$sig="FN";
 
 function hsv_to_rgba(/*atom*/ h, s, v, a=0) {
     let /*integer*/ i = floor(h*6);
@@ -204,12 +280,12 @@ function hsv_to_rgba(/*atom*/ h, s, v, a=0) {
     }
 //  return rgba(r*255,g*255,b*255,a);
     return rgba(r*255,g*255,b*255,a*255);
-}
+} hsv_to_rgba.$sig="FNNNN,3";
 
 //cdEncodeColor() returns a codified triple (r,g,b) in an integer such as 0x00RRGGBB, where RR are the red components, GG are the green ones and BB are the blue ones. 
 //cdEncodeColorAlpha() returns a codified quadriple (r,g,b,a) in an atom such as 0xAARRGGBB, where AA are the alpha components, and as above.
 
-//function cdEncodeColorAlpha(/*atom*/ red, green, blue, alpha) {
+//function cdEncodeColorAlpha(/!*atom*!/ red, green, blue, alpha) {
 ////    return alpha<<24 + red<<16 + green<<8 + blue;
 //  return and_bits(alpha,#FF)*0x1000000 +
 //         and_bits(red,  #FF)*0x10000 +
@@ -217,7 +293,7 @@ function hsv_to_rgba(/*atom*/ h, s, v, a=0) {
 //         and_bits(blue ,#FF);
 //}
 //
-//function cdEncodeColor(/*atom*/ red, green, blue) {
+//function cdEncodeColor(/!*atom*!/ red, green, blue) {
 //  return cdEncodeColorAlpha(red, green, blue, 0)
 //}
 
@@ -241,12 +317,58 @@ function $gInit() {
     }
     
     function shiftkey_cb(event) {
-        $ctrlKey = event.ctrlKey; // for IupGetInt()
-        $shiftKey = event.shiftKey; // for IupGetInt()
+        // save for gGetGlobalInt()
+        $altKey = event.altKey;
+        $ctrlKey = event.ctrlKey;
+        $shiftKey = event.shiftKey;
         return true;
     }
     $docBody.addEventListener("keydown",shiftkey_cb);
     $docBody.addEventListener("keyup",shiftkey_cb);
+
+    function mousemove(event) {
+        // save for gGetGlobalIntInt()
+        $mouseX = event.clientX;
+        $mouseY = event.clientY;
+    }
+//  document.addEventListener('mousemove', mousemove);
+//  document.body.addEventListener('mousemove', mousemove);
+    $docBody.addEventListener('mousemove', mousemove);
+//  document.addEventListener("load", mousemove);
+//  document.body.addEventListener("load", mousemove);
+//  window.addEventListener("load", mousemove); -- nope
+//  window.addEventListener("focus", mousemove);
+//  document.addEventListener("focus", mousemove);
+//  document.body.addEventListener("focus", mousemove);
+// Create a synthetic click MouseEvent
+//  let evt = new MouseEvent("click", {
+//  let evt = new MouseEvent("mousemove", {
+//  bubbles: true,
+//  cancelable: true,
+//  view: window,
+//  });
+
+  // Send the event to the checkbox element
+//  cb.dispatchEvent(evt);
+//  window.dispatchEvent(evt);
+//  document.dispatchEvent(evt);
+//  document.body.dispatchEvent(evt);
+
+// DEV:
+//  function getMousePos(canvas, evt) {
+//    var rect = canvas.getBoundingClientRect();
+//    return {
+//      x: evt.clientX - rect.left,
+//      y: evt.clientY - rect.top
+//    };
+//  }
+//  or:
+//  function mouseMove(e) {
+//        var mouseX = e.offsetX;
+//        var mouseY = e.offsetY;
+//  }
+//  onload
+//
 
     function store_attrs(elems, names, fn) {
         if (!Array.isArray(elems) ||
@@ -274,29 +396,44 @@ function $gInit() {
 
     function intint(val) {
         if (typeof(val) === "string") {
-            // convert eg "225x75" to ["sequence",225,75] 
-            //  (ie a js Array of length 2)
+            // convert eg "225x75" to ["sequence",225,75],
+            // and in fact "50x10x20x30" to {50,10,20,30},
+            //            "1"->{1}, and "1x2x3"->{1,2,3}.            
+            //  (ie a js Array of length 1..4)
             // likewise "{225,75}"
-            let x = val.indexOf('x'), y;
-            if (x === -1) {
-                if (equal($subse(val,1),0X7B)       // '{'
-                &&  equal($subse(val,-1),0X7D)) {   // '}'
-                    val = $subss(val,2,-2);
-                    x = val.indexOf(',');
-                }
+            let /*sequence*/ res;
+            if (equal($subse(val,1),0X7B)) { // '{'
+                assert(equal($subse(val,-1),0X7D)); // '}'
+                res = split($subss(val,2,-2),0X2C,false); // ','
+            } else {
+                res = split(val,0X78,false); //'x'
             }
-            if (x !== -1) {
-                y = Number(val.slice(x+1));
-                x = Number(val.slice(0,x));
-                if (Number.isInteger(x) &&
-                    Number.isInteger(y)) {
-                    val = ["sequence",x,y];
-                }
-            }
+            res = apply(true,to_number,["sequence",res,0]);
+            // It could do this provided callers ignored any -1, which 
+            // would make "50x" not the same as "50x0", matching pGUI.
+//          res = apply(true,to_number,{res,-1})
+            return res;
+//          let x = val.indexOf('x'), y;
+//          if (x === -1) {
+//              if (equal($subse(val,1),0X7B)       // '{'
+//              &&  equal($subse(val,-1),0X7D)) {   // '}'
+//                  val = $subss(val,2,-2);
+//                  x = val.indexOf(',');
+//              }
+//          }
+//          if (x !== -1) {
+//              y = Number(val.slice(x+1));
+//              x = Number(val.slice(0,x));
+//              if (Number.isInteger(x) &&
+//                  Number.isInteger(y)) {
+//                  val = ["sequence",x,y];
+//              }
+//          }
         }
-        if (!Array.isArray(val) ||
+//      if (!Array.isArray(val) ||
+        if (!Array.isArray(val)) {
 //          val.length !== 2) {
-            val.length !== 3) {
+//          val.length !== 3) {
             crash("invalid intint value");
         }
         return val;
@@ -351,7 +488,6 @@ function $gInit() {
         }
     }
     store_attrs(["button","canvas","datepick","dialog","drop","frame","hbox","label",
-//               "list","menuitem","text","vbox","tabcontainer","progress"], ["ACTIVE"], set_active);
                  "list","spin","text","vbox","tabcontainer","progress"], ["ACTIVE"], set_active);
 
     function set_style(id, sname, val) {
@@ -429,14 +565,16 @@ function $gInit() {
 //  "Courier New, Italic Underline -30" (size in pixels)
     }
 
-    function rastersize(id, name, val) {
+    function setsize(id, name, val) {
         // applies to dialog, label, text, canvas, ...
-        assert(name === "SIZE" || name === "RASTERSIZE");
+//      assert(name === "SIZE" || name === "RASTERSIZE");
+        assert(name === "SIZE");
         let cn = id.classList[0];
         if ((val === null) || (val === NULL)) {
-            if (cn === "canvas" ||
-                cn === "graph" ||
-                cn === "list") {
+//          if (cn === "canvas" ||
+//              cn === "graph" ||
+//              cn === "list") {
+            if (["canvas", "graph", "list"].indexOf(cn) !== -1) {
                 id = gGetDialog(id);
                 cn = "dialog";
             }
@@ -496,27 +634,78 @@ function $gInit() {
         }
     }
     store_attrs(["button","canvas","graph","list","dialog","frame","hbox","label","text","vbox","tabcontainer","progress",
-                 "slider","spin"], ["RASTERSIZE","SIZE"], rastersize);
+                 "slider","spin"], ["SIZE"], setsize);
+//               "slider","spin"], ["RASTERSIZE","SIZE"], rastersize);
 
     function set_tip(id, name, val) {
         id.title = val;
     }
     store_attrs(["button","canvas","graph","list","dialog","frame","hbox","label","spin","text","vbox","tabcontainer","progress"], ["TIP"], set_tip);
 
+    function mnemonicalise(id,title) {
+        let res = "", l = title.length, skip = false;
+        for (let i = 0; i < l; i += 1) {
+            if (skip) {
+                skip = false;
+            } else {
+                let ch = title[i];
+                if (ch === '\n' ) {
+                    res += "<br>"
+                } else if (ch === '&' && i+1 < l) {
+                    let mnemonic = title[i+1];
+                    if (mnemonic === '&') {
+                        res += "&amp;";
+                    } else {
+                        res += "<u>" + mnemonic + "</u>";
+                        if (id) {
+                            id.accessKey = mnemonic.toLowerCase();
+                        }
+                    }
+                    skip = true;
+                } else {
+                    res += ch;
+                }
+            }
+        }
+//      let prev = id.getElementsByTagName("nobr");
+        let prev = id.getElementsByTagName("text");
+        if (prev.length) {
+            prev[0].innerHTML = res;
+        } else {
+//          let nobr = document.createElement("nobr");
+            let nobr = document.createElement("text");
+            nobr.innerHTML = res;
+            id.appendChild(nobr);
+        }
+    }
+
+    /*local*/ 
+    function tg_get_colour_value(/*object*/ s) {
+        if (!string(s)) { return s; }
+        let /*integer*/ k = find(s,$known_colour_names);
+        if (k) { return $subse($known_colour_values,k); }
+        if (!begins("TG_",s)) {
+            k = find($conCat("TG_", upper(s)),$known_colour_names);
+            if (k) { return $subse($known_colour_values,k); }
+        }
+        let /*integer*/ clr = to_number(s); // (typecheck on error)
+        return clr;
+    }
+
     function expand(id,val) {
 //Value: "YES" (both directions), "HORIZONTAL", "VERTICAL", "HORIZONTALFREE", "VERTICALFREE" or "NO".
 //Default: "NO". For containers the default is "YES".
 //Affects: All elements, except menus. 
-        if (val === "YES" || val === "BOTH") {
+        if (val === "YES" || val === "BOTH" || val.toUpperCase() == "TRUE" || val === true || val === 1) {
             id.classList.add("expandv");
             id.classList.add("expandh");
-        } else if (val === "HORIZONTAL") {
+        } else if (val === "HORIZONTAL" || val === "H") {
             id.classList.remove("expandv");
             id.classList.add("expandh");
-        } else if (val === "VERTICAL") {
+        } else if (val === "VERTICAL" || val === "V") {
             id.classList.add("expandv");
             id.classList.remove("expandh");
-        } else if (val === "NO") {
+        } else if (val === "NO" || val === "N" || val.toUpperCase() === "FALSE" || val === false || val === 0) {
             id.classList.remove("expandv");
             id.classList.remove("expandh");
         } else {
@@ -570,6 +759,13 @@ function $gInit() {
             }
         }
     }   
+
+//DEV make me a blanket:
+    function set_user_data(id, name, val) {
+//      } else if (name === "USER_DATA") {
+        id.USER_DATA = val;
+    }
+    store_attrs(["button","canvas","dialog"], ["USER_DATA"], set_user_data);
 
     function set_dialog(id, name, val) {
         assert(id.classList[0] === "dialog");
@@ -756,26 +952,24 @@ function $gInit() {
         } else if (name === "VALINT") {
 //          puts(1,"gDropDown(VALINT,"+val+")??\n"); // placeholder
             id.selectedIndex = val-1;
-/*
-    } else if (name === "VALINT" ||
-               name === "VALSTR" ) {
-        if (t === "list") {
-            let children = id.childNodes,
-                l = children.length;
-            for (let i = 0; i < l; i += 1) {
-                if (children[i].selected) {
-                    if (name === "VALINT") {
-                        return i+1;
-                    }
-                    return children[i].text;
-                }
-            }
-            if (name === "VALINT") {
-                return 0;
-            }
-            return "";
-        }
-*/
+//  } else if (name === "VALINT" ||
+//             name === "VALSTR" ) {
+//      if (t === "list") {
+//          let children = id.childNodes,
+//              l = children.length;
+//          for (let i = 0; i < l; i += 1) {
+//              if (children[i].selected) {
+//                  if (name === "VALINT") {
+//                      return i+1;
+//                  }
+//                  return children[i].text;
+//              }
+//          }
+//          if (name === "VALINT") {
+//              return 0;
+//          }
+//          return "";
+//      }
         } else {
             crash("gSetAttribute(gDropDown,\"" + name + "\") not yet implemented\n");
         }
@@ -809,10 +1003,10 @@ function $gInit() {
             id.childNodes[0].innerText = val;
         } else if (name === "VISIBLE") {
             puts(1,"IupFrame(VISIBLE"+val+")??\n"); // placeholder
-        } else if (name === "FGCOLOR") {
+        } else if (name === "FGCLR") {
 //DEV tryme:
 //          set_style(id,"margin",val);
-            puts(1,"IupFrame(FGCOLOR"+val+")??\n"); // placeholder
+            puts(1,"IupFrame(FGCLR"+val+")??\n"); // placeholder
         } else if (name === "NAME") {
             id["NAME"] = val;
             puts(1,"?!IupFrame(NAME,"+val+")??\n"); // placeholder
@@ -820,7 +1014,7 @@ function $gInit() {
             crash("gSetAttribute(IupFrame,\"" + name + "\") not yet implemented\n");
         }
     }
-    store_attrs(["frame"], ["PADDING","MARGIN","TITLE","VISIBLE","FGCOLOR","NAME"], set_frame);
+    store_attrs(["frame"], ["PADDING","MARGIN","TITLE","VISIBLE","FGCLR","NAME"], set_frame);
 
 //gdx lbl = gLabel("World","EXPAND=YES, ALIGNMENT=ACENTER"),
     function set_label(id, name, val) {
@@ -829,24 +1023,23 @@ function $gInit() {
             if (typeof(val) === "string") {
                 const sp = new RegExp("[ ]","g"),
                       lf = new RegExp("\\n","g");
-/*                   
-    const am = new RegExp("&","g"),
-          lt = new RegExp("[<]","g"),
-          gt = new RegExp("[>]","g"),
-          sp = new RegExp("[ ]","g"),
-          lf = new RegExp("\\n","g");
-    text = text.replace(am,"&amp;")
-               .replace(lt,"&lt;")
-               .replace(gt,"&gt;")
-               .replace(sp,"&ensp;")
-               .replace(lf,"<br>");
-*/
+//  const am = new RegExp("&","g"),
+//        lt = new RegExp("[<]","g"),
+//        gt = new RegExp("[>]","g"),
+//        sp = new RegExp("[ ]","g"),
+//        lf = new RegExp("\\n","g");
+//  text = text.replace(am,"&amp;")
+//             .replace(lt,"&lt;")
+//             .replace(gt,"&gt;")
+//             .replace(sp,"&ensp;")
+//             .replace(lf,"<br>");
                 val = val.replace(sp,"&ensp;")
                          .replace(lf,"<br>");
             }
 //          id.innerHTML = val;
 //          id.innerText = val;
-            id.innerHTML = "<nobr>"+val+"</nobr>";
+//          id.innerHTML = "<nobr>"+val+"</nobr>";
+            id.innerHTML = "<text>"+val+"</text>";
         } else if (name === "EXPAND") {
             expand(id,val);
         } else if (name === "ALIGNMENT") {
@@ -860,7 +1053,7 @@ function $gInit() {
 //          id.style.paddingRight = w + "px";
         } else if (name === "VISIBLE") {
             puts(1,"gLabel(VISIBLE,"+val+")??\n"); // placeholder
-        } else if (name === "FGCOLOR") {
+        } else if (name === "FGCLR") {
             if (val.indexOf(" ")) {
                 // eg "255 0 128" ==> "#FF0080".
                 val = val.split(" ").map(Number);   // ==> [255,0,128]
@@ -869,7 +1062,6 @@ function $gInit() {
 //              val = "#"+((1<<24)+val).toString(16).slice(1);
 //              cal = sprintf("#%06x",colour)
                 val = sprintf("#%02x%02x%02x",val);  // ==> #FF0080 (doh)
-/*
 // pretty cool, eg "Red" -> #ff0000, "PeachPuff" -> #ffdab9, "PaleGoldenRod" -> #eee8aa, 
 //  plus "RGB(123,234,142)" -> #7bea8e and "HSL(284,6%,49%)" -> #807584. Handy!
 //function standardize_color(str){
@@ -877,13 +1069,12 @@ function $gInit() {
 //  ctx.fillStyle = str;
 //  return ctx.fillStyle;
 //}
-*/
             }
             if (val.indexOf("#") !== -1) {
 //              id.style.background = val;
                 id.style.color = val;
             } else {
-                puts(1,"gLabel(FGCOLOR,"+val+")??\n"); // placeholder??
+                puts(1,"gLabel(FGCLR,"+val+")??\n"); // placeholder??
             }
         } else if (name === "FONT" || name === "FONTFACE") {
             set_font(id,val);
@@ -910,7 +1101,7 @@ function $gInit() {
         }
     }
     store_attrs(["label"], ["TITLE","EXPAND","ALIGNMENT","MARGIN","PADDING","VISIBLE",
-                            "FGCOLOR","FONT","FONTFACE","FONTSTYLE","SEPARATOR","NAME","TIP",
+                            "FGCLR","FONT","FONTFACE","FONTSTYLE","SEPARATOR","NAME","TIP",
                             "TEXTWRAP"], set_label);
 //  store_values("EXPAND",[["YES","NO","HORIZONTAL","HORIZONTALFREE","VERTICAL","VERTICALFREE"]])
 //  store_values("ALIGNMENT",[["ALEFT","ACENTER","ARIGHT"],":",["ATOP","ACENTER","ABOTTOM"]])
@@ -939,7 +1130,7 @@ function $gInit() {
         } else if (name === "VALUE") {
             puts(1,"IupList(VALUE,"+val+")??\n"); // placeholder
         } else if (name === "VISIBLE") {
-//          puts(1,"IupList(VISIBLE,"+val+")??\n"); // placeholder
+            puts(1,"IupList(VISIBLE,"+val+")??\n"); // placeholder
 //      } else if (name === "VISIBLELINES") {
 //          puts(1,"IupList(VISIBLELINES,"+val+")??\n"); // placeholder
 //      } else if (name === "VISIBLECOLUMNS") {
@@ -954,26 +1145,24 @@ function $gInit() {
 //          puts(1,"IupList(EDITBOX,"+val+")??\n"); // placeholder
 //      } else if (name === "VALINT") {
 //          puts(1,"IupList(VALINT,"+val+")??\n"); // placeholder
-/*
-    } else if (name === "VALINT" ||
-               name === "VALSTR" ) {
-        if (t === "list") {
-            let children = id.childNodes,
-                l = children.length;
-            for (let i = 0; i < l; i += 1) {
-                if (children[i].selected) {
-                    if (name === "VALINT") {
-                        return i+1;
-                    }
-                    return children[i].text;
-                }
-            }
-            if (name === "VALINT") {
-                return 0;
-            }
-            return "";
-        }
-*/
+//  } else if (name === "VALINT" ||
+//             name === "VALSTR" ) {
+//      if (t === "list") {
+//          let children = id.childNodes,
+//              l = children.length;
+//          for (let i = 0; i < l; i += 1) {
+//              if (children[i].selected) {
+//                  if (name === "VALINT") {
+//                      return i+1;
+//                  }
+//                  return children[i].text;
+//              }
+//          }
+//          if (name === "VALINT") {
+//              return 0;
+//          }
+//          return "";
+//      }
         } else {
             crash("gSetAttribute(IupList,\"" + name + "\") not yet implemented\n");
         }
@@ -1021,8 +1210,6 @@ function $gInit() {
 //          puts(1,"IupH/Vbox(GAP,"+val+")\n"); // placeholder
 //      } else if (name === "SIZE") {
 //          puts(1,"IupH/Vbox(SIZE," + val + ")\n"); // placeholder
-//      } else if (name === "LINEBREAK") {
-//          puts(1,"IupH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
         } else if (name === "SPACE") {
             if (val === "LEFT") {
                 id.style.justifyContent = "flex-end";
@@ -1032,16 +1219,18 @@ function $gInit() {
         } else if (name === "FONT") {
             set_font(id,val);
 //      } else if (name === "NORMALSIZE") {
-//          puts(1,"gH/Vbox(LINEBREAK," + val + ")\n"); // placeholder
-        } else if (name === "BGCOLOR") {
-            puts(1,"gH/Vbox(BGCOLOR,"+val+")\n"); // placeholder
+//          puts(1,"gH/Vbox(NORMALSIZE," + val + ")\n"); // placeholder
+//      } else if (name === "BGCLR") {
+//          puts(1,"gH/Vbox(BGCLR,"+val+")\n"); // placeholder
+        } else if (name === "EXPAND") {
+            puts(1,"gH/Vbox(EXPAND,"+val+")\n"); // placeholder
         } else {
             crash("gSetAttribute(gVbox,\"" + name + "\") not yet implemented");
         }
     }
     store_attrs(["vbox","hbox"], ["MARGIN","TABTITLE","PADDING",
-//                                "ALIGNMENT","NMARGIN","NORMALIZESIZE","LINEBREAK","FONT","BGCOLOR"], set_box);
-                                  "GAP","SPACE","FONT","BGCOLOR"], set_box);
+                                  "GAP","SPACE","FONT","EXPAND"], set_box);
+//                                "ALIGNMENT","NORMALIZESIZE","FONT","BGCLR"], set_box);
 
     function set_text(id, name, val) {
         assert(id.classList[0] === "text");
@@ -1054,18 +1243,16 @@ function $gInit() {
             id.value = val;
 //          id.innerText = val;
 //          id.textContent = val;
-/*
-    const am = new RegExp("&","g"),
-          lt = new RegExp("[<]","g"),
-          gt = new RegExp("[>]","g"),
-          sp = new RegExp("[ ]","g"),
-          lf = new RegExp("\\n","g");
-    text = text.replace(am,"&amp;")
-               .replace(lt,"&lt;")
-               .replace(gt,"&gt;")
-               .replace(sp,"&ensp;")
-               .replace(lf,"<br>");
-*/
+//  const am = new RegExp("&","g"),
+//        lt = new RegExp("[<]","g"),
+//        gt = new RegExp("[>]","g"),
+//        sp = new RegExp("[ ]","g"),
+//        lf = new RegExp("\\n","g");
+//  text = text.replace(am,"&amp;")
+//             .replace(lt,"&lt;")
+//             .replace(gt,"&gt;")
+//             .replace(sp,"&ensp;")
+//             .replace(lf,"<br>");
 //          id.innerText = val;
         } else if (name === "EXPAND") {
             expand(id,val);
@@ -1116,8 +1303,8 @@ function $gInit() {
 //          puts(1,"IupText(SCROLLBAR," + val + ")??\n"); // placeholder
 //      } else if (name === "READONLY") {
 //          puts(1,"IupText(READONLY," + val + ")??\n"); // placeholder
-        } else if (name === "BGCOLOR") {
-            puts(1,"gText(BGCOLOR," + val + ")??\n"); // placeholder
+        } else if (name === "BGCLR") {
+            puts(1,"gText(BGCLR," + val + ")??\n"); // placeholder
 //      } else if (name === "VISIBLECOLUMNS") {
 //          puts(1,"IupText(VISIBLECOLUMNS," + val + ")??\n"); // placeholder
 //      } else if (name === "SELECTION") {
@@ -1132,8 +1319,8 @@ function $gInit() {
     }
 //  store_attrs(["text"], ["VALUE","EXPAND","MASK","PADDING","SPIN","SPINMIN","SPINMAX","FILTER",
 //                         "CUEBANNER","NAME","TIP","MULTILINE","FORMATTING","APPEND","INSERT","WORDWRAP",
-//                         "SCROLLBAR","SELECTION","READONLY","BGCOLOR","VISIBLECOLUMNS"], set_text);
-    store_attrs(["text"], ["VALUE","EXPAND","PADDING","TIP","BGCOLOR"], set_text);
+//                         "SCROLLBAR","SELECTION","READONLY","VISIBLECOLUMNS"], set_text);
+    store_attrs(["text"], ["VALUE","EXPAND","PADDING","TIP","BGCLR"], set_text);
 
     function set_toggle(id, name, val) {
         assert(id.classList[0] === "toggle");
@@ -1171,6 +1358,8 @@ function $gInit() {
 //          puts(1,"IupToggle(SPINMIN,"+val+")??\n"); // placeholder
         } else if (name === "TIP") {
             puts(1,"IupToggle(TIP,"+val+")??\n"); // placeholder
+        } else if (name === "TITLE") {
+            mnemonicalise(id,val);
         } else if (name === "CANFOCUS") {
             puts(1,"IupToggle(CANFOCUS,"+val+")??\n"); // placeholder
         } else if (name === "NOTE") {
@@ -1183,16 +1372,7 @@ function $gInit() {
         }
     }
 //  store_attrs(["toggle"], ["CANFOCUS","NOTE","PADDING","RIGHTBUTTON","VALUE","TIP","FONT"], set_toggle);
-    store_attrs(["toggle"], ["CANFOCUS","NOTE","PADDING","VALUE","TIP","FONT"], set_toggle);
-
-//  function linebreak(id, name, val) {
-//      // applies to dialog, label, text
-//      if (name !== "LINEBREAK") { crash("LINEBREAK expected!"); }
-//      let cn = id.classList[0];
-//      puts(1,"linebreak("+cn+","+val+")??\n"); // placeholder
-////        id[LINEBREAK] = val;
-////        id.LINEBREAK = val;
-//  }
+    store_attrs(["toggle"], ["CANFOCUS","NOTE","PADDING","VALUE","TIP","TITLE","FONT"], set_toggle);
 
     function set_button(id, name, val) {
         assert(id.classList[0] === "button");
@@ -1204,8 +1384,8 @@ function $gInit() {
         if (name === "EXPAND") {
             puts(1,"gButton(EXPAND,"+val+")??\n"); // placeholder
 //          expand(id,val);
-        } else if (name === "PADDING") {
-            set_style(id,"padding",val);
+//      } else if (name === "PADDING") {
+//          set_style(id,"padding",val);
 //          puts(1,"gButton(PADDING,"+val+")??\n"); // placeholder
 //      } else if (name === "RUNNING") {
 ////DEV I think this is a hack for demo\rosetta\Morpion_solitaire.exw ... [rework to USER_DATA]
@@ -1214,39 +1394,32 @@ function $gInit() {
 //      } else if (name === "TIP") {
 //          puts(1,"gButton(TIP,"+val+")??\n"); // placeholder
         } else if (name === "IMAGE") {
-            puts(1,"gButton(IMAGE,"+val+")??\n"); // placeholder
-//  elsif name="IMAGE" then
-//--DEV erm, not quite true: image *can* be changed, but not the presence/absence of an image....
-//      assert(not bMapped,"image cannot be changed after mapping")
-//--        ?{"xpg_set_button_attribute",id,name,v,ctrl_xtra[id]}
-//      if string(v) then
-//--            v = gImage_from_XPM(v,"BUTTON")
-//          v = gImage_from_XPM(v,XPG_BTN_BG)
-//--DEV this didn't work the other place I tried it... also (sip) [3]???
-//      elsif backend=XPG_WINAPI then
-//          v = xpg_WinAPI_replace_bgclr(v[3],XPG_BTN_BG)
-//      end if
-//      assert(sequence(v) and v[1]="gImage")
-//      ctrl_xtra[id] = v
-//      return true
+            if (string(val)) {
+                val = gImage_from_XPM(val);
+            }
+            let prev = id.getElementsByTagName("canvas");
+            if (prev.length) { prev[0].remove(); }
+            if (id.childElementCount === 1) {
+                id.insertBefore(val,id.firstChild);
+            } else {
+                id.appendChild(val);
+            }
 
-//      } else if (name === "IMPRESS") {
-//          puts(1,"gButton(IMPRESS,"+val+")??\n"); // placeholder
-//      } else if (name === "BGCOLOR") {
-//          puts(1,"gButton(BGCOLOR,"+val+")??\n"); // placeholder
+//      } else if (name === "BGCLR") {
+//          puts(1,"gButton(BGCLR,"+val+")??\n"); // placeholder
         } else if (name === "TITLE") {
-            id.innerHTML = "<nobr>" + val + "</nobr>";
-        } else if (name === "USER_DATA") {
-            id.USER_DATA = val;
+            mnemonicalise(id,val);
+//DEV make me a blanket:
+//      } else if (name === "USER_DATA") {
+//          id.USER_DATA = val;
+//      } else if (name === "FLAT") {
+//          puts(1,"gButton(FLAT) not yet implemented\n")
         } else {
             crash("gSetAttribute(gButton,\"" + name + "," + val + "\") not yet implemented\n");
         }
     }
-//  store_attrs(["button"], ["GAP","EXPAND","PADDING","IMAGE",
-    store_attrs(["button"], ["EXPAND","PADDING","IMAGE",
-//  "IMPRESS","BGCOLOR","RUNNING",
-                             "TITLE","USER_DATA"], set_button);
-//  store_attrs(["button"], ["LINEBREAK"], linebreak);
+//  store_attrs(["button"], ["GAP","PADDING","BGCLR","RUNNING","FLAT",
+    store_attrs(["button"], ["EXPAND","IMAGE","TITLE"], set_button);
 //ToDo: (found while surfin)
 //button.setAttribute("disabled", "true");
 //button.removeAttribute("disabled");
@@ -1315,7 +1488,8 @@ function $gInit() {
             } else if (face === "Helvetica" ||
                        face === "Calibri") {
                 face = "sans-serif";
-            } else {
+//          } else {
+            } else if (face != "Consolas") { // for gList.exw...
                 crash("gSetAttribute(canvas,`FONT`,"+face+") not supported"); // placeholder??
             }       
             face = style + stylesize + face; // eg "bold 12px sans-serif"
@@ -1397,14 +1571,13 @@ function $gInit() {
 //          puts(1,"gCanvas(DX,"+val+")??\n"); // placeholder
 //      } else if (name === "DY") {
 //          puts(1,"gCanvas(DY,"+val+")??\n"); // placeholder
-        } else if (name === "BGCLR" ||
-                   name === "BGCOLOR" ||
-                   name === "BGCOLOUR") {
+//DEV make me a blanket:
+        } else if (name === "BGCLR") {
+            v = tg_get_colour_value(v);
             if (integer(v)) { v = sprintf("#%06x",v); }
             id.style.backgroundColor = v;
-        } else if (name === "FGCLR" ||
-                   name === "FGCOLOR" ||
-                   name === "FGCOLOUR") {
+        } else if (name === "FGCLR") {
+            v = tg_get_colour_value(v);
             if (integer(v)) { v = sprintf("#%06x",v); }
             let ctx = id.ctx;
             ctx.fillStyle = v;
@@ -1413,23 +1586,42 @@ function $gInit() {
             let ctx = id.ctx;
             ctx.LINESTYLE = v;
 //          if (v !== CD_CUSTOM) {
+//          if (v !== TG_CUSTOM_DASH) {
                 v = [[],[8,8],[4,4],[12,8,4,8],[12,4,4,4,4,4]][v];
+//              v = [[],[8,8],[4,4],[12,8,4,8],[12,4,4,4,4,4]][v-1];
 //          }
             ctx.setLineDash(v);
-//?         if (v!==XPG_CONTINUOUS) { ctx.lineWidth = 1; }
+//?         if (v!==TG_CONTINUOUS) { ctx.lineWidth = 1; }
         } else if (name === "LINEWIDTH" ) {
             let ctx = id.ctx;
             ctx.lineWidth = v;
 //?         if (width!==1) { ctx.setLineDash([]); }
+        } else if (name === "WU_BLEND" ) {
+            // do nothing
+        } else if (name === "EXPAND" ) {
+            expand(id,v);
+//          puts(1,"gCanvas(EXPAND,"+v+")??\n"); // placeholder
+        } else if (name === "SCROLLSIZE" ) {
+            let [, w, h] = intint(v);
+            id.SCRLW = w;
+            id.SCRLH = h;
+            puts(1,"gCanvas(SCROLLSIZE,"+v+")??\n"); // placeholder
+//                  integer {w,h} = v
+//                  sbinfo[SB_SCRLW] = w
+//                  sbinfo[SB_SCRLH] = h
+        } else if (name === "SCROLLPORT" ||
+                   name === "VIEWPORT" ) {
+            puts(1,"gCanvas(SCROLLPORT,"+v+")??\n"); // placeholder
         } else {
             crash("gSetAttribute(gCanvas,\"" + name + "\") not yet implemented\n");
         }
     }
-//"BGCOLOR","DRID","TITLESTYLE","BORDER","BUFFER","DATA",
-//"DRAWCOLOR","DRAWSTYLE","DRAWFONT","DRAWTEXTORIENTATION",
+//"DRID","TITLESTYLE","BORDER","BUFFER","DATA",
+//"DRAWSTYLE","DRAWFONT","DRAWTEXTORIENTATION",
 //"SCROLLBAR","DX","DY","EXPAND","SCROLLINFO"
-    store_attrs(["canvas","graph","list","drag-x","drag-y",], ["FONT","BGCLR","BGCOLOR","BGCOLOUR","FGCLR","FGCOLOR","FGCOLOUR",
-                                            "LINESTYLE","LINEWIDTH"], set_canvas);
+    store_attrs(["canvas","graph","list","drag-x","drag-y",], 
+                ["EXPAND","FONT","BGCLR","FGCLR","LINESTYLE","LINEWIDTH",
+                 "SCROLLSIZE","SCROLLPORT","VIEWPORT","WU_BLEND"], set_canvas);
 
     function set_graph(id, name, val) {
         assert(id.classList[0] === "graph");
@@ -1442,6 +1634,9 @@ function $gInit() {
         } else if (name === "BARMODE" ||
                    name === "GRIDCOLOR" ||
                    name === "GTITLE" ||
+                   name === "LEGEND" ||
+                   name === "LEGENDPOS" ||
+                   name === "LEGENDXY" ||
                    name === "MARKSTYLE" ||
                    name === "MODE" ||
                    name === "XNAME" ||
@@ -1469,12 +1664,13 @@ function $gInit() {
             crash("gSetAttribute(graph,\"" + name + "\")\n");
         }
     }
-    store_attrs(["graph"], ["BARMODE","GRID","GRIDCOLOR","GTITLE","LEGENDBOX","MARKSTYLE","MARKSIZE","MODE",
+    store_attrs(["graph"], ["BARMODE","GRID","GRIDCOLOR","GTITLE","LEGEND","LEGENDBOX","LEGENDPOS","LEGENDXY",
+                            "MARKSTYLE","MARKSIZE","MODE",
                             "XANGLE","XACROSS","XMARGIN","XMAX","XMIN","XRID","XTICK","XTICKFMT","XYSHIFT",
                             "YANGLE","YACROSS","YMARGIN","YMAX","YMIN","YRID","YTICK","YTICKFMT","YXSHIFT",
                             "XNAME","YNAME"], set_graph);
 /*
-    "BORDER","BUFFER","DATA","EXPAND","BGCOLOR",
+    "BORDER","BUFFER","DATA","EXPAND","BGCLR",
     "TITLESTYLE",
     "DRAWCOLOR","DRAWSTYLE","DRAWFONT","DRAWTEXTORIENTATION",
     "XANGLE","XCROSSORIGIN","XMARGIN","XMAX","XMIN","XRID","XTICK","XTICKFMT","XYSHIFT",
@@ -1560,7 +1756,7 @@ function $gInit() {
 //      if (name === "EXPAND") {
 //          expand(id,val);
         if (name === "ORIENTATION") {
-            puts(1,"IupProgressBar(ORIENTATION,"+val+")??\n"); // placeholder
+            puts(1,"gProgressBar(ORIENTATION,"+val+")??\n"); // placeholder
 //          if (val === "HORIZONTAL") {
 //              drag.className = "drag-y"
 //              id.style.flexDirection = "column";
@@ -1570,16 +1766,16 @@ function $gInit() {
 //              id.style.flexDirection = "row";
 //          }
         } else if (name === "MIN") {
-            puts(1,"IupProgressBar(MIN,"+val+")??\n"); // placeholder
-            id.max = val;
-        } else if (name === "MAX") {
-            puts(1,"IupProgressBar(MAX,"+val+")??\n"); // placeholder
+            puts(1,"gProgressBar(MIN,"+val+")??\n"); // placeholder
             id.min = val;
+        } else if (name === "MAX") {
+            puts(1,"gProgressBar(MAX,"+val+")??\n"); // placeholder
+            id.max = val;
         } else if (name === "VALUE") {
 //          puts(1,"IupProgressBar(MAX,"+val+")??\n"); // placeholder
             id.value = val;
         } else if (name === "EXPAND") {
-            puts(1,"IupProgressBar(EXPAND,"+val+")??\n"); // placeholder
+            puts(1,"gProgressBar(EXPAND,"+val+")??\n"); // placeholder
         } else {
             crash("gSetAttribute(IupProgressBar,\"" + name + "\"," + val + ") not yet implemented\n");
         }
@@ -1717,46 +1913,73 @@ function $gInit() {
 
 } // $gInit() ends
 
-/*global*/ function gGetAlignName(/*integer*/ d) {
+/*global*/ 
+function gdx_name(/*integer*/ d) {
+    return "gdx_name";
+}
+
+/*global*/ 
+function gGetAlignName(/*integer*/ d) {
 //  if d=-1 then return "-1" end if -- erm, no
-    if (equal(d,XPG_C)) { return "XPG_C"; }
-    let /*string*/ res = "XPG_";
-    let bc$seq = ["sequence",["sequence",XPG_N,0X4E],["sequence",XPG_S,0X53],["sequence",XPG_E,0X45],["sequence",XPG_W,0X57]]; 
+    if (equal(d,TG_C)) { return "TG_C"; }
+    let /*string*/ res = "TG_";
+    // for bc in {{TG_N,'N'},{TG_S,'S'},{TG_E,'E'},{TG_W,'W'}} do
+    let bc$seq = ["sequence",["sequence",TG_N,0X4E],["sequence",TG_S,0X53],["sequence",TG_E,0X45],["sequence",TG_W,0X57]]; 
     for (let bc$idx = 1; bc$idx <= 4; bc$idx += 1) { let bc = $subse(bc$seq,bc$idx);
         if (and_bits(d,$subse(bc,1))) { res = $conCat(res, $subse(bc,2), false); }
     }
     return res;
-}
+} gGetAlignName.$sig="FI";
 
+// or maybe gSetGlobal.IDLE_ARGS.. whhy not?
+let $IDLE_ARGS = ["sequence"];
 
-function gSetGlobal(name, v) {
+function gSetGlobal(/*string*/ name, /*object*/ v) {
+    if (name === "IDLE_ARGS") {
+        $IDLE_ARGS = v;
+    } else if (name === "DIAGNOSTICS") {
+        // theGUI.js should quietly ignore things meant for theGUI.e, and vice-versa.
+    } else if (name === "IDLE_ACTION") {
+//?     gSetGlobal.IDLE_ACTION = v; // (for gGetGlobal)
+        /*private*/ function cb() {
+//          let res = v();
+            let res = v(...$IDLE_ARGS.slice(1));
+//? !=TG_IGNORE ?
+//          if (res === TG_DEFAULT) {
+            if (res === TG_CONTINUE) {
+                window.requestIdleCallback(cb); 
+            }
+        }
+        window.requestIdleCallback(cb);
 //  if (name === "UTF8MODE") {
 //      // do nothing... (it is already/permanently enabled in JavaScript)
 //  } else if (name === "SINGLEINSTANCE") {
 //      puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
 //  } else if (name === "INPUTCALLBACKS") {
 //      puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
-//  } else {
+    } else {
 //      crash("gSetGlobal(" + name + "," + v + ")...");
         puts(1,"gSetGlobal(" + name + "," + v + ")...\n");
-//  }
-}
+    }
+} gSetGlobal.$sig="PSO";
 //const gSetGlobalInt = gSetGlobal;
 
 function gGetGlobalInt(/*string*/ name) {
-    if (name === "CONTROLKEY") { return $ctrlKey; }
+    if (name === "CONTROLKEY" ||
+        name === "CTRLKEY") { return $ctrlKey; }
     if (name === "SHIFTKEY") { return $shiftKey; }
-    if (name === "UTF8MODE") { return true; }
+    if (name === "ALTKEY") { return $altKey; }
     crash("gGetGlobalInt(%s) not supported",["sequence",name]);
-}
+} gGetGlobalInt.$sig="FS";
 
 function gGetGlobalIntInt(/*string*/ name) {
     if (name === "SCREENSIZE") { return ["sequence",window.innerWidth,window.innerHeight]; }
+    if (name === "MOUSEPOS") { return ["sequence",$mouseX, $mouseY]; }
     crash("gGetGlobalIntInt(%s) not supported",["sequence",name]);
-}
+} gGetGlobalIntInt.$sig="FS";
 
 function gVersion(/*integer*/ bBack=false) {
-    if (bBack) { return (bBack==-1) ? XPG_JS : "JS"; }
+    if (bBack) { return (bBack==-1) ? TG_JS : (bBack==-2)? 1 : "JS"; }
     // note the user agent and friends can all be spoofed anyway...
     let ua = navigator.userAgent,
         browser = navigator.appName,
@@ -1779,8 +2002,8 @@ function gVersion(/*integer*/ bBack=false) {
         }
         if (no_ver) { browver = ""; }
     }
-    let plat = navigator.platform + " using " + browser + browver;
-    return "xpGUI.js version 0.1 (32 bits) on " + plat;
+    let plat = navigator.platform + ", using " + browser + browver;
+    return "theGUI on Phix version " + version() + " (32 bits) on " + plat;
 /*
     let plat = navigator.platform,
           ua = navigator.userAgent, browser = ua,
@@ -1794,7 +2017,7 @@ function gVersion(/*integer*/ bBack=false) {
     if ((ua.indexOf("MSIE") != -1 ) || //IF IE > 10
        (!!document.documentMode == true ))          { browser = 'IE'; } else 
     if (isEdge)                                     { browser = 'Edge'; }
-    return "xpGUI.js version 0.1 (32 bits) on " + plat + " using " + browser;
+    return "theGUI.js version 0.1 (32 bits) on " + plat + " using " + browser;
 --*/
 /*
 from https://stackoverflow.com/questions/9847580/how-to-detect-safari-chrome-ie-firefox-and-opera-browsers
@@ -1899,47 +2122,29 @@ navigator.saysWho = (() => {
 
 console.log(navigator.saysWho) // outputs: `Chrome 89`
 --*/
-}
+} gVersion.$sig="FI,0";
 
 function gGetGlobal(/*string*/ name) {
-    if (name === "VERSION") {
-        return gVersion();
-    } else if (name === "DLGBGCOLOR") {
-//      return "240 240 240";
-        return ["sequence",0xF0,0xF0,0xF0];
-    } else if (name === "SCREENSIZE") {
-//      return window.innerWidth + "x" + window.innerHeight;
-//      return ["sequence",window.innerWidth,window.innerHeight];
+    if (name === "COPYRIGHT") {
+        return "Copyright (C) 2023-2025 Pete Lomax / Open Software License version 3.0";
+    } else if (name === "SCREENSIZE" ||
+               name === "MOUSEDPOS") {
         return gGetGlobalIntInt(name);
     } else if (name === "CONTROLKEY" ||
+               name === "CTRLKEY" ||
                name === "SHIFTKEY" ||
-               name === "UTF8MODE") {
+               name === "ALTKEY") {
         return gGetGlobalInt(name);
     }
     crash("gGetGlobal(" + name + ")...");
-}
+} gGetGlobal.$sig="FS";
 
-function gSetGlobalFunction(name, v) {
-    if (name === "IDLE_ACTION") {
-        function cb() {
-            let res = v();
-//? !=XPG_IGNORE ?
-            if (res === XPG_DEFAULT) {
-                window.requestIdleCallback(cb); 
-            }
-        }
-        window.requestIdleCallback(cb);
-    } else {
-        crash("gSetGlobalFunction(" + name + ")...");
-    }
-}
-
-function $timer(/*string*/cmd, id, name, v) { // nb: mapped to ("create",func,msecs,active)
+function $timer(/*string*/cmd, id, name, v, user_data) { // nb: mapped to ("create",func,msecs,active,user_data)
     // timer handling, used by IupTimer(), IupSetInt(), and IupGetInt()
     // (bundled like this mainly just so that the next enum can be local)
     const TIMER=0, FUNC=1, MSECS=2, ACTIVE=3, ID=4, CB=5
     if (cmd === "create") {
-        function action_cb(timer) {
+        /*private*/ function action_cb(timer) {
             if (!timer[ACTIVE]) { 
                 if (timer[ID]) {
                     // shouldn't really happen... not very often anyway
@@ -1959,6 +2164,7 @@ function $timer(/*string*/cmd, id, name, v) { // nb: mapped to ("create",func,ms
         if (active) {
             id[ID] = setInterval(action_cb,msecs,id);
         }
+        if (user_data) { id.USER_DATA = user_data; }
         return id;
 
     } else if (cmd === "is") {
@@ -1975,6 +2181,8 @@ function $timer(/*string*/cmd, id, name, v) { // nb: mapped to ("create",func,ms
                 id[ACTIVE] = v;
             } else if (name === "TIME") {
                 id[MSECS] = v;
+            } else if (name === "USER_DATA") {
+                id.USER_DATA = v;
             } else {
                 crash("timer??");
             }
@@ -1984,13 +2192,14 @@ function $timer(/*string*/cmd, id, name, v) { // nb: mapped to ("create",func,ms
         } else if (cmd === "get") {
             if (name === "RUN") { return id[ACTIVE]; }
             if (name === "TIME") { return id[MSECS]; }
+            if (name === "USER_DATA") { return id.USER_DATA; }
             crash("timer??")
         }
     }
 }   
 
 //(gdx id, string name, nullable_string v, sequence args={}) 
-function gSetAttribute(id, name, v, args = []) {
+function gSetAttribute(/*gdx*/ id, /*sequence*/ name, /*nullable_string*/ v, /*sequence*/ args=[], /*integer*/ nFrames=1) {
     if ($timer("is",id)) {
         if (args.length) {
             v = sprintf(v, args);
@@ -2003,7 +2212,7 @@ function gSetAttribute(id, name, v, args = []) {
 //22/1/24 (sip/untested/for no good reason...)
 //      for (let i = length(id); i >= 1; i -= 1) {
         let lid = length(id);
-        for (let i = 1; i < lid; i += 1) {
+        for (let i = 1; i <= lid; i += 1) {
             gSetAttribute(id[i], name, v);
         }
         return;
@@ -2014,7 +2223,13 @@ function gSetAttribute(id, name, v, args = []) {
     if (!t || !$storeAttr.hasOwnProperty(t)) {
         crash("invalid type");
     }
-    if (typeof(name) === "string") {
+    if (typeof(name) != "string") {
+        let len = length(name);
+        for (let i = 1; i <= len; i += 1) {
+            gSetAttribute(id, name[i], v);
+        }
+        return;
+    } else { //if (typeof(name) === "string")
         if (args.length) {
             v = sprintf(v, args);
         }
@@ -2052,7 +2267,31 @@ function gSetAttribute(id, name, v, args = []) {
 //          if (!id.DROPDOWN) { id.size = n; }
 //          id.size = n; (NO!!)
             return;
+        } else if (name === "CANFOCUS") {
+/*
+            assert(not find(ct,{DIALOG,BOX,CLIPBOARD,FRAME,TIMER}))
+            if string(v) then v = tg_to_bool(v) end if
+            if not bMapped then
+                tg_defer_attr(id,name,v)
+            else {
+                if backend=TG_GTK then
+                    c_proc(gtk_widget_set_can_focus,{handle,v})
+                elsif backend=TG_WINAPI then
+                    atom dwStyle = c_func(xGetWindowLong,{handle,GWL_STYLE})
+                    dwStyle -= and_bits(dwStyle,WS_TABSTOP)
+                    if v then dwStyle += WS_TABSTOP end if
+                    dwStyle = c_func(xSetWindowLong,{handle,GWL_STYLE,dwStyle})
+                else
+                    ?9/0 -- (unknown backend)
+                end if
+//--DEV
+//--            if ct=SPIN then gSetAttribute(id+1,name,v) end if
+            }
+*/
+            puts(1,"gSetAttribute("+t+",`CANFOCUS`,"+v+")??\n"); // placeholder
+            return;
         }
+
 /*
         let bOK = $storeAttr[t].hasOwnProperty(name);
 //DEV..
@@ -2087,7 +2326,7 @@ function gSetAttribute(id, name, v, args = []) {
         }
     }
     crash("invalid attr name (%s for %s)",["sequence",name,t]);
-}
+} gSetAttribute.$sig="POSOPI,3";
 const gSetInt = gSetAttribute;
 const gSetDouble = gSetAttribute;
 
@@ -2129,7 +2368,7 @@ function IupSetInt(id, name, v) {
     }
 }
 
-function gGetAttribute(id, name, dflt) {
+function gGetAttribute(/*gdx*/ id, /*string*/ name, /*object*/ dflt) {
 //  if (string(id) && id === "clipboard") {
 //      if (name !== "TEXT") { crash("uh?"); }
 //      puts(1,"gGetAttribute(clipboard,`TEXT`)==>``??\n");
@@ -2178,6 +2417,26 @@ function gGetAttribute(id, name, dflt) {
             res[i+1] = children[i].text;
         }
         return res;
+    } else if (name === "ACTIVE") {
+        return !id.disabled;
+    } else if (name === "CLIENT") {
+//      let rect = canvas.getBoundingClientRect();
+//      return ["sequence", rect.left, rect.top, rect.width, rect.height];
+//id.clientWidth,id.clientHeight
+//
+//      getBoundingClientRect()
+        if (t === "dialog") {
+            let l = id.offsetLeft,
+                t = id.offsetTop+32,
+                w = id.width, 
+                h = id.height;
+            if (!w) { w = $eWidth(id); }
+            if (!h) { h = $eHeight(id); }
+            return ["sequence", l, t, w, h];
+        }
+//      let rect = canvas.getBoundingClientRect();
+        let rect = id.getBoundingClientRect();
+        return ["sequence", rect.left, rect.top, rect.width, rect.height];
     } else if (name === "TITLE") {
         if (t === "button" ||
             t === "toggle" ||
@@ -2194,7 +2453,8 @@ function gGetAttribute(id, name, dflt) {
                    t === "list") {
             return gGetAttribute(id.parentNode,name);
         }
-    } else if (name === "RASTERSIZE" || name === "SIZE") {
+//  } else if (name === "RASTERSIZE" || name === "SIZE") {
+    } else if (name === "SIZE") {
 //      if (name === "RASTERSIZE") {
 //          return ["sequence", $eWidth(id), $eHeight(id)];
         let w = id.width, 
@@ -2204,21 +2464,19 @@ function gGetAttribute(id, name, dflt) {
         return ["sequence", w, h];
 //      return sprintf("%dx%d",["sequence",$eWidth(id), $eHeight(id)]);
 //      }
-    } else if (name === "BGCLR" || 
-               name === "BGCOLOR" ||
-               name === "BGCOLOUR") {
+    } else if (name === "BGCLR") {
 //DEV or maybe drag-x/y -> canvas above?? 
         if (t === "canvas" ||
             t === "graph" ||
+            t === "list" ||
             t === "drag-x" ||
             t === "drag-y") {
             return id.style.backgroundColor;
         }
-    } else if (name === "FGCLR" || 
-               name === "FGCOLOR" ||
-               name === "FGCOLOUR") {
+    } else if (name === "FGCLR") {
         if (t === "canvas" ||
             t === "graph" ||
+            t === "list" ||
             t === "drag-x" ||
             t === "drag-y") {
             return id.ctx.strokeStyle;
@@ -2227,7 +2485,7 @@ function gGetAttribute(id, name, dflt) {
         if (t === "canvas" ||
             t === "drag-x" ||
             t === "drag-y") {
-            return id.ctx.LINESTYLE || XPG_CONTINUOUS;
+            return id.ctx.LINESTYLE || TG_CONTINUOUS;
         }
     } else if (name === "LINEWIDTH" ) {
         if (t === "canvas" ||
@@ -2235,6 +2493,10 @@ function gGetAttribute(id, name, dflt) {
             t === "drag-y") {
             return id.ctx.lineWidth;
         }
+    } else if (name === "MOUSEPOS") {
+        let x = $mouseX - id.offsetLeft,
+            y = $mouseY - id.offsetTop;
+        return ["sequence",x, y];
     } else if (t === "graph" || t === "list") {
 //      if (name === "GTITLE" ||
 //          name === "XNAME" ||
@@ -2270,27 +2532,57 @@ function gGetAttribute(id, name, dflt) {
 // "illegal invocation"...
 //          return window.Clipboard.prototype.readText();
         }
+//  } else if (t === "canvas" && dflt &&
+//             (name === "XTICTFMT" ||
+//              name === "YTICTFMT") {
+    } else if (name === "SCROLLSIZE") {
+        let w = id.SCRLW, 
+            h = id.SCRLH;
+        if (!w) { w = id.width; }
+        if (!h) { h = id.height; }
+        if (!w) { w = $eWidth(id); }
+        if (!h) { h = $eHeight(id); }
+        return ["sequence", w, h];
+    } else if (name === "SCROLLPORT" ||
+               name === "VIEWPORT") {
+//DEV incomplete!
+        let w = id.width, 
+            h = id.height;
+        if (!w) { w = $eWidth(id); }
+        if (!h) { h = $eHeight(id); }
+        return ["sequence", 0, 0, w, h];
+    } else if (t === "progress") {
+        if (name === "MIN") {
+            return id.min;
+        } else if (name === "MAX") {
+            return id.max;
+        }
     }
 //DEV??
     if (id.hasOwnProperty(name)) { // (DBUFFER etc)
         return id[name];
-//  } else if (t === "canvas" && dflt &&
-//             (name === "XTICTFMT" ||
-//              name === "YTICTFMT") {
     } else if (dflt) {
         return dflt;
     } else if (name === "USER_DATA") {
-        return NULL;
+//      return NULL;
+        return id.USER_DATA;
     }
     crash("gGetAttribute(%s,%s) not supported",["sequence",t,name]);
-}   
+} gGetAttribute.$sig="FOSO";
+
+/*global*/
+function gGetSetAttribute(/*gdx*/ id, /*string*/ name, /*object*/ v, dflt=999_999_999) {
+    let /*object*/ prev = gGetAttribute(id,name,dflt);
+    gSetAttribute(id,name,v);
+    return prev;
+} gGetSetAttribute.$sig="FOSOO,3";
 
 //DEV gGetInt:
 //  if name="EXPAND" then
 //      return and_bits(ctrl_flags[id],CF_EXPANDH+CF_EXPANDV)
 //  end if
 
-function gGetInt(id, name, dflt) {
+function gGetInt(/*gdx*/ id, /*string*/ name, /*object*/ dflt) {
     if (name === "EXPAND") {
         let res = 0;
         if (id.classList.contains("expandh")) { res += 1; }
@@ -2298,7 +2590,7 @@ function gGetInt(id, name, dflt) {
         return res;
     }
     return gGetAttribute(id, name, dflt);
-}
+} gGetInt.$sig="FOSO";
 const gGetIntInt = gGetAttribute;
 const gGetDouble = gGetAttribute;
 
@@ -2427,12 +2719,14 @@ function IupGetInt(id, name, dflt=0) {
 
 function gToggleInt(/*gdx*/ id, /*string*/ name) {
     gSetInt(id,name,!gGetInt(id,name))
-}
+} gToggleInt.$sig="POS";
+
 
 function IupGetIntInt(id, name) {
 //  if (typeof(name) !== "string" ...??
     let t = id.classList[0];
-    if (name == "RASTERSIZE") {
+//  if (name == "RASTERSIZE") {
+    if (name == "SIZE") {
         if (t === "canvas" ||
             t === "graph" ||
             t === "list" ||
@@ -2460,16 +2754,16 @@ function IupGetIntInt(id, name) {
             let brect = id.getBoundingClientRect();
             return ["sequence",brect.width,brect.height];
         }
-    } else if (t === "canvas" ||
-               t === "graph" ||
-               t === "list") {
-        if (name === "DRAWSIZE") {
-            return ["sequence",id.width,id.height];
-        }
-    } else if (t === "dialog") {
-        if (name === "SCREENPOSITION") {
-            return ["sequence",id.offsetLeft,id.offsetTop];
-        }
+//  } else if (t === "canvas" ||
+//             t === "graph" ||
+//             t === "list") {
+//      if (name === "DRAWSIZE") {
+//          return ["sequence",id.width,id.height];
+//      }
+//  } else if (t === "dialog") {
+//      if (name === "SCREENPOSITION") {
+//          return ["sequence",id.offsetLeft,id.offsetTop];
+//      }
     }
 //  if (!t || !$storeAttr.hasOwnProperty(t)) {
 //      crash("invalid type");
@@ -2561,9 +2855,10 @@ function IupGetIntInt(id, name) {
 //}
 
 // translated from iup_attrib.c:
-function gSetAttributes(id, attributes, args = []) {
+function gSetAttributes(/*gdx*/ id, /*string*/ attributes, /*sequence*/ args=[], /*integer*/ nFrames=1) {
     if (attributes && typeof(attributes) === "string" && attributes.length>0) {
-        if (equal($subse(attributes,1),0X3D)) { // '='
+// 14/4/25 case 2 ditched as never used
+//      if (equal($subse(attributes,1),0X3D)) { // '='
             if (attributes==="==") {
                 for (let a$idx = 1, a$lim = length(args); a$idx <= a$lim; a$idx += 1) {
                     let a = $subse(args,a$idx);
@@ -2573,13 +2868,13 @@ function gSetAttributes(id, attributes, args = []) {
                 }
                 return;
             }
-            let /*sequence*/ names = split($subss(attributes,2,-1),0X2C);
-            assert(equal(length(names),length(args)),"names/args must be same length");
-            for (let i=1, i$lim=length(names); i<=i$lim; i+=1) {
-                gSetAttribute(id,$subse(names,i),$subse(args,i));
-            }
-            return;
-        }
+//          let /*sequence*/ names = split($subss(attributes,2,-1),0X2C);
+//          assert(equal(length(names),length(args)),"names/args must be same length");
+//          for (let i=1, i$lim=length(names); i<=i$lim; i+=1) {
+//              gSetAttribute(id,$subse(names,i),$subse(args,i));
+//          }
+//          return;
+//      }
         let i = 0;
         let token = "";
         const IUPLEX_TK_END   = 0,
@@ -2587,7 +2882,7 @@ function gSetAttributes(id, attributes, args = []) {
               IUPLEX_TK_COMMA = 2,
               IUPLEX_TK_NAME  = 3;
 
-        function iAttribCapture(delims) {
+        /*private*/ function iAttribCapture(delims) {
             token = "";
             while (i < attributes.length) {
                 let c = attributes[i];
@@ -2600,7 +2895,7 @@ function gSetAttributes(id, attributes, args = []) {
             i += 1;
         }
 
-        function iAttribToken() {
+        /*private*/ function iAttribToken() {
             while (i < attributes.length) {
                 let c = attributes[i];
                 i += 1;
@@ -2637,6 +2932,10 @@ function gSetAttributes(id, attributes, args = []) {
 //              case '\"':                                  // string
                 case '"':                                   // string
                     iAttribCapture("\"");
+                    return IUPLEX_TK_NAME;
+
+                case '{':
+                    iAttribCapture("}");
                     return IUPLEX_TK_NAME;
 
                 default:
@@ -2693,7 +2992,7 @@ function gSetAttributes(id, attributes, args = []) {
     } else if (attributes === null || typeof(attributes) !== "string") {
         crash("attributes not string");
     }   
-}
+} gSetAttributes.$sig="POSPI,2";
 
 //      function IupSetAttributeHandle(/*gdx*/ id, /*string*/ name, /*gdx*/ id_named) {
 //          // NB currently only handles dialog/MENU..
@@ -2914,7 +3213,7 @@ function gSetAttributes(id, attributes, args = []) {
 //  crash("iupKeyCodeToName(" + ch + ")\n");
 //}
 
-function gSetHandler(id, name, func) {
+function gSetHandler(/*gdx*/ id, /*sequence*/ name, /*integer*/ func) {
     if (sequence(id)) {
         let l = length(id);
         for (let i=1; i<=l; i += 1) {
@@ -2932,10 +3231,13 @@ function gSetHandler(id, name, func) {
         }
     } else {
         let cn = id.classList[0];
-        id[name] = func;
-        function mapkey(event) {
+        if (name != "REDRAW" || cn != "graph") {
+            id[name] = func;
+        }
+        /*private*/ function mapkey(event) {
             // (common code for KEY_CB and text/ACTION)
-            let key = event.key;
+            let key = event.key,
+               code = event.code;
 //          $shiftKey = event.shiftKey; // for IupGetInt()
 //puts(1,"shiftKey:"+shiftKey+"\n");
             if (string(key) && key.length === 1) {
@@ -2947,14 +3249,60 @@ function gSetHandler(id, name, func) {
                         key -= 96;
                     }
                 }
+            } else if (code === "ControlLeft") {
+                key = VK_LCTRL;
+            } else if (code === "ControlRight") {
+                key = VK_RCTRL;
+            } else if (code === "ShiftLeft") {
+                key = VK_LSHIFT;
+            } else if (code === "ShiftRight") {
+                key = VK_RSHIFT;
+            } else if (code === "AltLeft") {
+                key = VK_LALT;
+            } else if (code === "AltRight") {
+                key = VK_RALT;
+            } else if (code === "MetaLeft") {
+                key = VK_LWIN;
+            } else if (code === "MetaRight") {
+                key = VK_RWIN;
+            } else if (key === "CapsLock") {
+                key = VK_CAPSLOCK;
+            } else if (key === "ContextMenu") {
+                key = VK_APPS;
             } else if (key === "Backspace") {
                 key = VK_BS;
-            } else if (key === "Delete") {
-                key = VK_DEL;
+            } else if (key === "Tab") {
+                key = VK_TAB;
             } else if (key === "Enter") {
                 key = VK_CR;
-            } else if (key === "Shift") {
-                return true;
+            } else if (key === "Escape") {
+                key = VK_ESC;
+            } else if (key === "ArrowUp") {
+                key = VK_UP;
+            } else if (key === "ArrowDown") {
+                key = VK_DOWN;
+            } else if (key === "ArrowLeft") {
+                key = VK_LEFT;
+            } else if (key === "ArrowRight") {
+                key = VK_RIGHT;
+            } else if (key === "Pause") {
+                key = VK_PAUSE;
+            } else if (key === "ScrollLock") {
+                key = VK_SCROLL;
+            } else if (key === "Insert") {
+                key = VK_INS;
+            } else if (key === "Home") {
+                key = VK_HOME;
+            } else if (key === "PageUp") {
+                key = VK_PGUP;
+            } else if (key === "PageDown") {
+                key = VK_PGDN;
+            } else if (key === "End") {
+                key = VK_END;
+            } else if (key === "Delete") {
+                key = VK_DEL;
+//          } else if (key === "Shift") {
+//              return true;
             } else if (key === "F1") {
                 key = VK_F1;
             } else if (key === "F2") {
@@ -2979,18 +3327,6 @@ function gSetHandler(id, name, func) {
                 key = VK_F11;
             } else if (key === "F12") {
                 key = VK_F12;
-            } else if (key === "PageDown") {
-                key = VK_PGDN;
-            } else if (key === "PageUp") {
-                key = VK_PGUP;
-            } else if (key === "ArrowUp") {
-                key = VK_UP;
-            } else if (key === "ArrowDown") {
-                key = VK_DOWN;
-            } else if (key === "ArrowLeft") {
-                key = VK_LEFT;
-            } else if (key === "ArrowRight") {
-                key = VK_RIGHT;
             } else {    
                 console.log("key is " + key);
             }
@@ -2998,46 +3334,73 @@ function gSetHandler(id, name, func) {
         }
 //      if (name==="KEY_CB" || name==="K_ANY") {
         if (name === "KEY") {
-            function key_cb(event) {
+            /*private*/ function key_cb(event) {
 //puts(1,"key_cb("+event.keyCode+")\n");
                 let tgt = event.currentTarget,
                     key = mapkey(event);
 //19/10/21:
 //              let res = func(tgt,key);
-                let res = func(id,key);
-                // XPG_DEFAULT and XPG_IGNORE 
+//DEV func.length of 5 when all...
+                let res = func(id,key,event.ctrlKey,event.shiftKey,event.altKey);
+                // TG_DEFAULT and TG_IGNORE 
                 // should prevent propagation,
                 // am not going to bother with
-                // XPG_CLOSE handling here:
-//              if (res !== XPG_DEFAULT &&
-//                  res !== XPG_CONTINUE) {
-                if (res === XPG_IGNORE ||
-                   (res === XPG_DEFAULT && key !== VK_ESC && key !== VK_F5)) {
+                // TG_CLOSE handling here:
+//              if (res !== TG_DEFAULT &&
+//                  res !== TG_CONTINUE) {
+                if (res === TG_IGNORE ||
+                   (res === TG_DEFAULT && key !== VK_ESC && key !== VK_F5)) {
                     event.preventDefault();
                 }
-//      if res=XPG_IGNORE
-//      or (res=XPG_DEFAULT and not find(key,{VK_ESC,VK_F5})) then
+//      if res=TG_IGNORE
+//      or (res=TG_DEFAULT and not find(key,{VK_ESC,VK_F5})) then
 
-                return (res === XPG_CONTINUE);
+                return (res === TG_CONTINUE);
             }
 //          id.onkeydown = key_cb;
 //          id.addEventListener("keydown",key_cb);
 //          document.addEventListener("keydown",key_cb);
             $docBody.addEventListener("keydown",key_cb);
 //          id.tabIndex="-1";   // important!
-        } else if (name === "MOTION_CB") {
-            function motion_cb(event) {
+        } else if (name === "MOUSEMOVE") {
+            /*private*/ function mousemove(event) {
 //puts(1,"motion_cb("+event.clientX+","+event.clientY+")\n");
                 let ctrl = event.currentTarget,
-                    parent = gGetDialog(ctrl),
-                    x = event.clientX - ctrl.offsetLeft - parent.offsetLeft,
-                    y = event.clientY - ctrl.offsetTop - parent.offsetTop;
-                func(ctrl,x,y,NULL);
+                    cn = id.classList[0],
+                    x = event.clientX - ctrl.offsetLeft,
+                    y = event.clientY - ctrl.offsetTop,
+                    b = event.buttons,
+                    bLeft = b & 1,
+                    bMiddle = b & 4,
+                    bRight = b & 2,
+                    bCtrl = event.ctrlKey,
+                    bShift = event.shiftKey,
+                    bAlt = event.altKey;
+                if (cn == "dialog") {
+                    if (y < 32) { return; }
+                    y -= 32;
+                } else {
+                    let parent = gGetDialog(ctrl);
+                    x -= parent.offsetLeft;
+                    y -= parent.offsetTop;
+                }
+//procedure mousemove([gdx id, [integer x, y[,[bool] left,middle,right[,ctrl,shift,alt]]]]) 
+/*
+0: No button or un-initialized
+1: Primary button (usually the left button)
+2: Secondary button (usually the right button)
+4: Auxiliary button (usually the mouse wheel button or middle button)
+8: 4th button (typically the "Browser Back" button)
+16 : 5th button (typically the "Browser Forward" button)
+*/
+                func(ctrl,x,y,bLeft,bMiddle,bRight,bCtrl,bShift,bAlt);
             }
-            id.addEventListener("mousemove",motion_cb);
-        } else if (name === "BUTTON_CB") {
+            id.addEventListener("mousemove",mousemove);
+//      } else if (name === "BUTTON_CB") {
+        } else if (name === "ACTION") {
 //      } else if (name === "CLICK") {
-            function button_cb(event) {
+            /*private*/ function button_cb(event) {
+/*
                 const buttons = [IUP_BUTTON1,IUP_BUTTON2,IUP_BUTTON3];
                 let code = buttons[event.button],
                     ctrl = event.currentTarget,
@@ -3047,6 +3410,7 @@ function gSetHandler(id, name, func) {
 //et = event.type,
 //                  pressed = 0; // (not pressed)
                     pressed = (event.type === "mousedown");
+*/
 //DEV (sip)
 //                  click = ctrl.CLICK;
 //              if (CLICK) {
@@ -3061,17 +3425,18 @@ function gSetHandler(id, name, func) {
 //with this still here:
 //          id.ACTION = func;
 
-                func(ctrl,code,pressed,x,y,NULL);
+//              func(ctrl,code,pressed,x,y,NULL);
+                func(event.currentTarget);
             }
 //          id.addEventListener("click",button_cb);
-            id.addEventListener("mousedown",button_cb);
+//          id.addEventListener("mousedown",button_cb);
             id.addEventListener("mouseup",button_cb);
 //          id.addEventListener("contextmenu",button_cb);
         } else if (name === "VALUECHANGED") {
-            function change_cb(event) {
+            /*private*/ function change_cb(event) {
                 func(event.currentTarget);
             }
-            if (cn === "datepick" ||
+            if (//cn === "datepick" ||
                 cn === "list" ) {
                 id.addEventListener("change",change_cb);
             } else if (cn === "slider") {
@@ -3080,7 +3445,10 @@ function gSetHandler(id, name, func) {
                 id.addEventListener("keyup",change_cb);
             }
         } else if (name === "VALUE_CHANGED") {
-            function check_changed_cb(event) {
+            /*private*/ function change_cb(event) {
+                func(event.currentTarget);
+            }
+            /*private*/ function check_changed_cb(event) {
                 let tgl = event.currentTarget,
                     id = tgl.parentNode,
                     val = tgl.checked;
@@ -3097,28 +3465,69 @@ function gSetHandler(id, name, func) {
                 }
                 func(id,val);
             }
-            if (cn === "toggle") {
-                let cb = id.children[1];
+            if (cn === "datepick") { // ||
+//              cn === "list" ) {
+                id.addEventListener("change",change_cb);
+            } else if (cn === "toggle") {
+//              let cb = id.children[1];
+                let cb = id.children[2];
                 cb.addEventListener("change",check_changed_cb);
             } else if (cn === "spin") {
                 id.VALUE_CHANGED = func;
             }
         } else if (name === "CHANGED") {
-            function change_cb(event) {
+            /*private*/ function change_cb(event) {
                 func(event.currentTarget);
             }
             if (cn === "drop") {
                 id.addEventListener("change",change_cb);
             }
         } else if (name === "CLICK") {
+            /*private*/ function click(event) {
+//              let ch1=??
+/*
+                const buttons = [IUP_BUTTON1,IUP_BUTTON2,IUP_BUTTON3];
+                let code = buttons[event.button],
+                    ctrl = event.currentTarget,
+                    parent = gGetDialog(ctrl),
+                    x = event.clientX - ctrl.offsetLeft - parent.offsetLeft,
+                    y = event.clientY - ctrl.offsetTop - parent.offsetTop,
+//et = event.type,
+//                  pressed = 0; // (not pressed)
+                    pressed = (event.type === "mousedown");
+*/
+//DEV (sip)
+//                  click = ctrl.CLICK;
+//              if (CLICK) {
+//                  status = repeat(false,5);
+//                  status[1] = "LMRXY"[?event.button];
+//                  status[2] = "SDR"[?pressed];
+//                  status[3] = ctrl?
+//                  status[4] = shift?
+//                  status[5] = alt?
+//                  click(ctrl,status[,x,y]);
+//              }
+//with this still here:
+//          id.ACTION = func;
+
+//              func(ctrl,code,pressed,x,y,NULL);
+//              func(event.currentTarget,status_string,x,y);
+puts(1,"CLICK single arg [line 3534]\n");
+                func(event.currentTarget);
+            }
+            id.addEventListener("click",click);
+//          id.addEventListener("mouseup",click);
+//          id.addEventListener("mousedown",click);
+//          id.addEventListener("contextmenu",button_cb);
+/*
             if (cn === "button" ||
 //DEV menuitems should now have "HANDLER"... (is "menuitem" still in use at all??)
                 cn === "menuitem") {
                 // action with just an id parameter
-                function click(event) {
+                /!*private*!/ function click(event) {
                     let id = event.currentTarget,
                         res = func(id);
-                    if (res === XPG_CLOSE) {
+                    if (res === TG_CLOSE) {
                         let dialog = gGetDialog(id);
                         gHide(dialog);
                     }
@@ -3130,7 +3539,7 @@ function gSetHandler(id, name, func) {
                 // action with id, c, pNewValue parameters [not that we could ever actually provide the latter??
                 //                                          - maybe change pGUI.e/docs to provide it as a string?
                 //                                          - can we even can get a "cancellable-post-key" here?]
-                function action_cb(event) {
+                /!*private*!/ function action_cb(event) {
                     let id = event.currentTarget,
 //                       c = event.keyCode,
 //                       c = event.key.charCodeAt(0),
@@ -3138,13 +3547,13 @@ function gSetHandler(id, name, func) {
 //                     res = func(id);
                        res = func(id,c);
 //                     res = func(id,c,pNewValue);
-                    if (res === XPG_CLOSE) {
+                    if (res === TG_CLOSE) {
                         let dialog = gGetDialog(id);
                         gHide(dialog);
-                    } else if (res == XPG_IGNORE) {
+                    } else if (res == TG_IGNORE) {
                         event.preventDefault();
                         event.stopPropagation();
-                    } else if (res && res !== XPG_DEFAULT && res !== c) {
+                    } else if (res && res !== TG_DEFAULT && res !== c) {
 //                      event.keyCode = res; // not alowed
 //                      event.charCode = res;
                         //DEV no idea what to do here...
@@ -3157,9 +3566,12 @@ function gSetHandler(id, name, func) {
             } else {
                 puts(1,"gSetHandler(" + cn + "," + name + ")??\n"); // placeholder
             }
+*/
+        } else if (name === "REDRAW" && cn === "graph") {
+            id.REDRAW_GRAPH = func;
         } else if (name === "REDRAW" && (cn === "canvas" || cn === "graph" || cn === "list")) {
             id.REDRAW = func;
-        } else if ((name === "DRID" || name === "XRID" || name === "YRID") && cn === "graph") {
+        } else if ((name === "DATA" || name === "XRID" || name === "YRID") && cn === "graph") {
             id[name] = func;
         } else if ((name === "DATA") && cn === "list") {
             id[name] = func;
@@ -3171,7 +3583,56 @@ function gSetHandler(id, name, func) {
             puts(1,"gSetHandler(" + cn + "," + name + ")??\n"); // placeholder
         }
     }
-}
+} gSetHandler.$sig="POPI,2";
+
+/*global*/ function gGetKeyName(/*integer*/ c) {
+    if (c>=0X20 && c<=0X7E) { return $conCat("", c); }
+    if (c===VK_BS)          { return "VK_BS"; }
+    if (c===VK_TAB)         { return "VK_TAB"; }
+    if (c===VK_LF)          { return "VK_LF"; }
+    if (c===VK_CR)          { return "VK_CR"; }
+    if (c===VK_SP)          { return "VK_SP"; }
+    if (c===VK_LCTRL)       { return "VK_LCTRL"; }
+    if (c===VK_RCTRL)       { return "VK_RCTRL"; }
+    if (c===VK_LSHIFT)      { return "VK_LSHIFT"; }
+    if (c===VK_RSHIFT)      { return "VK_RSHIFT"; }
+    if (c===VK_LALT)        { return "VK_LALT"; }
+    if (c===VK_RALT)        { return "VK_RALT"; }
+    if (c===VK_LWIN)        { return "VK_LWIN"; }
+    if (c===VK_RWIN)        { return "VK_RWIN"; }
+    if (c===VK_ESC)         { return "VK_ESC"; }
+    if (c===VK_CAPSLOCK)    { return "VK_CAPSLOCK"; }
+    if (c===VK_NUMLOCK)     { return "VK_NUMLOCK"; }
+    if (c===VK_PAUSE)       { return "VK_PAUSE"; }
+    if (c===VK_SCROLL)      { return "VK_SCROLL"; }
+    if (c===VK_BS)          { return "VK_BS"; }
+    if (c===VK_UP)          { return "VK_UP"; }
+    if (c===VK_DOWN)        { return "VK_DOWN"; }
+    if (c===VK_POUND)       { return "VK_POUND"; }
+    if (c===VK_LEFT)        { return "VK_LEFT"; }
+    if (c===VK_RIGHT)       { return "VK_RIGHT"; }
+    if (c===VK_APPS)        { return "VK_APPS"; }
+    if (c===VK_INS)         { return "VK_INS"; }
+    if (c===VK_HOME)        { return "VK_HOME"; }
+    if (c===VK_PGUP)        { return "VK_PGUP"; }
+    if (c===VK_PGDN)        { return "VK_PGDN"; }
+    if (c===VK_PGDN)        { return "VK_PGDN"; }
+    if (c===VK_END)         { return "VK_END"; }
+    if (c===VK_DEL)         { return "VK_DEL"; }
+    if (c===VK_F1)          { return "VK_F1"; }
+    if (c===VK_F2)          { return "VK_F2"; }
+    if (c===VK_F3)          { return "VK_F3"; }
+    if (c===VK_F4)          { return "VK_F4"; }
+    if (c===VK_F5)          { return "VK_F5"; }
+    if (c===VK_F6)          { return "VK_F6"; }
+    if (c===VK_F7)          { return "VK_F7"; }
+    if (c===VK_F8)          { return "VK_F8"; }
+    if (c===VK_F9)          { return "VK_F9"; }
+    if (c===VK_F10)         { return "VK_F10"; }
+    if (c===VK_F11)         { return "VK_F11"; }
+    if (c===VK_F12)         { return "VK_F12"; }
+    return sprintf("unknown(#%x)",c);
+} gGetKeyName.$sig="FI";
 
 //function gSetHandlers(/*gdx*/ id, /*sequence*/ namefuncpairs) {
 //  let l = length(namefuncpairs);
@@ -3186,7 +3647,7 @@ const gSetHandlers = gSetHandler;
 //DEV gGetHandler, gGetInheritedHandler
 function gGetHandler(/*gdx*/ id, /*string*/ name, /*integer*/ dflt=0) {
     return id[name] || dflt;
-}
+} gGetHandler.$sig="FOS"; //[DEV FOSI,2 ?]
 
 function $paranormalise(action, func, attributes, args) {
     crash("wrong un");
@@ -3205,13 +3666,14 @@ function $paranormalise(action, func, attributes, args) {
 //
 /*global*/ function nullable_string(/*object*/ o) {
     return string(o) || (equal(o,NULL));
-}
+} nullable_string.$sig="TO";
+
 ///*global*/ function boolean(/*object*/ o) {
 //  return integer(o) && ((equal(o,true)) || (equal(o,false)));
 //}
 /*local*/ function dword_seq(/*object*/ s) { // (technically qword_seq on 64-bit)
     return sequence(s) && !string(s);
-}
+} dword_seq.$sig="TO";
 
 /*local*/ function $paranormalise_traa(/*object*/ title, click, /*sequence*/ attributes, /*dword_seq*/ args) {
 // used by gButton([nullable_string title=NULL,] [rtn click=NULL,] string attributes="", sequence args={})
@@ -3439,7 +3901,8 @@ let $next_id = 1;
 
 function $ocument_createElement(tag) {
     const id = document.createElement(tag);
-    id.ID = $next_id++;
+    id.ID = $next_id;
+    $next_id += 1;
     return id;
 }
 
@@ -3455,11 +3918,11 @@ function gClipboard() {
 //              this.$clipboard.setAttribute("style", "display:none;position:fixed;left:-99em;top:-99em;");
     id.setAttribute("style", "display:none;position:fixed;left:-99em;top:-99em;");
     return id;
-}
+} gClipboard.$sig="F";
 
 //DEV we probably still need this for gSetAttribute(dlg,"CLOSE_ON_ESCAPE")...
-function $xpg_CloseOnEscape(/* gdx */ dlg) {
-    function hide_dlg(event) {
+function $tg_CloseOnEscape(/* gdx */ dlg) {
+    /*private*/ function hide_dlg(event) {
 //      let keyCode = window.event ? window.event.keyCode : e.which;
 //      if (keyCode === 27) {
         if (event.key === "Escape") {
@@ -3562,6 +4025,7 @@ let index = 0
 })()
 */
 
+//DEV localise:
 function $set_canvas_size(id,w,h) {
     let ctx = id.getContext("2d") || id.getContext("webgl"),
         // save, since they get trashed(!!):
@@ -3573,6 +4037,8 @@ function $set_canvas_size(id,w,h) {
     
 //console.log("canvas.width: "+id.width+" => "+w);
 //console.log("canvas.height: "+id.height+" => "+h);
+//  id.style.width = '100%';
+//  id.style.height = '100%';
     id.width = w;
     id.height = h;
 //no diff:
@@ -3599,6 +4065,14 @@ function $resize_children(id, w, h) {
 //if (nest===0) {
 //printf(1,"resize_children(%s,%d,%d,%d)\n",["sequence",cn,w,h,nest]);
 //}
+/*
+        if (cn === "dialog-body") {
+//          id.width = w+"px";
+            id.width = w;
+//          id.height = h+"px";
+            id.height = h;
+        }
+*/
 
         let bSizeChanged = false,
              bDoChildren = false,
@@ -3743,6 +4217,12 @@ function $resize_children(id, w, h) {
                     redraw(id); 
                 } else if (redraw.length === 3) {
                     redraw(id,w,h);
+                } else if (redraw.length === 5) {
+                    let [,ox,oy] = gGetAttribute(id,"VIEWPORT");
+                    redraw(id,w,h,ox,oy);
+//w,h: (optional) equivalent to integer {w,h} = gGetIntInt(canvas,"SIZE") as 1st line of 1-arg proc.
+//ox,oy: (optional) equivalent to integer {ox,oy} = gGetAttribute(canvas,"VIEWPORT") as 1st line of 3-arg proc.
+//[and w,h,ox,oy equivalent to integer {ox,oy,w,h} = gGetAttribute(canvas,"VIEWPORT") as 1st line of 1-arg proc.]  
                 } else {
                     crash("uh??");
                 }
@@ -3902,7 +4382,9 @@ function $maxWindow(dialog) {
 //(removed 27/5/22...)
 //      $resize_children(child,dlgbod.clientWidth-2,dlgbod.clientHeight-2);
 //20/1/24:
-        $resize_children(child,dlgbod.clientWidth,dlgbod.clientHeight);
+        if (child) {
+            $resize_children(child,dlgbod.clientWidth,dlgbod.clientHeight);
+        }
 //      $resize_children(child,dlgbod.clientWidth-5,dlgbod.clientHeight-5);
 //      $resize_children(child,dialog.clientWidth-4,dialog.clientHeight-34);
 //      const rect = dialog.getBoundingClientRect(),    // (nb: recalc in DOM)
@@ -3914,8 +4396,8 @@ function $maxWindow(dialog) {
     }
 }
 
-//function xpg_set_menu(/*gdx*/ id, /*string*/ name, /*gdx*/ id_named) {
-function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
+//function tg_set_menu(/*gdx*/ id, /*string*/ name, /*gdx*/ id_named) {
+function $tg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
 //  let t = id?id.classList[0]:"NULL",
 //      n = id_named?id_named.classList[0]:"NULL";
 //  if (t === "dialog" && name === "MENU" && n === "submenu") {
@@ -3945,7 +4427,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
         dlgbod.insertAdjacentElement("afterbegin", mh);
         // Open sub-menu on click/hover
         nav.mstack = [];
-        function close_to(mitem,clicked) {
+        /*private*/ function close_to(mitem,clicked) {
             //
             // For an explanation, run demo/pGUI/submenu.exw
             // (on the desktop or in the browser!) and open
@@ -3973,7 +4455,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
                 }
             }
         }
-        function li_click(event,mitem) {
+        /*private*/ function li_click(event,mitem) {
             // (m is an element from ml)
             //event.preventDefault(); // avoids default right click menu (no help...)
             event.stopPropagation(); // important!
@@ -3990,7 +4472,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
             let m = nm[i];
             m.addEventListener("mouseenter", () => { close_to(m,false); }, false);
         }
-        function hide_menu() {
+        /*private*/ function hide_menu() {
             close_to(null,false);
             // alt-keys (mush === Menu Underline SHow, topmenu only)
             const mush = id_named.querySelectorAll(".mush");
@@ -4001,7 +4483,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
 
         nav.addEventListener("contextmenu", (event)=> {event.preventDefault(); event.stopPropagation(); return false; });
 
-        function window_resize() {
+        /*private*/ function window_resize() {
             hide_menu();
             //DEV/SUG calc the 640 from sum of toplevel sizes...
             if (window.innerWidth < 140) {
@@ -4015,7 +4497,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
 
 //      let me = id_named.querySelectorAll(".topmenu > span");
 
-        function listenKeys(event) {
+        /*private*/ function listenKeys(event) {
             var key = event.keyCode;
             switch (key) {
 //            case 16: // Shift
@@ -4045,7 +4527,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
         // TOGGLE SLIDE MOBILE MENU
 //      let mobbtn = id_named.querySelector("#mobbtn");
 //      ==> mb
-        function mobbtn_click() {
+        /*private*/ function mobbtn_click() {
             let mobile = id.querySelector(".mobile");
             if (mb.classList.contains("active")) {
                 mb.classList.remove("active");
@@ -4068,7 +4550,7 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
 //DEV is this not the same as/should be in doc_click??
 //      let content = document.querySelector(".content");
 //$(".content").on("click", function() { 
-        function content_click() {
+        /*private*/ function content_click() {
             if (mb.classList.contains("active")) {
                 mb.classList.remove("active");
                 mb.innerHTML = "&#9776;";
@@ -4091,12 +4573,12 @@ function $xpg_set_menu(/*gdx*/ id, /*gdx*/ id_named) {
 //  }
 }
 
-function gDialog(child, parent = NULL, title = "", attributes = "", args = [], bEsc = true) {
-// as close as possible to xpGUI.e, see phix.chm
+function gDialog(/*gdx*/ child, parent=NULL, /*string*/ title="", /*sequence*/ attributes="", args=[], /*bool*/ bEsc=true) {
+// as close as possible to theGUI.e, see phix.chm
     if (!$storeAttr) { $gInit(); }
     [,parent,title,attributes,args,bEsc] = $paranormalise_ptaab(parent,title,attributes,args,bEsc);
 
-    function create_svg(classname, viewbox, path) {
+    /*private*/ function create_svg(classname, viewbox, path) {
         // (private helper function)
         const svgns = "http://www.w3.org/2000/svg",
                 svg = document.createElementNS(svgns, "svg"),
@@ -4107,8 +4589,22 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
         svg.appendChild(pth);
         return svg;
     }
+/*
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" 
+style="shape-rendering:geometricPrecision;text-rendering:geometricPrecision;image-rendering:optimizeQuality;fill-rule:evenodd;clip-rule:evenodd">
+<path style="opacity:0" fill="#fdfefd" d="M-.5-.5h128v128H-.5z"/>
+<path style="opacity:1" fill="#0d8208" d="M94.5 22.5a55 55 0 0 1 7 7q10.782 16.214-4 29.5-9.445 6.82-21 9 3.995 2.7 5.5 7.5 5.128 4.369 8.5 10-1.886 4.39-6 7l-7-6a44.5 44.5 0 0 0-6-7 6.54 6.54 0 0 0-3-3q-1.965-2.471-4-5a208 208 0 0 1 13-15q9.942-2.19 16.5-10 3.09-4.608-.5-8 1.5-1.933-.5-4a55 55 0 0 0-5.5-4q-12.89-7.487-28-9.5a128.7 128.7 0 0 0-31-2 634 634 0 0 1 36 37.5 30.6 30.6 0 0 1-7 8 1914 1914 0 0 1-50-54 236.3 236.3 0 0 1 62 2.5q13.212 3.15 25 9.5"/>
+<path style="opacity:1" fill="#109a0c" d="M101.5 29.5a55 55 0 0 0-7-7 202 202 0 0 0 11-12.5q6-1 12 0l1 1a455 455 0 0 1-17 18.5"/>
+<path style="opacity:1" fill="#fdfefd" d="M87.5 30.5a42955 42955 0 0 0-23 26 634 634 0 0 0-36-37.5 128.7 128.7 0 0 1 31 2q15.11 2.013 28 9.5"/>
+<path style="opacity:1" fill="#0d9909" d="M87.5 30.5a55 55 0 0 1 5.5 4q2 2.067.5 4a204 204 0 0 1-16 18 208 208 0 0 0-13 15q2.035 2.529 4 5a35.5 35.5 0 0 0-12 3.5l-32 37a42.5 42.5 0 0 1-13 0 3361 3361 0 0 0 46-52.5 30.6 30.6 0 0 0 7-8q11.457-12.962 23-26"/>
+<path style="opacity:1" fill="#f2f9f1" d="M93.5 38.5q3.59 3.392.5 8-6.558 7.81-16.5 10a204 204 0 0 0 16-18"/>
+<path style="opacity:1" fill="#179411" d="M97.5 92.5a35.3 35.3 0 0 0-6 8q-7.764 5.529-7.5 15a11.4 11.4 0 0 1 2.5 2q-7.826 2.889-13.5-3-.726-3.62 1-7 5.265-7.544 10.5-15 4.114-2.61 6-7 7.046-5.803 10-14.5a7.3 7.3 0 0 0-2-3.5q18.302-3.98 9.5 12a190 190 0 0 0-10.5 13"/>
+<path style="opacity:1" fill="#109a0c" d="M71.5 79.5a44.5 44.5 0 0 1 6 7q-10.489 16.262-24 30.5a30.5 30.5 0 0 1-11 0A373 373 0 0 0 64 92.5a63.4 63.4 0 0 0 7.5-13"/>
+<path style="opacity:1" fill="#0c8208" d="M97.5 92.5a687 687 0 0 0 21 23.5 42.5 42.5 0 0 1-13 0 310 310 0 0 0-14-15.5 35.3 35.3 0 0 1 6-8"/>
+</svg>
+*/
 
-    function header_button(htitle, path, viewbox = "0 0 30 30", classname = "minmax") {
+    /*private*/ function header_button(htitle, path, viewbox="0 0 30 30", classname="minmax") {
         // (private helper function)
         const div = document.createElement("div"),
               svg = create_svg(classname, viewbox, path);
@@ -4136,7 +4632,8 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
 //div.setAttribute("class", "note");
 //  header.innerHTML = "<b>" + htitle + "</b>";
     header.innerHTML = "<b><i>untitled</i></b>";
-    headiv.appendChild(header_button("Application", "M3,15l8,6L26,0L12,27L3,15z", "-12 -8 48 48", "icon"));
+//  headiv.appendChild(header_button("Application", "M3,15l8,6L26,0L12,27L3,15z", "-12 -8 48 48", "icon"));
+    headiv.appendChild(header_button("Application", "M102 30q14 21-25 39l42 47h-13L8 11q71-2 86 13l-6 7Q68 18 29 19l39 41q32-7 27-22l7-8m-90 87h13-13l94-107h14L65 72q34-8-8 45H46q44-50 12-38l-33 38m84-39-21 28q-4 6 0 10-19 3-12-9l21-27q5-6 2-10 15-2 10 8", "-96 -64 256 256", "icon"));
 //  headiv.appendChild(header_button("Application", "M0,13L10,5L26,0L12,27L0,13z", "-12 -8 48 48", "icon"));
 //  headiv.appendChild(header_button("Application", "M 0 13 L 10 5 L 26 0 L 12 27 L 0 13 z", "-12 -8 48 48", "icon"));
 //  headiv.appendChild(header_button("Application", "M0,13l6-0c2,1,4,3,6,5C16,11,21,5,26,0h4 "+
@@ -4163,7 +4660,9 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
     dlgbod.classList.add("dialog-body");
 //  dlgbod.innerHTML = "<p>Move</p><p>this</p><p>div</p>";
 //  dlgbod.innerHTML = "Move<br>this<br>div<br>";
-    dlgbod.appendChild(child);
+    if (child) { // (in case NULL)
+        dlgbod.appendChild(child);
+    }
     dialog.className = "dialog";
     dialog.setAttribute("EXPAND", "YES");
 //26/5 (see if this helps with boids...)
@@ -4173,27 +4672,27 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
 //DEV... (actually this is probably right)
     let menu = child.MENU;
     if (menu) {
-        $xpg_set_menu(dialog,menu);
+        $tg_set_menu(dialog,menu);
     }       
 
-    function mouseDown(event) {
+    /*private*/ function mouseDown(event) {
         event.preventDefault();  // prevent selection start (browser action)
 
         const rect = dialog.getBoundingClientRect(),
             shiftX = event.clientX - rect.left,
             shiftY = event.clientY - rect.top;
 
-        function doMove(event) {
+        /*private*/ function doMove(event) {
             const Lft = event.clientX - shiftX,
                   Top = event.clientY - shiftY,
                   Rht = window.innerWidth - dialog.offsetWidth + 1,
                   Btm = window.innerHeight - dialog.offsetHeight + 1;
 
-            function clamp(num, low, high) {
+            /*private*/ function clamp(num, low, high) {
                 return (num <= low) ? low : ((num >= high) ? high : num);
             }
 
-            function above(num, low) {
+            /*private*/ function above(num, low) {
                 return (num <= low) ? low : num;
             }
 
@@ -4201,7 +4700,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
             dialog.style.left = clamp(Lft, -1, above(Rht, -1)) + "px";
         }
 
-        function stopMove() {
+        /*private*/ function stopMove() {
             document.documentElement.removeEventListener("mousemove", doMove);
             document.documentElement.removeEventListener("mouseup", stopMove);
         }
@@ -4210,7 +4709,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
         document.documentElement.addEventListener("mouseup", stopMove);
     }
 
-    function maxWindow() { $maxWindow(dialog); }
+    /*private*/ function maxWindow() { $maxWindow(dialog); }
 
     header.onmousedown = mouseDown;
     maxbtn.onclick = maxWindow;
@@ -4218,9 +4717,9 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
 //  header.ondragstart = function ds() { return false; }
 //  clsbtn.onclick = function hd() { gHide(dialog); }
 //  dialog.onmousedown = function md() { $topZindex(dialog); }
-    function ds() { return false; }
-    function hd() { gHide(dialog); }
-    function md() { $topZindex(dialog); }
+    /*private*/ function ds() { return false; }
+    /*private*/ function hd() { gHide(dialog); }
+    /*private*/ function md() { $topZindex(dialog); }
     header.ondragstart = ds;
     clsbtn.onclick = hd;
     dialog.onmousedown = md;
@@ -4229,7 +4728,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
     // Next, allow re-sizing, aka dragging corners and edges.
     // ======================================================
     //
-    function initSize(event) {
+    /*private*/ function initSize(event) {
         event.preventDefault();
 //      const resizer = this,  // (one of 8)
         const resizer = event.currentTarget,  // (one of 8)
@@ -4240,7 +4739,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
               originalPageX = event.pageX,
               originalPageY = event.pageY;
 
-        function doSize(event) {
+        /*private*/ function doSize(event) {
             //
             // Note: use of "resize: both;" displays the handle *AND* effectively
             //       disables this routine on the bottom right resizer. This must
@@ -4319,7 +4818,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
         }
 
 //ditto $docBody??
-        function stopSize() {
+        /*private*/ function stopSize() {
             document.documentElement.removeEventListener("mousemove", doSize, false);
             document.documentElement.removeEventListener("mouseup", stopSize, false);
         }
@@ -4337,7 +4836,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
           rdiv = document.createElement("div");
 
 //  rd.forEach((id, idx) => {
-    function addSizer(id, idx) {
+    /*private*/ function addSizer(id, idx) {
         const xm = xms[idx],
               ym = yms[idx],
               r = document.createElement("div");
@@ -4371,7 +4870,7 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
     }
     gSetAttributes(dialog, attributes, args);
 
-    if (bEsc) { $xpg_CloseOnEscape(dialog); }
+    if (bEsc) { $tg_CloseOnEscape(dialog); }
 
 //DEV: IupShow/IupPopup??
 /*
@@ -4410,9 +4909,9 @@ function gDialog(child, parent = NULL, title = "", attributes = "", args = [], b
 */
 
     return dialog;
-} // (gDialog() ends...)
+} gDialog.$sig="FOOOOOI,1";
 
-function gMap(id) {
+function gMap(/*gdx*/ id) {
 /*
     let cn = id.className;
     if (cn !== "dialog-header" &&   // (there can be no ["MAP_CB"] attached
@@ -4433,9 +4932,9 @@ function gMap(id) {
         for (let i = 0; i < l; i += 1) { gMap(children[i]); }
     }
 */
-}
+} gMap.$sig="PO";
 
-function gRedraw(id) {
+function gRedraw(/*gdx*/ id) {
     if (sequence(id)) {
         let len = length(id);
         for (let i = 1; i <= len; i += 1) {
@@ -4446,32 +4945,63 @@ function gRedraw(id) {
         if (cn !== "dialog-header" &&   // (there can be no ["REDRAW"] attached
             cn !== "dialog-resizers") { //  to either, so simplify debugging..)
             let redraw = id["REDRAW"];
+//          let redraw = id.REDRAW; (untried, just thinking about being consistent...)
             if (redraw && $redraw && (cn === "canvas" || cn === "graph" || cn === "list")) { 
-                redraw(id); 
+                let /*integer*/ [,w,h] = gGetAttribute(id,"SIZE");
+//              let [,ox,oy,w,h] = gGetAttribute(id,"VIEWPORT");
+                let [,ox,oy] = gGetAttribute(id,"VIEWPORT");
+
+/*
+function cdCanvasClear(ctx) {
+//  ctx.fillStyle = "white";
+//3/10/21: (bust)
+//  if (ctx.canvas) { ctx = ctx.canvas; }
+    let fs = ctx.fillStyle,
+        bs = ctx.backGround;
+    if (bs) { ctx.fillStyle = bs; }
+//if (ctx.canvas) {
+//  ctx.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+    ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+//  ctx.fillRect(0,0,ctx.clientWidth,ctx.clientHeight);
+//  ctx.canvas.fillRect(0,0,ctx.canvas.clientWidth,ctx.canvas.clientHeight);
+//}
+//  ctx.fillRect(0,0,ctx.clientWidth,ctx.clientHeight);
+    ctx.fillStyle = fs;
+}
+*/
+                let ctx = id.ctx,
+                    fs = ctx.fillStyle,
+//                  bs = ctx.backGround;
+                    bs = id.style.backgroundColor;
+                if (bs) { ctx.fillStyle = bs; }
+//              ctx.fillRect(0,0,ctx.canvas.width,ctx.canvas.height);
+                ctx.fillRect(0,0,w,h);
+                ctx.fillStyle = fs;
+                redraw(id,w,h,ox,oy); 
             }
             let children = id.childNodes,
                 l = children.length;
             for (let i=0; i<l; i += 1) { gRedraw(children[i]); }
         }
     }
-}
+} gRedraw.$sig="FO"; //[DEV..]
 //const IupRefresh = gRedraw;
 //const IupRefreshChildren = gRedraw;
 
-function gShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
+function gShow(/*gdx*/ id, /*integer*/ x=TG_CURRENT, y=TG_CURRENT) {
     // Make it top dog, and add it to the DOM.
     id.style.zIndex = document.getElementsByClassName("dialog").length;
 // 25/9/21: (for "save as" handling)
 //  $docBody.appendChild(id);
     $docBody.insertAdjacentElement("afterbegin", id);
 
-    function xpg_placement(/*integer*/ xy, os, ol, is, il) {
+    function tg_placement(/*integer*/ xy, os, ol, is, il) {
         // xy is the x or y of gShow(), which can be an absolute value such as 100 (returned as is)
-        // or one of the XPG_XXX - which obviously need the outer and inner starts and lengths.
+        // or one of the TG_XXX - which obviously need the outer and inner starts and lengths.
         let /*integer*/ res = is;
-        if (xy < XPG_CURRENT) {
+        if (xy < TG_CURRENT) {
             res = xy;
-        } else if (xy > XPG_CURRENT) {
+        } else if (xy > TG_CURRENT) {
             switch (xy & 0b0011) {
                 case 0b11: res = os+floor((ol-il)/2);   break; // centre
                 case 0b10: res = os+ol-il;              break; // right/btm
@@ -4482,7 +5012,7 @@ function gShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
         return res;
     }
 
-//global procedure gShow(gdx id, integer x=XPG_CURRENT, y=XPG_CURRENT)
+//global procedure gShow(gdx id, integer x=TG_CURRENT, y=TG_CURRENT)
     let pid = gGetParent(id), sx = 0, sy = 0,
         [, sw, sh] = gGetGlobalIntInt("SCREENSIZE")
 //  -- catch the handle of the first window displayed (nb arwen saves first created)
@@ -4490,22 +5020,22 @@ function gShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
 //      assert(pid=0,"first window displayed must be parent-less")
 //      PrimaryWindowID = id
 //  end if
-    const XPG_PARENT = 0x0004;  // 0b0100
+    const TG_PARENT = 0x0004;   // 0b0100
     if (pid) {
         let prect = pid.getBoundingClientRect();    // (nb: recalc in DOM)
-//      if (and_bits(x,XPG_PARENT)) { sx = prect.offsetLeft; sw = prect.width; }
-//      if (and_bits(x,XPG_PARENT)) { sx = prect.left; sw = prect.width; }
-        if (x & XPG_PARENT) { sx = prect.left; sw = prect.width; }
-//      if (and_bits(y,XPG_PARENT)) { sy = prect.offsetTop; sh = prect.height; }
-//      if (and_bits(y,XPG_PARENT)) { sy = prect.top; sh = prect.height; }
-        if (y & XPG_PARENT) { sy = prect.top; sh = prect.height; }
+//      if (and_bits(x,TG_PARENT)) { sx = prect.offsetLeft; sw = prect.width; }
+//      if (and_bits(x,TG_PARENT)) { sx = prect.left; sw = prect.width; }
+        if (x & TG_PARENT) { sx = prect.left; sw = prect.width; }
+//      if (and_bits(y,TG_PARENT)) { sy = prect.offsetTop; sh = prect.height; }
+//      if (and_bits(y,TG_PARENT)) { sy = prect.top; sh = prect.height; }
+        if (y & TG_PARENT) { sy = prect.top; sh = prect.height; }
     }
     if (!id.PREVIOUSLYSHOWN) {
-        if (x === XPG_CURRENT) { x = XPG_CENTER; }
-        if (y === XPG_CURRENT) { y = XPG_CENTER; }
+        if (x === TG_CURRENT) { x = TG_CENTER; }
+        if (y === TG_CURRENT) { y = TG_CENTER; }
         id.PREVIOUSLYSHOWN = true;
     }
-//  sequence gwr = xpg_get_window_rect(id)
+//  sequence gwr = tg_get_window_rect(id)
 //  integer {wx,wy,ww,wh} = gwr
     let wx = id.offsetLeft,
         wy = id.offsetTop,
@@ -4513,20 +5043,20 @@ function gShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
         ww = id.offsetWidth,
 //      wh = id.height;
         wh = id.offsetHeight;
-    if ((x === XPG_MOUSEPOS) || (y === XPG_MOUSEPOS)) {
-//      assert(x==y,"gShow: XPG_MOUSEPOS is both-only")
+    if ((x === TG_MOUSEPOS) || (y === TG_MOUSEPOS)) {
+//      assert(x==y,"gShow: TG_MOUSEPOS is both-only")
 //      ?9/0 -- (placeholder)
         crash("placeholder");
 //      {wx,wy} = gGetGlobalIntInt("MOUSEPOS") -- (nee CURSORPOS)
     }
-    x = xpg_placement(x,sx,sw,wx,ww);
-    y = xpg_placement(y,sy,sh,wy,wh);
+    x = tg_placement(x,sx,sw,wx,ww);
+    y = tg_placement(y,sy,sh,wy,wh);
 //--?{"win/rect",{h,gwr},{x},wx,ww,{y},wy,wh}
-//  xpg_move_window(id,wx,wy)
+//  tg_move_window(id,wx,wy)
 //--?"moved"
 //--DEV setAttribute(h,"VISIBLE",true)...
 
-//function IupShow(id, x = XPG_CURRENT, y = XPG_CURRENT) {
+//function IupShow(id, x = TG_CURRENT, y = TG_CURRENT) {
 //  // Make it top dog, and add it to the DOM.
 //  id.style.zIndex = document.getElementsByClassName("dialog").length;
 //// 25/9/21: (for "save as" handling)
@@ -4616,15 +5146,15 @@ observer.observe(id, config);
 observer.disconnect();
 */
     id.focus();
-}
+} gShow.$sig="POII,1";
 //const IupShowXY = IupShow;
 //IupPopup?
 
-function gSetFocus(id) {
+function gSetFocus(/*gdx*/ id) {
     id.focus();
-}
+} gSetFocus.$sig="PO";
 
-function gHide(id) {
+function gHide(/*gdx*/ id) {
     const dialogs = document.getElementsByClassName("dialog");
     if (dialogs.length === 1) {
         window.close();  // close the whole page, if allowed
@@ -4632,22 +5162,22 @@ function gHide(id) {
         $topZindex(id); // (specifically, fixup the rest)
         $docBody.removeChild(id);
     }
-}
+} gHide.$sig="PO";
 
 function gGetChild(/*gdx*/ id, /*integer*/ pos) {
     return id.children[pos-1];
-}
+} gGetChild.$sig="FOI";
 
 function gGetChildCount(/*gdx*/ id) {
     return id.childElementCount;
-}
+} gGetChildCount.$sig="FO";
 
 //DEV CLASSNAME, should make it match...
 //function IupGetClassName(/*gdx*/ id) {
 //  return id.classList[0];
 //}
 
-function gGetDialog(id) {
+function gGetDialog(/*gdx*/ id) {
     let parent = id.offsetParent;
     while (parent === null || parent.classList[0] !== "dialog") { // nb not NULL!
         id = id.parentNode;
@@ -4658,7 +5188,7 @@ function gGetDialog(id) {
     }
 //  assert(parent.classList[0] === "dialog");
     return parent;
-}
+} gGetDialog.$sig="FO";
 
 //function gGetDialogChild(/*gdx*/ id, /*string*/ name) {
 //  function get_child(id, name) {
@@ -4679,22 +5209,360 @@ function gGetDialog(id) {
 
 function gGetFocus() {
     return document.activeElement;
+} gGetFocus.$sig="F";
+
+/*global*/ 
+function gGetOpenFileName(/*gdx*/ parent, /*rtn*/ got, /*object*/ arg2=NULL, filters=NULL, title=NULL, /*bool*/ bMulti=false) {
+    if (equal(bMulti,false)) {  // (some micro-paranormalisation:)
+        if (equal(title,true)) {
+            [,title,bMulti] = ["sequence",NULL,true];
+        } else if (equal(title,NULL) && equal(filters,true)) {
+            [,filters,title,bMulti] = ["sequence",NULL,NULL,true];
+        }
+    }
+    let hidden_input = gGetOpenFileName.hidden_input;
+    if (!hidden_input) {
+        hidden_input = document.createElement("input");
+        hidden_input.type = "file";
+        hidden_input.style.display = "none"; // Hide it
+        /*private*/ function changeHandler(e) {
+//          previewFile(e.target.files[0]);
+            let got = hidden_input.got,
+                arg2 = hidden_input.arg2,
+                multi = hidden_input.bMulti,
+                filenames;
+            if (multi) {
+                // quickly convert to a 1-based sequence:
+                //  (noting elements are still opaque)
+                let l = e.target.files.length;
+                filenames = repeat(0,l);
+                for (let i = 0; i < l; i += 1) { 
+                    filenames[i+1] = e.target.files[i];
+                }
+            } else {
+                filenames = e.target.files[0];
+            }
+            got(filenames,arg2);
+        }
+        hidden_input.addEventListener('change', changeHandler);
+//DEV what does this actually achieve?? (not alot, it seems!)
+//      /*private*/ function clickHandler() {
+//          hidden_input.value = null;
+//      }
+//      hidden_input.addEventListener('click', clickHandler);
+        document.body.appendChild(hidden_input);
+        gGetOpenFileName.hidden_input = hidden_input;
+    }
+
+/* Original Phix code (not stored anywhere else, now includes two post-xlate "/"&"*"):
+//  with javascript_semantics
+//  function convert_filters(object filters=NULL)
+//      if filters!=NULL and not string(filters) then
+//          sequence res = {}
+//          for f in filters do
+//              string {friendly,spec} = f
+//              friendly = lower(friendly)
+//              if spec!="*.*" then
+//                  for mime_type in {"audio","video","image"} do
+//                      if match(mime_type,friendly) then
+//                          mime_type &= "/"&"*"
+//                          if not find(mime_type,res) then
+//                              res &= {mime_type}
+//                          end if
+//                          spec = ""
+//                          exit
+//                      end if
+//                  end for
+//                  for ext in split(spec,';') do
+//                      ext = trim(ext)
+//                      assert(begins("*.",ext))
+//                      ext = ext[2..$]
+//                      if not find(ext,res) then
+//                          res &= {ext}
+//                      end if
+//                  end for
+//              end if
+//          end for
+//          filters = join(res,",")
+//      end if
+//      return filters
+//  end function
+//  asserteq(convert_filters(),0)
+//  asserteq(convert_filters({}),"")
+//  asserteq(convert_filters({{"Text Document (*.txt)","*.txt"}, 
+//                            {"All Documents (*.*)","*.*"} }),
+//           ".txt")
+//  asserteq(convert_filters({{"szJPG","*.jpg;*.jpeg"}}),".jpg,.jpeg")
+//  asserteq(convert_filters({{"szJPG","*.jpg;*.jpeg"},
+//                            {"szBMP","*.bmp"},
+//                            {"szAll","*.*"}}),
+//           ".jpg,.jpeg,.bmp")              
+//  asserteq(convert_filters({{"IMAGES","*.jpg;*.jpeg"},
+//                            {"bitmap image","*.bmp"},
+//                            {"szAll","*.*" }}),
+//           "image/"&"*")
+*/
+
+    /*private*/ function convert_filters(/*object*/ filters=NULL) {
+        if ((!equal(filters,NULL)) && !string(filters)) {
+            let /*sequence*/ res = ["sequence"],
+                               l = length(filters);
+            for (let i = 1; i <= l; i += 1) { 
+                let f = $subse(filters,i);
+                let /*string*/ [,friendly,spec] = f;
+                friendly = lower(friendly);
+                if (spec!=="*.*") {
+                    let mime_types = ["sequence","audio","video","image"];
+                    for (let mi = 1; mi <= 3; mi += 1) { 
+                        let mime_type = $subse(mime_types,mi);
+                        if (match(mime_type,friendly)) {
+                            mime_type = $conCat(mime_type, "/*", false);
+                            if (!find(mime_type,res)) {
+                                res = $conCat(res, ["sequence",mime_type], false);
+                            }
+                            spec = "";
+                            break;
+                        }
+                    }
+                    let se = split(spec,0X3B),
+                        sl = length(se)
+                    for (let ei = 1; ei <= sl; ei += 1) { 
+                        let ext = trim($subse(se,ei));
+                        assert(begins("*.",ext));
+                        ext = $subss(ext,2,-1);
+                        if (!find(ext,res)) {
+                            res = $conCat(res, ["sequence",ext], false);
+                        }
+                    }
+                }
+            }
+            filters = join(res,",");
+        }
+        return filters;
+    }
+
+    if ((!equal(filters,NULL)) && !string(filters)) {
+        filters = convert_filters(filters);
+    }
+    hidden_input.accept = filters;
+    if (bMulti) {
+        hidden_input.setAttribute("multiple", "");
+    } else {
+        hidden_input.removeAttribute("multiple");
+    }
+    hidden_input.got = got;
+    hidden_input.arg2 = arg2;
+    hidden_input.bMulti = bMulti;
+    hidden_input.click();
+} gGetOpenFileName.$sig="POOOOOI,2";
+
+function gGetText(/*object*/ file, /*integer*/ gtopt, /*rtn*/ got_txt, /*object*/ arg3=NULL) {
+
+    /*private*/ function getline(/*integer*/ i, start, option, filesize, /*string*/ src) {
+        let /*integer*/ lend = i-1;
+        let /*sequence*/ oneline = $subss(src,start,lend);
+        if (option!==GT_LF_STRIPPED) {
+            // (^^ so option should be GT_LF_LEFT/LAST only here)
+            if (i<=filesize) {
+                oneline = $conCat(oneline, "\n", false);
+            } else {
+                 // eof case
+                if ((option===GT_LF_LAST) && (!equal($subse(oneline,-1),0XA))) {
+                    oneline = $conCat(oneline, "\n", false);
+                }
+            }
+        }
+        return oneline;
+    }
+
+    /*private*/ function gtify(/*string*/ src, /*integer*/ options) {
+        let /*sequence*/ res = src;
+        if (and_bits(options,GT_KEEP_BOM)) {
+            options -= GT_KEEP_BOM;
+        } else if (compare(length(res),3)>=0 && (equal($subss(res,1,3),"\xEF\xBB\xBF"))) {
+            res = $subss(res,4,-1);
+        }
+        if (and_bits(options,GT_BINARY)) {
+            options -= GT_BINARY;
+        }
+        if (options!==GT_WHOLE_FILE) {
+            src = res;
+            res = ["sequence"];
+            let /*integer*/ i = 1, 
+                        start = 1, 
+                     filesize = length(src);
+            while (i<=filesize) {
+                let /*integer*/ ch = $subse(src,i);
+                if ((ch===0XD) || (ch===0XA)) {
+                    res = append(res,getline(i,start,options,filesize,src));
+                    ch = xor_bits(ch,0x7);      // '\n' <==> '\r'
+                    i += 1;
+                    if (i<=filesize && (equal($subse(src,i),ch))) {
+                        i += 1;
+                    }
+                    start = i;
+                } else {
+                    i += 1;
+                }
+            }
+            if (start<=filesize) {
+                res = append(res,getline(i,start,options,filesize,src));
+            }
+        }
+        return res;
+    }
+
+    let reader = new FileReader();
+    reader.onloadend = function() {
+        got_txt(file.name,gtify(reader.result,gtopt),arg3);
+    }
+    if (and_bits(gtopt,GT_BINARY)) {
+        reader.readAsBinaryString(file);
+    } else {
+        reader.readAsText(file);
+    }
 }
 
-function gGetParent(id) {
+//// The original phix code that getline/gtify were transpiled from, plus test harness:
+//      -- Right: assume js's reader.readAsText() matches GT_WHOLE_FILE.
+//      --  emulate the other get_text options and transpile to gGetText().
+//      --  create/write our own file[s] and get_text() it ten ways, then
+//      --  reconstruct each from the GT_WHOLE_FILE versiom.
+//      --  Just bear in mind that js strings are immutable, so we cannot
+//      --  use the dirty tricks of get_text, specifically [i]='\n' before
+//      --  taking a slice ==> shorter slice then bolt \n on.
+//      -- four input cases:
+//      --      1\n2\n\n4
+//      --      1\n2\n\n4\n
+//      --      <BOM>1\n2\n\n4
+//      --      <BOM>1\n2\n\n4\n
+//
+//      constant BOM = x"EFBBBF",
+//               TXT = "1\n2\n\n4",
+//               filename = "get_text_text.txt"
+//
+//      function hexify(sequence s)
+//          if not string(s) then
+//              s = deep_copy(s)
+//              for i,si in s do
+//                  s[i] = hexify(si)
+//              end for
+//              return s
+//          end if
+//          string res = ""
+//          for ch in s do
+//              if ch='\n' then
+//                  res &= `\n`
+//              elsif ch='\r' then
+//                  res &= `\r`
+//              elsif ch>=' ' and ch<=#7E then
+//                  res &= ch
+//              else
+//                  res &= sprintf(`\x%02x`,ch)
+//              end if
+//          end for
+//          return res
+//      end function
+//
+//      function getline(integer i, start, option, filesize, string src)
+//          integer lend = i-1
+//          sequence oneline = src[start..lend]
+//          if option!=GT_LF_STRIPPED then
+//              if i<=filesize then
+//                  oneline &= "\n"
+//              else -- eof case
+//                  if option=GT_LF_LAST
+//                  and oneline[$]!='\n' then
+//                      oneline &= "\n"
+//                  end if
+//              end if
+//          end if
+//          return oneline
+//      end function
+//
+//      function gtify(string src, integer options)
+//          sequence res = src
+//          if and_bits(options,GT_KEEP_BOM) then
+//              options -= GT_KEEP_BOM
+//          elsif length(res)>=3
+//            and res[1..3] = x"EFBBBF" then
+//              res = res[4..$]
+//          end if
+//          if options!=GT_WHOLE_FILE then
+//              src = res
+//              res = {}
+//              integer i = 1,
+//                      start = 1,
+//                      filesize = length(src)
+//              while i<=filesize do
+//                  integer ch = src[i]
+//                  if ch='\r' or ch='\n' then
+//                      res = append(res,getline(i,start,options,filesize,src))
+//                      ch = xor_bits(ch,0b0111)    -- '\n' <==> '\r'
+//                      i += 1
+//                      if i<=filesize and src[i]=ch then
+//                          i += 1
+//                      end if
+//                      start = i
+//                  else
+//                      i += 1
+//                  end if
+//              end while
+//              if start<=filesize then
+//                  res = append(res,getline(i,start,options,filesize,src))
+//              end if
+//          end if
+//          return res
+//      end function
+//
+//      for mask=0b00 to 0b11 do
+//          string txt = iff(mask&&0b10?BOM:"") & TXT & iff(mask&&0b01?"\n","")
+//          printf(1,"mask:%02b, length(txt):%d, txt:`%s`\n",{mask,length(txt),hexify(txt)})
+//          integer fn = open(filename,"w")
+//          puts(fn,txt)
+//          close(fn)
+//          string kb = get_text(filename,GT_KEEP_BOM), -- test with this!
+//                 wf = get_text(filename,GT_WHOLE_FILE)
+//          string kbchk = gtify(kb,GT_KEEP_BOM),
+//                 wfchk = gtify(kb,GT_WHOLE_FILE)
+//          assert(wf==wfchk)
+//      --  printf(1,"whole_file:`%s` (%t)\n",{hexify(wf),wf==wfchk})
+//          assert(kb==kbchk)
+//      --  printf(1,"  keep_bom:`%s` (%t)\n",{hexify(kb),kb==kbchk})
+//          for k in {0,GT_KEEP_BOM} do
+//              string ks = iff(k?"kb","  ")
+//              sequence stripped = get_text(filename,GT_LF_STRIPPED+k),
+//                           left = get_text(filename,GT_LF_LEFT+k),
+//                           last = get_text(filename,GT_LF_LAST+k),
+//                       stripchk = gtify(kb,GT_LF_STRIPPED+k),
+//                        leftchk = gtify(kb,GT_LF_LEFT+k),
+//                        lastchk = gtify(kb,GT_LF_LAST+k)
+//              assert(stripped==stripchk)
+//      --      printf(1,"%sstripped:%v (%t)\n",{ks,hexify(stripped),stripped==stripchk})
+//      --      printf(1,"       chk:%v\n",{hexify(stripchk)})
+//              assert(left==leftchk)
+//      --      printf(1,"    %sleft:%v (%t)\n",{ks,hexify(left),left==leftchk})
+//      --      printf(1,"       chk:%v\n",{hexify(leftchk)})
+//              assert(last==lastchk)
+//      --      printf(1,"    %slast:%v (%t)\n",{ks,hexify(last),last==lastchk})
+//      --      printf(1,"       chk:%v\n",{hexify(lastchk)})
+//          end for
+//      end for
+
+function gGetParent(/*gdx*/ id) {
     let res = id.parentNode;
     if (!res || res.className === "") { res = NULL; }
     return res
-}
+} gGetParent.$sig="FO";
 
-function gGetBrother(id, bPrev=false) {
+function gGetBrother(/*gdx*/ id, /*bool*/ bPrev=false) {
     let parent = id.parentNode,
 //      siblings = parent.children,
         siblings = [...parent.children],
         pos = siblings.indexOf(id),
         brother = siblings[bPrev?pos-1:pos+1];
     return brother;
-}
+} gGetBrother.$sig="FOI,1";
 
 //function IupNextField(id) {
 //  let next = IupGetBrother(id);
@@ -4708,42 +5576,47 @@ function gGetBrother(id, bPrev=false) {
 //}
 
 //gButton([nullable_string title=NULL,][rtn click=NULL,] string attributes="", sequence args={}) 
-function gButton(title = null, click = null, func = null, attributes = "", args = []) {
+//function gButton(/*nullable_string*/ title=null, /*rtn*/ action=null, func=null, attributes="", args=[]) {
+//function gButton(/*nullable_string*/ title=null, /*rtn*/ action=null, /*sequence*/ attributes="", args=[]) {
+function gButton(/*object*/ title=NULL, action=NULL, /*sequence*/ attributes="", args=[]) {
     if (!$storeAttr) { $gInit(); }
 //  const id = document.createElement("button");
     const id = $ocument_createElement("button");
     id.setAttribute("class", "button");
-    [,title,click,attributes,args] = $paranormalise_traa(title,click,attributes,args);
+    [,title,action,attributes,args] = $paranormalise_traa(title,action,attributes,args);
     if (title) {
         gSetAttribute(id,"TITLE",title);
     }
-    if (click) {
-        gSetHandler(id, "CLICK", click);
+//  if (click) {
+//      gSetHandler(id, "CLICK", click);
+//  }
+    if (action) {
+        gSetHandler(id,"ACTION",action);
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gButton.$sig="FOOPP,0";
 
 //function gDatePick(action = null, func = null, attributes = "", args = []) {
 //DEV
 //function gDatePick(value_changed = null, attributes = "", args = []) {
-function gDatePick(attributes = "", args = []) {
+//function gDatePick(attributes = "", args = []) {
+function gDatePick(/*[rtn*/ value_changed=NULL,/*] string*/ attributes="", /*dword_seq*/ args=[]) {
     if (!$storeAttr) { $gInit(); }
 //  const id = document.createElement("input");
     const id = $ocument_createElement("input");
     id.setAttribute("class", "datepick");
     id.setAttribute("type", "date");
-/*
     [,value_changed,attributes,args] = $paranormalise_raa(value_changed,attributes,args);
     if (value_changed) {
 //      if (action !== null && action !== "VALUECHANGED_CB") { crash("?9/0"); }
-        gSetHandler(id, "VALUECHANGED", value_changed);
+//      gSetHandler(id, "VALUECHANGED", value_changed);
+        gSetHandler(id, "VALUE_CHANGED", value_changed);
     }
-*/
     gSetAttribute(id,"VALUE","%4d-%02d-%02d",date());
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gDatePick.$sig="FOPP,0";
 
 function gDropDown(/*object*/ options, changed=NULL, /*sequence*/ attributes="", args=[]) {
     if (!$storeAttr) { $gInit(); }
@@ -4760,7 +5633,8 @@ function gDropDown(/*object*/ options, changed=NULL, /*sequence*/ attributes="",
     gSetAttributes(id,attributes,args);
 //  ctrl_xtra[id] = options
     return id;
-}
+} gDropDown.$sig="FOOPP,1";
+
 
 //DOC: [RASTER]SIZE must use wxh format, one of which will be ignored... or... must be 0.
 //      Any attributes must be set before the element is inserted into the hierarchy (not normally an issue).
@@ -4795,7 +5669,7 @@ function gFrame(/*gdx*/ child, /*object*/ title = NULL, /*sequence*/ attributes 
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gFrame.$sig="FOOPP,1";
 
 function gHbox(children, attributes = "", args = []) {
     if (!$storeAttr) { $gInit(); }
@@ -4821,7 +5695,8 @@ function gHbox(children, attributes = "", args = []) {
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gHbox.$sig="FPSP,0";
+
 
 function gVbox(children, attributes = "", args = []) {
     if (!$storeAttr) { $gInit(); }
@@ -4843,8 +5718,8 @@ function gVbox(children, attributes = "", args = []) {
 //          gSetAttribute(ci,"EXPAND","VERTICAL");
 //      }
         if (i === 1 && ci.className === "submenu") {
-//          $xpg_set_menu(??,ci);
-//          $xpg_set_menu(id,ci);
+//          $tg_set_menu(??,ci);
+//          $tg_set_menu(id,ci);
             id.MENU = ci
         } else {
             id.appendChild(ci);
@@ -4852,114 +5727,382 @@ function gVbox(children, attributes = "", args = []) {
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gVbox.$sig="FPSP,0";
 
-function gImageRGBA(/*integer*/ width, height, /*sequence*/ pixels) {
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width, height),
-        len = length(pixels);
-    for (let i = 0; i < len; i += 1) {
-        imgData.data[i] = pixels[i+1];
-    }
-    ctx.putImageData(imgData,0,0);
-//  return id;
-//or, maybe:
-    let res = id.toDataURL();
-    return res;
-}
+/*local*/ let /*sequence*/ $gimages = ["sequence"];
 
-function gImageRGB(/*integer*/ width, height, /*sequence*/ pixels) {
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width, height),
-        len = length(pixels),
-        k = 0;
-    for (let i = 0; i < len; i += 3) {
-        imgData.data[k+0] = pixels[i+1];
-        imgData.data[k+1] = pixels[i+2];
-        imgData.data[k+2] = pixels[i+3];
-        imgData.data[k+3] = 255; // (alpha)
-        k += 4
-    }
-    ctx.putImageData(imgData,0,0);
-    let res = id.toDataURL();
-    return res;
-}
+/*global*/ function gdm(/*integer*/ id) {
+    // a non-null gImage, an odd -ve integer
+    if (id>=0 || even(id)) { return false; }
+    id = (-id+1)/2;
+    return (id>0 && compare(id,length(gimages))<=0) && !integer($subse(gimages,id));
+} gdm.$sig="TI";
 
-function gImage(/*integer*/ width, height, /*sequence*/ pixels, palette) {
-    let id = document.createElement("canvas");
-    id.width = width;
-    id.height = height;
-    let ctx = id.getContext("2d"),
-        imgData = ctx.createImageData(width, height),
-        len = length(pixels),
-        k = 0;
-//DEV defer this until actually used, or better yet optionally allow a palette.
-    if (!palette || length(palette) === 0) {
-        palette = [[  0,  0,  0], // ( 0 black)
-                   [128,  0,  0], // ( 1 dark red)
-                   [  0,128,  0], // ( 2 dark green) 
-                   [128,128,  0], // ( 3 dark yellow)
-                   [  0,  0,128], // ( 4 dark blue)
-                   [128,  0,128], // ( 5 dark magenta) 
-                   [  0,128,128], // ( 6 dark cyan) 
-                   [192,192,192], // ( 7 gray)
-                   [128,128,128], // ( 8 dark gray)
-                   [255,  0,  0], // ( 9 red)    
-                   [  0,255,  0], // (10 green)
-                   [255,255,  0], // (11 yellow)
-                   [  0,  0,255], // (12 blue)
-                   [255,  0,255], // (13 magenta)
-                   [  0,255,255], // (14 cyan)
-                   [255,255,255]] // (15 white)
-//    XPG_BLACK         = 0x000000,
-//    XPG_DARK_RED      = 0x800000,
-//    XPG_DARK_GREEN    = 0x008000,
-//    XPG_DARK_YELLOW   = 0x808000,     -- aka XPG_OLIVE
-//    XPG_DARK_BLUE     = 0x000080,     -- aka XPG_NAVY
-//    XPG_DARK_MAGENTA  = 0x800080,
-//    XPG_DARK_CYAN     = 0x008080,
-//    XPG_GRAY          = 0xC0C0C0,     -- aka XPG_GREY, XPG_SILVER
-//    XPG_DARK_GRAY     = 0x808080,     -- aka XPG_DARK_GREY
-//    XPG_RED           = 0xFF0000,
-//    XPG_GREEN         = 0x00FF00,     -- aka XPG_LIGHT_GREEN
-//    XPG_YELLOW        = 0xFFFF00,
-//    XPG_BLUE          = 0x0000FF,
-//    XPG_MAGENTA       = 0xFF00FF,
-//    XPG_CYAN          = 0x00FFFF,
-//    XPG_WHITE         = 0xFFFFFF,
+/*local*/ let /*integer*/ $gi_freelist = 0;
+
+/*local*/
+function $xpm_image_slot() {
+    let /*integer*/ id = $gi_freelist;
+    if (id) {
+//      $gi_freelist = $subse($gimages,id);
+        $gi_freelist = $gimages[id];
     } else {
-        let plen = length(palette);
-        for (let i = 0; i < plen; i += 1) {
-            if (!sequence(palette[i])) {
-                palette[i] = to_rgba(palette[i]);
+//      $gimages = $conCat($gimages, 0, false);
+        $gimages.push(0);
+        id = length($gimages);
+    }
+    return id;
+}
+
+//function gImage(/*integer*/ width, height, /*sequence*/ pixels, palette) {
+/*global*/ 
+function gImage(/*integer*/ w, h, /*atom*/ bgclr=TG_WHITE, transparent=TG_WHITE, /*bool*/ bClear=true) {
+    let img = document.createElement("canvas");
+    img.setAttribute("class", "canvas");
+    img.width = w;
+    img.height = h;
+    let ctx = img.getContext("2d"),
+        imgData = ctx.createImageData(w, h)
+    if (bClear) {
+        let k = 0,
+        [,red,green,blue,alpha] = to_rgba(bgclr);
+        for (let i = 0; i < w*h; i += 1) {
+            imgData.data[k] = red;
+            imgData.data[k+1] = green;
+            imgData.data[k+2] = blue;
+            imgData.data[k+3] = 255-alpha;
+            k += 4;
+        }
+    }
+    ctx.putImageData(imgData,0,0);
+    let /*integer*/ id = $xpm_image_slot();
+// ANY NEED FOR THIS??
+    let url = img.toDataURL();
+    img["URL"] = url;
+    img.ctx = ctx;
+//  let /*atom*/ pImg;
+//  let /*atom*/ pBits;
+//  $gimages = $repe(gimages,id,["sequence",pImg,transparent,pBits,w,h,true,0,0]);
+    $gimages[id] = img;
+    let /*gdm*/ res = -id*2+1;
+    return res;
+} gImage.$sig="FIINNI,2";
+
+function gPixbuf_from_Pixels(/*gdp(/seq)*/ pixels) {
+    let h = length(pixels),
+        w = length(pixels[1]),
+       id = (-gImage(w,h,TG_WHITE,TG_WHITE,false)+1)/2,
+      img = $gimages[id];
+    $gimages[id] = $gi_freelist
+    $gi_freelist = id
+//  let imgData = img.ctx.getImageData(w, h), k = 0;
+    let imgData = img.ctx.getImageData(0,0,w,h), k = 0;
+    for (let l = 1; l <= h; l += 1) {
+        for (let c = 1; c <= w; c += 1) {
+            let [,r,g,b,a] = to_rgba(pixels[l][c]);
+            imgData.data[k  ] = r;
+            imgData.data[k+1] = g;
+            imgData.data[k+2] = b;
+            imgData.data[k+3] = 255-a;
+            k += 4;
+        }
+    }
+    img.ctx.putImageData(imgData,0,0);
+    id = $xpm_pixbuf_slot();
+    $gpixbufs[id] = img;
+    id = -id*2;
+    return id;
+} gPixbuf_from_Pixels.$sig="FP";
+
+function gImage_from_Pixbuf(/*gdp*/ pixbuf, /*atom*/ transparent=TG_WHITE) {
+    if (sequence(pixbuf)) {
+        pixbuf = gPixbuf_from_Pixels(pixbuf);
+    }
+    let id = -pixbuf/2;
+    pixbuf = $gpixbufs[id];
+    $gpixbufs[id] = $gb_freelist;
+    $gb_freelist = id;
+    id = $xpm_image_slot();
+    $gimages[id] = pixbuf;
+    let /*gdm*/ res = -id*2+1;
+    return res;
+} gImage_from_Pixbuf.$sig="FON,1";
+
+function gImage_from_XPM(/*sequence*/ xpm, /*bool*/ bPixbuf=false) {
+    if (string(xpm)) { xpm = split(xpm,0XA); }  // '\n'
+    //
+    // Takes multiple parameters... here is the list:
+    //   - "<width> <height> <number of colors> <characters used per color>"
+    //   - "<character used> c <color>" <- for each color used
+    //   - Drawing of the XPM.
+    //
+    // @see here for the inspiration: http://fr.wikipedia.org/wiki/X_PixMap
+    //
+    // Split the first argument in an array
+    let firstArgument = xpm[1].split(' '),
+
+        // Get the width, height, number of colors and number of characters
+        // per color with the first argument.
+        width = parseInt(firstArgument[0], 10),
+        height = parseInt(firstArgument[1], 10),
+        nColors = parseInt(firstArgument[2], 10),
+        nCPC = parseInt(firstArgument[3], 10), // Characters Per Color
+        linestep = width * nCPC,
+
+        // Get the end of the argument array (all the characters of the image)
+        imgCharacters = [].slice.call(xpm, nColors + 2),
+
+        // Create a canvas
+        canvas = document.createElement("canvas"),
+        ctx = canvas.getContext("2d"),
+
+        // and a colour mapping table
+        map = []
+
+    // Define the width and height of the canvas
+    canvas.width = width;
+    canvas.height = height;
+    canvas.ctx = ctx;
+
+    // Add every mapping of characters and colors to the `map` array
+    for (let i = 0; i < nColors; i += 1) {
+        let characters = xpm[2 + i].substring(0, nCPC),
+            color = xpm[2 + i].slice(-7);
+        map.push({characters: characters, color: color});
+    }
+    let imgdata = ctx.getImageData(0,0,width,height),
+        l = map.length;
+
+    // For every line of the ASCII art
+    for (let i = 0; i < height; i += 1) {
+
+        // For every string of a line
+        for (let j = 0; j < linestep; j += 1) {
+
+            let tgt = imgCharacters[i].substr(j*nCPC, nCPC);
+
+            // Loop to get the correct mapping
+            for (let k = 0; k < l; k += 1) {
+
+                // If it maps, draw!
+                if (map[k].characters === tgt) {
+                    let c = map[k].color;
+//                          // set alpha on that pixel to 0
+////                            imgdata[i*width+j+3] = 0;
+////??                      imgdata[i*step+j*nCPC+3] = 0;
+                    if (c !== " c None") { 
+                        ctx.fillStyle = c;
+                        ctx.fillRect(j, i, 1, 1)
+                    }
+                    // Break out of the loop since we hit the nail already
+                    break
+                }
             }
         }
-    }   
-
-//  if (length(palette) === 0) { palette = ["sequence",XPG_BLACK, etc.]; }
-    for (let i = 0; i < len; i += 1) {
-//      let pi = pixels[i+1],
-        let /*integer*/ pi = $subse(pixels,i+1),
-//          p3 = $gImageDefaultColours[pi];
-//          p3 = to_rgba(palette[pi]);
-            /* sequence */ p3 = palette[pi];
-        for (let j = 0; j < 3; j += 1) {
-            imgData.data[k] = p3[j];
-            k += 1;
-        }   
-        imgData.data[k] = 255; // (alpha)
-        k += 1;
     }
-    ctx.putImageData(imgData,0,0);
-    let res = id.toDataURL();
+    let id = $xpm_image_slot();
+    $gimages[id] = canvas;
+    let /*gdm*/ res = -id*2+1;
     return res;
+} gImage_from_XPM.$sig="FPI,1";
+
+/*local*/ function tg_hexstr_to_int(/*string*/ c2) {
+    // convert eg "1F" to 31
+    let /*integer*/ res = 0;
+    for (let c$idx = 1, c$lim = length(c2); c$idx <= c$lim; c$idx += 1) { let c = $subse(c2,c$idx);
+        c -= ((c<=0X39) ? 0X30 : ((c<=0X5A) ? 0X41 : 0X61)-10);
+        res = res*16+c;
+    }
+    return res;
+} tg_hexstr_to_int.$sig="FS";
+
+/*local*/ function tg_get_colour_table(/*sequence*/ xpm) {
+//bool bGreyScale = false
+    let /*integer*/ [,width,height,colours,codeWide] = apply(split($subse(xpm,1)),to_integer)
+    // create a palatte and data:
+    // cc is colour codes, eg 'x' ==> palette[7] (ie cc[7] would be 'x').
+    // cc[i] may be char (if codeWide=1) or string (if >1).
+    // colour code map of <charsWide> chars --> palette index
+    let /*sequence*/ cc = repeat(0,colours), 
+                     cused = ["sequence",0];
+    // read the colour data (number of colours determined from line 1, 3rd number)
+    for (let i=1, i$lim=colours; i<=i$lim; i+=1) {
+        let /*string*/ data = $subse(xpm,i+1);
+        // extract the colour code          (eg "c" in "c None")
+        if (codeWide===1) {
+            let /*integer*/ cci = $subse(data,codeWide);
+            assert(cci>0X20,"no spaces or tabs",{});
+            cc = $repe(cc,i,cci);
+        } else {
+            let /*string*/ cci = $subss(data,1,codeWide);
+            assert(compare(minsq(cci),0X20)>0,"no spaces or tabs",{});
+            cc = $repe(cc,i,cci);
+        }
+        // and the colour itself            (eg "None" in "c None")
+        let /*bool*/ bOK = false;
+        for (let j=codeWide+2, j$lim=length(data); j<=j$lim; j+=1) {
+            if ((equal($subse(data,j),0X63)) && (equal($subse(data,j+1),0X20))) {
+                for (let k=j+2, k$lim=length(data); k<=k$lim; k+=1) {
+                    if (compare($subse(data,k),0X20)>0) {
+                        bOK = true;
+                        data = lower($subss(data,k,length(data)));
+                        for (let l=1, l$lim=length(data); l<=l$lim; l+=1) {
+                            if (compare($subse(data,l),0X20)<=0) {
+                                if ((l>=length(data)-1 || compare($subse(data,l+1),0X20)<=0) || compare($subse(data,l+2),0X20)<=0) {
+                                    data = $subss(data,1,l-1);
+                                    break; //j
+                                }
+                            }
+                        }
+                        break; //j
+                    }
+                }
+                break;
+            }
+        }
+        assert(bOK);
+        // convert to an {r,g,b} code
+        if (equal($subse(data,1),0X23)) {   // '#'
+            assert(equal(length(data),7));
+            // hex tuple: #rrggbb
+            let /*integer*/ rr = tg_hexstr_to_int($subss(data,2,3)), 
+                            gg = tg_hexstr_to_int($subss(data,4,5)), 
+                            bb = tg_hexstr_to_int($subss(data,6,7));
+//          if bGreyScale then
+//--                rr = floor((rr+gg+bb)/3)
+//              rr = floor(sqrt((rr+gg+bb)/765)*255)
+//              gg = rr
+//              bb = rr
+//          end if
+            cused = $conCat(cused, (rr*0x10000+gg*0x100)+bb, false);
+        }
+    }
+    return ["sequence",cc,cused,nTrans];
+} tg_get_colour_table.$sig="FPI,1";
+
+function gGreyscale_XPM(/*sequence*/ xpm) {
+    let /*bool*/ asString = string(xpm);
+    if (asString) {
+        xpm = split(xpm,0XA);
+    } else {
+                             // (possibly quite unnecessary but)
+        xpm = deep_copy(xpm); // (simply not worth arguing over!)
+    }                        // (xpm more likely const than not)
+    let /*sequence*/ [,cc,clrs] = xpm;
+    for (let i = 1, c$lim = length(cc); i <= c$lim; i += 1) { let c = $subse(cc,i);
+        xpm = $repe(xpm,i+1,sprintf("%s c #%06F",["sequence",c,$subse(clrs,i)]));
+    }
+    return ((asString) ? join(xpm,0XA) : xpm);
+} gGreyscale_XPM.$sig="FPI,1";
+
+function gImageDestroy(/*object*/ dead) {
+    /* assume the JavaScript garbage collector will cleanup, */
+    /* besides, I cannot find anything suitable to invoke... */
+    if (sequence(dead)) {
+        let l = length(dead);
+        for (let i = 1; i <= l; i += 1) {
+            gImageDestroy(dead[i]);
+        }
+    } else if (dead) {
+        let id = (-dead+1)/2;
+        $gimages[id] = $gi_freelist
+        $gi_freelist = id
+    }
+} gImageDestroy.$sig="PO";
+
+//DEV to-do:
+/*
+atom transparent = gImage_get_transparent(gdm image) -- aliased to gImage_get_transparency()
+integer {w,h} = gImage_get_wh(gdm image)
+*/
+
+/*local*/ let /*sequence*/ $gpixbufs = ["sequence"];
+
+/*local*/ let /*integer*/ $gb_freelist = 0;
+
+/*local*/
+function $xpm_pixbuf_slot() {
+    let /*integer*/ id = $gb_freelist;
+    if (id) {
+//      $gb_freelist = $subse($gpixbufs,id);
+        $gb_freelist = $gpixbufs[id];
+    } else {
+//      $gpixbufs = $conCat($gpixbufs, 0, false);
+        $gpixbufs.push(0);
+        id = length($gpixbufs);
+    }
+    return id;
 }
+
+///*global*/ function gPixbuf(/*integer*/ w, h, /*atom*/ bgclr=TG_WHITE, /*bool*/ bOwned=true) {
+//  let /*gdp*/ pixbuf = repeat(repeat(bgclr,w),h);
+//  if (bOwned) {
+//      let /*integer*/ id = $gb_freelist;
+//      if (id) {
+//          $gb_freelist = $subse($gpixbufs,id);
+//      } else {
+//          $gpixbufs = $conCat($gpixbufs, 0, false);
+//          id = length($gpixbufs);
+//      }
+//      $gpixbufs = $repe($gpixbufs,id,pixbuf);
+//      pixbuf = -id*2;
+//  }
+//  return pixbuf;
+//}
+
+/*global*/
+function gPixbuf(/*integer*/ w, h, /*atom*/ bgclr=TG_WHITE, /*bool*/ bOwned=true) {
+    let pixbuf;
+    if (bOwned) {
+        let img = gImage(w, h, bgclr);
+        pixbuf = $gimages[(-img+1)/2];
+        gImageDestroy(img);
+        let /*integer*/ id = $xpm_pixbuf_slot();
+        $gpixbufs[id] = pixbuf;
+        pixbuf = -id*2;
+    } else {
+        pixbuf = repeat(repeat(bgclr,w),h);
+    }
+    return pixbuf;
+} gPixbuf.$sig="FIINI,2";
+
+/*global*/
+function gPixbuf_take_Pixels(/*gdp(/int)*/ pid) {
+    let id = -pid/2,
+        img = $gpixbufs[id],
+          w = img.width,
+          h = img.height,
+     pixels = repeat(repeat(0,w),h);
+    $gpixbufs[id] = $gb_freelist;
+    $gb_freelist = id;
+//  let imgData = img.ctx.getImageData(w, h), k = 0;
+    let imgData = img.ctx.getImageData(0,0,w,h), k = 0;
+    for (let l = 1; l <= h; l += 1) {
+        for (let c = 1; c <= w; c += 1) {
+            let r = imgData.data[k],
+                g = imgData.data[k+1],
+                b = imgData.data[k+2],
+                a = imgData.data[k+3];
+            pixels[l][c] = rgba(r,g,b,a);
+            k += 4;
+        }
+    }
+    return pixels;
+} gPixbuf_take_Pixels.$sig="FO";
+
+/*global*/
+function gPixbuf_from_Image(/*gdm*/ img, /*bool*/ bOwned=true) {
+//  let /*integer*/ id = (-img+1)/2;
+    let pixbuf = $gimages[(-img+1)/2],
+        id = $xpm_pixbuf_slot();
+    gImageDestroy(img);
+    $gpixbufs[id] = pixbuf;
+    pixbuf = -id*2;
+    if (!bOwned) {
+        return gPixbuf_take_Pixels(pixbuf);
+    }
+    return pixbuf;
+} gPixbuf_from_Image.$sig="FII,1";
 
 function gLabel(title=null, attributes = "", args = []) {
     if (!$storeAttr) { $gInit(); }
@@ -4972,7 +6115,7 @@ function gLabel(title=null, attributes = "", args = []) {
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gLabel.$sig="FOPP,0";
 
 /*
   <div id="menuheader">
@@ -5017,7 +6160,7 @@ function $get_menu_with_id(menu, id) {
     return res;
 }
 
-function $xpg_mnemonicalize_menu_title(text) {
+function $tg_mnemonicalize_menu_title(text) {
     if (text) {
         let adx = text.indexOf('&');
         if (adx !== -1) {
@@ -5035,15 +6178,15 @@ function gMenuSetAttribute(/*gdx*/ menu, /*integer*/ id, /*string*/ name, /*obje
 //  let mi = menu.getElementById(id);
     let mi = $get_menu_with_id(menu,id);
     if (name === "TITLE") {
-//      mi.innerHTML = $xpg_mnemonicalize_menu_title(v);
-        mi.children[0].innerHTML = $xpg_mnemonicalize_menu_title(v);
+//      mi.innerHTML = $tg_mnemonicalize_menu_title(v);
+        mi.children[0].innerHTML = $tg_mnemonicalize_menu_title(v);
     } else if (name === "ACTIVE") {
-        val = $to_bool(val);
-        mi.disabled = !val;
+        v = $to_bool(v);
+        mi.disabled = !v;
     } else if (name === "CHECKED") {
         puts(1,"gMenuSetAttribute(CHECKED)\n");
     }
-}
+} gMenuSetAttribute.$sig="POOSO";
 
 function gMenuGetAttribute(/*gdx*/ menu, /*integer*/ id, /*string*/ name) {
     let mi = $get_menu_with_id(menu,id);
@@ -5056,7 +6199,7 @@ function gMenuGetAttribute(/*gdx*/ menu, /*integer*/ id, /*string*/ name) {
         puts(1,"gMenuGetAttribute(CHECKED)\n");
         return false;
     }
-}
+} gMenuGetAttribute.$sig="FOIS";
 
 let $next_menu_id = 1;
 
@@ -5109,8 +6252,8 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
     id.id = $next_menu_id;
     $next_menu_id += 1;
 
-//  function xpg_add_menu(/*integer*/ pmid, /*atom*/ menu, /*sequence*/ children, /*bool*/ bRadio) {
-    function xpg_add_menu(/*atom*/ menu, id, /*sequence*/ children, /*bool*/ bRadio) {
+//  function tg_add_menu(/*integer*/ pmid, /*atom*/ menu, /*sequence*/ children, /*bool*/ bRadio) {
+    /*private*/ function tg_add_menu(/*atom*/ menu, id, /*sequence*/ children, /*bool*/ bRadio) {
         let /*string*/ text;
         let /*integer*/ mdx;
         let /*sequence*/ rdi = ["sequence"];
@@ -5137,7 +6280,7 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
                 if (bCheck) { text = $subss(text,2,-1); }
                 const mi = document.createElement("li"),
                       sp = document.createElement("span"),
-                    html = $xpg_mnemonicalize_menu_title(text);
+                    html = $tg_mnemonicalize_menu_title(text);
                 mi.className = "menuitem";
                 sp.innerHTML = html;
                 mi.appendChild(sp);
@@ -5174,7 +6317,7 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
                     nm_span = document.createElement("span"),
                     submenu = document.createElement("ul"),
 //                  sm_span = document.createElement("span"),
-                    html = $xpg_mnemonicalize_menu_title(text);
+                    html = $tg_mnemonicalize_menu_title(text);
                 nestmenu.className = "nestmenu";  // (maybe replaced with "topmenu" later)
                 submenu.className = "submenu";
                 nm_span.innerHTML = html;
@@ -5191,8 +6334,8 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
 //DEV (untried...)
 //              if (mdx) { submenu.menuid = mdx; }
 
-//              xpg_add_menu(pmid,submenu,grandkids,bSubRadio)
-                xpg_add_menu(submenu,id,grandkids,bSubRadio);
+//              tg_add_menu(pmid,submenu,grandkids,bSubRadio)
+                tg_add_menu(submenu,id,grandkids,bSubRadio);
                 menu.appendChild(nestmenu);
 
                 if (length(rdi)) { bRadio = false; }
@@ -5217,7 +6360,7 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
             }
         }
     }
-    xpg_add_menu(id,id.id,children,bRadio);
+    tg_add_menu(id,id.id,children,bRadio);
 
 //  if (children.length) {
 //      let l = length(children);
@@ -5246,9 +6389,9 @@ function gMenu(/*sequence*/ children, /*rtn*/ handler, /*bool*/ bRadio=false) {
 //      gSetAttributes(id, attributes, args)
 //  end if
     return id;
-}
+} gMenu.$sig="FPOI,2";
 
-function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
+function gPopupMenu(/*gdx*/ menu, /*integer*/ x=TG_MOUSEPOS, y=TG_MOUSEPOS) {
     if (!$storeAttr) { $gInit(); }
     crash("gPopupMenu");
 /*
@@ -5257,9 +6400,9 @@ function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
     bool bMap = and_bits(ctrl_flags[menu],CF_MAPPED)=0
     if bMap then gMap(menu) end if
     atom handle = ctrl_handles[menu]
-    if x=XPG_MOUSEPOS
-    or y=XPG_MOUSEPOS then
-        assert(x==y,"gPopupMenu: XPG_MOUSEPOS is both-only")
+    if x=TG_MOUSEPOS
+    or y=TG_MOUSEPOS then
+        assert(x==y,"gPopupMenu: TG_MOUSEPOS is both-only")
         {x,y} = gGetGlobal("MOUSEPOS")
     end if
     if backend=GTK then
@@ -5277,13 +6420,13 @@ function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
         integer res = c_func(xTrackPopupMenuEx,{handle,TPM_RETURNCMD,x,y,hwnd,NULL})
         tracked_menu = 0
         if res then
-            {} = xpg_menu_common(menu,res,false)
+            {} = tg_menu_common(menu,res,false)
         end if
     else
         ?9/0 -- (unknown backend)
     end if
 */
-}
+} gPopupMenu.$sig="POII,1";
 
 //function gMenuItem(/*nullable_string*/ title=NULL, /*object*/ func=NULL, /*sequence*/ attributes="", args=[]) {
 ////<li class="menuitem"><span><i></i>Normal</span></li>
@@ -5291,7 +6434,7 @@ function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
 //  const id = document.createElement("li"),
 //        sp = document.createElement("span");
 //  id.className = "menuitem";
-//  sp.innerHTML = $xpg_mnemonicalize_menu_title(title);
+//  sp.innerHTML = $tg_mnemonicalize_menu_title(title);
 //  id.appendChild(sp);
 //  if (func) {
 //      gSetHandler(id,"CLICK",func);
@@ -5312,7 +6455,7 @@ function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
 //        sp = document.createElement("span");
 //
 //  id.className = "nestmenu";   // (maybe replaced with "topmenu" later)
-//  sp.innerHTML = $xpg_mnemonicalize_menu_title(title);
+//  sp.innerHTML = $tg_mnemonicalize_menu_title(title);
 //  id.appendChild(sp);
 //  id.appendChild(menu);
 ////    id.appendChild(ul);
@@ -5341,7 +6484,7 @@ function gPopupMenu(/*gdx*/ menu, /*integer*/ x=XPG_MOUSEPOS, y=XPG_MOUSEPOS) {
 //  return id;
 //}
 
-function gProgressBar(attributes = "", args = []) {
+function gProgressBar(/*string*/ attributes="", /*sequence*/ args=[]) {
     if (!$storeAttr) { $gInit(); }
     const id = $ocument_createElement("progress");
     id.setAttribute("class", "progress");
@@ -5349,7 +6492,7 @@ function gProgressBar(attributes = "", args = []) {
     id.setAttribute("max", 1);
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gProgressBar.$sig="FSS,0";
 
 function gSpin(/*[rtn]*/ value_changed=NULL, /*string*/ attributes="", /*dword_seq*/ args=[]) {
     if (!$storeAttr) { $gInit(); }
@@ -5361,7 +6504,7 @@ function gSpin(/*[rtn]*/ value_changed=NULL, /*string*/ attributes="", /*dword_s
     id.setAttribute("max", 100);
     id.setAttribute("step", 1);
     if (value_changed) { id.VALUE_CHANGED = value_changed; }
-    function changed(e) {
+    /*private*/ function changed(e) {
         let ctrl = e.currentTarget,
             wrap = ctrl.WRAP,
                n = parseInt(ctrl.value),
@@ -5400,7 +6543,7 @@ function gSpin(/*[rtn]*/ value_changed=NULL, /*string*/ attributes="", /*dword_s
         id.addEventListener("keyup", changed);
     }
     return id;
-}
+} gSpin.$sig="FOPP,0";
 
 //DEV IupSplit.
 // see file:///E:/downloads/misc/js/vanillajs/vanillajs-resizable-panes/dist/index.html
@@ -5442,18 +6585,18 @@ function gSplit(/*gdx*/ child1=NULL, child2=NULL, /*string*/ orientation="VERTIC
     id.ORIENTATION = orientation;
     id.EXPAND = "YES"
 //DEV I think I want no border and padding: 2px; background: lightgray;
-    function redraw(/*gdx*/ canvas) {
+    /*private*/ function redraw(/*gdx*/ canvas) {
         let /*string*/ orientation = gGetAttribute(gGetParent(canvas),"ORIENTATION");
 //      let /*string*/ orientation = gGetAttribute(id,"ORIENTATION");
 //      let dclass = canvas.className;
         let /*integer*/ [,w,h] = gGetAttribute(canvas,"SIZE");
         if (orientation === "HORIZONTAL") {
-            gCanvasLine(canvas,1,0,1,h-1,XPG_DOTTED,1,XPG_BLACK);
+            gCanvasLine(canvas,1,0,1,h-1,TG_DOTTED,1,TG_BLACK);
         } else {
-            gCanvasLine(canvas,0,1,w-1,1,XPG_DOTTED,1,XPG_BLACK);
+            gCanvasLine(canvas,0,1,w-1,1,TG_DOTTED,1,TG_BLACK);
         }
     }
-    function redraw_closure() { redraw(drag); }
+    /*private*/ function redraw_closure() { redraw(drag); }
     window.requestAnimationFrame(redraw_closure);
     drag.REDRAW = redraw;
 //DEV??
@@ -5482,23 +6625,23 @@ cursor: col-resize;
 //  drag.onmouseup = OnMouseUp;
 //}
 
-    function OnMouseMoveX(e){
+    /!*private*!/ function OnMouseMoveX(e){
         if (e == null)
             var e = window.event; 
 //      _leftPane.style.flex = "0 0" + (e.clientX/(_container.clientWidth/100)) + "%";
         child1.style.flex = "0 0" + (e.clientX/(id.clientWidth/100)) + "%";
     }
 
-    function OnMouseMoveY(e){
+    /!*private*!/ function OnMouseMoveY(e){
         if (e == null)
             var e = window.event; 
 //      _topPane.style.flex = "0 0" + (e.clientY/(_container.clientHeight/100)) + "%";
         child1.style.flex = "0 0" + (e.clientY/(id.clientHeight/100)) + "%";
     }
 
-    function ff() { return false; }
+    /!*private*!/ function ff() { return false; }
 
-    function OnMouseDown(e){
+    /!*private*!/ function OnMouseDown(e){
 //DEV??
         if (e == null) {
             e = window.event; 
@@ -5526,7 +6669,7 @@ cursor: col-resize;
         }
     }
 
-    function OnMouseUp(e){
+    /!*private*!/ function OnMouseUp(e){
         if (dragElement != null){
             document.onmousemove = null;
             document.onselectstart = null;
@@ -5582,7 +6725,7 @@ cursor: col-resize;
         rightPane = child2,
         paneSep = drag;
 
-    function ondrag(el, pageX, startX, pageY, startY, fix) {
+    /!*private*!/ function ondrag(el, pageX, startX, pageY, startY, fix) {
 
         fix.skipX = true;
 
@@ -5617,7 +6760,7 @@ cursor: col-resize;
     var rightLimit = 90;
 
 
-    function sdrag(sepPage, onDrag, onStop, direction) {
+    /!*private*!/ function sdrag(sepPage, onDrag, onStop, direction) {
 
         var startX = 0;
         var startY = 0;
@@ -5625,7 +6768,7 @@ cursor: col-resize;
         var el = sepPage;
         var dragging = false;
 
-        function move(e) {
+        /!*private*!/ function move(e) {
 
             var fix = {};
             onDrag && onDrag(el, e.pageX, startX, e.pageY, startY, fix);
@@ -5649,7 +6792,7 @@ cursor: col-resize;
             }
         }
 
-        function startDragging(e) {
+        /!*private*!/ function startDragging(e) {
             if (e.currentTarget instanceof HTMLElement || e.currentTarget instanceof SVGElement) {
                 dragging = true;
                 var left = el.style.left ? parseInt(el.style.left) : 0;
@@ -5682,12 +6825,11 @@ cursor: col-resize;
     sdrag(paneSep, ondrag, null, orientation);
 */
     return id;
-}
-
+} gSplit.$sig="FOOO,2";
 
 //DEV erm, hello, where are IupTableClick_cb(), IupTableEnterItem_cb(), IupTableResize_cb(),
 //                          IupTableGetSelected(), IupTableGetData(), IupTableSetData()???
-function gTable(columns, data, rows=10, attributes="", args=[]) {
+function gTable(/*sequence*/ columns, data, /*integer*/ rows=10, /*string*/ attributes="", /*sequence*/ args=[]) {
     if (!$storeAttr) { $gInit(); }
     [,rows,attributes,args] = $paranormalise_raa(rows,attributes,args)//,bCheckRid:=false)
     if (rows === 0) { rows = 10; }
@@ -5713,7 +6855,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         created = 0,
         updated = 0;
 
-    function coldata(i,c) {
+    /*private*/ function coldata(i,c) {
         let ti = tags[i],
             l2 = length(data[2]);
         if (c<=l2) {
@@ -5729,7 +6871,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         return data[1][ti][c];
     }
 
-    function update_item(node) {
+    /*private*/ function update_item(node) {
         let id = Number(node.id),
             tds = Array.from(node.querySelectorAll("td"));
         if (tds.length===1) {
@@ -5748,7 +6890,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         }
     }
 
-    function background_refresh() {
+    /*private*/ function background_refresh() {
         // Note this can take 15s to update 5000 records, the point
         //      is to make more "reasonable" scrolling silky-smooth,
         //      (without it, every page down jumps quite jarringly)
@@ -5765,7 +6907,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         if (updated<nRows) { setTimeout(background_refresh, 10); }
     }
 
-    function refresh_observer() {
+    /*private*/ function refresh_observer() {
         // works fine, and perfectly fast enough on 10,000 nodes.
         if (created===nRows) {
             iObserver.disconnect();
@@ -5781,7 +6923,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         }
     }
 
-    function xSorter(i, j) {
+    /*private*/ function xSorter(i, j) {
 //$share:
 //      if (i==="sequence") { return -1; }
 //      if (j==="sequence") { return +1; }
@@ -5799,7 +6941,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         return cmp*sort_dir;
     }
 
-    function sortTable(event) {
+    /*private*/ function sortTable(event) {
         let th = event.currentTarget,
             ad = th.getAttribute("data-sorted"),
             ths = th.parentNode.querySelectorAll("th");
@@ -5815,8 +6957,8 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         refresh_observer();
     }
 
-    function set_intersection_observer() {
-        function iob_handler(entries, iObserver) {
+    /*private*/ function set_intersection_observer() {
+        /*private*/ function iob_handler(entries, iObserver) {
 //p2js:
 /*
             entries.forEach(entry => {
@@ -5836,14 +6978,14 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         iObserver = new IntersectionObserver(iob_handler, {});
     }
 
-    function trHide(trOld) {
+    /*private*/ function trHide(trOld) {
         if (trOld) { trOld.classList.remove("trActive"); }
         return false;
     }
 
 //  let shift, ctrl;
 
-    function trSelect(trOld, trNew, bPageKey=0) {
+    /*private*/ function trSelect(trOld, trNew, bPageKey=0) {
 // maybe not for pageup/down:...
         if (trNew==null) { return true; }   // pass keybd input up
         trHide(trOld);
@@ -5866,7 +7008,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         return false;
     }
 
-    function trPage(trSel, direction) {
+    /*private*/ function trPage(trSel, direction) {
         let n = Math.floor($eHeight(trSel.parentNode)/$eHeight(trSel));
         for (let i=1; i<=n; i+=1) {
             let trNxt = (direction===-1) ? trSel.previousElementSibling
@@ -5877,13 +7019,13 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         return trSel;
     }
 
-    function trClick(event) {
+    /*private*/ function trClick(event) {
       let trNew = event.currentTarget,
           trOld = trNew.parentNode.querySelector(".trActive");
       trSelect(trOld,trNew);
     }
 
-    function table_keyhandler(event) {
+    /*private*/ function table_keyhandler(event) {
         let table = event.currentTarget,
             tbody = table.querySelector("tbody"),
             trSel = tbody.querySelector(".trActive");
@@ -5903,7 +7045,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         }
     }
 
-    function populate_table() {
+    /*private*/ function populate_table() {
         let tbody, bRefresh = false;
         if (created === 0) {
             let thead = document.createElement("thead"),
@@ -5942,11 +7084,11 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
         } else {
             tbody = table.querySelector("tbody");
         }
-//      for (let i=1; i<=nRows; i++) { // (now in timslices)
+//      for (let i = 1; i <= nRows; i += 1) { // (now in timslices)
         let last = Math.min(created+100-0, nRows);
 //p2js:
-//      for (; created<last; created += 1) {
-        for (let i=created; i<=last; i += 1) {
+//      for (; created < last; created += 1) {
+        for (let i = created; i <= last; i += 1) {
             created = i;
             let tr = document.createElement("tr");
             for (let c=1; c<=nColumns; c += 1) {
@@ -5968,7 +7110,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
   opacity: 0.3;
   left: 126px;
 */
-    function createResizeDivs() {
+    /*private*/ function createResizeDivs() {
         let dragActive = false, startX, 
             bodyLeft = document.body.getBoundingClientRect().left,
             resizer,                    // as clicked on
@@ -5980,7 +7122,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
             leftPos = 0,
             colIndex;
 
-        function rd_mouseDown(event) {
+        /*private*/ function rd_mouseDown(event) {
             dragActive = true;
             startX = event.pageX;
             resizer = event.currentTarget;
@@ -5992,7 +7134,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
             resizeLeft = resizer.getBoundingClientRect().left - bodyLeft;
         }
 
-        function mouseMove(event) {
+        /*private*/ function mouseMove(event) {
             if (dragActive) {
                 let movement = event.pageX - startX,
                     new_left = leftWidth + movement,
@@ -6014,7 +7156,7 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
             }
         }
 
-        function mouseUp(){
+        /*private*/ function mouseUp(){
             dragActive = false;
         }
 
@@ -6041,8 +7183,9 @@ function gTable(columns, data, rows=10, attributes="", args=[]) {
 //  table.addEventListener("keydown", table_keyhandler);
 
     return container;
-}
+} gTable.$sig="FPPOPO,2";
 
+//DEV togo*2??
 function gTableGetSelected(/*gdx*/ table) {
 //  crash("testme");
     puts(1,"gTableGetSelected\n");
@@ -6103,10 +7246,11 @@ function gTableClearSelected(/*gdx*/ table) {
 //      {} = IupTableEnterItem_cb(table, sel, 1)
 //  end if
 //*/
-//  return XPG_DEFAULT;
+//  return TG_DEFAULT;
 //}
 
-function gTabs(/*gdx*/ children = [], /*string*/ attributes="", /*sequence*/ args = []) {
+//DEV use the canvas-based one from theGUI.e...
+function gTabs(/*gdx*/ children=[], /*rtn*/ tabchanged=null, /*string*/ attributes="", /*sequence*/ args=[]) {
 //
 // Creates something like this:
 //
@@ -6128,6 +7272,7 @@ function gTabs(/*gdx*/ children = [], /*string*/ attributes="", /*sequence*/ arg
 //or: (though children.length crashing is probably just as good)
 //  assert(Array.isArray(children),"IupTabs children must be a sequence!");
     if (!$storeAttr) { $gInit(); }
+    [,children,tabchanged,attributes,args] = $paranormalise_qraa(children,tabchanged,attributes,args);
     const id = $ocument_createElement("div"),
         tabs = document.createElement("ul"),
       panels = document.createElement("div");
@@ -6138,7 +7283,7 @@ function gTabs(/*gdx*/ children = [], /*string*/ attributes="", /*sequence*/ arg
     id["EXPAND"] = "YES";
 //  id.className = "tabs";
 
-    function tabclick(event) {
+    /*private*/ function tabclick(event) {
         let tgt = event.target;
         if (tgt.classList.contains("tab")) {
             let tabul = tgt.parentNode,                 // the <ul tabs> (lone)
@@ -6192,11 +7337,14 @@ function gTabs(/*gdx*/ children = [], /*string*/ attributes="", /*sequence*/ arg
     }
     id.appendChild(tabs);
     id.appendChild(panels);
+    if (tabchanged) {
+        gSetHandler(id,"TABCHANGED",tabchanged);
+    }
     gSetAttributes(id, attributes, args);
     return id;
-}       
+} gTabs.$sig="FOOPP,1";
 
-function gText(value_changed=null, attributes = "", args = []) {
+function gText(/*rtn*/ value_changed=null, /*string*/ attributes = "", /*sequence*/ args = []) {
     if (!$storeAttr) { $gInit(); }
     const id = $ocument_createElement("input");
     id.setAttribute("class", "text");
@@ -6214,7 +7362,7 @@ function gText(value_changed=null, attributes = "", args = []) {
 //  //              let c = ??,
 //  //                  pNewValue = ??,
 //  //                  res = func(/*gdx*/ id, /*integer*/ c, /*atom*/ pNewValue);
-//  //              if (res===XPG_IGNORE) {
+//  //              if (res===TG_IGNORE) {
 //  //              }
 //              }
 //              id.onkeyup = action_cb;
@@ -6223,7 +7371,7 @@ function gText(value_changed=null, attributes = "", args = []) {
     }
     gSetAttributes(id, attributes, args);
     return id;
-}       
+} gText.$sig="FOPP,0";
 
 //DEV document this, MULTILINE not supported.
 //(might also warrant a class of "multiline")
@@ -6291,7 +7439,7 @@ function gRadio(/*gdx*/ ids) {
 //      id.onclick = radio_click;
     }
 //  $radio_groups = append($radio_groups,{NULL,ids})
-}
+} gRadio.$sig="PO";
 
 function gRadioItem(/*gdx*/ id) {
     let rgx = id.RGX;
@@ -6312,12 +7460,11 @@ function gRadioItem(/*gdx*/ id) {
 //  end for
 //  return 0 -- (whereas "" and this are fine being stored in a gdx)
     return 0;
-}
-
+} gRadioItem.$sig="FO";
 
 let $toggle_id = 1;
 
-function gCheckbox(/*nullable_string*/ title=null, /*rtn*/ value_changed=null, /*string*/ attributes = "", /*sequence*/ args = []) {
+function gCheckbox(/*nullable_string*/ title=null, /*rtn*/ value_changed=null, /*string*/ attributes="", /*sequence*/ args=[]) {
 //<label accesskey="s" for="strict-mode"><input type="checkbox" id="strict-mode" /> <u>S</u>trict Mode</label accesskey="x">
     if (!$storeAttr) { $gInit(); }
     [,title,value_changed,attributes,args] = $paranormalise_traa(title,value_changed,attributes,args);
@@ -6332,15 +7479,17 @@ function gCheckbox(/*nullable_string*/ title=null, /*rtn*/ value_changed=null, /
     id.for = tid;   
     id.setAttribute("class", "toggle");
     if (title) {
-//      id.innerHTML = title;
-        let adx = title.indexOf('&');
-        if (adx !== -1) {
-            crash("not yet done...");
-//          let key = title[adx];
-//          title = title.slice(0,adx) + "<u>" + key + "</u>" + title.slice(adx+1);
-//          lbl.accesskey = key.toLowerCase();
-        }
-        span.innerHTML = "<nobr>" + title + "</nobr>";
+        gSetAttribute(id,"TITLE",title);
+////        mnemonicalise(id,title);
+////        id.innerHTML = title;
+//      let adx = title.indexOf('&');
+//      if (adx !== -1) {
+//          crash("not yet done...");
+////            let key = title[adx];
+////            title = title.slice(0,adx) + "<u>" + key + "</u>" + title.slice(adx+1);
+////            lbl.accesskey = key.toLowerCase();
+//      }
+//      span.innerHTML = "<nobr>" + title + "</nobr>";
 //DEV:
 //      gSetAttribute(id,"TITLE",title);
     }
@@ -6354,9 +7503,11 @@ function gCheckbox(/*nullable_string*/ title=null, /*rtn*/ value_changed=null, /
     }
     gSetAttributes(id, attributes, args);
     return id;
-}       
+} gCheckbox.$sig="FOOPP,0";
+    
 //const IupFlatToggle = IupToggle;
 
+//DEV...
 //function IupTreeGetUserId(tree, id) {
 //function gTreeGetUserId(tree, id) {
 function gTreeGetUserId(treenode) {
@@ -6368,14 +7519,14 @@ function gTreeGetUserId(treenode) {
 //  return userid;
     return id;
 //  return treenode;
-}
+} gTreeGetUserId.$sig="FO";
 
 //p2js [DEV/temp]
 //function IupTreeAddNodes(/*gdx*/ tree, /*sequence*/ tree_nodes, /*integer*/ id=-1) {
 //function IupTreeAddNodes(tree, tree_nodes, id=-1) {
 function gTreeAddNodes(tree, tree_nodes, id=-1) {
 
-    function createTVelem(tagname, classname, innerhtml) {
+    /*private*/ function createTVelem(tagname, classname, innerhtml) {
         let res = document.createElement(tagname);
         res.classList.add(classname);
         if (innerhtml) { res.innerHTML = innerhtml; }
@@ -6387,7 +7538,7 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
 //p2js [DEV/temp]
 //  function iupTreeSetNodeAttributes(leaf, /*sequence*/ attrs) {
 //  function iupTreeSetNodeAttributes(leaf, attrs) {
-    function xpg_TreeSetNodeAttributes(leaf, attrs) {
+    /*private*/ function tg_TreeSetNodeAttributes(leaf, attrs) {
         // (internal routine, leaf should be an li)
         for (let i=1; i<=length(attrs); i += 2) {
             let /*string*/ name = attrs[i];
@@ -6422,7 +7573,7 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
 //p2js [DEV/temp]
 //  function iupTreeAddNodesRec(/*gdx*/ tree, /*sequence*/ tree_nodes, /*bool*/ bRoot=true) {
 //  function iupTreeAddNodesRec(tree, tree_nodes, bRoot=true) {
-    function xpg_TreeAddNodesRec(tree, tree_nodes, bRoot=true) {
+    /*private*/ function tg_TreeAddNodesRec(tree, tree_nodes, bRoot=true) {
         //
         // internal routine, the guts of gTreeAddNodes, less the initial clear
         // Here, tree is the immediate parent that we're adding the [subtree] tree_nodes to.
@@ -6458,15 +7609,15 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
                 leaf.classList.add("hasChildren");
             }
             for (let i = 1; i <= lench; i += 1) {
-                xpg_TreeAddNodesRec(leaf, children[i], false);
+                tg_TreeAddNodesRec(leaf, children[i], false);
             }
             if (lentn === 3) {
-                xpg_TreeSetNodeAttributes(leaf, tree_nodes[2]);
+                tg_TreeSetNodeAttributes(leaf, tree_nodes[2]);
             }
         }
     }
 
-    function xpg_tree_delete_children(node) {
+    /*private*/ function tg_tree_delete_children(node) {
         if (sequence(node)) { node = node[1]; }
         while (node.hasChildNodes()) {  
             node.removeChild(node.firstChild);
@@ -6476,8 +7627,8 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
 //  if (id===-1) {
     if (!sequence(tree)) {
 //      IupSetAttributeId(tree,"DELNODE",0,"ALL");  // (maybe...)
-        xpg_tree_delete_children(tree);
-        xpg_TreeAddNodesRec(tree, tree_nodes, true);
+        tg_tree_delete_children(tree);
+        tg_TreeAddNodesRec(tree, tree_nodes, true);
     } else {
         // tree_nodes is actually just children
         let children = tree_nodes,
@@ -6487,17 +7638,17 @@ function gTreeAddNodes(tree, tree_nodes, id=-1) {
         tree = tree[1];
 //      tree = tree.querySelector(`[data-tree-id="` + id + `"]`);
         let list = tree.querySelector("ul");
-        if (list) { xpg_tree_delete_children(list); }
+        if (list) { tg_tree_delete_children(list); }
         if (!lench) {
             tree.classList.remove("showExpander");
             tree.classList.add("closed");
         } else {
             for (let i=1; i<=lench; i += 1) {
-                xpg_TreeAddNodesRec(tree, children[i], false);
+                tg_TreeAddNodesRec(tree, children[i], false);
             }
         }
     }
-}
+} gTreeAddNodes.$sig="POP";
 
 //p2js [DEV/temp]
 //function IupTreeView(/*sequence*/ tree_nodes, /*atom*/ branchopen=null, /*string*/ attributes="", /*sequence*/ args=[]) {
@@ -6517,7 +7668,8 @@ function gTreeView(tree_nodes = [], branchopen = null, attributes = "", args = [
 //  let /*gdx*/ tree = gTreeAddNodes.createTVelem("ul", "tree"); // does not work...
     tree.setAttribute("EXPAND", "YES");
 
-    function xpg_tree_clickHandler(event) {
+//DEV (theEditor, and I'm not sure it was ever expected to work...) Ctrl ] on function moans
+    /*private*/ function tg_tree_clickHandler(event) {
         let leaf = event.target, // an a.leafLabel or span.treeToggle
             tcl = leaf.classList,
             pcl = leaf.parentNode.classList; // always an li.leaf
@@ -6558,8 +7710,8 @@ function gTreeView(tree_nodes = [], branchopen = null, attributes = "", args = [
             }
         }
     }
-//  tree.addEventListener("click", xpg_tree_clickHandler);
-    tree.onclick = xpg_tree_clickHandler;
+//  tree.addEventListener("click", tg_tree_clickHandler);
+    tree.onclick = tg_tree_clickHandler;
 
 /*
     tree.addEventListener("keydown", e => {
@@ -6593,11 +7745,11 @@ function gTreeView(tree_nodes = [], branchopen = null, attributes = "", args = [
     gTreeAddNodes(tree, tree_nodes);
 //DEV gSetAttributes(tree,attributes,args); // maybe, MARKMULTIPLE
     return tree;
-}
+} gTreeView.$sig="FOOPP,0";
 
 //<input type="range" min="1" max="10" value="3" step="0.1" class="slider" id="lengthRange">
 //IupValuator
-function gSlider(/*nullable_string*/ orientation=NULL, /*rtn*/ value_changed=NULL, /*string*/ attributes="", /*sequence*/ args = []) {
+function gSlider(/*nullable_string*/ orientation=NULL, /*rtn*/ value_changed=NULL, /*string*/ attributes="", /*sequence*/ args=[]) {
     if (!$storeAttr) { $gInit(); }
     [,orientation,value_changed,attributes,args] = $paranormalise_traa(orientation,value_changed,attributes,args);
     const id = $ocument_createElement("input");
@@ -6623,26 +7775,28 @@ solveSlider.addEventListener("input", (e) => {
     }
     gSetAttributes(id, attributes, args);
     return id;
-}
+} gSlider.$sig="FOOPP,0";
 
-function gMainLoop() { }
+function gMainLoop(dlg,x,y) {
+    if (dlg) { gShow(dlg,x,y); }
+} gMainLoop.$sig="POII,0";
 
-function gDestroy(/* gdx */ dlg) {
-//  NB: IupMainLoop() is a null-op in xpGUI.js so it ends up invoking following code immediately...
-//  instead, do (say) this:
-//
-//      if platform()!=JS then
-//          gMainLoop()
-//          dlg = gDestroy(dlg)
-//      end if
-//
-//  Note however that eg gDestroy(IupNormaliser(...)) should [one day] be perfectly valid.
-//
-//27/9/21 try it anyways...(NULL is probably better but neither has really been properly tested)
-//  return null;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
-    return NULL;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
-//  return dlg;
-}
+//function gDestroy(/*gdx*/ dlg) {
+////    NB: IupMainLoop() is a null-op in theGUI.js so it ends up invoking following code immediately...
+////    instead, do (say) this:
+////
+////        if platform()!=JS then
+////            gMainLoop()
+////            dlg = gDestroy(dlg)
+////        end if
+////
+////    Note however that eg gDestroy(IupNormaliser(...)) should [one day] be perfectly valid.
+////
+////27/9/21 try it anyways...(NULL is probably better but neither has really been properly tested)
+////    return null;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
+//  return NULL;  //DEV would be good for id, fatal for non-if-not-JS-wrapped (main)dlg=gDestroy(dlg)...
+////    return dlg;
+//}
 
 function gCanvas(redraw = null, attributes = "", args = []) {
     if (!$storeAttr) { $gInit(); }
@@ -6651,37 +7805,45 @@ function gCanvas(redraw = null, attributes = "", args = []) {
 //id.height = 0;
     id.setAttribute("class", "canvas");
     id["EXPAND"] = "YES";
+    gSetAttribute(id,"BGCLR",TG_WHITE);
     [,redraw,attributes,args] = $paranormalise_raa(redraw,attributes,args);
     if (attributes) {
         gSetAttributes(id, attributes, args);
     }
     if (redraw) {
         id.REDRAW = redraw;
-        function redraw_closure() {
+        /*private*/ function redraw_closure() {
+//DEV
             let [,w,h] = gGetAttribute(id,"SIZE");
+//          let [,w,h,ox,oy] = gGetAttribute(id,"VIEWPORT");
             redraw(id,w,h);
+//          redraw(id,w,h,ox,oy);
+//DEV I think this would be better (esp the cdCanvasClear stuff):
+//          gRedraw(id);
         }
         window.requestAnimationFrame(redraw_closure);
 /* bust:
-        function resize_handler(event) {
-            let x = event;
-        }
-        id.addEventListener("resize",resize_handler);   
+//      function resize_handler(event) {
+//          let x = event;
+//      }
+//      id.addEventListener("resize",resize_handler);   
 */
     }
     if (typeof(id.getContext) === "function") {
 //      let ctx = id.getContext("2d");
         let ctx = id.getContext("2d") || id.getContext("webgl");
 //if (ctx) {
-        ctx.fillStyle = "white";
+// removed 3/2/25 for gImage.exw:
+//      ctx.fillStyle = "white";
 //      ctx.backGround = "#ffffff"; // (custom attribute)
-        id.style.backgroundColor = "#FFFFFF";
+//      id.style.backgroundColor = "#FFFFFF";
         id.ctx = ctx;               //        ""
 //      return ctx;
 //}
     }
     return id;
-}
+} gCanvas.$sig="FOPP,0";
+
 // a scrollable canvas:
 //  <!DOCTYPE html>
 //  <html>
@@ -6756,9 +7918,9 @@ function gCanvas(redraw = null, attributes = "", args = []) {
 //  // nuthin needs doin here...
 //}
 
-//DEV use       XPG_FILLED = 0b001, -- (nb same as true[/false])
-//              XPG_CHORD  = 0b010,
-//              XPG_SECTOR = 0b100
+//DEV use       TG_FILLED = 0b001, -- (nb same as true[/false])
+//              TG_CHORD  = 0b010,
+//              TG_SECTOR = 0b100
 
 //function cdCanvasSetAttribute(/*cdCanvas*/ ctx, /*string*/ name, /*nullable_string*/ val, /*sequence*/ args=[]) {
 //  if (name=="SIZE") {
@@ -6840,11 +8002,11 @@ function gCanvas(redraw = null, attributes = "", args = []) {
 //function gCanvasSetLineStyle(/*cdCanvas*/ ctx, /*integer*/ style) {
 //function gCanvasSetLineStyle(/*cdCanvas*/ canvas, /*integer*/ style) {
 //  let ctx = canvas.ctx;
-////      XPG_CONTINUOUS = 0,
-////      XPG_DASHED = 1,
-////      XPG_DOTTED = 2,
-////      XPG_DASH_DOT = 3,
-////      XPG_DASH_DOT_DOT = 4,
+////      TG_CONTINUOUS = 0,
+////      TG_DASHED = 1,
+////      TG_DOTTED = 2,
+////      TG_DASH_DOT = 3,
+////      TG_DASH_DOT_DOT = 4,
 ////    ctx.?lineXXX = style;
 ////    ctx.lineDashOffset = style*5;
 ////    let lds = ctx.getLineDash();
@@ -6854,15 +8016,15 @@ function gCanvas(redraw = null, attributes = "", args = []) {
 ////    if (style !== CD_CUSTOM) {
 //  ctx.setLineDash([[],[8,8],[4,4],[12,8,4,8],[12,4,4,4,4,4]][style]);
 //  ctx.LINESTYLE = style;
-//  if (style!==XPG_CONTINUOUS) { ctx.lineWidth = 1; }
+//  if (style!==TG_CONTINUOUS) { ctx.lineWidth = 1; }
 ////    }
 ////    puts(1,"cdCanvasSetLineStyle() not yet supported\n"); // placeholder
 //}
 //
 ////function gCanvasGetLineStyle(/*cdCanvas*/ ctx) {
 //function gCanvasGetLineStyle(/*cdCanvas*/ canvas) {
-////    return ctx.LINESTYLE || XPG_CONTINUOUS;
-//  return canvas.ctx.LINESTYLE || XPG_CONTINUOUS;
+////    return ctx.LINESTYLE || TG_CONTINUOUS;
+//  return canvas.ctx.LINESTYLE || TG_CONTINUOUS;
 //}
 //
 //function gCanvasSetLineWidth(/*cdCanvas*/ ctx, /*atom*/ width) {
@@ -6881,21 +8043,66 @@ function gCanvas(redraw = null, attributes = "", args = []) {
 
 //let gai = true;
 
+function gCanvasClip(/*gcp*/ canvas, /*object*/ rect /*{atom xmin, ymin, xmax, ymax}, or NULL*/) {
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
+    let ctx = canvas.ctx;
+    if (equal(rect,NULL)) {
+        ctx.restore();
+    } else {
+        ctx.save();
+        ctx.beginPath();
+        let [, xmin, ymin, xmax, ymax] = rect;
+        ctx.rect(xmin, ymin, xmax-xmin, ymax-ymin);
+        ctx.clip();
+/*
+or
+// Create clipping path (two rectangles)
+let r = new Path2D();
+r.rect(80,10, 45,130);
+ctx.clip(r, "nonzero");
+
+or
+// Clip a rectangular area
+ctx.rect(50, 20, 200, 120);
+ctx.stroke(); //??
+ctx.clip();
+
+...
+
+ctx.restore()
+*/
+    }
+}
+
+
 //function gCanvasArc(ctx, xc, yc, w, h, angle1, angle2, flags) {
 //function gCanvasArc(canvas, xc, yc, w, h, angle1, angle2, flags) {
-function gCanvasArc(/*gdx*/ canvas, /*atom*/ xc, yc, w, h, angle1, angle2, /*integer*/ flags=0, style=-1, width=-1, colour=-1) {
-//flags can be XPG_FILLED with XPG_CHORD or XPG_SECTOR
+//function gCanvasArc(/*gdx*/ canvas, /*atom*/ xc, yc, w, h, angle1, angle2, /*integer*/ flags=0, style=-1, width=-1, colour=-1) {
+function gDrawArc(/*gcp*/ canvas, /*atom*/ xc, yc, w, h, angle1, angle2, /*integer*/ flags=0, colour=-1, width=-1, style=-1) {
+//flags can be TG_FILLED with TG_CHORD or TG_SECTOR
 //  if (gai) { gai = false; puts(1,"gCanvasArc incomplete (colour)...\n") }
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
+//  if (canvas instanceof HTMLCanvasElement) {
     let ctx = canvas.ctx;
 //  let ch = ctx.canvas.clientHeight;
 //  let ch = ctx.canvas.clientHeight - yc;
     let ch = yc;
     if (xc > 0 && ch > 0 && w >= 2 && h >= 2) {
         let pstyle, pwidth, pss, pfs;
-//      if (style!=-1) { pstyle = gCanvasGetLineStyle(canvas); gCanvasSetLineStyle(canvas,style); }
-        if (style!=-1) { pstyle = gGetInt(canvas,"LINESTYLE"); gSetInt(canvas,"LINESTYLE",style); }
-//      if (width!=-1) { pwidth = gCanvasGetLineWidth(canvas); gCanvasSetLineWidth(canvas,width); }
-        if (width!=-1) { pwidth = gGetInt(canvas,"LINEWIDTH"); gSetInt(canvas,"LINEWIDTH",width); }
+        if (style!=-1) { pstyle = gGetSetAttribute(canvas,"LINESTYLE",style); }
+        if (width!=-1) { pwidth = gGetSetAttribute(canvas,"LINEWIDTH",width); }
         if (colour!=-1) { 
 //          gCanvasSetForeground(canvas, colour);
             if (integer(colour)) { colour = sprintf("#%06x",colour); }
@@ -6918,31 +8125,106 @@ function gCanvasArc(/*gdx*/ canvas, /*atom*/ xc, yc, w, h, angle1, angle2, /*int
 //  ctx.arc(xc,ch-yc,w/2,angle1*Math.PI/180,angle2*Math.PI/180);
 //  ctx.ellipse(xc,ch-yc,w/2,h/2,0,angle1*Math.PI/180,angle2*Math.PI/180);
         ctx.ellipse(xc,ch,w/2,h/2,0,a1r,a2r);
-        if (flags & XPG_SECTOR) {
+        if (flags & TG_SECTOR) {
 //          ctx.lineTo(sx,sy,xc,yc)
             ctx.lineTo(xc,yc)
 //          ctx.lineTo(sx,sy)
             ctx.lineTo(ex,ey)
-        } else if (flags & XPG_CHORD) {
+        } else if (flags & TG_CHORD) {
 //          ctx.lineTo(sx,sy)
             ctx.lineTo(ex,ey)
         }   
-        if (flags & XPG_FILLED) {
-//      if (false) {
+        if (flags & TG_FILLED) {
             ctx.fill();
         } else {
             ctx.stroke();
         }
-//      if (style!=-1) { gCanvasSetLineStyle(canvas,pstyle); }
         if (style!=-1) { gSetInt(canvas,"LINESTYLE",pstyle); }
-//      if (width!=-1) { gCanvasSetLineWidth(canvas,pwidth); }
         if (width!=-1) { gSetInt(canvas,"LINEWIDTH",pwidth); }
         if (colour!=-1) { 
             ctx.strokeStyle = pss;
             ctx.fillStyle = pfs;
         }
     }
+//  } else {
+//      crash("gDrawArc...")
+//  }
+} gDrawArc.$sig="PONNNNNNINII,7";
+
+/* grayscale images:
+img {
+  filter: gray; /!* IE6-9 *!/
+  -webkit-filter: grayscale(1); /!* Google Chrome, Safari 6+ & Opera 15+ *!/
+  filter: grayscale(1); /!* Microsoft Edge and Firefox 35+ *!/
 }
+maybe:
+filter: grayscale(100%); /!* Current draft standard *!/
+-webkit-filter: grayscale(100%); /!* New WebKit *!/
+-moz-filter: grayscale(100%);
+-ms-filter: grayscale(100%); 
+-o-filter: grayscale(100%);
+filter: gray; /!* IE6+ *!/
+
+/!* Disable grayscale on hover *!/
+img:hover {
+  -webkit-filter: grayscale(0);
+  filter: none;
+}
+
+-- or:
+<button type="button"onclick="greyScale">
+
+<script>
+//function greyScale() {
+//  document.getElementById("id1").style.filter="grayscale(100%)";
+//}
+</script>
+
+-- google maps
+The following example displays a grayscale map of Brooklyn:
+
+var map;
+var brooklyn = new google.maps.LatLng(40.6743890, -73.9455);
+
+var stylez = [
+    {
+      featureType: "all",
+      elementType: "all",
+      stylers: [
+        { saturation: -100 } // <-- THIS
+      ]
+    }
+];
+
+var mapOptions = {
+    zoom: 11,
+    center: brooklyn,
+    mapTypeControlOptions: {
+         mapTypeIds: [google.maps.MapTypeId.ROADMAP, 'tehgrayz']
+    }
+};
+
+map = new google.maps.Map(document.getElementById("map_canvas"), mapOptions);
+
+var mapType = new google.maps.StyledMapType(stylez, { name:"Grayscale" });    
+map.mapTypes.set('tehgrayz', mapType);
+map.setMapTypeId('tehgrayz');
+
+---or:
+var container = document.getElementById('map_canvas');
+var mapOptions = {
+  zoom: 11,
+  center: new google.maps.LatLng(40.6743890, -73.9455),
+  styles: [{
+    stylers: [{
+      saturation: -100
+    }]
+  }]
+};
+
+var map = new google.maps.Map(container, mapOptions);
+
+*/
 
 ////cdCanvasSector(cdCanvas canvas, atom xc, yc, w, h, angle1, angle2) 
 //function gCanvasSector(ctx, xc, yc, w, h, angle1, angle2, sector=true) {
@@ -6964,10 +8246,12 @@ function gCanvasArc(/*gdx*/ canvas, /*atom*/ xc, yc, w, h, angle1, angle2, /*int
 //}
 
 //function gCanvasCircle(/*cdCanvas*/ canvas, /*atom*/ x, y, r, /*boolean*/ filled=false) {
-function gCanvasCircle(/*gdx*/ canvas, /*atom*/ xc, yc, radius, /*boolean*/ filled=false, /*integer*/ style=-1, width=-1, /*atom*/ colour=-1) {
+//function gCanvasCircle(/*gdx*/ canvas, /*atom*/ xc, yc, radius, /*boolean*/ filled=false, /*integer*/ style=-1, width=-1, /*atom*/ colour=-1) {
+function gDrawCircle(/*gdx*/ canvas, /*atom*/ xc, yc, radius, /*bool*/ filled=false, /*integer*/ colour=-1, width=-1, style=-1) {
     let /*atom*/ diameter = radius*2;
-    gCanvasArc(canvas,xc,yc,diameter,diameter,0,360,filled,style,width,colour);
-}
+    gDrawArc(canvas,xc,yc,diameter,diameter,0,360,filled,colour,width,style);
+} gDrawCircle.$sig="PONNNONII,4";
+
 ////    if (filled) {
 ////        cdCanvasSector(ctx,x,y,r,r,0,360);
 ////    } else {
@@ -7066,38 +8350,6 @@ function gCanvasCircle(/*gdx*/ canvas, /*atom*/ xc, yc, radius, /*boolean*/ fill
 //  return ["sequence", w, h];
 //}
 
-//DEV we may want to retrieve a(lpha) as well, see recent mods to pGUI.e
-//function cdCanvasGetImageRGB(/*cdCanvas*/ ctx, /*atom*/ x, y, w, h) {
-//  let /*integer*/ l = w*h,
-////    let /*integer*/ l = (w-x)*(h-y),
-//      /*atom*/ r = repeat(0,l),
-//               g = repeat(0,l),
-//               b = repeat(0,l),
-//         imgdata = ctx.getImageData(x, y, w, h),
-//              dl = imgdata.data.length,
-//             dtx = 0;
-//  for (let i = 1; i <= l; i += 1) {
-//      r[i] = imgdata.data[dtx];
-//      g[i] = imgdata.data[dtx+1];
-//      b[i] = imgdata.data[dtx+2];
-//      dtx += 4;
-//  }
-////getImageData()??
-////createImageData()??
-////putImageData()??
-////--24/10/21..
-////    iup_init_cd()
-////--?pR
-////--?{xcdCanvasGetImageRGB,canvas,x,y,w,h}
-////    c_proc(xcdCanvasGetImageRGB, {canvas, pR, pG, pB, x, y, w, h})
-////--?pR
-////    sequence r = peek({pR, w*h}),
-////             g = peek({pG, w*h}),
-////             b = peek({pB, w*h})
-////    free({pR,pG,pB})
-//  return ["sequence",r,g,b];
-//}
-
 /*
 //function cdCanvasPixel(ctx,x,y,colour) {
 //  if (integer(colour)) { colour = sprintf("#%06x",colour&0xFFFFFF); }
@@ -7105,65 +8357,23 @@ function gCanvasCircle(/*gdx*/ canvas, /*atom*/ xc, yc, radius, /*boolean*/ fill
 //  ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
 //}
 
-global procedure cdCanvasPutImageRectRGB(cdCanvas canvas, atom iw, ih, sequence rgb3, 
-                                         atom x=0, y=0, w=0, h=0, xmin=0, xmax=0, ymin=0, ymax=0)
-    integer l = length(rgb3[1])
-    if length(rgb3)!=3
-    or length(rgb3[2])!=l
-    or length(rgb3[3])!=l then
-        ?9/0
-    end if
-    atom pR = allocate(l),
-         pG = allocate(l),
-         pB = allocate(l)
-    poke(pR, rgb3[1])
-    poke(pG, rgb3[2])
-    poke(pB, rgb3[3])
-    c_proc(xcdCanvasPutImageRectRGB, {canvas, iw, ih, pR, pG, pB, x, y, w, h, xmin, xmax, ymin, ymax})
-    free({pR,pG,pB})
-end procedure
-
-global procedure cdCanvasPutImageRectRGBA(cdCanvas canvas, atom iw, ih, sequence rgba, 
-                                          atom x=0, y=0, w=0, h=0, xmin=0, xmax=0, ymin=0, ymax=0)
-    integer l = length(rgba[1])
-    if length(rgba)!=4
-    or length(rgba[2])!=l
-    or length(rgba[3])!=l
-    or length(rgba[4])!=l then
-        ?9/0
-    end if
-    atom pR = allocate(l),
-         pG = allocate(l),
-         pB = allocate(l),
-         pA = allocate(l)
-    poke(pR, rgba[1])
-    poke(pG, rgba[2])
-    poke(pB, rgba[3])
-    poke(pA, rgba[4])
-    c_proc(xcdCanvasPutImageRectRGBA, {canvas, iw, ih, pR, pG, pB, pA, x, y, w, h, xmin, xmax, ymin, ymax})
-    free({pR,pG,pB,pA})
-end procedure
-global procedure cdCanvasPutImageRectMap(cdCanvas canvas, atom iw, ih, sequence index, colors,
-                                                          atom x, y, w, h, 
-                                                          atom xmin, xmax, ymin, ymax)
-    atom pColors = allocate(4*256+length(index)),
-         pIndex = pColors+4*256
-    poke4(pColors, colors)
-    poke(pIndex, index)
-    c_proc(xcdCanvasPutImageRectMap, {canvas, iw, ih, pIndex, pColors, x, y, w, h, xmin, xmax, ymin, ymax})
-    free(pColors)
-end procedure
 */
 
 //function gCanvasLine(ctx, x1, y1, x2, y2, style=-1, width=-1) {
-function gCanvasLine(canvas, x1, y1, x2, y2, style=-1, width=-1, colour=-1) {
-//DEV
-//  if (atom(ctx)) {
+function gDrawLine(canvas, x1, y1, x2, y2, colour=-1, width=-1, style=-1) {
+//  let t = typeof(canvas);
+//  let img = $gimages[(-image+1)/2];
+//  if (!(canvas instanceof HTMLCanvasElement)){
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
     let pstyle, pwidth, pss, pfs;
-//  if (style!=-1) { pstyle = gCanvasGetLineStyle(canvas); gCanvasSetLineStyle(canvas,style); }
-    if (style!=-1) { pstyle = gGetInt(canvas,"LINESTYLE"); gSetInt(canvas,"LINESTYLE",style); }
-//  if (width!=-1) { pwidth = gCanvasGetLineWidth(canvas); gCanvasSetLineWidth(canvas,width); }
-    if (width!=-1) { pwidth = gGetInt(canvas,"LINEWIDTH"); gSetInt(canvas,"LINEWIDTH",width); }
+    if (style!=-1) { pstyle = gGetSetAttribute(canvas,"LINESTYLE",style); }
+    if (width!=-1) { pwidth = gGetSetAttribute(canvas,"LINEWIDTH",width); }
     let ctx = canvas.ctx;
     if (colour!=-1) { 
 //      gCanvasSetForeground(canvas, colour);
@@ -7173,32 +8383,17 @@ function gCanvasLine(canvas, x1, y1, x2, y2, style=-1, width=-1, colour=-1) {
         ctx.fillStyle = colour;
         ctx.strokeStyle = colour;
     }
-//function gCanvasSetLineStyle(/*cdCanvas*/ ctx, /*integer*/ style) {
-//    XPG_CONTINUOUS = 0,
-//    XPG_DASHED = 1,
-//    XPG_DOTTED = 2,
-//    XPG_DASH_DOT = 3,
-//    XPG_DASH_DOT_DOT = 4,
-//  if (style!==XPG_CONTINUOUS) { ctx.lineWidth = 1; }
-//function gCanvasGetLineStyle(/*cdCanvas*/ ctx) {
-//function gCanvasSetLineWidth(/*cdCanvas*/ ctx, /*atom*/ width) {
-//function gCanvasGetLineWidth(/*cdCanvas*/ ctx) {
-//  let h = ctx.canvas.clientHeight;
     ctx.beginPath();
-//  ctx.moveTo(x1, h-y1);
     ctx.moveTo(x1, y1);
-//  ctx.lineTo(x2, h-y2);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-//  if (style!=-1) { gCanvasSetLineStyle(canvas,pstyle); }
     if (style!=-1) { gSetInt(canvas,"LINESTYLE",pstyle); }
-//  if (width!=-1) { gCanvasSetLineWidth(canvas,pwidth); }
     if (width!=-1) { gSetInt(canvas,"LINEWIDTH",pwidth); }
     if (colour!=-1) { 
         ctx.fillStyle = pfs;
         ctx.strokeStyle = pss;
     }
-}
+} gDrawLine.$sig="PONNNNNII,5";
 
 //function cdCanvasMark(ctx, x, y) {
 //  let msize = ctx.MarkSize || 10;
@@ -7230,7 +8425,16 @@ function gCanvasLine(canvas, x1, y1, x2, y2, style=-1, width=-1, colour=-1) {
 //  return prev;
 //}
 
-function gCanvasCubicBezier(/*gdx*/ canvas, /*atom*/ x1, y1, xc1, yc1, xc2, yc2, x2, y2, colour=-1) {
+//function gCanvasCubicBezier(/*gdx*/ canvas, /*atom*/ x1, y1, xc1, yc1, xc2, yc2, x2, y2, colour=-1) {
+//gDrawCubicBezier
+function gDrawCubicBezier(/*gcp*/ canvas, /*atom*/ x1, y1, xc1, yc1, xc2, yc2, x2, y2, colour=-1, /*integer*/ width=-1, style=-1) {
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
     let ctx = canvas.ctx,
         pss = ctx.strokeStyle,
         pfs = ctx.fillStyle;
@@ -7248,11 +8452,12 @@ function gCanvasCubicBezier(/*gdx*/ canvas, /*atom*/ x1, y1, xc1, yc1, xc2, yc2,
     
     ctx.strokeStyle = pss;
     ctx.fillStyle = pfs;
-}
+} gDrawCubicBezier.$sig="PONNNNNNNNNII,9";
 
-function gCanvasQuadBezier(/*gdx*/ canvas, /*atom*/ x1, y1, cx, cy, x2, y2, /*integer*/ colour=-1) {
-    gCanvasCubicBezier(canvas,x1,y1,cx,cy,cx,cy,x2,y2,colour);
-}
+//function gCanvasQuadBezier(/*gdx*/ canvas, /*atom*/ x1, y1, cx, cy, x2, y2, /*integer*/ colour=-1) {
+function gDrawQuadBezier(/*gcp*/ canvas, /*atom*/ x1, y1, cx, cy, x2, y2, colour=-1, /*integer*/ width=-1, style=-1) {
+    gDrawCubicBezier(canvas,x1,y1,cx,cy,cx,cy,x2,y2,colour,width,style);
+} gDrawQuadBezier.$sig="PONNNNNNNII,7";
 
 function gRotatePolygon(/*sequence*/ poly, /*object*/ angle) {
     let /*atom*/ cx, cy;
@@ -7264,7 +8469,7 @@ function gRotatePolygon(/*sequence*/ poly, /*object*/ angle) {
     if (angle !== 0) {
         let /*integer*/ lp = length(poly);
         let /*sequence*/ res = repeat(0,lp);
-        let /*atom*/ r = angle*XPG_DEG2RAD,
+        let /*atom*/ r = angle*TG_DEG2RAD,
                      s = sin(r),
                      c = cos(r)
         for (let i = 1; i <= lp; i += 1) {
@@ -7287,15 +8492,21 @@ function gRotatePolygon(/*sequence*/ poly, /*object*/ angle) {
         return res;
     }
     return poly;
-}
+} gRotatePolygon.$sig="FPO";
 
-function gCanvasPolygon(/*gdx*/ canvas, /*sequence*/ poly, /*bool*/ bFilled=true, /*integer*/ colour=-1, style=-1, width=-1) {
+//function gCanvasPolygon(/*gdx*/ canvas, /*sequence*/ poly, /*bool*/ bFilled=true, /*integer*/ colour=-1, style=-1, width=-1) {
+function gDrawPolygon(/*gdx*/ canvas, /*sequence*/ poly, /*bool*/ bFilled=true, /*integer*/ colour=-1, width=-1, style=-1) {
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
     let ctx = canvas.ctx,
         pstyle, pwidth, pss, pfs;
-//  if (style!=-1) { pstyle = gCanvasGetLineStyle(canvas); gCanvasSetLineStyle(canvas,style); }
-    if (style!=-1) { pstyle = gGetInt(canvas,"LINESTYLE"); gSetInt(canvas,"LINESTYLE",style); }
-//  if (width!=-1) { pwidth = gCanvasGetLineWidth(canvas); gCanvasSetLineWidth(canvas,width); }
-    if (width!=-1) { pwidth = gGetInt(canvas,"LINEWIDTH"); gSetInt(canvas,"LINEWIDTH",width); }
+    if (style!=-1) { pstyle = gGetSetAttribute(canvas,"LINESTYLE",style); }
+    if (width!=-1) { pwidth = gGetSetAttribute(canvas,"LINEWIDTH",width); }
     if (colour!=-1) { 
 //      gCanvasSetForeground(canvas, colour);
         if (integer(colour)) { colour = sprintf("#%06x",colour); }
@@ -7338,17 +8549,18 @@ function gCanvasPolygon(/*gdx*/ canvas, /*sequence*/ poly, /*bool*/ bFilled=true
     }
     ctx.strokeStyle = pss;
     ctx.fillStyle = pfs;
-//  if (style!=-1) { gCanvasSetLineStyle(canvas,pstyle); }
     if (style!=-1) { gSetInt(canvas,"LINESTYLE",pstyle); }
-//  if (width!=-1) { gCanvasSetLineWidth(canvas,pwidth); }
     if (width!=-1) { gSetInt(canvas,"LINEWIDTH",pwidth); }
     if (colour!=-1) {
         ctx.fillStyle = pfs;
         ctx.strokeStyle = pss;
     }
-}
+} gDrawPolygon.$sig="POPINII,2";
 
-function gCanvasPixel(ctx,x,y,colour) {
+//function gCanvasPixel(ctx,x,y,colour) {
+function gCanvasPixel(/*gdc*/ canvas, /*atom*/ x,y,colour) {
+
+    let ctx = canvas.ctx;
 //DEV
 //  if (atom(ctx)) {
     if (integer(colour)) { colour = sprintf("#%06x",colour&0xFFFFFF); }
@@ -7362,9 +8574,38 @@ function gCanvasPixel(ctx,x,y,colour) {
 
 //  ctx.strokeStyle = colour;
 //  ctx.strokeRect(x,ctx.canvas.clientHeight-y,1,0);
-}
+} gCanvasPixel.$sig="PINNN";
 
-function gCanvasRect(/*gdx*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ bFill=false, /*integer*/ rc=0, style=-1, width=-1, /*atom*/ colour=-1) {
+function gCanvasGetPixel(/*gdc*/ canvas, /*atom*/ x, y) { // Retrieve a single pixel 
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
+    let ctx = canvas.ctx,
+          w = canvas.width,
+          h = canvas.height,
+    imgData = ctx.getImageData(0,0,w,h),
+          k = ((y-1)*h+x-1)*4,
+          r = imgData.data[k],
+          g = imgData.data[k+1],
+          b = imgData.data[k+2],
+          a = imgData.data[k+3];
+    return rgba(r,g,b,a);
+} gCanvasGetPixel.$sig="FINN";
+
+//function gCanvasRect(/*gdx*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ bFill=false, /*integer*/ rc=0, style=-1, width=-1, /*atom*/ colour=-1) {
+//function gDrawRect(/*gcp*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ bFill=false, /*integer*/ rc=0, colour=-1, width=-1, style=-1) {
+function gDrawRect(/*gcp*/ canvas, /*atom*/ xmin, ymin, xmax, ymax, /*bool*/ bFill=false, /*integer*/ rc=0, colour=-1, width=-1, style=-1) {
+    if (integer(canvas)) {
+        if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+        } else {
+            canvas = $gpixbufs[-canvas/2];
+        }
+    }
 //  puts(1,"gCanvasRect incomplete...\n");  --DEV style/width not yet...
 //  printf(1,"gCanvasRect(%d,%d,%d,%d)\n",["sequence", xmin, xmax, ymin, ymax]);
 //DEV see cdCanvasBox...
@@ -7416,7 +8657,7 @@ function gCanvasRect(/*gdx*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ b
     }
     ctx.strokeStyle = pss;
     ctx.fillStyle = pfs;
-}
+} gDrawRect.$sig="PONNNNINNNN,5";
 
 //function cdCanvasBox(/*cdCanvas*/ ctx, /*atom*/ xmin, xmax, ymin, ymax) {
 ////    puts(1,"cdCanvasBox("+xmin+","+xmax+","+ymin+","+ymax+")\n");
@@ -7471,13 +8712,33 @@ function gCanvasRect(/*gdx*/ canvas, /*atom*/ xmin, xmax, ymin, ymax, /*bool*/ b
 //  cdCanvasArc(canvas,xmax-w,ymax-h,w*2,h*2,0,90);
 //}
 
-function gGetTextExtent(/*gdx*/ id, /*sequence*/ text, /*bool*/ bSumHeights = true) {
+//gGetTextExtent(sequence text, object tgt=TG_STD_FONT, bool bSumHeights=true,bNorm=false)
+function gGetTextExtent(/*sequence*/ text, /*gdx*/ tgt="12px Helvetica", /*bool*/ bSumHeights=true, bNorm=false) {
     if (string(text)) { text = ["sequence",text]; }
+    let ctx;
+    if (string(tgt)) {
+        let id = document.createElement("canvas");
+        ctx = id.getContext("2d") || id.getContext("webgl");
+        ctx.font = tgt;
+    } else {
+        ctx = tgt.ctx;
+    }
+/*
+let id = $ocument_createElement("canvas");        let ctx = id.getContext("2d") || id.getContext("webgl");
 
-//  const am = new RegExp("&","g"),
+const canvas = document.getElementById("myCanvas");
+const ctx = canvas.getContext("2d");
+ctx.font = "30px Arial";
+let txt = "Hello World"
+ctx.fillText("width:" + ctx.measureText(txt).width, 10, 50)
+ctx.fillText(txt, 10, 100);
+*/
+
+//  const 
 //            lt = new RegExp("[<]","g"),
 //            gt = new RegExp("[>]","g"),
     const lt = length(text),
+          am = new RegExp("&","g"), 
           sp = new RegExp("[ ]","g");
 //            lf = new RegExp("\\n","g");
 //      text = text.replace(am,"&amp;")
@@ -7486,9 +8747,17 @@ function gGetTextExtent(/*gdx*/ id, /*sequence*/ text, /*bool*/ bSumHeights = tr
 //                 .replace(sp,"&ensp;")
     let w = 0, h = 0;
     for (let i = 1; i <= lt; i += 1) {
-        let ti = text[i].replace(sp,"_"),
-//          tm = id.measureText(ti),
-            tm = id.ctx.measureText(ti),
+        let ti = text[i].replace(sp,"_");
+        if (bNorm) {
+            // "as-is":
+            ti = ti.replace(am,"&amp;");
+        } else {
+            // treat &www as <u>w</u>www or equivalently just "www"
+            ti = ti.replace(am,"");
+        }
+//Javascript measureText
+//          tm = tgt.ctx.measureText(ti),
+        let tm = ctx.measureText(ti),
 /*
 actualBoundingBoxAscent: 7
 actualBoundingBoxDescent: 0
@@ -7510,21 +8779,42 @@ tm.actualBoundingBoxRight
         }
     }
     return ["sequence",w,h];
-}
+} gGetTextExtent.$sig="FPOII,1";
+//const gGetTextExtent32 = gGetTextExtent;
+
+function gGetTextExtent32(/*sequence*/ utf32, /*object*/ tgt="12px Helvetica", /*bool*/ bNorm=true) {
+    return gGetTextExtent(utf32, tgt, false, bNorm);
+} gGetTextExtent.$sig="FPOI,1";
+
 
 //let gti = true;
 
 //function gCanvasText(/*cdCanvas*/ ctx, /*atom*/ x, y, /*string*/ text, /*integer*/ align, /*atom*/ angle, colour=-1) {
-//gCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, object angle=0, atom colour=-1, style=-1)
-//       gCanvasText(gdx canvas, atom x, y, string text, integer align=XPG_E, object angle=0, colour=-1, integer style=-1)
-function gCanvasText(/*gdx*/ canvas, /*atom*/ x, y, /*string*/ text, /*integer*/ align=XPG_E, /*object*/ angle=0, /*atom*/ colour=-1, style=-1) {
+//gCanvasText(gdx canvas, atom x, y, string text, integer align=TG_E, object angle=0, atom colour=-1, style=-1)
+//       gCanvasText(gdx canvas, atom x, y, string text, integer align=TG_E, object angle=0, colour=-1, integer style=-1)
+//function gCanvasText(/*gdx*/ canvas, /*atom*/ x, y, /*string*/ text, /*integer*/ align=TG_E, /*object*/ angle=0, /*atom*/ colour=-1, style=-1) {
+function gDrawText(/*gdc*/ canvas, /*atom*/ x, y, /*string*/ text, /*sequence*/ args=[], /*integer*/ align=TG_E, /*object*/ angle=0, /*atom*/ colour=-1, style=-1) {
+//gDrawText(gdc canvas, atom x, y, string text, sequence args={}, integer align=TG_E, object angle=0, colour=-1, style=-1)
 //  if (gti) { gti = false; puts(1,"gCanvasText incomplete (align/angle)...\n") }
+/*
+    if (!(canvas instanceof HTMLCanvasElement)) {
+        canvas = $gimages[(-canvas+1)/2];
+    }
+*/
+    if (integer(canvas)) {
+//      if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+//      } else {
+//          canvas = $gpixbufs[-canvas/2];
+//      }
+    }
     let ctx = canvas.ctx, pcolour, oldfont;
 //  fs, td;
 //  let h = ctx.canvas.clientHeight
 //      angle = ctx.textOrientation || 0;
 //  if (!string(text)) { text = String.fromCodePoint(...text.slice(1)); }
     assert(string(text));
+    if (args.length) { text = sprintf(text, args); }
     if (colour !== -1) {
 //      pcolour = gCanvasGetForeground(canvas);
         pcolour = gGetInt(canvas, "FGCLR");
@@ -7542,16 +8832,16 @@ function gCanvasText(/*gdx*/ canvas, /*atom*/ x, y, /*string*/ text, /*integer*/
             }
             newfont = newfont.slice(space+1);
         }
-        // XPG_NORMAL=0, XPG_BOLD=1, XPG_ITALIC=2, XPG_BOLDITALIC=3
+        // TG_NORMAL=0, TG_BOLD=1, TG_ITALIC=2, TG_BOLDITALIC=3
         newfont = ["","bold ","italic ","bold italic "][style] + newfont;
         ctx.font = newfont;
     }
-    let rot_pt = XPG_NW;
+    let rot_pt = TG_NW;
     if (sequence(angle)) {
         [,rot_pt,angle] = angle
-        if (rot_pt === XPG_CENTER) {rot_pt = XPG_C; } // (as per docs)
+        if (rot_pt === TG_CENTER) {rot_pt = TG_C; } // (as per docs)
     }
-    if (align === XPG_CENTER) {align = XPG_C; } // (as per docs)
+    if (align === TG_CENTER) {align = TG_C; } // (as per docs)
     if (angle) {
 //      if (align!=rot_pt) --??
         // adjust x,y to rot_pt
@@ -7561,22 +8851,22 @@ function gCanvasText(/*gdx*/ canvas, /*atom*/ x, y, /*string*/ text, /*integer*/
         x += ((r-a)/2)*w;
 /*
 let xx = x + ((r-a)/2)*w;
-        if (align & XPG_W) {
-            if (rot_pt & XPG_W) {
+        if (align & TG_W) {
+            if (rot_pt & TG_W) {
                 x += w;
-            } else if (!(rot_pt & XPG_E)) {
+            } else if (!(rot_pt & TG_E)) {
                 x += w/2;
             }
-        } else if (align & XPG_E) {
-            if (rot_pt & XPG_E) {
+        } else if (align & TG_E) {
+            if (rot_pt & TG_E) {
                 x -= w;
-            } else if (!(rot_pt & XPG_W)) {
+            } else if (!(rot_pt & TG_W)) {
                 x -= w/2;   
             }
-        } else { // align = XPG_C[+N|S]
-            if (rot_pt & XPG_E) {
+        } else { // align = TG_C[+N|S]
+            if (rot_pt & TG_E) {
                 x -= w/2;
-            } else if (rot_pt & XPG_W) {
+            } else if (rot_pt & TG_W) {
                 x += w/2;   
             }
         }
@@ -7586,29 +8876,29 @@ let xx = x + ((r-a)/2)*w;
         y += ((r-a)/2)*h;
 /*
 let yy = y + ((r-a)/2)*h;
-        if (align & XPG_N) {
-            if (rot_pt & XPG_S) {
+        if (align & TG_N) {
+            if (rot_pt & TG_S) {
                 y += h;
-            } else if (!(rot_pt & XPG_N)) {
+            } else if (!(rot_pt & TG_N)) {
                 y += h/2;
             }
-        } else if (align & XPG_S) {
-            if (rot_pt & XPG_N) {
+        } else if (align & TG_S) {
+            if (rot_pt & TG_N) {
                 y -= h;
-            } else if (!(rot_pt & XPG_S)) {
+            } else if (!(rot_pt & TG_S)) {
                 y -= h/2;   
             }
-        } else { // align = XPG_C[+W|E]
-            if (rot_pt & XPG_N) {
+        } else { // align = TG_C[+W|E]
+            if (rot_pt & TG_N) {
                 y -= h/2;
-            } else if (rot_pt & XPG_S) {
+            } else if (rot_pt & TG_S) {
                 y += h/2;   
             }
         }
-gCanvasLine(graph,x-4,y-4,x+4,y+4,-1,-1,XPG_GREEN);
-gCanvasLine(graph,x-4,y+4,x+4,y-4,-1,-1,XPG_GREEN);
-gCanvasLine(graph,xx-2,yy-2,xx+2,yy+2,-1,-1,XPG_WHITE);
-gCanvasLine(graph,xx-2,yy+2,xx+2,yy-2,-1,-1,XPG_WHITE);
+gCanvasLine(graph,x-4,y-4,x+4,y+4,-1,-1,TG_GREEN);
+gCanvasLine(graph,x-4,y+4,x+4,y-4,-1,-1,TG_GREEN);
+gCanvasLine(graph,xx-2,yy-2,xx+2,yy+2,-1,-1,TG_WHITE);
+gCanvasLine(graph,xx-2,yy+2,xx+2,yy-2,-1,-1,TG_WHITE);
 */
         ctx.save();
 //      ctx.textAlign="center";
@@ -7646,7 +8936,7 @@ gCanvasLine(graph,xx-2,yy+2,xx+2,yy-2,-1,-1,XPG_WHITE);
 //  if (colour !== -1) { gCanvasSetForeground(canvas, pcolour); }
     if (colour !== -1) { gSetInt(canvas, "FGCLR", pcolour); }
     if (style !== -1) { ctx.font = oldfont; }
-}
+} gDrawText.$sig="PONNSPIOOO,4";
 
 //function glCanvasSpecialText(/*gdx*/ cd_canvas, /*integer*/ w, h, fontsize, /*string*/ text) {
 //  let textCtx = document.createElement("canvas").getContext("2d");
@@ -7823,33 +9113,17 @@ gCanvasLine(graph,xx-2,yy+2,xx+2,yy-2,-1,-1,XPG_WHITE);
 
 //function cdKillCanvas() {}
 
-function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequence"]) {
+function gGraph(/*rtn*/ data, /*string*/ attributes="", /*sequence*/ args=["sequence"]) {
 
-    function xpg_graph_default_DROP(/*integer*/ rid) { return rid; }
-
-    function redraw_graph(/*gdx*/ graph) {
-        let /*rtn*/ drid = gGetHandler(graph,"DRID");
-//      let /*sequence*/ sig = get_routine_info(drid,false),
-//                  datasets = iff(sig={0,0,"F"}?drid(),
-//                             iff(sig={1,1,"FO"}?drid(graph):9/0)),
-
-        // aside: unlike desktop/Phix, no problem with if drid() has no parameters
-        let /*sequence*/ datasets = drid(graph);
-
-        // aside: unlike desktop/Phix, attributes are stored directly on graph,
-        //        so I could just use eg graph.GRID or graph["GRID"], but I may
-        //        as well use gGetAttributes() and friends to force myself to
-        //        implement them all correctly/test on day one.
-        let /* integer*/ grid = gGetInt(graph,"GRID"), 
-                   gridcolour = gGetInt(graph,"GRIDCOLOR"),
-              [,width, hight] = gGetAttribute(graph,"SIZE"),
-                         dsdx = 1,
-                         drop = gGetHandler(graph,"DROP",xpg_graph_default_DROP),
+//  function tg_graph_default_DROP(/*integer*/ rid) { return rid; }
+//DEV IDROP?? (sip)
+//                       drop = gGetHandler(graph,"DROP",tg_graph_default_DROP),
 //       xCanvasSetForeground = drop(gCanvasSetForeground),
 //       xCanvasSetBackground = drop(gCanvasSetBackground),
-                  xCanvasRect = drop(gCanvasRect),
-                  xCanvasLine = drop(gCanvasLine),
-                  xCanvasText = drop(gCanvasText);
+//                xCanvasRect = drop(gCanvasRect),
+//                xCanvasLine = drop(gCanvasLine),
+//                xCanvasText = drop(gCanvasText);
+//                xCanvasText = drop(gDrawText);
 // JavaScript no likey:
          // /now/ it feels safe to shadow the globals:
 //       gCanvasSetForeground = xCanvasSetForeground,
@@ -7858,77 +9132,89 @@ function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequ
 //                gCanvasLine = xCanvasLine,
 //                gCanvasText = xCanvasText;
 
-        // nb: "XTICK" etc may be/get set in the above drid() call.
-        let /*atom*/ xtick = gGetDouble(graph,"XTICK"), 
-                      xmin = gGetDouble(graph,"XMIN"), 
-                      xmax = gGetDouble(graph,"XMAX"), 
-                   xmargin = gGetDouble(graph,"XMARGIN",10), 
-                   xyshift = gGetDouble(graph,"XYSHIFT"), 
-                    xangle = gGetDouble(graph,"XANGLE"), 
-                     ytick = gGetDouble(graph,"YTICK"), 
-                      ymin = gGetDouble(graph,"YMIN"), 
-                      ymax = gGetDouble(graph,"YMAX"), 
-                   ymargin = gGetDouble(graph,"YMARGIN",10), 
-                   yxshift = gGetDouble(graph,"YXSHIFT"), 
-                    yangle = gGetDouble(graph,"YANGLE"),
-//                   bgclr = gCanvasGetBackground(graph);
-                     bgclr = gGetInt(graph,"BGCLR");
+    // Aside: theGUI.e (aka desktop/Phix) uses an explicit forward call of tg_redraw_graph() whereas theGUI.js (aka pwa/p2js) uses the std 
+    // canvas REDRAW but redirects attempts to set it on a graph to REDRAW_GRAPH and invokes that from redraw_graph(), just so you know...
+
+    /*private*/ function redraw_graph(/*gdx*/ graph) {
+        let data = gGetHandler(graph,"DATA");
+        let [,canvas_width, canvas_height] = gGetAttribute(graph,"SIZE");
+        if (data.length === 0) {
+            data = data();
+        } else if (data.length === 1) {
+            data = data(graph);
+        } else if (data.length === 2) {
+            data = data(canvas_width,canvas_height);
+        } else if (data.length === 3) {
+            data = data(graph,canvas_width,canvas_height);
+        } else {
+            crash("uh??");
+        }
+
+        // aside: unlike desktop/Phix, attributes are stored directly on graph,
+        //        so I could just use eg graph.GRID or graph["GRID"], but I may
+        //        as well use gGetAttributes() and friends to force myself to
+        //        implement them all correctly/test on day one.
+                      
+        // nb: "XTICK" etc may be/get set in the above data() call.
+        let /*atom*/ gridclr = gGetAttribute(graph,"GRIDCOLOR"),
+                       xtick = gGetDouble(graph,"XTICK"), 
+                        xmin = gGetDouble(graph,"XMIN"), 
+                        xmax = gGetDouble(graph,"XMAX"), 
+                     xmargin = gGetDouble(graph,"XMARGIN",10), 
+                     xyshift = gGetDouble(graph,"XYSHIFT"), 
+                      xangle = gGetDouble(graph,"XANGLE"), 
+                       ytick = gGetDouble(graph,"YTICK"), 
+                        ymin = gGetDouble(graph,"YMIN"), 
+                        ymax = gGetDouble(graph,"YMAX"), 
+                     ymargin = gGetDouble(graph,"YMARGIN",10), 
+                     yxshift = gGetDouble(graph,"YXSHIFT"), 
+                      yangle = gGetDouble(graph,"YANGLE"),
+                       bgclr = gGetAttribute(graph,"BGCLR");
 
         let /*string*/ title = gGetAttribute(graph,"GTITLE",""), 
                        xname = gGetAttribute(graph,"XNAME",""), 
                        yname = gGetAttribute(graph,"YNAME",""), 
                        xfmt = gGetAttribute(graph,"XTICKFMT","%g"), 
                        yfmt = gGetAttribute(graph,"YTICKFMT","%g"), 
+                       legendpos = gGetAttribute(graph,"LEGENDPOS","TR"),
                        mode = gGetAttribute(graph,"MODE",""), 
                        barmode = gGetAttribute(graph,"BARMODE",""), 
                        markstyle = gGetAttribute(graph,"MARKSTYLE","");
-//                     fontface = "Helvetica";
+
+        let /*sequence*/ legend = gGetAttribute(graph,"LEGEND","")
+        if (string(legend) && length(legend)) {
+            legend = split(legend,',')
+        }
 
         let /*integer*/ marksize = gGetInt(graph,"MARKSIZE"),
-                          legend = 0, // (idx to datasets)
-                          lx, ly, // (XPG_EAST of the first legend text)
+                          lx, ly, // (TG_EAST of the first legend text)
                          xacross = gGetInt(graph,"XACROSS"),
                          yacross = gGetInt(graph,"YACROSS"),
                             xrid = gGetHandler(graph,"XRID"),
                             yrid = gGetHandler(graph,"YRID"),
-                            post = gGetHandler(graph,"POST")
+                    redraw_graph = gGetHandler(graph,"REDRAW_GRAPH")
 
-//      let /*integer*/ fontstyle = CD_PLAIN, 
-//                      fontsize = 9, 
-//                      bgclr = IupGetAttributePtr(graph,"BGCOLOR"), 
-//                      titlestyle = IupGetInt(graph,"TITLESTYLE",CD_PLAIN), 
-//      let /*cdCanvas*/ cd_canvas = IupGetAttributePtr(graph,"CD_CANVAS");
-
-        while (true) {
-            let /*sequence*/ ds = $subse(datasets,dsdx), 
-                             s = $subse(ds,1);
-            if (!string(s)) { break; }
-            assert(equal(s,"NAMES"));
-            legend = dsdx;
-            dsdx += 1;
-        }
+        let /*bool*/ bGrid = gGetInt(graph,"GRID",true),
+                bLegendBox = gGetInt(graph,"LEGENDBOX",true)
 
         // draw title and axis names
-//      xCanvasSetForeground(graph,XPG_BLACK);
-        gSetInt(graph,"FGCLR",XPG_BLACK);
+        gSetInt(graph,"FGCLR",TG_BLACK);
         if (title!=="") {
-            xCanvasText(graph,width/2+4,0,title,XPG_SOUTH);
+            gDrawText(graph,canvas_width/2+4,5,title,[],TG_SOUTH);
         }
         if (yname!=="") {
-            xCanvasText(graph,34,hight/2,yname,XPG_SOUTH,90);
+            gDrawText(graph,10,canvas_height/2,yname,[],TG_SOUTH,270);
         }
         if (xname!=="") {
-            xCanvasText(graph,width/2,hight-4,xname,XPG_NORTH);
+            gDrawText(graph,canvas_width/2,canvas_height-10,xname,[],TG_NORTH);
         }
-//printf(1,"xacross:%d, yacross:%d\n",["sequence",xacross,yacross])
 
         // draw the x/y-axis labels and vertical gridlines
         xacross = ((xacross) ? round((0-xmin)/xtick)+1 : 1);
         yacross = ((yacross) ? round((0-ymin)/ytick)+1 : 1);
-//printf(1,"xacross:%d, yacross:%d\n",["sequence",xacross,yacross])
 
-        let /*integer*/ vb = barmode === "VERTICAL", 
-                        hb = barmode === "HORIZONTAL", 
+        let /*integer*/ vb = (barmode === "VERTICAL"), 
+                        hb = (barmode === "HORIZONTAL"), 
                         nx = max(round((xmax-xmin)/xtick)+vb,1), 
                         ny = max(round((ymax-ymin)/ytick)+hb,1);
         if (barmode!=="") {
@@ -7942,110 +9228,93 @@ function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequ
             assert(mode==="","invalid MODE for MARKSTYLE");
             mode = "MARK";
         }
-        let /*atom*/ dx = ((width-60)-xmargin)/nx, 
-                     dy = ((hight-60)-ymargin)/ny, 
+        let /*atom*/ dx = ((canvas_width-60)-xmargin)/nx, 
+                     dy = ((canvas_height-60)-ymargin)/ny, 
                      vx = 30+xmargin, 
                      vy = 30+ymargin, 
                      x = xmin, 
                      y = ymin;
+
         for (let i = 1, i$lim = (nx+1)-vb; i <= i$lim; i += 1) { // the vertical lines
-            if ((grid && !vb) || (i === xacross)) {
-//              xCanvasSetForeground(graph,((i === xacross) ? XPG_BLACK : gridcolour));
-                gSetInt(graph,"FGCLR",((i === xacross) ? XPG_BLACK : gridcolour));
-//              gCanvasLine(graph,vx,30+ymargin,vx,hight-30);
-                xCanvasLine(graph,vx,hight-(30+ymargin),vx,28);
+            if ((bGrid && !vb) || (i === xacross)) {
+                gSetInt(graph,"FGCLR",((i === xacross) ? TG_BLACK : gridclr));
+                gDrawLine(graph,vx,28,vx,canvas_height-(30+ymargin));
             }
-//          xCanvasSetForeground(graph,XPG_BLACK);
-            gSetInt(graph,"FGCLR",XPG_BLACK);
-            let /*integer*/ align = (xangle === 0) ? XPG_SOUTH :
-                                    (xangle === 90) ? XPG_EAST :
-//                                  (xangle === -90) ? XPG_WEST;
-                                  /*(xangle === -90) ?*/ XPG_WEST;
+            gSetInt(graph,"FGCLR",TG_BLACK);
+            let /*integer*/ align = (xangle === 0) ? TG_SOUTH :
+                                    (xangle === 90) ? TG_EAST :
+//                                  (xangle === -90) ? TG_WEST;
+                                  /*(xangle === -90) ?*/ TG_WEST;
             let /*string*/ xtext = xrid ? xrid(x) : sprintf(xfmt,x);
             let /*atom*/ tx = vx+dx*vb/2+1,
-                         ty = hight-(((25+ymargin)+xyshift)+(yacross-1)*dy);
-//printf(1,"ty: %d, ymargin:%d, xyshift:%d, yacross:%d, dy:%d\n",["sequence",ty,ymargin,xyshift,yacross,dy]);
-//          xCanvasText(graph,vx+(dx*vb)/2,ty,xtext);
-//          xCanvasLine(graph,tx-5,ty-5,tx+5,ty+5,-1,-1,XPG_RED)
-//          xCanvasLine(graph,tx-5,ty+5,tx+5,ty-5,-1,-1,XPG_RED)
-
-            xCanvasText(graph,tx,ty,xtext,align,["sequence",XPG_W,xangle]);
-//          xCanvasText(graph,tx,ty,xtext,XPG_E,["sequence",XPG_W,xangle]);
-//          xCanvasText(graph,tx,ty,xtext,XPG_E,["sequence",XPG_W,xangle]);
-//that's the effect we want:
-//          xCanvasText(graph,tx,ty,xtext,XPG_W,["sequence",XPG_W,xangle]);
-//          xCanvasText(graph,tx,ty,xtext,XPG_W,45);
-//          xCanvasText(graph,vx+dx*vb/2+1,hight-ty,xtext,align);
+                         ty = canvas_height-(((25+ymargin)+xyshift)+(yacross-1)*dy);
+            gDrawText(graph,tx,ty,xtext,[],align,["sequence",TG_W,xangle]);
             vx += dx;
             x += xtick;
         }
 
         for (let i = 1, i$lim = (ny+1)-hb; i <= i$lim; i += 1) { // the horizontal lines
-            if ((grid && !hb) || (i===yacross)) {
-//              xCanvasSetForeground(graph,((i===yacross) ? XPG_BLACK : gridcolour));
-                gSetInt(graph,"FGCLR",((i===yacross) ? XPG_BLACK : gridcolour));
-//              xCanvasLine(graph,31+xmargin,vy,width-30,vy);
-                xCanvasLine(graph,31+xmargin,hight-vy,width-30,hight-vy);
+            if ((bGrid && !hb) || (i===yacross)) {
+                gSetInt(graph,"FGCLR",((i===yacross) ? TG_BLACK : gridclr));
+                gDrawLine(graph,31+xmargin,canvas_height-vy,canvas_width-30,canvas_height-vy);
             }
-//          xCanvasSetForeground(graph,XPG_BLACK);
-            gSetInt(graph,"FGCLR",XPG_BLACK);
-            let /*integer*/ align = (yangle === 0) ? XPG_WEST :
-                                    (yangle === 90) ? XPG_NORTH :
-                                  /*(yangle === -90) ?*/ XPG_SOUTH;
+            gSetInt(graph,"FGCLR",TG_BLACK);
+            let /*integer*/ align = (yangle === 0) ? TG_WEST :
+                                    (yangle === 90) ? TG_NORTH :
+                                  /*(yangle === -90) ?*/ TG_SOUTH;
             let /*string*/ ytext = ((yrid) ? yrid(y) : sprintf(yfmt,y));
             let /*atom*/ tx = ((25+xmargin)+yxshift)+(xacross-1)*dx,
-                         ty = hight-((vy+dy*hb/2)+2);
-            xCanvasText(graph,tx,ty,ytext,align,yangle)
+                         ty = canvas_height-((vy+dy*hb/2)+2);
+            gDrawText(graph,tx,ty,ytext,[],align,yangle);
             vy += dy;
             y += ytick;
         }
-        let /*integer*/ lh; // (legend text height, per line)
-//DEV does this not want to be drawn last??
-        if (legend) {
-            let /*sequence*/ legendnames = $subse($subse(datasets,legend),2);
-            [, lw, lh] = gGetTextExtent(graph,legendnames,false)
-            let /*string*/ legendpos = gGetAttribute(graph,"LEGENDPOS","TOPRIGHT");
+
+        let /*integer*/ lw,lh, // (legend text height, per line)
+                        ll = length(legend);
+        if (ll) {
+            [, lw, lh] = gGetTextExtent(graph,legend,false);
             if (legendpos === "XY") {
                 [, lx, ly] = gGetIntInt(graph,"LEGENDXY"); // (untested)
             } else {
-                if (equal($subse(legendpos,1),0X54)) { // 'T'
-                    assert(equal($subss(legendpos,1,3),"TOP"));
-                    legendpos = $subss(legendpos,4,-1);
-                    ly = 10;
-                } else {
-                    assert(equal($subss(legendpos,1,6),"BOTTOM"));
-                    legendpos = $subss(legendpos,7,-1);
-//                  ly = (hight-50)-ll*lh;
-                    ly = (hight-50)-lh;
+                let l1 = $subse(legendpos,1),
+                    l2 = $subse(legendpos,2);
+                if (l1 === 0X54) { // 'T'
+                    ly = 25;
+                } else if (l1 === 0X43) { // 'C'
+                    ly = floor((canvas_height-50-lh*ll)/2);
+                } else if (l1 === 0X42) { // 'B'
+                    ly = canvas_height-50-lh*ll;
+//              } else {
                 }
-                if (legendpos === "LEFT") {
-                    lx = (30+xmargin)+lw;
-                } else if (legendpos === "CENTER") {
-                    lx = floor(((xmargin+width)+lw)/2);
-                } else {
-                    assert(legendpos === "RIGHT");
-                    lx = width-30;
+                if (l2 === 0X4C) { // 'L'
+                    lx = 30+xmargin
+                } else if (l2 === 0X43) { // 'C'
+                    lx = floor((xmargin*2+canvas_width-lw)/2);
+                } else if (l2 === 0X52) { // 'R'
+                    lx = canvas_width-lw-50;
+//              } else {
                 }
+                gSetAttribute(graph,"LEGENDXY",["sequence",lx,ly]);
             }
-            if (gGetInt(graph,"LEGENDBOX")) {
-//              xCanvasSetForeground(graph,XPG_BLACK)
-                gSetInt(graph,"FGCLR",XPG_BLACK)
-                let /*integer*/ lxl = (lx-lw)-25, lxr = lx+10, 
-//                              lyt = hight-(ly+15), lyb = hight-((ly+ll*lh)+25);
-                                lyt = ly+15, lyb = ly+lh+25;
-                xCanvasRect(graph,lxl,lxr,lyt,lyb,true);
+            if (bLegendBox) {
+                let /*integer*/ lr = lx+lw+30,
+                                lb = ly+lh*ll
+                gDrawRect(graph,lx-2,lr,ly,lb,true,0,bgclr)
+                gDrawRect(graph,lx-2,lr,ly,lb,false,0,TG_BLACK)
             }
         }
+
         // and finally draw/plot the points!
         let /*atom*/ w = dx/xtick, 
                      h = dy/ytick;
         vx = (30+xmargin)+(xacross-1)*dx;
         vy = (30+ymargin)+(yacross-1)*dy;
-        let /*integer*/ lm1 = dsdx-1;
-        for (let d = dsdx, d$lim = length(datasets); d <= d$lim; d+=1) {
-            let /*sequence*/ dd = $subse(datasets,d), [,px,py] = dd;
+        if (markstyle === "") { markstyle = "X"; }
+        for (let d = 1, d$lim = length(data); d <= d$lim; d+=1) {
+            let /*sequence*/ dd = $subse(data,d), [,px,py] = dd;
             let /*integer*/ ldd = length(dd), 
-                             mm = mode==="MARK",
+                             mm = begins("MARK",mode),
                             dsz = marksize;
             let /*string*/ dms = markstyle, 
                            dmm = mode;
@@ -8065,22 +9334,20 @@ function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequ
                     }
                 }
             }
-            let /*atom*/ fgclr = (ldd>=3) ? $subse(dd,3) : XPG_BLACK;
-//          xCanvasSetForeground(graph,fgclr);
+            let /*atom*/ fgclr = (ldd>=3) ? $subse(dd,3) : TG_BLACK;
             gSetInt(graph,"FGCLR",fgclr);
-//          xCanvasSetBackground(graph,fgclr);
-            gSetInt(graph,"BGCLR",fgclr);
             if (length(px)) {
                 let /*atom*/ x1 = (30+xmargin)+($subse(px,1)-xmin)*w, 
                              y1 = (30+ymargin)+($subse(py,1)-ymin)*h;
+
                 for (let i = 2-((vb || hb) || mm), i$lim = length(px); i <= i$lim; i += 1) {
                     let /*atom*/ x2 = ((30+xmargin)+($subse(px,i)-xmin)*w)+(dx*vb)/2, 
                                  y2 = ((30+ymargin)+($subse(py,i)-ymin)*h)+(dy*hb)/2;
                     if (mode === "BAR") {
                         if (vb) {
-                            xCanvasRect(graph,(x2-dx/2)+1,(x2+dx/2)-1,hight-vy,hight-y2,true);
+                            gDrawRect(graph,(x2-dx/2)+1,(x2+dx/2)-1,canvas_height-vy,canvas_height-y2,true);
                         } else if (hb) {
-                            xCanvasRect(graph,vx,x2,hight-(y2-dy/2+1),hight-(y2+dy/2-1),true);
+                            gDrawRect(graph,vx,x2,canvas_height-(y2-dy/2+1),canvas_height-(y2+dy/2-1),true);
                         }
                     } else {
                         if (mm) {
@@ -8090,79 +9357,80 @@ function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequ
                             //          "HOLLOW_BOX", "HOLLOW_DIAMOND". Default "X". 
                             //        (rest to be implemented as and when needed)
                             if (dms === "HOLLOW_CIRCLE") {
-//  --                          xCanvasCircle(graph,x2,y2,8)
-                                xCanvasCircle(graph,x2,hight-y2,2*(dsz+1));
+                                gDrawCircle(graph,x2,canvas_height-y2,2*(dsz+1));
                             } else if (dms === "PLUS") {
-//                              xCanvasLine(graph,x2,y2-3,x2,y2+3)
-                                xCanvasLine(graph,x2,hight-(y2-dsz),x2,hight-(y2+dsz+1));
-//                              xCanvasLine(graph,x2-3,y2,x2+3,y2)
-                                xCanvasLine(graph,x2-dsz+1,hight-y2,x2+dsz,hight-y2);
+                                gDrawLine(graph,x2,canvas_height-(y2-dsz),x2,canvas_height-(y2+dsz+1));
+                                gDrawLine(graph,x2-dsz+1,canvas_height-y2,x2+dsz,canvas_height-y2);
                             } else if (dms === "X") {
-//--                            xCanvasLine(graph,x2-3,y2-3,x2+3,y2+3)
-                                xCanvasLine(graph,x2-dsz,hight-(y2-dsz),x2+dsz,hight-(y2+dsz))
-//--                            xCanvasLine(graph,x2-3,y2+3,x2+3,y2-3)
-                                xCanvasLine(graph,x2-dsz,hight-(y2+dsz),x2+dsz,hight-(y2-dsz))
+                                gDrawLine(graph,x2-dsz,canvas_height-(y2-dsz),x2+dsz,canvas_height-(y2+dsz));
+                                gDrawLine(graph,x2-dsz,canvas_height-(y2+dsz),x2+dsz,canvas_height-(y2-dsz));
                             } else if (dms="DOT") {
-                                xCanvasPixel(graph,x2,hight-y2)
+                                gCanvasPixel(graph,x2,canvas_height-y2,fgclr);
                             } else {
                                 crash("unknown MARKSTYLE (%s)",["sequence",dms]);
                             }
                         }
                         if (!mm || ((dmm === "MARKLINE") && (i>=2))) {
-//                          xCanvasLine(graph,x1,y1,x2,y2);
-                            xCanvasLine(graph,x1,hight-y1,x2,hight-y2);
+                            gDrawLine(graph,x1,canvas_height-y1,x2,canvas_height-y2);
                         }
                     }
                     x1 = x2;
                     y1 = y2;
                 }
             }
-            if (legend) {
-                let /*integer*/ lX = lx-20, 
-//                              lY = (hight-ly)-25;
-                                lY = ly-25;
+            if (ll) {
+                let /*integer*/ lX = lx+2+lw,
+                                lY = ly+floor(lh/2);
                 if (mode==="BAR") { // (untested)
-                    xCanvasRect(graph,lX,lX+10,lY-5,lY+5,true);
-//--                xCanvasRect(graph,lX,lX+10,hight-(lY-5),hight-(lY+5),true)
+                    gDrawRect(graph,lX,lX+25,lY-5,lY+5,true);
                 } else {
                     if (mm) {
                         if (dms === "HOLLOW_CIRCLE") {
-                            xCanvasCircle(graph,lX+15,lY,8);
-                        } else if (dms==="PLUS") {
-                            xCanvasLine(graph,lX+15,lY-5,lX+15,lY-5);
-                            xCanvasLine(graph,lX+10,lY,lX+20,lY);
-                        } else if (dms==="PLUS") {
-                            xCanvasLine(graph,lX+10,lY+5,lX+20,lY-5);
-                            xCanvasLine(graph,lX+10,lY-5,lX+20,lY+5);
-                        } else if (dms==="PLUS") {
-                            xCanvasPixel(graph,lX+15,lY);
+                            gDrawCircle(graph,lX+12,lY,2*(dsz+1));
+                        } else if (dms === "PLUS") {
+                            gDrawLine(graph,lX+12,lY-dsz,lX+12,lY+dsz+1);
+                            gDrawLine(graph,lX+12-dsz,lY,lX+12+dsz+1,lY);
+                        } else if (dms === "X") {
+                            gDrawLine(graph,lX+12-dsz,lY+dsz,lX+12+dsz,lY-dsz);
+                            gDrawLine(graph,lX+12-dsz,lY-dsz,lX+12+dsz,lY+dsz);
+                        } else if (dms === "DOT") {
+                            gCanvasPixel(graph,lX+15,lY,fgclr);
                         }
                     }
                     if (!mm || (dmm==="MARKLINE")) {
-                        xCanvasLine(graph,lX+5,lY,lX+25,lY);
+                        gDrawLine(graph,lX+3,lY,lX+23,lY);
                     }
                 }
-//              xCanvasSetForeground(graph,XPG_BLACK);
-                gSetInt(graph,"FGCLR",XPG_BLACK);
-                xCanvasText(graph,lX,lY,$subse($subse($subse(datasets,legend),2),d-lm1));
-//--DEV erm...
+                gSetInt(graph,"FGCLR",TG_BLACK);
+                let /*string*/ txt = legend[d];
+                gDrawText(graph,lx+2+lw,lY+1,txt,[],TG_W);
                 ly += lh;
-//              ly -= lh;
             }
         }
-//      xCanvasSetBackground(graph,bgclr);
         gSetInt(graph,"BGCLR",bgclr);
-        if (post) { post(graph); }
-        return XPG_DEFAULT;
+        if (redraw_graph) {
+            if (redraw_graph.length === 1) {
+                redraw_graph(graph);
+            } else if (redraw_graph.length === 3) {
+                redraw_graph(graph,canvas_width,canvas_height);
+//          } else if (redraw_graph.length === 53) {
+//              let [,ox,oy] = gGetAttribute(graph,"VIEWPORT");
+//              redraw_graph(graph,canvas_width,canvas_height,ox,oy);
+            } else {
+                crash("uh??");
+            }
+            gSetInt(graph,"BGCLR",bgclr);
+        }
+        return TG_DEFAULT;
     }
 
     let /*gdx*/ graph = gCanvas(redraw_graph);
-//DEV check this is OK for xpGUI.css:
+//DEV check this is OK for theGUI.css:
     graph.setAttribute("class", "graph");
-    gSetHandler(graph,"DRID",drid)
+    gSetHandler(graph,"DATA",data)
     gSetInt(graph,"GRID",true);         // (show the grid by default)
     gSetInt(graph,"LEGENDBOX",true);    // (ditto box around legend)
-    gSetAttribute(graph,"GRIDCOLOR",XPG_GREY);
+    gSetAttribute(graph,"GRIDCOLOR",TG_GREY);
     gSetDouble(graph,"XTICK",1);
     gSetDouble(graph,"YTICK",1);
     gSetInt(graph,"XMARGIN",10);
@@ -8170,79 +9438,41 @@ function gGraph(/*rtn*/ drid, /*string*/ attributes="", /*sequence*/ args=["sequ
     gSetAttribute(graph,"GTITLE","");
     gSetAttribute(graph,"XNAME","");
     gSetAttribute(graph,"YNAME","");
+    gSetAttribute(graph,"LEGEND","");
+    gSetAttribute(graph,"LEGENDPOS","TR");
     gSetAttribute(graph,"XTICKFMT","%g");
     gSetAttribute(graph,"YTICKFMT","%g");
     gSetAttribute(graph,"MODE","");
     gSetAttribute(graph,"BARMODE","");
     gSetAttribute(graph,"MARKSTYLE","");
     gSetInt(graph,"MARKSIZE",3);
-    // these are needed to replace/match the repeat(0,..) within xpGUI.e:
+    // these are needed to replace/match the repeat(0,..) within theGUI.e:
     gSetInt(graph,"XYSHIFT",0);
     gSetInt(graph,"YXSHIFT",0);
     gSetInt(graph,"XANGLE",0);
     gSetInt(graph,"YANGLE",0);
     gSetInt(graph,"XACROSS",0);
     gSetInt(graph,"YACROSS",0);
-//  store_attrs(["graph"], ["","","","XMAX","XMIN","","","","",
-//                          "","","","YMAX","YMIN","","","","",
-//                          "XNAME","YNAME"], set_graph);
-/*
-//local constant graph_attrs = {{    GX_GRID:=$,'B',"GRID"          },
-//                            { GX_GRIDCOLOR:=$,'I',"GRIDCOLOR"     },
-//                            { GX_LEGENDBOX:=$,'B',"LEGENDBOX"     },
-                              {     GX_XTICK:=$,'N',"XTICK"         },
-                              {     GX_YTICK:=$,'N',"YTICK"         },
-                              {      GX_XMIN:=$,'N',"XMIN"          },
-                              {      GX_XMAX:=$,'N',"XMAX"          },
-                              {      GX_YMIN:=$,'N',"YMIN"          },
-                              {      GX_YMAX:=$,'N',"YMAX"          },
-                              {   GX_XMARGIN:=$,'N',"XMARGIN"       },
-                              {   GX_YMARGIN:=$,'N',"YMARGIN"       },
-                              {   GX_XYSHIFT:=$,'N',"XYSHIFT"       },
-                              {   GX_YXSHIFT:=$,'N',"YXSHIFT"       },
-//                            {    GX_XANGLE:=$,'N',"XANGLE"        },
-//                            {    GX_YANGLE:=$,'N',"YANGLE"        },
-//                            {    GX_GTITLE:=$,'S',"GTITLE"        },
-//                            {     GX_XNAME:=$,'S',"XNAME"         },
-//                            {     GX_YNAME:=$,'S',"YNAME"         },
-                              {  GX_XTICKFMT:=$,'S',"XTICKFMT"      },
-                              {  GX_YTICKFMT:=$,'S',"YTICKFMT"      },
-//                            {      GX_MODE:=$,'S',"MODE"          },
-//                            {   GX_BARMODE:=$,'S',"BARMODE"       },
-//                            { GX_MARKSTYLE:=$,'S',"MARKSTYLE"     },
-                              {  GX_MARKSIZE:=$,'I',"MARKSIZE"      },
-                              {   GX_XACROSS:=$,'B',"XACROSS"       },
-                              {   GX_YACROSS:=$,'B',"YACROSS"       },
---                            {      GX_XRID:=$,'I',"XRID"          },
---                            {      GX_YRID:=$,'I',"YRID"          },
-                              { GX_LEGENDPOS:=$,'S',"LEGENDPOS"     },
-                              {  GX_LEGENDXY:=$,'P',"LEGENDXY"      }},
-*/
-
     gSetAttributes(graph,attributes,args);
     return graph;
-}
+} gGraph.$sig="FOSP,1";
 
 //function IupList(action = null, func = null, attributes = "", args = []) {
 function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attributes="", /*dword_seq*/ args=[]) {
 
-//local constant lSigs = {{1,1,"FI"},{2,2,"FOI"}}
-//local enum                lFI,       lFOI
+    //function tg_list_default_DROP(/*integer*/ rid) { return rid; }
 
-    function xpg_list_default_DROP(/*integer*/ rid) { return rid; }
-
-    function redraw_list(/*gdx*/ list) {
+    /*private*/ function redraw_list(/*gdx*/ list) {
 //      object lstattr = ctrl_xtra[list][CX_GTL_ATTRS]
 //      let object data = lstattr[LX_DATA]
         let data = list.DATA;
         let /*integer*/ [,width, height] = gGetAttribute(list, "SIZE"),
                         n_rows, maxp, lh = $subse(gGetTextExtent(list,"X"),2),
-                        drop = gGetHandler(list,"DROP",xpg_list_default_DROP),
-                        xCanvasText = drop(gCanvasText),
+//                      drop = gGetHandler(list,"DROP",tg_list_default_DROP),
+//                      xCanvasText = drop(gCanvasText),
                         datafn = (typeof(data) === 'function');
 //      if (integer(data)) {
         if (datafn) {
-//          let /*sequence*/ sig = $subse(get_routine_info(data,false),3);
             let /*sequence*/ sig = get_routine_info(data,false);
             maxp = $subse(sig,1);
             if (maxp === 1) {
@@ -8268,7 +9498,8 @@ function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attribute
                 si = data[r];
             }
             if (string(si)) {
-                xCanvasText(list,2,vy,si);
+//              xCanvasText(list,2,vy,si);
+                gDrawText(list,2,vy,si);
             } else {
                 let /*atom*/ vx = 2, lsi = length(si);
 //              for sii in si do
@@ -8288,7 +9519,8 @@ function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attribute
                         }
                     }
                     assert(string(sii));
-                    xCanvasText(list,vx,vy,sii,XPG_E,0,sic,sis);
+//                  xCanvasText(list,vx,vy,sii,TG_E,0,sic,sis);
+                    gDrawText(list,vx,vy,sii,TG_E,0,sic,sis);
                     vx += $subse(gGetTextExtent(list,sii),1);
                 }
             }
@@ -8299,7 +9531,7 @@ function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attribute
 //--    {rows,attributes,args} = paranormalise_raa(rows,attributes,args,bCheckRid:=false)
     [,selected,attributes,args] = $paranormalise_raa(selected,attributes,args);
     let /*gdx*/ list = gCanvas(redraw_list);
-//DEV check this is OK for xpGUI.css:
+//DEV check this is OK for theGUI.css:
     list.setAttribute("class", "list");
 //  ctrl_xtra[list][CX_CANVAS_TYPE] = LIST
 //  object l_attr = repeat(0,LX_LEN)
@@ -8307,7 +9539,7 @@ function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attribute
     list.DATA = data;
 //  ctrl_xtra[list][CX_GTL_ATTRS] = l_attr
 //  l_attr = 0 -- (kill refcount)
-//  xpg_register_handler(CANVAS,"SELECTED",{{2,2,"POI"},{2,2,"POP"},{1,1,"PI"},{1,1,"PP"}})
+//  tg_register_handler(CANVAS,"SELECTED",{{2,2,"POI"},{2,2,"POP"},{1,1,"PI"},{1,1,"PP"}})
     if (selected !== NULL) {
         gSetHandler(list,"SELECTED",selected)
     }
@@ -8315,18 +9547,17 @@ function gList(/*object*/ data, /*object*/ selected=NULL, /*sequence*/ attribute
         gSetAttributes(list,attributes,args)
     }
     return list
-}
+} gList.$sig="FOOPO,1";
 
-function gTimer(/*cbfunc*/ action=NULL, /*integer*/ msecs=0, /*boolean*/ active=true) {
+function gTimer(/*cbfunc*/ action=NULL, /*integer*/ msecs=0, /*boolean*/ active=true, /*object*/ user_data=null) {
     if (!$storeAttr) { $gInit(); }
-    return $timer("create",action,msecs,active);
-}
+    return $timer("create",action,msecs,active,user_data);
+} gTimer.$sig="FOIOO,0";
 
-/*global*/ 
-function gQuit(/*gdx*/ /*id*/anon1) {
+function gQuit() {
     // standard "Close"/"Quit" button shorthand
-    return XPG_CLOSE;
-}
+    return TG_CLOSE;
+} gQuit.$sig="F";
 
 /*local*/ let /*gdx*/ $mbid = NULL, $lbl;
 //procedure gMsgBox(gdx parent,string title, msg, sequence args={}, bool bWrap=true)
@@ -8359,8 +9590,8 @@ function gMsgBox(/*gdx*/ parent=NULL, /*string*/ title="", msg="", /*sequence*/ 
     }
 //DEV modal??
 //  ?{"gMsgBox",parent,title,msg,bWrap}
-    gShow($mbid,XPG_CENTERPARENT,XPG_CENTERPARENT); // DEV not repositioning...
-}
+    gShow($mbid,TG_CENTERPARENT,TG_CENTERPARENT); // DEV not repositioning...
+} gMsgBox.$sig="PSOOOOO,0"; // [DEV...]
 
 //function IupUpdate(id) {
 ////IupRedraw
@@ -8383,7 +9614,7 @@ function IupGLMakeCurrent(canvas) {
 //  } else if ($gl === NULL) { // ie not "undefined"
     } else if ($gl) { // ie not "undefined"
         const names = ["webgl", "experimental-webgl", "webkit-3d", "moz-webgl"];
-        for (let i = 0; i < names.length; ++i) {
+        for (let i = 0; i < names.length; i += 1) {
 //          try {
             $gl = canvas.getContext(names[i]);
 //          }
@@ -8396,109 +9627,109 @@ function IupGLMakeCurrent(canvas) {
 //DEV these should probably be moved to opengl.js:
 function glAttachShader(/*integer*/ program, shader) {
     $gl.attachShader(program,shader);
-}
+} glAttachShader.$sig="PII";
 
 function glBindBuffer(/*integer*/ target, buffer) {
     $gl.bindBuffer(target,buffer);
-}
+} glBindBuffer.$sig="PII";
 
 function glBindTexture(/*integer*/ target, /*atom*/ texture) {
     $gl.bindTexture(target,texture);
-}
+} glBindTexture.$sig="PIN";
 
 function glBufferData(/*integer*/ target, size, /*atom*/ pData, /*integer*/ usage) {
 //  $gl.bufferData(target, size, pData, usage);
     $gl.bufferData(target, pData, usage);
-}
+} glBufferData.$sig="PIINI";
 
 function glClear(/*integer*/ mask) {
     $gl.clear(mask);
-}
+} glClear.$sig="PI";
 
 function glClearColor(/*atom*/ r, g, b, a) {
     $gl.clearColor(r,g,b,a);
-}
+} glClearColor.$sig="PNNNN";
 
 function glCompileShader(/*integer*/ shader) {
     $gl.compileShader(shader);
-}
+} glCompileShader.$sig="PI";
 
 function glCreateBuffer() {
     return $gl.createBuffer();
-}
+} glCreateBuffer.$sig="F";
 
 function glCreateProgram() {
     return $gl.createProgram();
-}
+} glCreateProgram.$sig="F";
 
 function glCreateShader(/*integer*/ shaderType) {
     return $gl.createShader(shaderType);
-}
+} glCreateShader.$sig="FI";
 
 function glCreateTexture() {
     return $gl.createTexture();
-}
+} glCreateTexture.$sig="F";
 
 function glDeleteProgram(/*integer*/ program) {
     $gl.deleteProgram(program);
     return NULL;
-}
+} glDeleteProgram.$sig="FI";
 
 function glDeleteShader(/*integer*/ shader) {
     $gl.deleteShader(shader);
     return NULL;
-}
+} glDeleteShader.$sig="FI";
 
 function glDrawArrays(/*integer*/ mode, first, count) {
     $gl.drawArrays(mode, first, count);
-}
+} glDrawArrays.$sig="PIII";
 
 function glEnable(/*integer*/ what) {
     $gl.enable(what);
-}
+} glEnable.$sig="PI";
 
 function glEnableVertexAttribArray(/*integer*/ index) {
     $gl.enableVertexAttribArray(index);
-}
+} glEnableVertexAttribArray.$sig="PI";
 
 function glFloat32Array(/*sequence*/ data) {
     let /*integer*/ size = length(data)*4;
     let /*atom*/ pData = new Float32Array(data.slice(1));
     return ["sequence",size,pData];
-}
+} glFloat32Array.$sig="FP";
 
 function glInt32Array(/*sequence*/ data) {
     let /*integer*/ size = length(data)*4;
     let /*atom*/ pData = new Int32Array(data.slice(1));
     return ["sequence",size,pData];
-}
+} glInt32Array.$sig="FP";
 
 function glFlush() {
     $gl.flush();
-}
+} glFlush.$sig="P";
 
 function glGetAttribLocation(/*integer*/ program, /*string*/ name) {
     return $gl.getAttribLocation(program,name);
-}
+} glGetAttribLocation.$sig="FIS";
 
 function glGetError() {
     return $gl.getError();
-}
+} glGetError.$sig="F";
 
 function glGetProgramInfoLog(/*integer*/ program) {
     return $gl.getProgramInfoLog(program);
-}
+} glGetProgramInfoLog.$sig="FI";
 
 function glGetProgramParameter(/*integer*/ program, pname, dflt=0) {
     if (pname === GL_INFO_LOG_LENGTH) {
         crash("GL_INFO_LOG_LENGTH not supported");
     }
     return $gl.getProgramParameter(program, pname);
-}
+} glGetProgramParameter.$sig="FIII,2";
 
 function glGetShaderInfoLog(/*integer*/ shader) {
     return $gl.getShaderInfoLog(shader);
-}
+} glGetShaderInfoLog.$sig="FI";
 
 function glGetShaderParameter(/*integer*/ shader, pname, dflt=0) {
     if (pname === GL_INFO_LOG_LENGTH) {
@@ -8508,54 +9739,54 @@ function glGetShaderParameter(/*integer*/ shader, pname, dflt=0) {
         crash("GL_SHADER_SOURCE_LENGTH not supported");
     }
     return $gl.getShaderParameter(shader, pname);
-}
+} glGetShaderParameter.$sig="FIII,2";
 
 function glGetUniformLocation(/*integer*/ prog, /*string*/ name) {
     return $gl.getUniformLocation(prog,name);
-}
+} glGetUniformLocation.$sig="FIS";
 
 function glLinkProgram(/*integer*/ prog) {
     $gl.linkProgram(prog);
-}
+} glLinkProgram.$sig="PI";
 
 function glShaderSource(/*integer*/ shader, /*string*/ source) {
     $gl.shaderSource(shader,source);
-}
+} glShaderSource.$sig="PIS";
 
 function glTexImage2Dc(/*integer*/ target, level, internalformat, width, height, border, fmt, datatype, /*cdCanvas*/ canvas) {
     $gl.texImage2D(target, level, internalformat, fmt, datatype, canvas);
-}
+} glTexImage2Dc.$sig="PIIIIIIIII";
 
 function glTexParameteri(/*integer*/ target, pname, param) {
     $gl.texParameteri(target, pname, param);
-}
+} glTexParameteri.$sig="PIII";
 
 function glUniform1f(/*integer*/ location, /*atom*/ v0) {
     $gl.uniform1f(location, v0);
-}
+} glUniform1f.$sig="PIN";
 
 function glUniform1i(/*integer*/ location, /*integer*/ v0) {
     $gl.uniform1i(location, v0);
-}
+} glUniform1i.$sig="PII";
 
 //function glUniformMatrix4fv(/*integer*/ location, count, transpose, /*atom*/ pData) {
 function glUniformMatrix4fv(/*integer*/ location, transpose, /*atom*/ pData) {
 //DEV check... (count?)
 //  gl.uniformMatrix4fv(matrixLocation, false, matrix);
     $gl.uniformMatrix4fv(location, transpose, pData);
-}
+} glUniformMatrix4fv.$sig="PIIN";
 
 function glUseProgram(/*integer*/ prog) {
     $gl.useProgram(prog);
-}
+} glUseProgram.$sig="PI";
 
 function glVertexAttribPointer(/*integer*/ index, size, datatype, normalized, stride, /*atom*/ pVertices) {
     $gl.vertexAttribPointer(index,size, datatype, normalized, stride, pVertices);
-}
+} glVertexAttribPointer.$sig="PIIIIIN";
 
 function glViewport(/*integer*/ x, y, w, h) {
     $gl.viewport(x,y,w,h);
-}
+} glViewport.$sig="PIIII";
 
 //function IupDrawBegin(/*gdx id*/) {
 //}
@@ -8608,123 +9839,27 @@ function glViewport(/*integer*/ x, y, w, h) {
 //  // (does nothing)
 //}
 
-function gImage_from_XPM(/*sequence*/ xpm) {
-//  if not bInit then xpg_Init() end if
-//  if string(xpm) then xpm = split(xpm,'\n') end if
-    if (string(xpm)) { xpm = split(xpm,0XA); }
-//  object img
-//  if backend=GTK then
-//      img = xpg_xpm_callback(xpm)
-//  elsif backend=WinAPI then
-//      img = xpg_winAPI_create_DIB_from_xpm(xpm,xpg_xpm_callback)
-//  else
-//      ?9/0 -- (unknown backend)
-//  end if
-//  gdc res = {"gImage",img}
-//  return res
-//var XPM = {
-    //
-    // Only method of this scope for now: create()
-    // Takes multiple parameters... here is the list:
-    //   - "<width> <height> <number of colors> <characters used per color>"
-    //   - "<character used> c <color>" <- for each color used
-    //   - Drawing of the XPM.
-    //
-    // @see here for the inspiration: http://fr.wikipedia.org/wiki/X_PixMap
-    //
-//  create: function() {
-        // Split the first argument in an array
-//      var firstArgument = arguments[0].split(' '),
-        let firstArgument = xpm[1].split(' '),
 
-        // Get the width, height, number of colors and number of characters
-        // per color with the first argument.
-            width = firstArgument[0],
-            height = firstArgument[1],
-            nbColors = parseInt(firstArgument[2], 10),
-            nbCharactersPerColor = parseInt(firstArgument[3], 10),
-            step = width * nbCharactersPerColor,
-
-        // Get the end of the argument array (all the characters of the image)
-//          imgCharacters = [].slice.call(arguments, nbColors + 1),
-            imgCharacters = [].slice.call(xpm, nbColors + 2),
-
-        // Create a canvas
-            canvas = document.createElement("canvas"),
-            ctx = canvas.getContext("2d"),
-
-        // Declare some variables for later use
-            map = [],
-            characters,
-            color,
-            i,
-            j,
-            k,
-            l
-
-        // Define the width and height of the canvas
-        canvas.width = width;
-        canvas.height = height;
-
-        // Add every mapping of characters and colors to the `map` array
-        for (i = 0; i < nbColors; ++i) {
-//          characters = arguments[1 + i].substring(0, nbCharactersPerColor)
-            characters = xpm[2 + i].substring(0, nbCharactersPerColor)
-//          color = arguments[1 + i].slice(-7)
-            color = xpm[2 + i].slice(-7)
-            map.push({characters: characters, color: color})
-        }
-        let imgdata = ctx.getImageData(0,0,width,height);
-
-        // For every line of the ASCII art
-        for (i = 0; i < height; ++i) {
-
-            // For every string of a line
-            for (j = 0; j < step; j += nbCharactersPerColor) {
-
-                // Loop to get the correct mapping
-                for (k = 0, l = map.length; k < l; ++k) {
-
-                    // If it maps, draw!
-                    if (map[k].characters === imgCharacters[i].substr(j, nbCharactersPerColor)) {
-//                      ctx.fillStyle = map[k].color
-                        let c = map[k].color;
-//closePath
-//if (c === " c None") { c = "white"; }
-//                      if (c === " c None") { 
-//                          // set alpha on that pixel to 0
-//                          // [DEV only tested on nbCharactersPerColor==1]
-//assert(nbCharactersPerColor === 1,"test this better");
-////                            imgdata[i*width+j+3] = 0;
-////??                      imgdata[i*step+j*nbCharactersPerColor+3] = 0;
-//                      } else {
-                        if (c !== " c None") { 
-//if (c !== " c None") {
-//printf(1,"{%d,%d}:[%d]%v\n",["sequence",i,j,k,c]);
-//}
-                            ctx.fillStyle = c;
-//                      ctx.fillStyle = "red";
-                            ctx.fillRect((j * nbCharactersPerColor), i, 1, 1)
-                        }
-                        // Break out of the loop since we hit the nail already
-                        break
-                    }
-                }
-            }
-        }
-
-        // Return the canvas DOM element already drawn
-        return canvas
-//      return ctx;
+//gDrawImage(gdm image, gdc canvas, atom x=0, y=0, sx=0, sy=0, integer w=-1, h=-1)
+function gDrawImage(/*gdm*/ image, canvas, /*atom*/ x=0, y=0, sx=0, sy=0, w=-1, h=-1) {
+    let img = $gimages[(-image+1)/2];
+    if (integer(canvas)) {
+//      if (odd(canvas)) {
+            canvas = $gimages[(-canvas+1)/2];
+//      } else {
+//          canvas = $gpixbufs[-canvas/2];
+//      }
+    }
+//  if (!(canvas instanceof HTMLCanvasElement)) {
+//      canvas = $gimages[(-canvas+1)/2];
+//?     cavas = canvas["HANDLE"];
 //  }
-//}
-}
+    canvas.ctx.drawImage(img, x, y);
+} gDrawImage.$sig="PIINNNNII,2";
 
-function gImageDraw(/*gdc*/ src, tgt, /*atom*/ x=0, y=0) {
-    tgt.ctx.drawImage(src, x, y);
-}
-
-function gUseGTK() { /* do nothing */ }
+function gUseGTK() {
+    /* do nothing */
+} gUseGTK.$sig="P";
 
 ////DEV move to builtins/opengl.js... (along with much other code)
 //    GL_ARRAY_BUFFER = 0x8892,

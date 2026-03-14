@@ -13,4 +13,4 @@
         if (max_replacements===0) { break; }
     }
     return haystack;
-}
+} find_replace.$sig="FOPOI,1";

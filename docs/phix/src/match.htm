@@ -13,17 +13,17 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href="integer.htm">integer</a> i = match(<a href="object.htm">object</a> needle, 
-                                                      <a href="sequence.htm">sequence</a> haystack, 
-                                                      <a href="integer.htm">integer</a> start=1,
-                                                      <a href="integer.htm#bool">bool</a> case_sensitive=<a href="logicops.htm#tf">true</a>)
+          <a href>integer</a> i = match(<a href>object</a> needle, 
+                                                      <a href>sequence</a> haystack, 
+                                                      <a href>integer</a> start=1,
+                                                      <a href>bool</a> case_sensitive=<a href>true</a>)
         <br>
           <i>-- or --</i>
         <br>
-          <a href="integer.htm">integer</a> i = rmatch(<a href="object.htm">object</a> needle,
-                                                       <a href="sequence.htm">sequence</a> haystack, 
-                                                       <a href="integer.htm">integer</a> start=length(haystack),
-                                                       <a href="integer.htm#bool">bool</a> case_sensitive=<a href="logicops.htm#tf">true</a>)
+          <a href>integer</a> i = rmatch(<a href>object</a> needle,
+                                                       <a href>sequence</a> haystack, 
+                                                       <a href>integer</a> endx=length(haystack),
+                                                       <a href>bool</a> case_sensitive=<a href>true</a>)
          </td>
         </tr>
         <tr>
@@ -31,8 +31,12 @@
           <b>Description:</b>
          </td>
          <td>
-            Try to match needle against some slice of haystack. If successful, return the element number of haystack where the (first) matching 
-            slice begins, at start or later (if specified), else return 0.
+            Try to match needle against some slice of haystack.
+            <br>
+            <br>
+            match() returns the positive subscript where the (first at or after start) matching slice begins, or 0 if none.<br>
+            rmatch() returns the last/rightmost (ending on or before endx) slice beginning rather than the first occurance.<br>
+            In both cases, when needle is "the", a non-zero result would locate the appropriate 't'.<br>
          </td>
         </tr>
         <tr>
@@ -48,51 +52,82 @@
           <b>Notes:</b>
          </td>
          <td>
-            The rmatch() routine is similar but works from the end of haystack, less length(needle), down to 1.
+            By default [r]match is case sensitive, so "the" does <i>not</i> match "THE", unless case_senbsitive is <a href>false</a>.
             <br>
             <br>
-            By default match is case sensitive, so "the" will <i>not</i> match "THE", however this can be changed by supplying 
-            <a href="logicops.htm#tf">false</a> (0) in the fourth parameter. 
-            In order to supply the fourth (positional) parameter, you must also supply the third - unlike Euphoria, which 
-            allows ",,1" syntax, that I have no plans to ever add. So, obviously, to alter <code>match(x,s)</code> to become case in-sensitive, 
-            it must become <code>match(x,s,1,true)</code>, and replace ",,true" with ",1,true". <br>
-            Alternatively use <a href="procedures.htm#namedparams">named parameters</a>: <code>match("the",s,case_insensitive:=true)</code> 
-            however that is not supported by Euphoria. Note that the fourth parameter was changed from case_insensitive with default 
-            <a href="logicops.htm#tf">false</a> to the slightly saner case_sensitive default <a href="logicops.htm#tf">true</a> in 0.8.3 
-            (it was done for p2js, albeit in the end unnecessarily). I could only find three uses: Edix\src\find.e, demo\pGUI\simple_notepad.exw, 
-            and websockets.e - the latter is not (yet) widely distributed, and all three were trivial to update.
+            You can override the effective start of haystack in match() and its effective length in rmatch(), with the usual
+            support for <a href="subscripts.htm#negative">negative subscripts</a> (in practice endx actually defaults to -1), 
+            however neither routine lets you override both. 
+            Overriding the start/end may improve performance by avoiding expensive slices on a very long haystack, and make
+            subsequent use of the result simpler, eg match("the",txt[35..$]) needs +34 to subscript txt, whereas 
+            match("the",txt,35) needs no adjustment.
+<!--
+//          however this can be changed by supplying 
+//           (0) in the fourth parameter. 
+//          In order to supply the fourth (positional) parameter, you must also supply the third - unlike Euphoria, which 
+//          allows ",,1" syntax, that I have no plans to ever add. So, obviously, to alter <code>match(x,s)</code> to become case in-sensitive, 
+//          it must become <code>match(x,s,1,true)</code>, and replace ",,true" with ",1,true". <br>
+//          Alternatively use <a href="procedures.htm#namedparams">named parameters</a>: <code>match("the",s,case_insensitive:=true)</code> 
+//          however that is not supported by Euphoria. Note that the fourth parameter was changed from case_insensitive with default 
+//          <a href>false</a> to the slightly saner case_sensitive default <a href>true</a> in 0.8.3 
+//          (it was done for p2js, albeit in the end unnecessarily). I could only find three uses: Edix\src\find.e, demo\pGUI\simple_notepad.exw, 
+//          and websockets.e - the latter is not (yet) widely distributed, and all three were trivial to update.
+--->
             <br>
             <br>
-            If needle is an atom (unlike Euphoria, which crashes) then match() and rmatch() behave as find() and rfind() respectively.<br>
+            If needle is an atom (unlike Euphoria, which crashes) then match() and rmatch() behave as find() and rfind() respectively.
+<!--
             <small>(Aside: As far as I know, that change only ever benefitted one dubious use of match(), long since lost, then again I have 
             never seen any downside, so there is equally not much point undoing it.)</small>
+-->
             <br>
             <br>
-            The <span class="illegal">match_from</span>() routine, which predated <a href="procedures.htm#optionalparams">optional parameters</a>,
-            is now deprecated (and never had case insensitivity). <br>
-            Simply use match() with the optional third parameter instead. <br>
-            Update: <span class="illegal">match_from</span>() has now been permanently removed.<br>
-            <a name=begins></a>
+            The <span class="illegal">match_from</span>() routine is deprecated and in fact now completely and permanently removed, simply 
+            use match() with the optional third parameter instead.
+            <br><a name=begins></a>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Auxillary Functions</b>
+          <b>Auxiliary Functions</b>
          </td>
          <td>
-            <a href="integer.htm#bool">bool</a> res = <b>begins</b>(<a href="object.htm">object</a> sub_text,
-                                                                    <a href="sequence.htm">sequence</a> full_text)<br>
-            <a href="integer.htm#bool">bool</a> res = <b>ends</b>(<a href="object.htm">object</a> sub_text,
-                                                                  <a href="sequence.htm">sequence</a> full_text)
+            <a href>bool</a> res = <b>begins</b>(<a href>object</a> sub_text,
+                                                    <a href>sequence</a> full_text,
+                                                    <a href>integer</a> start=1)<br>
+
+            <a href>bool</a> res = <b>ends</b>(<a href>object</a> sub_text,
+                                                  <a href>sequence</a> full_text,
+                                                  <a href>integer</a> endx=<a href>length</a>(full_text))
             <br>
             <br>
             While sub_text can be a string or character, as per examples below, and it may be easier to think of it in that way,
-            there is nothing wrong with say <code>begins({{2,2}},factor_set)</code> where factor_set could be something like
-            <code>{{2},{2,2},{2,2,1},{3,2}}</code>.
+            there is nothing wrong with say <code>begins({{2,2}},{{2,2},{3,2},{7,1}})</code> <small>(which yields true)</small>,
+            however note that while <code>begins('a',"ab")</code> <i>and</i> <code>begins("a","ab")</code> both yield true,
+            <code>begins({2,2},{{2,2},{3,2},{7,1}})</code> results in false, for much the same reasons that 
+            <code>"ab"=={'a','b'}</code> but <code>"ab"!={"a","b"}</code>, namely there being no <i>slice</i> of
+            <code>{{2,2},{3,2},{7,1}}</code> which is {2,2}, and/or these routines handling atom first args specially.
             <br>
             <br>
-            Note that an empty sequence/string is automatically deemed to not begin/end with <i>anything</i>, whereas a non-empty 
-            one <i>is</i> deemed to begin/end with (both) {}/"", that is when asked such silly questions.
+            Code such as <code>match(word,txt)=1</code> is going to slog through a long txt before returning (say 21573, or 0) and 
+            may as an obvious consequence be literally thousands of times slower than <code>begins(word,txt)</code>.
+<!--
+            <br>
+            <br>
+            The start/end may be overidden as above (endx havbing the same meaning/behaviour as rmatch()&apos;s start).
+-->
+<!-- (now checks 1st char if internal slice/length(sub_text) >= 50)
+, albeit neither 
+            routine makes anything but the tiniest attempt to avoid a potentially pricey internal slice of large length(sub_text).
+-->
+<!--? and hence (say) "begins(50) and begins(950,..+50)" may be faster than a single "begins(1000)"... -->
+            <br>
+            <br>
+<!--
+            Note that a length-0 full_text is deemed to not begin/end with <i>anything</i>, whereas a non-empty one yields
+            <i><a href>true</a></i> when sub_text is {} or "" <small>(aka ask a silly question...)</small>.
+-->
+            Note that a sub_text of {} or "" always yields <i><a href>true</a></i> <small>(aka ask a silly question...)</small>.
          </td>
         </tr>
         <tr>
@@ -101,28 +136,24 @@
          </td>
          <td>
 <!--eucode>
-integer location = match("hi", "Phix") -- location is set to 2
-location = match("the", "the cat sat on the mat", 4)
--- location is set to 16, not 1, because a start index of 4 was specified
-location = rmatch("the", "the dog ate the steak from the table.")
--- location is set to 28 (3rd 'the')
-location = rmatch("the", "the dog ate the steak from the table.", -11)
--- location is set to 13 (2nd 'the')
-?begins("abc", "abcdef") -- 1 (true)
-?begins("bcd", "abcdef") -- 0 (false)
-?begins('c', "cat")      -- 1 (true)
+?match("hi","Phix") -- 2
+?match("the","the cat sat on the mat", 4) -- 16 (not 1)
+?rmatch("the","the dog ate the steak from the table.") -- 28
+?rmatch("the","the dog ate the steak from the table.", -11) -- 13
+?begins("abc","abcdef") -- 1 (true)
+?begins("bcd","abcdef") -- 0 (false)
+?begins("bcd","abcdef",2) -- 1 (true)
+?begins('c',"catamaran")  -- 1 (true)
 </eucode-->
 <pre>
-<font color="#004080">integer</font><font color="#000000"> location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"hi"</font><font color="#0000FF">,</font><font color="#008000"> "Phix"</font><font color="#0000FF">)</font><font color="#000080"><i> -- location is set to 2</i></font>
-<font color="#000000">location</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000"> "the cat sat on the mat"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)</font>
-<font color="#000080"><i>-- location is set to 16, not 1, because a start index of 4 was specified</i></font>
-<font color="#000000">location</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000"> "the dog ate the steak from the table."</font><font color="#0000FF">)</font>
-<font color="#000080"><i>-- location is set to 28 (3rd &rsquo;the&rsquo;)</i></font>
-<font color="#000000">location</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000"> "the dog ate the steak from the table."</font><font color="#0000FF">, -</font><font color="#000000">11</font><font color="#0000FF">)</font>
-<font color="#000080"><i>-- location is set to 13 (2nd &rsquo;the&rsquo;)</i></font>
-<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#008000"> "abcdef"</font><font color="#0000FF">)</font><font color="#000080"><i> -- 1 (true)</i></font>
-<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">"bcd"</font><font color="#0000FF">,</font><font color="#008000"> "abcdef"</font><font color="#0000FF">)</font><font color="#000080"><i> -- 0 (false)</i></font>
-<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">&rsquo;c&rsquo;</font><font color="#0000FF">,</font><font color="#008000"> "cat"</font><font color="#0000FF">)     </font><font color="#000080"><i> -- 1 (true)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">match</font><font color="#0000FF">(</font><font color="#008000">"hi"</font><font color="#0000FF">,</font><font color="#008000">"Phix"</font><font color="#0000FF">)</font><font color="#000080"><i> -- 2</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">match</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000">"the cat sat on the mat"</font><font color="#0000FF">,</font><font color="#000000"> 4</font><font color="#0000FF">)</font><font color="#000080"><i> -- 16 (not 1)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000">"the dog ate the steak from the table."</font><font color="#0000FF">)</font><font color="#000080"><i> -- 28</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">rmatch</font><font color="#0000FF">(</font><font color="#008000">"the"</font><font color="#0000FF">,</font><font color="#008000">"the dog ate the steak from the table."</font><font color="#0000FF">, -</font><font color="#000000">11</font><font color="#0000FF">)</font><font color="#000080"><i> -- 13</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">"abc"</font><font color="#0000FF">,</font><font color="#008000">"abcdef"</font><font color="#0000FF">)</font><font color="#000080"><i> -- 1 (true)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">"bcd"</font><font color="#0000FF">,</font><font color="#008000">"abcdef"</font><font color="#0000FF">)</font><font color="#000080"><i> -- 0 (false)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">"bcd"</font><font color="#0000FF">,</font><font color="#008000">"abcdef"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)</font><font color="#000080"><i> -- 1 (true)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">begins</font><font color="#0000FF">(</font><font color="#008000">&apos;c&apos;</font><font color="#0000FF">,</font><font color="#008000">"catamaran"</font><font color="#0000FF">) </font><font color="#000080"><i> -- 1 (true)</i></font>
 </pre>
          </td>
         </tr>
@@ -148,26 +179,28 @@ line = line[1..match("--",line)-1]  -- remove comment
           <b>Example 3:</b>
          </td>
          <td>
-            The following illustrates the correct use of the start parameter for match() and rmatch():
+            The following illustrates the correct use of the start/endx parameter for match() and rmatch():
+            <br>
+            <br>
 <!--eucode>
 string mm = "tatatatatat"
 integer tt = 1
 sequence mr = {"fwd"}
-while 1 do
+while true do
     tt = match("tat",mm,tt)
     mr = append(mr,tt)
     if tt=0 then exit end if
---  tt += 1
-    tt += 3
+--  tt += 1 -- overlapping
+    tt += 3 -- non-overlapping
 end while
 mr = append(mr,"rev")
 tt = length(mm)
-while 1 do
+while true do
     tt = rmatch("tat",mm,tt)
     mr = append(mr,tt)
     if tt=0 then exit end if
---  tt -= 1
-    tt = max(tt-3,0)
+--  tt -= 1 -- overlapping
+    tt = max(tt-3,0) -- not
 end while
 ?mr -- output:
     -- +/-1: {"fwd",1,3,5,7,9,0,"rev",9,7,5,3,1,0}
@@ -177,21 +210,21 @@ end while
 <font color="#004080">string</font><font color="#000000"> mm</font><font color="#0000FF"> =</font><font color="#008000"> "tatatatatat"</font>
 <font color="#004080">integer</font><font color="#000000"> tt</font><font color="#0000FF"> =</font><font color="#000000"> 1</font>
 <font color="#004080">sequence</font><font color="#000000"> mr</font><font color="#0000FF"> = {</font><font color="#008000">"fwd"</font><font color="#0000FF">}</font>
-<font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do</font>
+<font color="#008080">while</font><font color="#004600"> true</font><font color="#008080"> do</font>
 <font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> match</font><font color="#0000FF">(</font><font color="#008000">"tat"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)</font>
 <font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)</font>
 <font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if</font>
-<font color="#000080"><i>--  tt += 1</i></font>
-<font color="#000000">    tt</font><font color="#0000FF"> +=</font><font color="#000000"> 3</font>
+<font color="#000080"><i>--  tt += 1 -- overlapping</i></font>
+<font color="#000000">    tt</font><font color="#0000FF"> +=</font><font color="#000000"> 3</font><font color="#000080"><i> -- non-overlapping</i></font>
 <font color="#008080">end while</font>
 <font color="#000000">mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#008000">"rev"</font><font color="#0000FF">)</font>
 <font color="#000000">tt</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">mm</font><font color="#0000FF">)</font>
-<font color="#008080">while</font><font color="#000000"> 1</font><font color="#008080"> do</font>
+<font color="#008080">while</font><font color="#004600"> true</font><font color="#008080"> do</font>
 <font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> rmatch</font><font color="#0000FF">(</font><font color="#008000">"tat"</font><font color="#0000FF">,</font><font color="#000000">mm</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)</font>
 <font color="#000000">    mr</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">mr</font><font color="#0000FF">,</font><font color="#000000">tt</font><font color="#0000FF">)</font>
 <font color="#008080">    if</font><font color="#000000"> tt</font><font color="#0000FF">=</font><font color="#000000">0</font><font color="#008080"> then exit end if</font>
-<font color="#000080"><i>--  tt -= 1</i></font>
-<font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> max</font><font color="#0000FF">(</font><font color="#000000">tt</font><font color="#0000FF">-</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--  tt -= 1 -- overlapping</i></font>
+<font color="#000000">    tt</font><font color="#0000FF"> =</font><font color="#7060A8"> max</font><font color="#0000FF">(</font><font color="#000000">tt</font><font color="#0000FF">-</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">)</font><font color="#000080"><i> -- not</i></font>
 <font color="#008080">end while</font>
 <font color="#0000FF">?</font><font color="#000000">mr</font><font color="#000080"><i> -- output:
     -- +/-1: {"fwd",1,3,5,7,9,0,"rev",9,7,5,3,1,0}
@@ -199,6 +232,14 @@ end while
 </pre>
             <br>
             Adjusting tt by +/-1 will find overlapping matches, +/-3 [ie length("tat")] non-overlapping ones.
+            <br>
+            <br>
+            Note that while it is fine to let start run past the end of haystack when using match(), an additional guard may be needed for
+            rmatch() to prevent endx going negative. <small>[There is a very strong probability it would start retreading what you&apos;ve 
+            already done in an infinite loop, and trying to use negative subscripts all along (relying on flying past -length being ok, 
+            which technically it would be) does not really help since rmatch() always returns &gt;=0. You could of course replace the 
+            (second) <code>while true do</code> with <code>while tt>0 do</code> instead of the max() call.]</small>
+            <br>
          </td>
         </tr>
         <tr>
@@ -214,14 +255,14 @@ end while
           <b>See Also:</b>
          </td>
          <td>
-          <a href="find.htm">find</a>,
-          <a href="compare.htm">compare</a>,
-          <a href="wildcard_match.htm">wildcard_match</a>,
-          <a href="match_replace.htm">match_replace</a>
+          <a href>find</a>,
+          <a href>compare</a>,
+          <a href>wildcard_match</a>,
+          <a href>match_replace</a>
          </td>
         </tr>
        </table>
-       <br>
+       <div style="clear:both;height:1px;"> </div>
        <br>
       </div>
      </stripped>

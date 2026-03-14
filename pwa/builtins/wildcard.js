@@ -49,7 +49,7 @@ function $qmatch(/*sequence*/ p, /*sequence*/ s) {
         if (k!==0) { return i; }
     }
     return 0;
-}
+} $qmatch.$sig="FPP";
 const $END_MARKER = -1;
 
 /*global*/ function wildcard_match(/*sequence*/ pattern, /*sequence*/ str) {
@@ -102,8 +102,7 @@ const $END_MARKER = -1;
         }
     }
     return 0;
-}
-let is_match = wildcard_match;
+} wildcard_match.$sig="FPP"; let is_match = wildcard_match;
 
 /*global*/ function wildcard_file(/*sequence*/ pattern, /*sequence*/ filename) {
 // Return 1 (TRUE) if filename matches the wild card pattern.
@@ -121,4 +120,4 @@ let is_match = wildcard_match;
         filename = $conCat(filename, 0X2E, false);
     }
     return wildcard_match(pattern,filename);
-}
+} wildcard_file.$sig="FPP";

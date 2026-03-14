@@ -265,7 +265,7 @@ function $spurge() {
         $ppp_result = $conCat($ppp_result, $subss($pline,1,$plen), false);
     }
     $plen = 0;
-}
+} $spurge.$sig="P";
 //integer dieonceonly
 //      dieonceonly=1
 
@@ -302,7 +302,7 @@ function $sput(/*object*/ txt) {
             }
         }
     }
-}
+} $sput.$sig="PO";
 let /*sequence*/ $escBytes, $escChars;
 //constant $escBytes = "\t\n\r\\\"\'",
 //       $escChars = "tnr\\\"\'"
@@ -315,7 +315,7 @@ function $graphic(/*object*/ cl) {
         return 1;
     }
     return 0;
-}
+} $graphic.$sig="FO";
 /*without warning*/ // suppress short-circuit warning
 let /*integer*/ $cl1q = 0; // cl[1] was '"'
 let /*integer*/ $cllq = 0; // cl[-1] was '"'
@@ -532,7 +532,7 @@ function $prnf(/*object*/ cl, /*integer*/ col, /*integer*/ indent, /*integer*/ p
     }
     if (prnt) { $sput(txt); }
     return length(txt);
-}
+} $prnf.$sig="FOIIII";
 /*with warning*/ function $setAscii() {
     $ascii = repeat(0,255);
     if (!equal(length($ppp_Ascii),2)) { crash("length($ascii) must be 2",{},4); }
@@ -547,7 +547,7 @@ function $prnf(/*object*/ cl, /*integer*/ col, /*integer*/ indent, /*integer*/ p
     for (let i=1, i$lim=length($escBytes); i<=i$lim; i+=1) {
         $ascii = $repe($ascii,$subse($escBytes,i),1);
     }
-}
+} $setAscii.$sig="P";
 function $pp_Init() {
     $ppp_Nest = 0;
 //simplified 24/11/16:
@@ -570,7 +570,7 @@ function $pp_Init() {
     $constants = ["sequence",-1.295837195871e307,"NOVALUE"];
     $setAscii();
     $ppp_Init = 1;
-}
+} $pp_Init.$sig="P";
 function $setOpt(/*sequence*/ options) {
     let /*integer*/ f, ip1, flvl = 4;
     let /*object*/ tmp;
@@ -635,7 +635,7 @@ function $setOpt(/*sequence*/ options) {
         }
     }
     return options;
-}
+} $setOpt.$sig="FP";
 
 /*global*/ function ppOpt(/*sequence*/ options) {
 // Permanently (or until next ppOpt call) change selected formatting options.
@@ -686,7 +686,7 @@ function $setOpt(/*sequence*/ options) {
 //   eg ppOpt({pp_StrFmt,0,pp_Nest,2})
 //
     options = $setOpt(options);
-}
+} ppOpt.$sig="PP";
 // internal, so that pp() and ppEx() have same nesting/fatal error level:
 function $pp_Ex(/*object*/ o, /*sequence*/ options) {
 // pretty print object with selected options (as per ppOpt)
@@ -705,19 +705,19 @@ function $pp_Ex(/*object*/ o, /*sequence*/ options) {
         $spurge();
     }
     options = $setOpt(options); // restore
-}
+} $pp_Ex.$sig="POP";
 
 /*global*/ function ppEx(/*object*/ o, /*sequence*/ options) {
 // pretty print object with selected options (as per ppOpt)
 // The previous pretty_print options are restored on exit.
     $pp_Ex(o,options);
-}
+} ppEx.$sig="POP";
 
 /*global*/ function pp(/*object*/ o, /*sequence*/ options=["sequence"]) {
 // pretty print
 // For options see ppEx, ppOpt, and ppExf
     $pp_Ex(o,options);
-}
+} pp.$sig="POP,1";
 
 /*global*/ function ppExf(/*object*/ o, /*sequence*/ options) {
 // return object pretty printed, with options (as per ppOpt)
@@ -743,12 +743,12 @@ function $pp_Ex(/*object*/ o, /*sequence*/ options) {
         $ppp_File = was_pp_File;
     }
     return $ppp_result;
-}
+} ppExf.$sig="FOP";
 
 /*global*/ function ppf(/*object*/ o, /*sequence*/ options=["sequence"]) {
 // return object pretty printed (with embedded \n), no trailing \n
     return ppExf(o,options);
-}
+} ppf.$sig="FOP,1";
 //sequence s 
 //s={{{"blue", "red"}, {"cyan", "white"}},
 //   {{"blue", "red"}, {"cyan", "white"}}}

@@ -40,7 +40,7 @@
 //6/4/24...
 //  n = and_bits(n, 0xFFFFFFFF)
     return n;
-}
+} shift_bits.$sig="FOI";
 
 /*global*/ function count_bits(/*object*/ n, /*integer*/ nFrames=2) {
     if (sequence(n)) {
@@ -75,6 +75,7 @@
 //      end if
 //javascript compatibility... (now fixed, but it's a better test anyway)
 //      while not integer(n) and n!=0 do
+//DEV (sip/tested) does NOT go wrong on 64-bit cos and_bits() is strictly 32-bit!
         while (compare(n,((equal(machine_bits(),32)) ? 0x3FFFFFFF : 0x4000000000000000))>0) {
 //          res += and_bits(n,1)
             res += odd(n);
@@ -94,4 +95,4 @@
         }
     }
     return res;
-}
+} count_bits.$sig="FOI,1";
