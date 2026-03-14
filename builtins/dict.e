@@ -173,24 +173,28 @@ global procedure setd_default(object o, integer tid)
     defaults[tid] = o
 end procedure
 
-function getNode(integer node, object key, dflt, integer tid)
+local function getNode(integer node, object key, dflt, integer tid, bool nullify=false)
     while node!=NULL do
         integer c = compare(key,trees[tid][node+KEY])
-        if c=0 then return trees[tid][node+DATA] end if
+        if c=0 then
+            object res = trees[tid][node+DATA]
+            if nullify then trees[tid][node+DATA] = NULL end if
+            return res
+        end if
         integer direction = HEIGHT+c    -- LEFT or RIGHT
         node = trees[tid][node+direction]
     end while
     return dflt
 end function
 
-global function getd(object key, integer tid=1)
+global function getd(object key, integer tid=1, bool nullify=false)
     check_tid(tid)
-    return getNode(roots[tid], key, defaults[tid], tid)
+    return getNode(roots[tid], key, defaults[tid], tid, nullify)
 end function
 
-global function getdd(object key, dflt, integer tid=1)
+global function getdd(object key, dflt, integer tid=1, bool nullify=false)
     check_tid(tid)
-    return getNode(roots[tid], key, dflt, tid)
+    return getNode(roots[tid], key, dflt, tid, nullify)
 end function
 
 function getKey(integer node, object key, integer tid)
@@ -208,10 +212,12 @@ global function getd_index(object key, integer tid=1)
     return getKey(roots[tid], key, tid)
 end function
 
-global function getd_by_index(integer node, integer tid=1)
+global function getd_by_index(integer node, integer tid=1, bool nullify=false)
     check_tid(tid)
     if node=0 then return 0 end if
-    return trees[tid][node+DATA]
+    object res = trees[tid][node+DATA]
+    if nullify then trees[tid][node+DATA] = NULL end if
+    return res
 end function
 
 function minValueNode(integer node, tid, direction)
