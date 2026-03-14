@@ -42,4 +42,6 @@ global function binary_search(object needle, sequence haystack, integer lo=1, hi
     return -mid         -- where it would go, if inserted now
 end function
 
-
+global function binary_index(object needle, sequence haystack, integer lo=1, hi=-1, fn=0)
+    return abs(binary_search(needle, haystack, lo, hi, fn))
+end function

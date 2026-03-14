@@ -5,7 +5,8 @@
 
 global function log10(atom n)
 --Added 26/9/22:
-    if integer(n) and n>0 then
+--  if integer(n) and n>0 then
+    if n>0 and n!=n-1 and n=floor(n) then
         -- (sadly not quite as efficient as log2)   
         atom t = 1, r = 0
         while t<=n do
@@ -14,12 +15,14 @@ global function log10(atom n)
             r += 1
         end while
     end if
-    return log(n) * INVLN10
+--  return log(n) * INVLN10
+    return log(n) * 0.43429448190325182765
 end function
 
 global function log2(atom n)
 --Added 26/9/22:
-    if integer(n) and n>0 
+--  if integer(n) and n>0 
+    if n>0 and n!=n-1 and n=floor(n)
     and and_bits(n,n-1)=0 then -- "if Kernigans bit counter would yield 1"
         -- KBC says and_bits(xxx1{0},xxx0{1}) is xxx0{0}, ie
         -- least significant set bit is cleared - clever, eh?

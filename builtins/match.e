@@ -22,17 +22,20 @@ global function match(object needle, sequence haystack, integer start=1, bool ca
     if atom(needle) then
         return find(needle,haystack,start)
     end if
+--19/12/24(!!)
+    integer nl = length(needle),
+            hl = length(haystack)
+    if start<0 then start += hl+1 end if
     if not case_sensitive then
         needle = lower(needle)
         haystack = lower(haystack)
     end if
-    integer res = start,
-             nl = length(needle),
-             hl = length(haystack)
+    integer res = start
     -- This line is also not Euphoria compliant
     --  (Euphoria gives error "first argument of match() must be a non-empty sequence")
-    if nl=0 then return 0 end if
-    if start<1 then return 0 end if
+--  if nl=0 then return 0 end if
+--  if start<1 then return 0 end if
+    if nl=0 or start<1 then return 0 end if
     while res+nl-1<=hl do
         for i=1 to nl do
             integer hdx = i+res-1
@@ -80,24 +83,24 @@ global function match(object needle, sequence haystack, integer start=1, bool ca
     return 0
 end function
 
-global function rmatch(object needle, sequence haystack, integer start=length(haystack), bool case_sensitive=true)
+global function rmatch(object needle, sequence haystack, integer endx=length(haystack), bool case_sensitive=true)
 --
 -- Try to match a needle against some slice of a haystack in reverse order.
--- Return the element number of haystack where the (last<=start) matching slice begins, else 0.  
+-- Return the element number of haystack where the (last<=endx) matching slice begins, else 0.  
 --
     -- This line, and first parameter being object not sequence, is not Euphoria compliant.
     --  (Euphoria gives error "first argument of match() must be a sequence")
     if atom(needle) then
-        return rfind(needle,haystack,start)
+        return rfind(needle,haystack,endx)
     end if
 
     integer nl = length(needle),
             hl = length(haystack)
 
     if nl=0
-    or start=0
-    or start>hl
-    or hl+start<1 then
+    or endx=0
+    or endx>hl
+    or hl+endx<1 then
         return 0
     end if
 
@@ -106,15 +109,15 @@ global function rmatch(object needle, sequence haystack, integer start=length(ha
         haystack = lower(haystack)
     end if
 
-    if start<1 then
-        start = hl+start
+    if endx<1 then
+        endx = hl+endx
     end if
 
-    if start+nl-1>hl then
-        start = hl-nl+1
+    if endx+nl-1>hl then
+        endx = hl-nl+1
     end if
 
-    for i=start to 1 by -1 do
+    for i=endx to 1 by -1 do
         for j=1 to nl do
             if needle[j]!=haystack[i+j-1] then exit end if  
             if j=nl then return i end if
@@ -142,25 +145,37 @@ global function match_all(object needle, sequence haystack, integer start=1, boo
     return res
 end function
 
-global function begins(object sub_text, sequence full_text)
+global function begins(object sub_text, sequence full_text, integer start=1)
     integer lf = length(full_text)
-    if lf=0 then return false end if
+--  if lf=0 then return false end if
+    if start<0 then start += lf+1 end if
     if atom(sub_text) then
         -- eg begins('c',"cat") -> true.
-        return sub_text==full_text[1]
+        return sub_text==full_text[start]
     end if
-    integer ls = length(sub_text)
-    return ls<=lf and sub_text==full_text[1..ls]
+    integer ls = length(sub_text),
+            endx = start+ls-1
+    return endx<=lf 
+       and (ls<50 or sub_text[1]=full_text[start]) -- (skip some long slices)
+       and sub_text==full_text[start..endx]
 end function
 
-global function ends(object sub_text, sequence full_text)
+--global function ends(object sub_text, sequence full_text, integer lf=length(full_text))
+global function ends(object sub_text, sequence full_text, integer endx=-1)
     integer lf = length(full_text)
-    if lf=0 then return false end if
+--  if lf=0 then return false end if
+    if endx<0 then endx += lf+1 end if
     if atom(sub_text) then
         -- eg ends('t',"cat") -> true.
-        return sub_text==full_text[$]
+        return sub_text==full_text[endx]
     end if
+--  integer ls = lf-length(sub_text)+1
+--  return ls<=lf and sub_text==full_text[ls..lf]
+--  return ls>0 and sub_text==full_text[ls..lf]
     integer ls = length(sub_text)
-    return ls<=lf and sub_text==full_text[-ls..-1]
+    return ls<=endx
+       and (ls<50 or sub_text[1]=full_text[-ls]) -- (skip some long slices)
+       and sub_text==full_text[-ls..endx]
+--  return ls<=lf and sub_text==full_text[-ls..-1]
 end function
 

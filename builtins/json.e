@@ -117,7 +117,18 @@ function pj_rec(object fn, object o, integer indent=0, bool addcomma=false)
     if atom(o) then
         fn = pj_print(fn,"%.10g",{o})
     elsif string(o) then
-        fn = pj_print(fn,`"%s"`,{o})
+-- 19/1/25 auto-escape double quotes when needed:
+--      fn = pj_print(fn,`"%s"`,{o})
+        string o2 = ""
+        integer prev = 0
+        for ch in o do
+            if ch='"' and prev!='\\' then
+                o2 &= '\\'
+            end if
+            o2 &= ch
+            prev = ch
+        end for
+        fn = pj_print(fn,`"%s"`,{o2})
     else
         integer len = length(o)
         integer o1 = JSON_INVALID

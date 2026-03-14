@@ -135,7 +135,9 @@ global constant
   CURLE_RANGE_ERROR              = 33,  -- 33 - RANGE "command" didn't work
                                               -- (was CURLE_HTTP_RANGE_ERROR)
   CURLE_HTTP_POST_ERROR          = 34,  -- 34
+--*/
   CURLE_SSL_CONNECT_ERROR        = 35,  -- 35 - wrong when connecting with SSL
+--/*
   CURLE_BAD_DOWNLOAD_RESUME      = 36,  -- 36 - couldn't resume download
   CURLE_FILE_COULDNT_READ_FILE   = 37,  -- 37
   CURLE_LDAP_CANNOT_BIND         = 38,  -- 38

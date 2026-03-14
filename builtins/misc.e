@@ -35,8 +35,7 @@ end procedure
 --*/
 
 global function reverse(sequence s)
--- reverse the top-level elements of a sequence.
--- Thanks to Hawke' for helping to make this run faster.
+    -- reverse the top-level elements of a sequence.
     integer l = length(s)
     sequence r = repeat(iff(string(s)?' ':0),l)
     -- aside: midpoint written twice for odd-length s
@@ -316,4 +315,9 @@ global function arcsin(trig_range x)
     return 2*arctan(x/(1.0+sqrt(1.0-x*x)))
 end function
 
+--/* maybe?
+--function sinh(atom x) return (exp(x)-exp(-x))/2 end function
+--function cosh(atom x) return (exp(x)+exp(-x))/2 end function
+--function tanh(atom x) return sinh(x)/cosh(x)  end function
+---*/
 

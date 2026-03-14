@@ -837,6 +837,7 @@ procedure init_cffi()
                                          {"HHOOK",          as_ptr},
                                          {"HICON",          as_ptr},
                                          {"HCURSOR",        as_ptr},
+                                         {"HIMAGELIST",     as_ptr},
                                          {"HINSTANCE",      as_ptr},
                                          {"HKEY",           as_ptr},
                                          {"HKL",            as_ptr},
@@ -1000,6 +1001,7 @@ procedure init_cffi()
                                          {"GdkEventType",   as_long},
                                          {"GdkCrossingMode",as_int},
                                          {"GdkNotifyType",  as_int},
+                                         {"GdkWindowState", as_int},
                                          {"gboolean",       as_int},
 --                                       {"gint8",          as_char},
 --                                       {"guint32",        as_uint},
@@ -1209,7 +1211,7 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
 end procedure
 
 --DEV 17/4/23 (!!) bAsFlt is a total fudge, this should already know all about that, maybe just use -ve sizes?.
---                  If you do fix this, may I suggest you first test xpGUI.e is getting bAsFlt correct, before ripping it out (from both).
+--                  If you do fix this, may I suggest you first test theGUI.e is getting bAsFlt correct, before ripping it out (from both).
 --global function get_struct_field(integer id, atom pStruct, string fieldname)
 global function get_struct_field(integer id, atom pStruct, atom_string field, bool bAsFlt=false)
     if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
@@ -1222,7 +1224,10 @@ global function get_struct_field(integer id, atom pStruct, atom_string field, bo
 --  k = find(fieldname,membernames)
     integer k = iff(string(field)?find(field,membernames):field)
     integer {?,size,offset,signed} = details[k]
-    if bAsFlt then
+--22/6/25: (make a start on using those we know)
+    string field_type = details[k][1]
+--  if bAsFlt then
+    if bAsFlt or find(field_type,{"double","gdouble"}) then
         sequence f4or8 = peek({pStruct+offset,size})
         return iff(size=4?float32_to_atom(f4or8):float64_to_atom(f4or8))
     end if

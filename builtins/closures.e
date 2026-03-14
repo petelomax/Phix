@@ -20,6 +20,7 @@ global type lambda(object l)
 end type
 
 local procedure cl_free(lambda clid)
+--?{"cl_free",clid}
     integer ci = clid[1]
     captures[ci] = 0
     clrid[ci] = cl_freelist

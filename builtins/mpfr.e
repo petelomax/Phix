@@ -122,7 +122,7 @@ end type
 
 --3/10/22 ("global" commented out, only cos it should be)
 --global 
-type randstate(object o)
+local type randstate(object o)
     if not atom(o) then return false end if
     if debug_types and o!=NULL then
         try
@@ -244,7 +244,13 @@ if mpfr_dll!=NULL then ?9/0 end if
             dll_name = substitute(dll_name,"gmp-10","mpfr-6")
 --if platform()=WINDOWS then assert(chdir(dll_path)) end if
 --          mpfr_dll = open_dll(dll_name,false)
-            mpfr_dll = open_dll(join_path({dll_path,dll_name}),false)
+--65/8/24:
+--          mpfr_dll = open_dll(join_path({dll_path,dll_name}),false)
+            if begins(dll_path,dll_name) then
+                mpfr_dll = open_dll(dll_name,false)
+            else
+                mpfr_dll = open_dll(join_path({dll_path,dll_name}),false)
+            end if
 --if platform()=WINDOWS then assert(chdir(curr_dir)) end if
 --          if mpfr_dll=NULL then ?9/0 end if
             if mpfr_dll=NULL then ?current_dir() ?9/0 end if
@@ -299,7 +305,7 @@ global function mpir_open_dll(string dll_name="", boolean mpir_only=false)
 end function
 
 integer x_mpfr_get_version = NULL   -- (aka mpfr_version)
-atom --p_mpir_version = NULL,
+atom p_mpir_version = NULL,
      p_gmp_version = NULL
 
 global function mpir_get_versions(boolean bAsNumSeq=false)
@@ -325,14 +331,18 @@ global function mpir_get_versions(boolean bAsNumSeq=false)
         if mpfr_dll!=NULL then
             x_mpfr_get_version = define_c_func(mpfr_dll, "+mpfr_get_version", {}, P)
         end if
---      p_mpir_version = define_c_var(mpir_dll, "__mpir_version")
+        p_mpir_version = define_c_var(mpir_dll, "__mpir_version")
         p_gmp_version = define_c_var(mpir_dll, "__gmp_version")
     end if
     sequence res = {iff(mpfr_dll==NULL?"mpfr_dll==NULL":peek_string(c_func(x_mpfr_get_version,{}))),
 --29/4/19:
 --                  peek_string(peek4u(p_mpir_version)),
 --iff(p_mpir_version=NULL?"p_mpir_version==NULL":
---                  peek_string(peekNS(p_mpir_version,W,0))),
+--                  peek_string(peekNS(p_mpir_version,W,0)),
+--p_mpir_version,
+                    -- aside: the "00" is so you can tell it's not real
+                    iff(p_mpir_version=NULL?"3.0.00":
+                    peek_string(peekNS(p_mpir_version,W,0))),
 --                  peek_string(peek4u(p_gmp_version))}
                     peek_string(peekNS(p_gmp_version,W,0))}
     if bAsNumSeq then
@@ -1889,37 +1899,6 @@ global function mpz_get_short_str(mpz op, integer ml=20, base=10, boolean comma_
     return res
 end function
 
---DEV to go*6... (3/10/22 no, I'm still using them...)
-
---11/1/23 mpz_prime_mr() is now the new mpz_prime() [performance of the dll one fell off a cliff]
---integer x_mpz_probable_prime_p = NULL
---
---function mpz_probable_prime_p_(mpz n, randstate state, integer prob=5, div=0)
-----
----- Determine whether n is a probable prime with the chance of error being at most 1 in 2^prob.
----- return value is 1 if n is probably prime, or 0 if n is definitely composite.
----- This function does some trial divisions to speed up the average case, then some probabilistic
----- primality tests to achieve the desired level of error.
----- div can be used to inform the function that trial division up to div has already been performed
----- on n and so n has NO divisors <= div. Use 0 to inform the function that no trial division has
----- been done.
----- This function interface is preliminary and may change in the future.
-----
----- The variable state must be initialized by calling one of the gmp_randinit functions
-----
---  if n=NULL then ?9/0 end if
---  if state=NULL then ?9/0 end if
---  if prob<=0 then ?9/0 end if
---  if div<0 then ?9/0 end if
---  if x_mpz_probable_prime_p=NULL then
-----18/10/22...
-----        x_mpz_probable_prime_p = define_c_func(mpir_dll, "+__gmpz_probable_prime_p", {P,P,I,I}, I)
---      x_mpz_probable_prime_p = define_c_func(mpir_dll, "+__gmpz_probab_prime_p", {P,P,I,I}, I)
---  end if
---  integer res = c_func(x_mpz_probable_prime_p,{n,state,prob,div})
---  return res
---end function
-
 integer x_gmp_randseed = NULL
 
 procedure gmp_randseed_(randstate state, atom mpz_seed=NULL)
@@ -2046,6 +2025,7 @@ global function mpz_prime(mpz p, integer k = 10)
     sequence primes = {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47}
     if mpz_cmp_si(p,primes[$])<=0 then
         return find(mpz_get_integer(p),primes)!=0
+--      return is_prime(mpz_get_integer(p))
     end if
     if modp47=NULL then
         modp47 = mpz_init("614_889_782_588_491_410") -- === product(primes), largest < 2^64
@@ -2137,9 +2117,121 @@ global function mpz_prime(mpz p, integer k = 10)
                 if mpz_even(s) then return false end if
             end if
         end if
-      end for
-      return true
+    end for
+    return true
 end function
+
+--randstate prime_state = NULL
+--DEV to go*6... (3/10/22 no, I'm still using them...)
+
+--11/1/23 mpz_prime_mr() is now the new mpz_prime() [performance of the dll one fell off a cliff]
+--integer x_mpz_probable_prime_p = NULL
+integer x_mpz_probab_prime_p = NULL
+
+--function mpz_probable_prime_p_(mpz n, randstate state, integer prob=5, div=0)
+--global function mpz_probable_prime_p(mpz n, integer prob=5, div=0)
+global function mpz_probab_prime_p(mpz n, integer reps=15)
+--
+-- Determine whether n is a probable prime with the chance of error being at most 1 in 2^prob.
+-- return value is 1 if n is probably prime, or 0 if n is definitely composite.
+-- This function does some trial divisions to speed up the average case, then some probabilistic
+-- primality tests to achieve the desired level of error.
+-- div can be used to inform the function that trial division up to div has already been performed
+-- on n and so n has NO divisors <= div. Use 0 to inform the function that no trial division has
+-- been done.
+-- This function interface is preliminary and may change in the future.
+--
+-- The variable state must be initialized by calling one of the gmp_randinit functions
+--
+    if n=NULL then ?9/0 end if
+    if reps<=0 then ?9/0 end if
+--  if div<0 then ?9/0 end if
+    if x_mpz_probab_prime_p=NULL then
+--18/10/22...
+--      x_mpz_probable_prime_p = define_c_func(mpir_dll, "+__gmpz_probable_prime_p", {P,P,I,I}, I)
+        x_mpz_probab_prime_p = define_c_func(mpir_dll, "+__gmpz_probab_prime_p", {P,I}, I)
+--N/A, 508 (0x000001fc), __gmpz_probab_prime_p, 0x00001726, None
+--N/A, 509 (0x000001fd), __gmpz_probable_prime_p, 0x000010ff, None
+    end if
+--/*
+    if prime_state=NULL then
+        prime_state = gmp_randinit_mt_()
+--      atom prime_state = allocate(W*6)    -- (extra dword for MPZ_R)
+--      poke4(prime_state+5*W,MPZ_R)
+--      c_proc(x_gmp_randinit_mt,{prime_state})
+--      gmp_randseed_(prime_state)
+    end if
+--*/
+--  integer res = c_func(x_mpz_probable_prime_p,{n,prime_state,prob,div})
+    integer res = c_func(x_mpz_probab_prime_p,{n,min(reps,5000)})
+    return res
+end function
+
+-- won't link...
+--integer x_mpz_likely_prime_p = NULL
+----randstate prime_state = NULL
+--
+----function mpz_probable_prime_p_(mpz n, randstate state, integer prob=5, div=0)
+--global function mpz_likely_prime_p(mpz n, integer div=0)
+----
+---- Determine whether n is a probable prime with the chance of error being at most 1 in 2^prob.
+---- return value is 1 if n is probably prime, or 0 if n is definitely composite.
+---- This function does some trial divisions to speed up the average case, then some probabilistic
+---- primality tests to achieve the desired level of error.
+---- div can be used to inform the function that trial division up to div has already been performed
+---- on n and so n has NO divisors <= div. Use 0 to inform the function that no trial division has
+---- been done.
+---- This function interface is preliminary and may change in the future.
+----
+---- The variable state must be initialized by calling one of the gmp_randinit functions
+----
+--  if n=NULL then ?9/0 end if
+--  if div<0 then ?9/0 end if
+--  if x_mpz_likely_prime_p=NULL then
+----18/10/22...
+----        x_mpz_probable_prime_p = define_c_func(mpir_dll, "+__gmpz_probable_prime_p", {P,P,I,I}, I)
+--      x_mpz_likely_prime_p = define_c_func(mpir_dll, "+__gmpz_likely_prime_p", {P,P,I}, I)
+----                                    A, 478 (0x000001de), __gmpz_likely_prime_p, 0x00001c35, None
+--  end if
+--  if prime_state=NULL then
+--      prime_state = gmp_randinit_mt_()
+--  end if
+--  integer res = c_func(x_mpz_likely_prime_p,{n,prime_state,div})
+--  return res
+--end function
+
+--/* not js:
+mpz_probable_prime_p
+#include<iostream> // used for cout
+#include<mpir.h>
+
+int main() {
+
+    mpz_t PrimeCanidate;
+    mpz_init(PrimeCanidate);
+    mpz_set_ui(PrimeCanidate, 2);
+
+    mpz_t additor;
+    mpz_init(additor);
+    mpz_set_ui(additor, 1);
+
+    gmp_randstate_t state;
+    gmp_randinit_default(state);
+
+    mpir_ui div = 0;
+    
+    int maxbase = 100;
+    for (int base = 2; base < maxbase; base++) {
+        mpz_add(PrimeCanidate, PrimeCanidate, additor); // repeatedly adds one to PrimeCanidate
+        std::cout << "Tested Number: " << PrimeCanidate << std::endl;
+
+        if (mpz_likely_prime_p(PrimeCanidate, state, div) == 1) {
+            std::cout << PrimeCanidate << " is prime." << std::endl;
+        }
+    }
+}
+
+--*/
 
 --/*
 void mpz_nextprime (mpz t rop, mpz t op) [Function]
@@ -2547,19 +2639,23 @@ global function mpz_pollard_rho(mpz_or_string s, bool bAsStrings=false)
         --                           and prime_factors(1)==>{1})
         res = iff(c<0?{}:{{2,0}})
     else
+--DEV ChatGPT suggests:
+-- trial divide up to maybe 10,000
         while mpz_cmp_si(n,100_000_000)>0 
           and not mpz_prime(n) do
             mpz x = mpz_init(2),
                 y = mpz_init(2),
                 f = mpz_init(1)  -- factor
             integer size = 2
+--          c = 2*rand(127) + 1  -- odd
 --25/8/23: (no help, on repuint(180) anyway)
             while mpz_cmp_si(f,1)=0 do
 --          while mpz_cmp_si(f,1)=0 and size<=#20000000 do
 --          while mpz_cmp_si(f,1)=0 and size<=#2000 do -- (really bad idea!)
                 for count=1 to size do
                     mpz_mul(x,x,x)
-                    mpz_add_si(x,x,1)
+                    c = 2*rand(127) + 1  -- odd
+                    mpz_add_si(x,x,c)
                     mpz_mod(x,x,n)
                     mpz_sub(f,x,y)
                     mpz_abs(f,f)
@@ -2585,6 +2681,7 @@ global function mpz_pollard_rho(mpz_or_string s, bool bAsStrings=false)
 --?{"res",res}
     return res
 end function
+
 
 --/* other version...
 procedure g(mpz x, n)
@@ -2726,7 +2823,7 @@ global function mpz_factors(object s, object include1=0, bool bAsAtmStr=true, bS
             r1 = res
             res = {}
             integer r1dx = 1, lr1 = length(r1),
-                    r2dx = 1
+                    r2dx = 1, lr2 = length(r2)
             mpz p1 = r1[1],
                 q1 = r2[1]
             while true do
@@ -2738,10 +2835,15 @@ global function mpz_factors(object s, object include1=0, bool bAsAtmStr=true, bS
                 else
                     res &= q1
                     r2dx += 1
+                    if r2dx>lr2 then exit end if
                     q1 = r2[r2dx]
                 end if
             end while
-            res &= r2[r2dx..$]
+            if r1dx<=lr1 then
+                res &= r1[r1dx..$]
+            else
+                res &= r2[r2dx..$]
+            end if
         else
             res &= r2
         end if
@@ -3804,6 +3906,20 @@ global procedure mpfr_div_d(mpfr rop, op1, atom op2, rounding=default_rounding)
     c_proc(x_mpfr_div_d,{rop,op1,op2,rounding})
 end procedure
 
+integer x_mpfr_div_2si = NULL
+
+global procedure mpfr_div_2si(mpfr rop, op1, integer op2, rounding=default_rounding)
+-- Set rop to op1 divided by 2 raised to op2 rounded in the direction rnd. 
+-- Just decreases the exponent by op2 when rop and op1 are identical.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_div_2si=NULL then
+        x_mpfr_div_2si = define_c_proc(mpfr_dll, "+mpfr_div_2si", {P,P,I,I})
+    end if
+    c_proc(x_mpfr_div_2si,{rop,op1,op2,rounding})
+end procedure
+
 integer x_mpfr_si_div = NULL
 
 global procedure mpfr_si_div(mpfr rop, integer op1, mpfr op2, integer rounding=default_rounding)
@@ -4132,6 +4248,20 @@ if not find(res,{-1,0,+1}) then ?9/0 end if
     return res
 end function
 
+integer x_mpfr_cmpabs = NULL
+
+global function mpfr_cmpabs(mpfr op1, op2)
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpfr_cmpabs=NULL then
+        x_mpfr_cmpabs = define_c_func(mpfr_dll, "+mpfr_cmpabs", {P,P},I)
+    end if
+    integer res = c_func(x_mpfr_cmpabs,{op1,op2})
+if not find(res,{-1,0,+1}) then ?9/0 end if
+--  res = sign(res)
+    return res
+end function
+
 --/*
 mpfr_cmp
 __MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
@@ -4280,15 +4410,15 @@ end function
 
 integer x_mpq_div = NULL
 
-global procedure mpq_div(mpq rquotient, dividend, divisor)
--- set rquotient to dividend / divisor.
-    if rquotient=NULL then ?9/0 end if
-    if dividend=NULL then ?9/0 end if
-    if divisor=NULL then ?9/0 end if
+global procedure mpq_div(mpq rop, op1, op2)
+-- set rop to op1 / op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
     if x_mpq_div=NULL then
         x_mpq_div = define_c_proc(mpir_dll, "+__gmpq_div", {P,P,P})
     end if
-    c_proc(x_mpq_div,{rquotient,dividend,divisor})
+    c_proc(x_mpq_div,{rop,op1,op2})
 end procedure
 
 integer x_mpq_set_z = NULL
@@ -4388,41 +4518,41 @@ end function
 
 integer x_mpq_add = NULL
 
-global procedure mpq_add(mpq rsum, addend1, addend2)
--- set rsum to addend1 + addend2.
-    if rsum=NULL then ?9/0 end if
-    if addend1=NULL then ?9/0 end if
-    if addend2=NULL then ?9/0 end if
+global procedure mpq_add(mpq rop, op1, op2)
+-- set rop to op1 + op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
     if x_mpq_add=NULL then
         x_mpq_add = define_c_proc(mpir_dll, "+__gmpq_add", {P,P,P})
     end if
-    c_proc(x_mpq_add,{rsum,addend1,addend2})
+    c_proc(x_mpq_add,{rop,op1,op2})
 end procedure
 
 integer x_mpq_sub = NULL
 
-global procedure mpq_sub(mpq rdifference, minuend, subtrahend)
--- set rdifference to minuend - subtrahend.
-    if rdifference=NULL then ?9/0 end if
-    if minuend=NULL then ?9/0 end if
-    if subtrahend=NULL then ?9/0 end if
+global procedure mpq_sub(mpq rop, op1, op2)
+-- set rop to op1 - op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
     if x_mpq_sub=NULL then
         x_mpq_sub = define_c_proc(mpir_dll, "+__gmpq_sub", {P,P,P})
     end if
-    c_proc(x_mpq_sub,{rdifference,minuend,subtrahend})
+    c_proc(x_mpq_sub,{rop,op1,op2})
 end procedure
 
 integer x_mpq_mul = NULL
 
-global procedure mpq_mul(mpq rproduct, multiplier, multiplicand)
--- set rproduct to multiplier * multiplicand.
-    if rproduct=NULL then ?9/0 end if
-    if multiplier=NULL then ?9/0 end if
-    if multiplicand=NULL then ?9/0 end if
+global procedure mpq_mul(mpq rop, op1, op2)
+-- set rop to op1 * op2.
+    if rop=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
     if x_mpq_mul=NULL then
         x_mpq_mul = define_c_proc(mpir_dll, "+__gmpq_mul", {P,P,P})
     end if
-    c_proc(x_mpq_mul,{rproduct,multiplier,multiplicand})
+    c_proc(x_mpq_mul,{rop,op1,op2})
 end procedure
 
 integer x_mpq_mul_2exp = NULL
@@ -4487,10 +4617,28 @@ global procedure mpq_inv(mpq rop, op)
     c_proc(x_mpq_inv,{rop,op})
 end procedure
 
-global procedure mpq_add_si(mpq rsum, addend1, integer n, d=1)
-    mpq addend2 = mpq_init_set_si(n,d)
-    mpq_add(rsum, addend1, addend2)
-    addend2 = mpq_free(addend2)
+global procedure mpq_add_si(mpq rop, op1, integer n, d=1)
+    mpq op2 = mpq_init_set_si(n,d)
+    mpq_add(rop, op1, op2)
+    op2 = mpq_free(op2)
+end procedure
+
+global procedure mpq_sub_si(mpq rop, op1, integer n, d=1)
+    mpq op2 = mpq_init_set_si(n,d)
+    mpq_sub(rop, op1, op2)
+    op2 = mpq_free(op2)
+end procedure
+
+global procedure mpq_mul_si(mpq rop, op1, integer n, d=1)
+    mpq op2 = mpq_init_set_si(n,d)
+    mpq_mul(rop, op1, op2)
+    op2 = mpq_free(op2)
+end procedure
+
+global procedure mpq_div_si(mpq rop, op1, integer n, d=1)
+    mpq op2 = mpq_init_set_si(d,n)
+    mpq_mul(rop, op1, op2)
+    op2 = mpq_free(op2)
 end procedure
 
 global function mpq_get_str(mpq op, integer base=10, boolean comma_fill=false)
@@ -4652,7 +4800,7 @@ mpfr_cmp_si_2exp
 --mpfr_cmp_ui
 mpfr_cmp_ui_2exp
 mpfr_cmp_z
-mpfr_cmpabs
+--mpfr_cmpabs
 mpfr_const_catalan
 mpfr_const_catalan_internal
 --mpfr_const_euler
@@ -4673,8 +4821,8 @@ mpfr_d_sub
 mpfr_digamma
 mpfr_dim
 --mpfr_div
-mpfr_div_2si
-mpfr_div_2ui    --(use this instead of mpfr_div_2exp)
+--mpfr_div_2si
+--mpfr_div_2ui  --(use this instead of mpfr_div_2exp)
 mpfr_div_d
 mpfr_div_q
 --mpfr_div_si
@@ -5880,18 +6028,19 @@ __MPFR_DECLSPEC int mpfr_li2 (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_cmp3 (mpfr_srcptr, mpfr_srcptr, int);
 __MPFR_DECLSPEC int mpfr_cmp_d (mpfr_srcptr, double);
 __MPFR_DECLSPEC int mpfr_cmp_ld (mpfr_srcptr, long double);
-__MPFR_DECLSPEC int mpfr_cmpabs (mpfr_srcptr, mpfr_srcptr);
+--__MPFR_DECLSPEC int mpfr_cmpabs (mpfr_srcptr, mpfr_srcptr);
 --__MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
 --__MPFR_DECLSPEC int mpfr_cmp_si (mpfr_srcptr, long);
 __MPFR_DECLSPEC int mpfr_cmp_ui_2exp (mpfr_srcptr, unsigned long, int);
 __MPFR_DECLSPEC int mpfr_cmp_si_2exp (mpfr_srcptr, long, int);
 __MPFR_DECLSPEC int mpfr_sgn (mpfr_srcptr);
 
-__MPFR_DECLSPEC int mpfr_mul_2ui (mpfr_ptr, mpfr_srcptr, unsigned long, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_div_2ui (mpfr_ptr, mpfr_srcptr, unsigned long, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_mul_2si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
-__MPFR_DECLSPEC int mpfr_div_2si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
-
+--__MPFR_DECLSPEC int mpfr_mul_2ui (mpfr_ptr, mpfr_srcptr, unsigned long, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_div_2ui (mpfr_ptr, mpfr_srcptr, unsigned long, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_mul_2si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
+--__MPFR_DECLSPEC int mpfr_div_2si (mpfr_ptr, mpfr_srcptr, long, mpfr_rnd_t);
+--int mpfr_div_2ui(mpfr_t rop, mpfr_srcptr op1, unsigned long int op2, mpfr_rnd_t rnd_mode)
+--
 __MPFR_DECLSPEC int mpfr_rint (mpfr_ptr, mpfr_srcptr, mpfr_rnd_t);
 __MPFR_DECLSPEC int mpfr_roundeven (mpfr_ptr, mpfr_srcptr);
 __MPFR_DECLSPEC int mpfr_round (mpfr_ptr, mpfr_srcptr);
@@ -6454,9 +6603,9 @@ Function: int mpfr_mul_2ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_
 Function: int mpfr_mul_2si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
 Set rop to op1 times 2 raised to op2 rounded in the direction rnd. Just increases the exponent by op2 when rop and op1 are identical.
 
-Function: int mpfr_div_2ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
-Function: int mpfr_div_2si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
-Set rop to op1 divided by 2 raised to op2 rounded in the direction rnd. Just decreases the exponent by op2 when rop and op1 are identical.
+--Function: int mpfr_div_2ui (mpfr_t rop, mpfr_t op1, unsigned long int op2, mpfr_rnd_t rnd)
+--Function: int mpfr_div_2si (mpfr_t rop, mpfr_t op1, long int op2, mpfr_rnd_t rnd)
+--Set rop to op1 divided by 2 raised to op2 rounded in the direction rnd. Just decreases the exponent by op2 when rop and op1 are identical.
 
 Next: Special Functions, Previous: Basic Arithmetic Functions, Up: MPFR Interface   [Index]
 
@@ -7357,8 +7506,8 @@ mpfr_csch:              Special Functions
 mpfr_digamma:           Special Functions
 mpfr_dim:               Basic Arithmetic Functions
 mpfr_divby0_p:          Exception Related Functions
-mpfr_div_2si:           Basic Arithmetic Functions
-mpfr_div_2ui:           Basic Arithmetic Functions
+--mpfr_div_2si:         Basic Arithmetic Functions
+--mpfr_div_2ui:         Basic Arithmetic Functions
 --mpfr_div_d:           Basic Arithmetic Functions
 mpfr_div_q:             Basic Arithmetic Functions
 --mpfr_div_z:           Basic Arithmetic Functions

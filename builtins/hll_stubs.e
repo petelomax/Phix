@@ -23,16 +23,16 @@
 --  then you'll probably have to "include hll_stubs.e" explicitly as well.
 --
 --integer result:
-global function hll_atom(object o) return atom(o) end function
+global type hll_integer(object o) return integer(o) end type
+global type hll_atom(object o) return atom(o) end type
+global type hll_sequence(object o) return sequence(o) end type
+global type hll_string(object o) return string(o) end type
+global type hll_object(object o) without warning return object(o) end type
 global function hll_compare(object a,b) return compare(a,b) end function
 global function hll_equal(object a,b) return equal(a,b) end function
 global function hll_even(atom a) return even(a) end function
-global function hll_integer(object o) return integer(o) end function
 global function hll_length(sequence s) return length(s) end function
-global function hll_object(object o) without warning return object(o) end function
 global function hll_odd(atom a) return odd(a) end function
-global function hll_sequence(object o) return sequence(o) end function
-global function hll_string(object o) return string(o) end function
 
 --atom result:
 global function hll_and_bits(atom a,b) return and_bits(a,b) end function
