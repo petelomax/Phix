@@ -23,8 +23,8 @@ global function vslice(sequence source, object column, error_control=0)
     integer current_sub = 0,
             substitutes = iff(atom(error_control)?-(not error_control)
                                                  :length(error_control))
---  sequence res = ""
-    sequence res = iff(string(source)?"":{})
+    sequence res = ""
+--  sequence res = iff(string(source)?"":{})
     if integer(column) then
         if column<1 then crash("vslice(%d)",column) end if
         for i=1 to length(source) do

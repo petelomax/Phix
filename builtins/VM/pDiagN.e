@@ -18,7 +18,7 @@ constant show_low_level_diagnostics = 0
 --  a good idea, or mean you should be surprised, when it self-implodes.
 --  This means (without going overboard) that variables should be defined as 
 --  object and then explicitly tested for the expected type, instead of being
---  declared as the expected type and relying on the builtin type checking, 
+--  declared as the expected type and relying on the builtin typechecking, 
 --  that all subscripts should be explicitly tested to be in range, and that  
 --  all peeks are checked first with xIsBadReadPtr, plus anything else that
 --  you can think of!
@@ -540,7 +540,7 @@ end if
     end if
 end procedure
 
--- DEV wants to be a function[?] for use in eg "type check failure, %s is %s"
+-- DEV wants to be a function[?] for use in eg "typecheck failure, %s is %s"
 --procedure short_dump(string name, object o)
 --  printf(1,"%s = %s\n",{name,sprint(o,MAXLINELEN-length(name)-3)})    --(DEV -e2 only)
 --  printf(1,"%s = %s\n",{name,sprint(o)})
@@ -652,9 +652,9 @@ constant
 --       S_ErrV = 10,   -- {'v', file, line, col}; see pmain.e[-35]
 --       S_Init = 11,   -- Initialised chain (known init if non-0/see S_Const note below)
 -- routines [S_NTyp>=S_Type]
---       S_sig  = 7,    -- routine signature
+--       S_sig   = 7,   -- routine signature
          S_Parm1 = 8,   -- first parameter. (idx to symtab, follow S_Slink)
---       S_ParmN = 9,   -- minimum no of parameters (max is length(S_sig)-1)
+         S_ParmN = 9,   -- minimum no of parameters (max is length(S_sig)-1)
 --       S_Ltot = 10,   -- total no of parameters, locals, and temporary vars
                         -- (needed to allocate the stack frame space)
          S_il   = 11,   -- intermediate code
@@ -826,6 +826,8 @@ procedure die()
             mov [ebp+16],ebx    -- catch addr
         [64]
             mov [rbp+32],rbx    -- catch addr
+        [ARM]
+            int3
           }
     ?9/0
 end procedure
@@ -902,6 +904,8 @@ procedure throw(object e, object user_data={})
                 mov rax,[rbp+40]    -- prev_ebp
                 mov rax,[rax+16]    -- calling routine no
                 mov [rid],rax
+            [ARM]
+                int3
               }
         e[E_RTN] = rid
     end if
@@ -942,6 +946,8 @@ procedure throw(object e, object user_data={})
                 mov rax,[rbp+24]
                 lea rdi,[addr]
                 call :%pStoreMint   -- [rdi]:=rax, as float if rqd
+            [ARM]
+                int3
               }
         e[E_ADDR] = addr
 --5/9/19:
@@ -1936,10 +1942,10 @@ atom gvarptr
 --
 sequence msgs =
 {
- "type check failure, %s is %s\n",                              -- e01tcf
+ "typecheck failure, %s is %s\n",                               -- e01tcf
     -- As called from opTchk, when var-id is known (idx in ecx).
     -- See also e110tce, called when var_id not known (addr in ecx).
-    -- Note: s[i+1] gives a type check failure with a ???[S_name]=0
+    -- Note: s[i+1] gives a typecheck failure with a ???[S_name]=0
     --  if i is #3FFFFFFF, as unnamed temporary index sums are given 
     --  an integer type (for performance reasons). Obviously that is
     --  less than ideal and ought to be fixed one day. [DEV]
@@ -2288,7 +2294,9 @@ sequence msgs =
  "abort() code must be integer\n",                              -- e87acmbi
  "arguments to c_%sc() must be atoms or strings\n",             -- e88atcfpmbaos(edi)
     -- (edi=1 -> c_func, else c_proc)
- "too many parameters in call_func/proc()\n",                   -- e89tmpicfp
+-- removed 10/5/25:
+-- "too many parameters in call_func/proc()\n",                 -- e89tmpicfp
+ -1,
  "argument to profile() must be 0 or 1\n",                      -- e90atpmb01
 -- "profile internal error\n",                                  -- e91pie   [DEV]
  "variable %s has not been assigned a value\n",                 -- e91vhnbaav(ecx)
@@ -2342,7 +2350,7 @@ sequence msgs =
  "clear_screen error\n",                                        -- e109cse
     -- Internal error, should not happen (and in fact this
     --  message has never been successfully triggered)
- "type check failure, %s is %s\n",                              -- e110tce(ecx)
+ "typecheck failure, %s is %s\n",                               -- e110tce(ecx)
     -- as e01tcf but ecx is var addr not idx
  "bitwise operations are limited to 32-bit numbers\n",          -- e111bolt32b
     -- DEV: it may be sensible to permit and_bits(x,#FFFFFFFF),
@@ -2394,7 +2402,7 @@ sequence e14ops = {"add","sub","div","mul",                     -- 1,2,3,4
 --       e28ops = {"rand","cos","sin","tan","arctan","log","sqrt"}
 
 --DEV use NTdesc from pglobals.e?: (no, we don't have that here!)
-sequence rtndescs = {"type","function", "procedure"}
+sequence rtndescs = {"type","function","procedure"}
 
 
 --/*
@@ -2823,13 +2831,26 @@ end if
                 name = sprintf("???(atom(symtab[%d]))",varno)
             else
                 name = si[S_Name]
+                sNTyp = si[S_NTyp]
                 if atom(name) then
                     --DEV/SUG unnamed index temps -> ioob??? (see e01tcf)
 --30/4/24 (assume"")
---                  name = sprintf("???(symtab[%d][S_name]=%d)",{varno,si})
-                    name = "subscript"
+--9/4/25 check whether it is a param:
+                    bool bParam = false
+                    if sNTyp=S_TVar3 then
+                        integer pcount = 1, rno = varno-1
+                        while symtab[rno][S_NTyp]=S_TVar3 do
+                            rno -= 1
+                            pcount += 1
+                        end while
+                        bParam = symtab[rno][S_NTyp]>S_Type and symtab[rno][S_ParmN]>=pcount
+                    end if
+                    if bParam then
+                        name = sprintf("???(symtab[%d][S_name]=%d)",{varno,si})
+                    else
+                        name = "subscript"
+                    end if
                 end if
-                sNTyp = si[S_NTyp]
                 if sNTyp!=S_GVar2
                 and sNTyp!=S_TVar3 then
                     o = sprintf("???(symtab[%d] wrong type)",varno)
@@ -2858,7 +2879,7 @@ end if
             end if
         end if
 --      o = getValue(or_edi, 50, length(si)+17, 1)
-        msg = sprintf(msg,{name,o})         -- "type check failure, %s is %s\n"
+        msg = sprintf(msg,{name,o})         -- "typecheck failure, %s is %s\n"
     elsif msg_id=91         -- e92vhnbaav(ecx)
        or msg_id=92         -- e92vhnbaav(esi)
        or msg_id=93         -- e93vhnbaav(edi)
@@ -2923,6 +2944,8 @@ end if
                 mov rax,[or_edi]
                 call :%pLoadMint
                 mov [msg2],rax
+            [ARM]
+                int3
               }
         if length(msg2) then
             msg2 &= ": "&msg2
@@ -3036,7 +3059,7 @@ end if
             end if
         end if
         o = getValue(ep1, 50, length(si)+17, 1)
-        msg = sprintf(msg,{si,o})       -- "type check failure, %s is %s\n"
+        msg = sprintf(msg,{si,o})       -- "typecheck failure, %s is %s\n"
     elsif msg_id=10         -- e10sspeos
       and ep1<0 then
         msg = sprintf("slice start(%d) less than negative length(%d)\n",{ep1,-ep2})
@@ -3170,6 +3193,8 @@ bool error_handler
             cmp [rbp+32],rbx
             setne al
             mov [error_handler],rax
+        [ARM]
+            int3
           }
     if error_handler 
 --  and msg_id!=12 then -- not e12pa ('!' keyed in trace window)
@@ -3661,7 +3686,8 @@ end if
 --  if not batchmode then
 --?batchmode
         puts(1,"Press Enter...")
-        if not find("-nopause",lower(command_line(true))) then
+        sequence lc = lower(command_line(true))
+        if not find("-nopause",lc) then
 --?command_line(true)
             if wait_key() then end if
         end if
@@ -4636,7 +4662,9 @@ end procedure -- (for Edita/CtrlQ)
                 mov rcx,[or_ecx]
                 lea rsp,[rsp+rcx*8*8]
               []
-                jmp :e94vhnbaavedx
+---2/4/25:
+--              jmp :e94vhnbaavedx
+                jmp :e94_or_e04
           @@:
             cmp edx,:!opSubse1e04or92
             je :e94_or_e04
@@ -5053,8 +5081,8 @@ puts(1,"uh? (pdiagN.e line 4791)\n")
 -- removed from e01:
     -- Note: since the diag routine uses some of the builtins,
     --  then eg object o o="fred" getc(o) will not generate 
-    -- 'type check error, fn is "fred"', but instead
-    -- 'type check error, getc parameter fn is wrong'. [?DEV I may have fixed this since?]
+    -- 'typecheck error, fn is "fred"', but instead
+    -- 'typecheck error, getc parameter fn is wrong'. [?DEV I may have fixed this since?]
     --  [as opposed to getc("fred"), which causes compile-time error]
     -- When you see "builtin parameter", look up the routine
     --  in the documentation to find out exactly which 
@@ -5174,10 +5202,10 @@ puts(1,"uh? (pdiagN.e line 4791)\n")
 --                  end if
 --
 --          elsif msg_id=1 then
---              -- Instead of 'type check error, fn is "fred"', for
+--              -- Instead of 'typecheck error, fn is "fred"', for
 --              -- the builtins, which we are likely to use all the
 --              -- time and hence trash any "current value", output
---              -- 'type check error, builtin parameter fn is wrong'
+--              -- 'typecheck error, builtin parameter fn is wrong'
 --              --  (user is expected to lookup "fn" in the docs)
 --              -- FWIW, RDS Eu tends to output routine-specific
 --              -- messages, eg "first parameter to match must be 

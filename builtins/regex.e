@@ -16,7 +16,7 @@ integer options = RE_PIKEVM -- (RE_EARLY_EXIT etc disabled by default)
 
 integer r_ErrorHandler = NULL
 
-global procedure regex_options(integer opts=RE_PIKEVM, integer rErrHand=NULL)
+global procedure regex_options(integer opts=RE_PIKEVM, rErrHand=NULL)
     if and_bits(opts,RE_PIKEVM) then
         -- prohibit both RE_PIKEVM and RE_RECURSIVE
         if and_bits(opts,RE_RECURSIVE) then ?9/0 end if
@@ -309,7 +309,7 @@ end function
 -- Parse routines
 --
 
-procedure Abort(string msg, string src, integer idx)
+procedure Abort(string msg, src, integer idx)
 -- error parsing the regular expression
     if r_ErrorHandler!=NULL then
         call_proc(r_ErrorHandler,{msg,src,idx})

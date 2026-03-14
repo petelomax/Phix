@@ -60,7 +60,7 @@ without trace
 --  pdiag.e to give meaningful errors. This means (without going overboard)
 --  that variables should be defined as object and then explicitly tested 
 --  for the expected type (insted of being declared as the expected type 
---  and relying on the builtin type checking), that all subscripts should
+--  and relying on the builtin typechecking), that all subscripts should
 --  be explicitly tested to be in range, and that all peeks checked first 
 --  with xIsBadReadPtr, plus anything else you can think of!
 --

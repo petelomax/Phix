@@ -233,3 +233,24 @@ end procedure -- (for Edita/CtrlQ)
 
       }
 
+-- from EuForum, 12/1/26:
+--/*
+--hires_time.e:
+
+constant 
+    CLOCK_MONOTONIC = 1, 
+    NANO = 1_000_000_000, 
+    TS_SIZE = 16,    -- struct timespec: 2 x 64-bit long on x86_64 
+    libc = open_dll("libc.so.6"),
+    clock_gettime = define_c_func(libc,"clock_gettime",{C_INT,C_PTR},C_INT),
+    ts_mem = allocate(TS_SIZE) 
+ 
+global function hires_time() 
+    c_func(clock_gettime,{CLOCK_MONOTONIC,ts_mem}) 
+ 
+    atom sec = peek8u(ts_mem),
+        nsec = peek8u(ts_mem+8) 
+ 
+    return sec + nsec/NANO 
+end function 
+--*/

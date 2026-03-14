@@ -132,6 +132,9 @@ end procedure -- (for Edita/CtrlQ)
         mov [rsi-24],rcx        -- increase length
         add rsp,32
         ret
+    [ARM]
+    :%opPpndSA
+        int3
     []
 
   ::ApndNewSeq2

@@ -323,7 +323,9 @@ sequence validtd = repeat(0,DT_DSTZ)    -- (say it out loud!)
     validtd[DT_MINUTE] = {0,59}
     validtd[DT_SECOND] = {0,59}
 --  validtd[DT_DOW] = {0,7}
-    validtd[DT_DOW] = {0,999}   -- accomodate milliseconds
+--9/10/24...
+--  validtd[DT_DOW] = {0,999}   -- accomodate milliseconds
+    validtd[DT_DOW] = {0,1000}  -- accomodate milliseconds
     validtd[DT_DOY] = {0,366}
     -- (the following two entries are updated in override_timezone)
     validtd[DT_TZ] = {0,length(timezones)}
@@ -342,7 +344,9 @@ integer vmin, vmax
     and length(s)>=DT_SECOND then
         for i=1 to length(s) do
             si = s[i]
+if i!=DT_MSEC then
             if not integer(si) then return 0 end if
+end if
             {vmin,vmax} = validtd[i]
             if vmin<=vmax then
                 if si<vmin
@@ -497,29 +501,29 @@ months[en] = {"January","February","March","April","May","June","July",
               "August","September","October","November","December"}
 --12/1/2020:
 --day_names[en] = {"Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"}
-day_names[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"}
+day_names[en] = {"Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday","Anyday"}
 --Google Translate (manually re-ascii-fied):
 --months[de] = {"Januar","Februar","Marz","April","Mai","Juni","Juli",
 --              "August","September","Oktober","November","Dezember"}
---day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"}
+--day_names[de] = {"Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag","Anytag"}
 --months[es] = {"Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio",
 --              "Agosto","Septiembre","Octubre","Noviembre","Diciembre"}
---day_names[es] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado"}
+--day_names[es] = {"Domingo","Lunes","Martes","Miercoles","Jueves","Viernes","Sabado","??"}
 --months[fi] = {"Tammikuu","Helmikuu","Maaliskuu","Huhtikuu","Toukokuu","Kesakuu",
 --              "Heinakuu","Elokuu","Syyskuu","Lokakuu","Marraskuu","Joulukuu"}
---day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai"}
+--day_names[fi] = {"maanantai","tiistai","keskiviikko","torstai","perjantai","lauantai","anytai"}
 --months[fr] = {"Janvier","Fevrier","Mars","Avril","Mai","Juin","Juillet",
 --              "Aout","Septembre","Octobre","Novembre","Decembre"}
---day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"}
+--day_names[fr] = {"Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Anydi"}
 --months[it] = {"Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio",
 --              "Agosto","Settembre","Ottobre","Novembre","Dicembre"}
---day_names[it] = {"domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato
+--day_names[it] = {"domenica","lunedi","martedi","mercoledi","giovedi","venerdi","sabato","anydi"}
 --months[nl] = {"Januari","februari","maart","april","mei","juni","juli",
 --              "augustus","september","oktober","november","december"}
---day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag"}
+--day_names[nl] = {"zondag","maandag","dinsdag","woensdag","donderdag","vrijdag","zaterdag","anydag"}
 --months[pt] = {"Janeiro","Fevereiro","Marco","Abril","Maio","Junho","Julho",
 --              "Agosto","Setembro","Outubro","Novembro","Dezembro"}
---day_names[pt] = {"domingo","segunda","terca","quarta","quinta","sexta","sabado"}
+--day_names[pt] = {"domingo","segunda","terca","quarta","quinta","sexta","sabado","??"}
 
 td_ordinals[en] = {"st","nd","rd","th"}
 --td_ordinals[fr] = {"er","e"} --??
@@ -723,7 +727,7 @@ end function
 --?timedate_to_julian_day({1500,1,1,0,0,0,0,0})
 --?jd2({1500,1,1,0,0,0,0,0})
 
-function julian_day_to_timedate(integer jd, integer hour, integer mins, integer secs, integer ms)
+function julian_day_to_timedate(integer jd, hour, mins, secs, atom ms)
 -- convert an integer julian day back to {y,m,d} form, and throw in the passed h,m,s
 integer l = jd+68569
 integer i, j
@@ -754,7 +758,8 @@ function timedate_to_seconds(timedate td)
 end function
 
 function seconds_to_timedate(atom seconds)
-integer days, minutes, hours, milliseconds
+integer days, minutes, hours
+atom milliseconds
 
 --22/3/18:
 --  days = floor(seconds/DAY_IN_SECONDS)
@@ -767,22 +772,25 @@ integer days, minutes, hours, milliseconds
     minutes = floor(seconds/60)
     seconds -= minutes*60
 
---15/6/24
+--15/6/24 (for https://rosettacode.org/wiki/Sync_subtitles#Phix undone for 
+--             https://rosettacode.org/wiki/Time_conventions_and_conversions?#Phix ...)
 --  milliseconds = floor((seconds-floor(seconds))*1000)
-    milliseconds = round((seconds-floor(seconds))*1000)
+--  milliseconds = round((seconds-floor(seconds))*1000)
+--  milliseconds = floor(round((seconds-floor(seconds))*10000)/10)
+    milliseconds = round((seconds-floor(seconds))*10000)/10
     seconds = floor(seconds)
 
     return julian_day_to_timedate(days, hours, minutes, seconds, milliseconds)
 end function
 
 
-global function adjust_timedate(sequence td, atom delta)
+global function adjust_timedate(sequence td, atom delta, bool bGregorian=true)
     integer {y,m,d} = td, dsrule, tz, stz
 --15/6/24:
     bool y0m0 = y=0 and m=0
     td = deep_copy(td)
     if y0m0 then td[1..3] = {2024,1,1}; {y,m,d} = td end if
-    assert(y>=1752,"date prior to introduction of Gregorian calendar")
+    assert(bGregorian=false or y>=1752,"date prior to introduction of Gregorian calendar")
     if m<1 then
         do
             m += 12
@@ -1273,11 +1281,13 @@ integer sdx = 0,    -- chars processed in s
         hour = 0,
         minute = 0,
         second = 0,
-        msecs = 0,  -- (returned in dayofweek)
+--      msecs = 0,  -- (returned in dayofweek)
         pm = 0,     -- 1=am, 2=pm
-        dayofweek = 0,
+--      dayofweek = 0,
         dayofyear = 0,
         tz = 0
+atom msecs = 0,  -- (returned in dayofweek)
+ dayofweek = 0
     ecxtra = 0
     if length(fmt)=0 then
         ecode = 9
@@ -1394,6 +1404,7 @@ integer sdx = 0,    -- chars processed in s
                         ?9/0    -- should never happen
                 end switch
                 if ecode=0 and (day<1 or day>31) then -- (more tests below)
+--?{"day",day}
                     ecode = 6
                 end if
             case DOW:
@@ -1428,10 +1439,18 @@ integer sdx = 0,    -- chars processed in s
                     ecode = 20
                     break
                 end if
---              {ecode,sdx,second} = td_get_number(s,sdx,fsize)
                 {ecode,sdx,second} = td_get_number(s,sdx,2)
-                if ecode=0 and (second<0 or second>59) then
-                    ecode = 14
+                if ecode=0 then
+                    if second<0 or second>59 then
+                        ecode = 14
+--15/10/24 (for https://rosettacode.org/wiki/Time_conventions_and_conversions#Phix )
+                    elsif (sdx<length(s) and s[sdx+1]='.')
+                      and (fmtdx=length(fmt) or fmt[fmtdx+1]!='.') then
+                        sdx += 1
+                        integer wassdx = sdx
+                        {ecode,sdx,msecs} = td_get_number(s,sdx,3)
+                        dayofweek = msecs*power(10,wassdx-sdx+3)
+                    end if
                 end if
             case MSEC:
                 {ecode,sdx,msecs} = td_get_number(s,sdx,3)
@@ -1439,6 +1458,7 @@ integer sdx = 0,    -- chars processed in s
                     if msecs<0 or msecs>999 then
                         ecode = 22
                     else
+                        -- note: "ms" expects a 3-digit integer 000.999.
                         dayofweek = msecs
                     end if
                 end if
@@ -1514,8 +1534,12 @@ integer sdx = 0,    -- chars processed in s
     end if
 --added 20/11/19:
     if ecode=0 
-    and year!=0 and month!=0 and day!=0
+--9/10/24...
+--  and year!=0 and month!=0 and day!=0
+    and year>=1752 and month!=0 and day!=0
     and day>days_in_month(year,month) then
+
+--?{year,month,day,days_in_month(year,month)}
         ecode = 6
     end if
     if ecode!=0 then return {ecode,edescs[ecode],ecxtra} end if
@@ -1667,9 +1691,10 @@ integer fmtdx = 0,
         dayofyear,
         minute,
         second,
-        msecs,
+--      msecs,
         tz,
         pftyp = -1
+atom msecs
 object x
 
     ecxtra = 0
@@ -1987,10 +2012,15 @@ end function
 --if isLeap(2100)!=0 then ?9/0 end if
 
 global function timedate_diff(timedate td1, timedate td2, integer term=0)
-atom delta = timedate_to_seconds(td2)-timedate_to_seconds(td1)
+    atom delta = timedate_to_seconds(td2)-timedate_to_seconds(td1)
     if term!=0 then
-        atom tsec = {365.25*24*60*60,30*24*60*60,24*60*60,60*60,60,1}[term]
-        delta = trunc(delta/tsec)*iff(term=DT_YEAR?365*24*60*60:tsec)
+        atom tsec = {365.25*24*60*60,30*24*60*60,24*60*60,60*60,60,1}[abs(term)]
+        if term>0 then
+            delta = trunc(delta/tsec)*iff(term=DT_YEAR?365*24*60*60:tsec)
+        else
+--          delta = trunc(delta/tsec)*iff(term=DT_YEAR?365*24*60*60:tsec)
+            delta = delta/tsec
+        end if
     end if
     return delta
 end function

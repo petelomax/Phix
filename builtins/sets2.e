@@ -8,6 +8,9 @@
 --  I wrote this as a replacement for sets.e - for no particularly good reason...
 --  So I decided to keep both, more testing is required to see which is better
 --  and of course the docs would need updating.
+--  Update: one thing this does is allow set references to be passed about, and
+--  automatically delegates all js-compatibility issues (aka p2js violations) to
+--  this file.
 --
 --  Maybe a set should be {flags,s} [always length s] where (say)
 --       flags      s
@@ -21,16 +24,60 @@ bool s_init = false
 sequence sets
 integer free_sets = 0
 
-procedure init_s()
-    s_init = true
-    sets = {}
-end procedure
+--procedure init_s()
+--  s_init = true
+--  sets = {}
+--  management_option = "NORMAL"
+--end procedure
 
-type set(integer sid)
+type set_type(integer sid)
     return s_init and sid>0 and sid<=length(sets) and not integer(sets[sid])
 end type
 
-global function is_member(set sid, object x)
+--/!*
+string management_option -- = "NORMAL" -- (keep "get" simple)
+integer options = 0b1111
+local constant S_SEQ = 0b1000,  -- sequences allowed
+               S_STR = 0b0100,  -- strings allowed
+               S_SID = 0b0010,  -- set_ids allowed
+               S_ARC = 0b0001   -- auto-reclaim (aka delete_routine)
+
+-- (aside: S_ARC without S_SID is meaningless/pointless, ditto 0b0000)
+
+global procedure set_management(string how)
+    switch how do
+        // all 15 options 0b0001..0b1111 shown:
+        case "NORMAL":  options = 0b1111
+        case "ATOM":    options = 0b0011
+        case "ATOMSTR": options = 0b0111
+        case "ATOMSEQ": options = 0b1011
+--                                0b1001 -- meaningless/as 0b1000
+--                                0b0001 -- meaningless
+--                                0b0101 -- meaningless/as 0b0100
+--                                0b1101 -- meaningless/as 0b1100
+        case "INTEGER": options = 0b0010
+        case "INTSTR":  options = 0b0110
+        case "INTSEQ":  options = 0b1010
+        case "NOTAUTO": options = 0b1110
+        case "SEQ":     options = 0b1000
+        case "STR":     options = 0b0100
+        case "SEQSTR":  options = 0b1100
+        default: ?9/0
+    end switch
+    management_option = how
+end procedure
+
+global function get_management()
+    return management_option
+end function
+
+global function get_set_management()
+    return management_option
+end function
+
+--*!/
+
+global function is_member(set_type sid, object x)
     --
     -- Returns true if x is a member of set.
     -- Symbolically represented with an E shape.    
@@ -45,16 +92,15 @@ global function is_member(set sid, object x)
     return res
 end function
 
-global function set_size(set sid)
+global function set_size(set_type sid)
     return length(sets[sid])
 end function
 
-global function is_empty(set sid)
+global function is_empty(set_type sid)
     return length(sets[sid])=0
 end function
 
-
-global function get_members(set sid, bool bDestroy=true)
+global function get_members(set_type sid, bool bDestroy=true)
 --  object set = sets[sid]
 --  if integer(set) then
 --      set = getd_all_keys(set)
@@ -69,7 +115,7 @@ global function get_members(set sid, bool bDestroy=true)
     return res
 end function
 
-global procedure add_member(set sid, object x)
+global procedure add_member(set_type sid, object x)
 --  object set = sets[sid]
     sequence set = sets[sid]
 --  if sequence(set) then
@@ -91,7 +137,7 @@ global procedure add_member(set sid, object x)
 --  end if
 end procedure
 
-global procedure add_members(set sid, sequence items)
+global procedure add_members(set_type sid, sequence items)
 --  object set = sets[sid]
     sequence set = sets[sid]
     integer l = length(set)
@@ -155,7 +201,15 @@ end procedure
 
 --global function new_set(object items={}, integer set_type=SET_TYPE_DICT)
 global function new_set(object items={})
-    if not s_init then init_s() end if
+--  if not s_init then init_s() end if
+    if not s_init then
+        s_init = true
+        sets = {}
+        -- (if set_management() not already called)
+        if not object(management_option) then
+            management_option = "NORMAL"
+        end if
+    end if
     if integer(items) then
         items = deep_copy(sets[items])
     else
@@ -165,7 +219,7 @@ global function new_set(object items={})
 --  sets = append(sets,iff(set_type=SET_TYPE_DICT?new_dict()
 --                                               :set_default(items)))
 --  sets = append(sets,set_default(items))
-    set sid
+    set_type sid
 --  integer sid
     if free_sets then
         integer res = free_sets
@@ -185,7 +239,7 @@ global function new_set(object items={})
     return sid
 end function
 
-global procedure remove_member(set sid, object x)
+global procedure remove_member(set_type sid, object x)
 --  object set = sets[sid]
     sequence set = sets[sid]
 --  if sequence(set) then
@@ -202,7 +256,7 @@ global procedure remove_member(set sid, object x)
 --  end if
 end procedure
 
-global procedure remove_members(set sid, sequence s)
+global procedure remove_members(set_type sid, sequence s)
 --  for i=1 to length(s) do
     for si in s do
 --      remove_member(sid,s[i])
@@ -373,7 +427,7 @@ global function intersection(object s1, s2=-1, integer return_set=0)
     bool in_situ = return_set==s1
     if string(s1) then
 --      assert(tgt=0)
-        assert(return_set=false)
+        assert(return_set=0)
         string res = ""
         s1 = unique(s1)
 --      if not string(s2) then
@@ -670,6 +724,7 @@ global function is_subset(object subset, superset)
     end if
     for i=1 to length(subset) do
 --      if not is_member(sub[i],super) then
+-- binary_search()?
         if not find(subset[i],superset) then
             return false
         end if

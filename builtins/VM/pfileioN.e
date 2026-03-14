@@ -25,6 +25,7 @@
 This will not work on RDS Eu/OpenEuphoria!!
 --*/
 --without debug -- (barely measurable savings, but [DEV] will want for release?)
+with debug
 
 --
 --  <glossary>
@@ -1387,6 +1388,8 @@ integer fmode = 0
                 cmp rdi,[fdtbl]
                 jne @b
                 mov [iThis],rsi
+            [ARM]
+                int3
               }
         if machine_bits()=32 then
             fmode = peek4u(iThis*4+MODE)
@@ -2056,6 +2059,8 @@ integer iThis
                 mov rax,[rbx+rsi*4+MODE64]
                 mov [iThis],rsi
                 mov [fmode],rax
+            [ARM]
+                int3
               }
     end if
     if fmode=0 then
@@ -2075,6 +2080,8 @@ integer iThis
                 mov al,58                           -- e58bfn: "bad file number"
                 xor rsi,rsi                         -- ep2 unused
                 sub rdx,1
+            [ARM]
+                int3
             []
                 jmp :!iDiag
               }
@@ -2094,6 +2101,8 @@ integer iThis
                     shl rsi,2
                     sub rdi,F_DIRTY
                     call :%n_flush_rsirdi
+                [ARM]
+                    int3
                   }
         end if
         #ilASM{
@@ -2202,6 +2211,8 @@ integer iThis
                 mov [rbx+r12*4+POSN64],qword 1
                 mov [rbx+r12*4+FEND64],rbx --(0)
                 mov [rbx+r12*4+RPOS64],rax
+            [ARM]
+                int3
               }
         return 0                            -- success
     end if
@@ -2246,6 +2257,8 @@ integer iThis
                 shl rsi,2
                 sub rdi,F_DIRTY
                 call :%n_flush_rsirdi
+            [ARM]
+                int3
               }
     else
         -- realposn corresponds to the \\end\\ of the buffer, but
@@ -2407,6 +2420,8 @@ integer iThis
             mov [rbx+r12*4+POSN64],qword 1
             mov [rbx+r12*4+FEND64],rbx --(0)
             mov [rbx+r12*4+RPOS64],rax
+        [ARM]
+            int3
           }
     return 0                                -- success
 end function
@@ -2489,6 +2504,8 @@ atom frealposn
           @@:
             lea rdi,[frealposn]
             call :%pStoreFlt
+        [ARM]
+            int3
           }
 --DEV newsize [32,64]/machine_bits()
 --  frealposn = peek8u(iThis*4+POSL)
@@ -6722,11 +6739,11 @@ integer iThis
 --5/10/21: (should we even be able to open a file?...)
 --  if safemode then ?9/0 end if
 --DEV/temp:
-bool from_hll = false
-if option>8 then
-    from_hll = true
-    option -= 10        -- (temp) [-2/-1/0/1 <--> 8/9/10/11]
-end if
+--bool from_hll = false
+--if option>8 then
+--  from_hll = true
+--  option -= 10        -- (temp) [-2/-1/0/1 <--> 8/9/10/11]
+--end if
 
 --  if string(fn) then
 --      integer fn2 = open(fn,"rb")
@@ -6769,6 +6786,8 @@ end if
                 mov qword[rbx+rsi*4+POSN64],1
                 mov [rbx+rsi*4+FEND64],rbx
                 mov [rbx+rsi*4+RPOS64],rbx
+            [ARM]
+                int3
               }
 --      fmode = peek4u(this+MODE)
     end if
@@ -6906,6 +6925,8 @@ end if
             add rsp,144
         [64]
             mov [filesize],rcx
+        [ARM]
+            int3
           }
     if filesize=0 then
         if option=GT_WHOLE_FILE then
@@ -7005,6 +7026,8 @@ end if
 --14/2/17:
 --          jle :retZ2
             jl :retZ2
+        [ARM]
+            int3
           }
 
 --DEV as above.. (why bother?)
@@ -7677,6 +7700,8 @@ integer res
         [ELF64]
             -- this routine is documented as having no effect on Lnx
             mov [res],rbx
+        [ARM]
+            int3
           }
     return res
 end function
@@ -8026,6 +8051,8 @@ procedure ffree_console()
         cinit = 0
 --  end if
 end procedure
+
+--DEV I think all of these can/should go... (why opOpen..opPosition in the optable, again?)
 
 #ilASM{ jmp :fin
 --/*

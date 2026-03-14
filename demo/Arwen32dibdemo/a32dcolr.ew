@@ -8,81 +8,96 @@
 
 include a32dcore.ew
 
-global procedure applyDibBrightnessToDib(a32Dib dib_dest, a32Dib dib_src, integer dX, integer dY,
-                                        integer sX1, integer sY1, integer sX2, integer sY2, integer pct)
--- applies the brightness of a portion ((sX1, sY1)-(sX2, sY2)) of a bitmap dib_src to the bitmap dib_dest
+local function clamp00FF(sequence colour)
+    for i,c in colour do -- b,g,r
+        colour[i] = max(#00,min(c,#FF))
+    end for
+    return colour
+end function
+
+global procedure applyDibBrightnessToDib(a32Dib dib_dst, dib_src, integer dX, dY, sX1, sY1, sX2, sY2, pct)
+-- applies the brightness of a portion ((sX1, sY1)-(sX2, sY2)) of a bitmap dib_src to the bitmap dib_dst
 -- at position (dX, dY). pct is the percentage: 0 = don't apply brightness, 100 = apply full brightness
-integer src_width, src_height, dest_width, dest_height, portion_width, portion_height
-integer src_bytes_per_line, dest_padding, red, green, blue, div, bias
-atom src_memory, dest_memory
-sequence color
 
     if pct<=0 then return -- no need to apply brightness
     elsif pct>100 then pct = 100
     end if
 
-    src_width = dib_src[DibWidth]
-    src_height = dib_src[DibHeight]
-    dest_width = dib_dest[DibWidth]
-    dest_height = dib_dest[DibHeight]
+    integer src_width = dib_src[DibWidth],
+            src_height = dib_src[DibHeight],
+            dst_width = dib_dst[DibWidth],
+            dst_height = dib_dst[DibHeight]
 
     -- 1. Clip the source rectangle to the extent of the source bitmap
     if not clipped then
-        clipToSource(sX1, sY1, sX2, sY2, src_width, src_height)
+        clipToSource(sX1,sY1,sX2,sY2,src_width,src_height)
         if clip_src_outside then return end if
     end if
     sX1 = clip_x1  sY1 = clip_y1
     sX2 = clip_x2  sY2 = clip_y2
 
-    portion_width = sX2-sX1+1
-    portion_height = sY2-sY1+1
+    integer portion_width = sX2-sX1+1,
+            portion_height = sY2-sY1+1
 
     -- 2. Clip the source rectangle to the extent of the destination bitmap
-    if dX>=dest_width or dX+portion_width<0 then return end if -- outside destination bitmap
+    if dX>=dst_width or dX+portion_width<0 then return end if -- outside destination bitmap
     if dX<0 then sX1 += -dX portion_width += dX  dX = 0 end if
-    if dX+portion_width>dest_width then sX2 -= portion_width-dest_width+dX end if
+    if dX+portion_width>dst_width then sX2 -= portion_width-dst_width+dX end if
 
-    if dY>=dest_height or dY+portion_height<0 then return end if -- outside destination bitmap
+    if dY>=dst_height or dY+portion_height<0 then return end if -- outside destination bitmap
     if dY<0 then sY1 += -dY portion_height += dY    dY = 0 end if
-    if dY+portion_height>dest_height then sY2 -= portion_height-dest_height+dY end if
+    if dY+portion_height>dst_height then sY2 -= portion_height-dst_height+dY end if
 
     -- 3. Draw the bitmap
-    src_bytes_per_line = dib_src[DibBytesPerLine]
-    src_memory = dib_src[DibMemory]+sX1*3+sY1*src_bytes_per_line
-    dest_memory = dib_dest[DibMemory]+dX*3+dY*dib_dest[DibBytesPerLine]
     portion_width = (sX2-sX1)*3
-    dest_padding = dib_dest[DibBytesPerLine]-portion_width-3
+    integer src_bytes_per_line = dib_src[DibBytesPerLine],
+            dst_bytes_per_line = dib_dst[DibBytesPerLine]
+    atom src_memory = dib_src[DibMemory]+sX1*3+sY1*src_bytes_per_line,
+         dst_memory = dib_dst[DibMemory]+dX*3+dY*dst_bytes_per_line
 
-    div = floor(50000/pct)
-    bias = floor(256*pct/100)
---  for y = src_memory to src_memory + (sY2 - sY1) * src_bytes_per_line by src_bytes_per_line do
+    integer dst_padding = dst_bytes_per_line-portion_width-3,
+            div = floor(50000/pct),
+            bias = floor(256*pct/100)
+--integer blue,green,red
     for y=sY1 to sY2 do
-        for x=y to y+portion_width by 3 do
---          color = peek({x, 3})
-            color = peek({src_memory+x, 3})
---/**/      color = sq_add(peek({dest_memory, 3}),floor((color[1]*114+color[2]*587+color[3]*299)/div)-bias) --/*
-            color = peek({dest_memory, 3}) + floor((color[1] * 114 + color[2] * 587 + color[3] * 299)/div) - bias       --*/
+--      for x=y to y+portion_width by 3 do
+        for x=0 to portion_width by 3 do    -- 18/1/26 fixes manip/Valve.bmp/applybrightness (and demo.bmp no longer gets a part-black last line)
+--/!*
+            integer {blue,green,red} = peek({src_memory+x,3}),
+                adj = floor((blue*114+green*587+red*299)/div)-bias
+            poke(dst_memory,clamp00FF(sq_add(peek({dst_memory,3}),adj)))
+--*!/
+--hmm, I think these would be better as a single peek/poke per line anyway...
+--DEV this is buggy, with lines/blur, and shd be pixbuf-only in theGUI anyway...
+--          {b,g,r} = peek({src_memory+x,3})
+--          adj = floor((b*114+g*587+r*299)/div)-bias
+--          {b,g,r} = peek({dst_memory,3})
+--          poke(dst_memory,clamp00FF({b+adj,g+adj,r+adj)))
+--/*
+            sequence color = peek({src_memory+x,3})
+--/**/      color = sq_add(peek({dst_memory,3}),floor((color[1]*114+color[2]*587+color[3]*299)/div)-bias) --/*
+            color = peek({dst_memory,3}) + floor((color[1] * 114 + color[2] * 587 + color[3] * 299)/div) - bias     --*/
             blue = color[1]  if blue<0 then blue = 0 elsif blue>255 then blue = 255 end if
             green = color[2]  if green<0 then green = 0 elsif green>255 then green = 255 end if
             red = color[3]  if red<0 then red = 0 elsif red>255 then red = 255 end if
-            poke(dest_memory, {blue, green, red})
-            dest_memory += 3
+            poke(dst_memory,{blue,green,red})
+--*/
+            dst_memory += 3
         end for
-        dest_memory += dest_padding
+        dst_memory += dst_padding
         src_memory += src_bytes_per_line
     end for
 end procedure
 
 global procedure invertDib(a32Dib dib)
 -- Inverts the pixels of the bitmap
-atom memory
 integer bytesPerLine, width3
-    memory = dib[DibMemory]
+    atom memory = dib[DibMemory]
     bytesPerLine = dib[DibBytesPerLine]
     width3 = dib[DibWidth]*3
     for i=1 to dib[DibHeight] do
---/**/  poke(memory, sq_sub(255,peek({memory, width3})))    --/* -- Phix
-        poke(memory, 255 - peek({memory, width3}))          --*/ -- RDS
+--/**/  poke(memory,sq_sub(255,peek({memory,width3})))  --/* -- Phix
+        poke(memory,255 - peek({memory,kwidth3}))           --*/ -- RDS
         memory += bytesPerLine
     end for
 end procedure
@@ -98,59 +113,55 @@ global procedure makeDibGray(a32Dib dib)
 --      for x = y to y + width3 by 3 do
         for z=y to y+width3 by 3 do
             atom x = memory+z
-            integer {c1,c2,c3} = peek({x, 3}),
+            integer {c1,c2,c3} = peek({x,3}),
                     gray = floor((c1*114+c2*587+c3*299)/1000)
-            mem_set(x, gray, 3)
+            mem_set(x,gray,3)
         end for
     end for
 end procedure
 
-global procedure replaceDibColor(a32Dib dib, a32Colour oldColor, a32Colour newColor)
+global procedure replaceDibColor(a32Dib dib, a32Colour oldColor, newColor)
 -- Replaces oldColor in the bitmap with newColor
-atom memory
-integer bytes_per_line, width3
-    if equal(oldColor, newColor) then return end if -- no replacing necessary
-    memory = dib[DibMemory]
-    bytes_per_line = dib[DibBytesPerLine]
-    width3 = dib[DibWidth]*3-3
-    for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
-        for x=y to y+width3 by 3 do
-            if equal(peek({x, 3}), oldColor) then poke(x, newColor) end if
+    if oldColor!=newColor then
+        atom memory = dib[DibMemory]
+        integer bytes_per_line = dib[DibBytesPerLine],
+                width3 = dib[DibWidth]*3-3
+        for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
+            for x=y to y+width3 by 3 do
+                if equal(peek({x,3}),oldColor) then poke(x,newColor) end if
+            end for
         end for
-    end for
+    end if
 end procedure
 
-global procedure replaceDibColors(a32Dib dib, sequence oldColors, sequence newColors)
+global procedure replaceDibColors(a32Dib dib, sequence oldColors, newColors)
 -- Replaces all the colors in oldColors in the bitmap with the same color in newColors
-atom memory
-integer index, len, bytes_per_line, width3
-sequence oldColors2, newColors2
-    len = length(oldColors)
-    if len>length(newColors) then len = length(newColors) end if -- take the length of the shortest sequence
-    oldColors2 = repeat(0, len)
-    newColors2 = repeat(0, len)
-    index = 0
+    integer len = min(length(oldColors),length(newColors)),
+            index = 0
+    sequence oldColors2 = repeat(0,len),
+             newColors2 = repeat(0,len)
     for i=1 to len do
-        if not equal(oldColors[i], newColors[i]) then -- remove colors that don't need replacing
+        if not equal(oldColors[i],newColors[i]) then -- remove colors that don't need replacing
             index += 1
             oldColors2[index] = oldColors[i]
             newColors2[index] = newColors[i]
         end if
     end for
-    if index=0 then return -- no replacing necessary
-    elsif index=1 then replaceDibColor(dib, oldColors[1], newColors[1]) return -- only 1 color: use the faster replaceDibColor
-    end if
-    oldColors = oldColors2[1..index]
-    newColors = newColors2[1..index]
-    memory = dib[DibMemory]
-    bytes_per_line = dib[DibBytesPerLine]
-    width3 = dib[DibWidth]*3-3
-    for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
-        for x=y to y+width3 by 3 do
-            index = find(peek({x, 3}), oldColors)
-            if index>0 then poke(x, newColors[index]) end if
+    if index=1 then 
+        replaceDibColor(dib,oldColors[1],newColors[1]) -- use the faster replaceDibColor
+    elsif index!=0 then
+        oldColors = oldColors2[1..index]
+        newColors = newColors2[1..index]
+        atom memory = dib[DibMemory]
+        integer bytes_per_line = dib[DibBytesPerLine],
+                width3 = dib[DibWidth]*3-3
+        for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
+            for x=y to y+width3 by 3 do
+                index = find(peek({x,3}),oldColors)
+                if index>0 then poke(x,newColors[index]) end if
+            end for
         end for
-    end for
+    end if
 end procedure
 
 global procedure adjustDibColors(a32Dib dib, sequence delta)
@@ -159,20 +170,20 @@ atom memory
 integer red, green, blue, bytes_per_line, width3
 --a32Colour color
 sequence color
-    if equal(delta, {0, 0, 0}) then return end if -- no adjusting necessary
+    if equal(delta,{0,0,0}) then return end if -- no adjusting necessary
     memory = dib[DibMemory]
     bytes_per_line = dib[DibBytesPerLine]
     width3 = dib[DibWidth]*3-3
     for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
         for x=y to y+width3 by 3 do
---/**/      color = sq_add(peek({x, 3}),delta)      --/* -- Phix
-            color = peek({x, 3}) + delta            --*/ -- RDS
+--/**/      color = sq_add(peek({x,3}),delta)       --/* -- Phix
+            color = peek({x,3}) + delta         --*/ -- RDS
             blue = color[1]
             green = color[2]
             red = color[3]
-            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
-            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
-            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+            if blue<0 then poke(x,0) elsif blue>255 then poke(x,255) else poke(x,blue) end if
+            if green<0 then poke(x+1,0) elsif green>255 then poke(x+1,255) else poke(x+1,green) end if
+            if red<0 then poke(x+2,0) elsif red>255 then poke(x+2,255) else poke(x+2,red) end if
         end for
     end for
 end procedure
@@ -186,10 +197,10 @@ sequence orig_color, new_color, palette, delta
     bytes_per_line = dib[DibBytesPerLine]
     width3 = dib[DibWidth]*3-3
 
-    palette = repeat(0, 256) -- first generate a palette from black over color to white
+    palette = repeat(0,256) -- first generate a palette from black over color to white
 --/**/  delta = sq_div(color,127)           --/* -- Phix
         delta = color / 127                 --*/ -- RDS
-    orig_color = {0, 0, 0}
+    orig_color = {0,0,0}
     for i=1 to 128 do
 --/**/  new_color = sq_floor(orig_color)    --/* -- Phix
         new_color = floor(orig_color)       --*/ -- RDS
@@ -206,7 +217,7 @@ sequence orig_color, new_color, palette, delta
 --/**/  delta = sq_div(sq_sub(255,color),127)               --/* -- Phix
         delta = (255 - color) / 127                         --*/ -- RDS
 
-    orig_color = {255, 255, 255}
+    orig_color = {255,255,255}
     for i=256 to 129 by -1 do
 --/**/  new_color = sq_floor(orig_color)    --/* -- Phix
         new_color = floor(orig_color)       --*/ -- RDS
@@ -226,8 +237,8 @@ sequence orig_color, new_color, palette, delta
 --      for x = y to y + width3 by 3 do
         for z=y to y+width3 by 3 do
             x = memory+z
-            orig_color = peek({x, 3})
-            poke(x, palette[floor((orig_color[1]*114+orig_color[2]*587+orig_color[3]*299)/1000)+1])
+            orig_color = peek({x,3})
+            poke(x,palette[floor((orig_color[1]*114+orig_color[2]*587+orig_color[3]*299)/1000)+1])
         end for
     end for
 end procedure
@@ -239,10 +250,10 @@ integer red, green, blue, bytes_per_line, width3
 sequence color
     if brightness=0 then return -- adjusting not necessary
     elsif brightness>=255 then -- total white
-        clearDib(dib, {255, 255, 255})
+        clearDib(dib,{255,255,255})
         return
     elsif brightness<= -255 then -- total black
-        clearDib(dib, {0, 0, 0})
+        clearDib(dib,{0,0,0})
         return
     end if
     memory = dib[DibMemory]
@@ -253,14 +264,14 @@ sequence color
 --      for x = y to y + width3 by 3 do
         for z=y to y+width3 by 3 do
             x = memory+z
---/**/      color = sq_add(peek({x, 3}),brightness) --/* -- Phix
-            color = peek({x, 3}) + brightness       --*/ -- RDS
+--/**/      color = sq_add(peek({x,3}),brightness) --/* -- Phix
+            color = peek({x,3}) + brightness        --*/ -- RDS
             blue = color[1]
             green = color[2]
             red = color[3]
-            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
-            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
-            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+            if blue<0 then poke(x,0) elsif blue>255 then poke(x,255) else poke(x,blue) end if
+            if green<0 then poke(x+1,0) elsif green>255 then poke(x+1,255) else poke(x+1,green) end if
+            if red<0 then poke(x+2,0) elsif red>255 then poke(x+2,255) else poke(x+2,red) end if
         end for
     end for
 end procedure
@@ -282,14 +293,14 @@ sequence color
 --      for x = y to y + width3 by 3 do
         for z=y to y+width3 by 3 do
             x = memory+z
---/**/      color = sq_add(sq_floor(sq_mul(sq_sub(peek({x, 3}),128),contrast)),128) --/* -- Phix
-            color = floor((peek({x, 3}) - 128) * contrast) + 128                    --*/ -- RDS
+--/**/      color = sq_add(sq_floor(sq_mul(sq_sub(peek({x,3}),128),contrast)),128) --/* -- Phix
+            color = floor((peek({x,3}) - 128) * contrast) + 128                 --*/ -- RDS
             blue = color[1]
             green = color[2]
             red = color[3]
-            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
-            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
-            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+            if blue<0 then poke(x,0) elsif blue>255 then poke(x,255) else poke(x,blue) end if
+            if green<0 then poke(x+1,0) elsif green>255 then poke(x+1,255) else poke(x+1,green) end if
+            if red<0 then poke(x+2,0) elsif red>255 then poke(x+2,255) else poke(x+2,red) end if
         end for
     end for
 end procedure
@@ -302,16 +313,16 @@ atom memory
 integer red, green, blue, bytes_per_line, width3
 sequence color
     if brightness=0 then
-        adjustDibContrast(dib, contrast) -- brightness doesn't need adjusting
+        adjustDibContrast(dib,contrast) -- brightness doesn't need adjusting
         return
     elsif contrast=0 then
-        adjustDibBrightness(dib, brightness) -- contrast doesn't need adjusting
+        adjustDibBrightness(dib,brightness) -- contrast doesn't need adjusting
         return
     elsif brightness>=255 then -- total white
-        clearDib(dib, {255, 255, 255})
+        clearDib(dib,{255,255,255})
         return
     elsif brightness<=-255 then -- total black
-        clearDib(dib, {0, 0, 0})
+        clearDib(dib,{0,0,0})
         return
     else brightness += 128
     end if
@@ -321,13 +332,13 @@ sequence color
     width3 = dib[DibWidth]*3-3
     for y=memory to memory+dib[DibBytesTotal]-bytes_per_line by bytes_per_line do
         for x=y to y+width3 by 3 do
-            color = floor((peek({x, 3})-128)*contrast)+brightness
+            color = floor((peek({x,3})-128)*contrast)+brightness
             blue = color[1]
             green = color[2]
             red = color[3]
-            if blue<0 then poke(x, 0) elsif blue>255 then poke(x, 255) else poke(x, blue) end if
-            if green<0 then poke(x+1, 0) elsif green>255 then poke(x+1, 255) else poke(x+1, green) end if
-            if red<0 then poke(x+2, 0) elsif red>255 then poke(x+2, 255) else poke(x+2, red) end if
+            if blue<0 then poke(x,0) elsif blue>255 then poke(x,255) else poke(x,blue) end if
+            if green<0 then poke(x+1,0) elsif green>255 then poke(x+1,255) else poke(x+1,green) end if
+            if red<0 then poke(x+2,0) elsif red>255 then poke(x+2,255) else poke(x+2,red) end if
         end for
     end for
 end procedure

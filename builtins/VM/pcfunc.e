@@ -822,7 +822,7 @@ global function call_back(object id)
 -- Note that all parameters must be declared as atoms, and will receive an      --DEV check/test this...
 --  unsigned 32-bit value. Use "integer" instead of "atom" at your own risk;
 --  eg -1, might, at best, appear as 4,294,967,295 (#FFFFFFFF), at worst it 
---  could be (especially if type checking/debug is turned off) a raw address
+--  could be (especially if typechecking/debug is turned off) a raw address
 --  or bit-shifted Phix reference, which will undoubtedly trigger a machine
 --  exception. If you find any kind of bug when using integer parameters on 
 --  a call_back, the "fix" will be "use atom".
@@ -1154,6 +1154,8 @@ integer esp4
             mov rax,rsp
             shr rax,2
             mov [esp4],rax
+--      [ARM]
+--          int3
           }
 
 --/*
@@ -1223,7 +1225,7 @@ integer esp4
 --          mov [tr],rsi
 --        }
     name = tr[T_name]
---DEV 12/2/18: type check failure, addr is 1079399234.0 here???:
+--DEV 12/2/18: typecheck failure, addr is 1079399234.0 here???:
     addr = tr[T_address]
     argdefs = tr[T_args]
     return_type = tr[T_return_type]
@@ -2215,16 +2217,19 @@ end if
                     jmp :cstore
             @@:
                 cmp rdx,0x03000004  -- (C_FLOAT)
-                je :cstorexmm0
+                jne @f
+                    sub rsp,8
+                    movss dword[rsp],xmm0
+                    fld dword[rsp]
+                    jmp :cstorest0
+            @@:
                 cmp rdx,0x03000008  -- (C_DOUBLE)
                 jne @f
-            ::cstorexmm0
--- 14/2/16: (certainly C_DOUBLE, not necessarily C_FLOAT?) [25/2, I think it's the same]
                     sub rsp,8
                     movsd qword[rsp],xmm0
                     fld qword[rsp]
+            ::cstorest0
                     add rsp,8
--- (14/2/16 ends)
             ::cstore
                     lea rdi,[res]
                     call :%pStoreFlt                    -- ([rdi]:=ST0)

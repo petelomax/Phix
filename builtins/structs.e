@@ -74,7 +74,7 @@
 --  Assume that integer x,y is the fastest way to perform some calculation.
 --  Using enum X,Y sequence pt and pt[X], pt[Y] will be measurably slower.
 --  At best, structs are more like pt[4][X], pt[4][Y], yet slower still.
---  Structs also have much finer grained type checking than sequences, so 
+--  Structs also have much finer grained typechecking than sequences, so 
 --  attempts to set s.age to a string (not atom) trigger an error, and 
 --  obviously that sort of thing incurs even further overhead.
 --
@@ -187,38 +187,38 @@
 --  The formal parameters are new(string|integer s, sequence imm={}).
 --
 --  If omitted, the compiler automatically provides/inserts s from context, ie/eg
---  `person p = new()` is equivalent to `person p = new(routine_id("person"))`.
+--  `person p = new()` is equivalent to `person p = new(person)`.
 --  You could also use a string, perhaps for as-yet-undefined structs, as long as 
 --  it is actually properly defined by run-time.
 --
 --  The values in imm, if provided, override existing defaults in numeric order.
 --
 --
---  C structs
---  =========
---
---      struct rect """
---      typedef struct _RECT {
---        LONG left;
---        LONG top;
---        LONG right;
---        LONG bottom;
---      } RECT, *PRECT;"""
---      end struct
---
---      rect r = new({10,10,350,200}) -- (arg optional)
---      r.left = 10     --\
---      r.top = 10      -- } equivalent to using the
---      r.right = 350   -- }  {10,10,350,200} above
---      r.bottom = 200  --/
---
---      c_proc(xFillRect,{hDC,struct_mem(r),hBrush})
---
---  A c-struct allows the new dot notation syntax to be applied to the existing 
---  cffi.e, which is effectively deprecated (/some functions of which renamed). 
---  c-structs are utterly static and cannot be abstract, extended, or dynamic.
---  [You can embed c-structs and/or use unions, for details read a C manual,
---   or rather instead just use a published C API without fully grokking it.]
+--X C structs
+--X =========
+--X
+--X     struct rect """
+--X     typedef struct _RECT {
+--X       LONG left;
+--X       LONG top;
+--X       LONG right;
+--X       LONG bottom;
+--X     } RECT, *PRECT;"""
+--X     end struct
+--X
+--X     rect r = new({10,10,350,200}) -- (arg optional)
+--X     r.left = 10     --\
+--X     r.top = 10      -- } equivalent to using the
+--X     r.right = 350   -- }  {10,10,350,200} above
+--X     r.bottom = 200  --/
+--X
+--X     c_proc(xFillRect,{hDC,struct_mem(r),hBrush})
+--X
+--X A c-struct allows the new dot notation syntax to be applied to the existing 
+--X cffi.e, which is effectively deprecated (/some functions of which renamed). 
+--X c-structs are utterly static and cannot be abstract, extended, or dynamic.
+--X [You can embed c-structs and/or use unions, for details read a C manual,
+--X  or rather instead just use a published C API without fully grokking it.]
 --
 --
 --  Class structs
@@ -419,7 +419,7 @@
 --      
 --  
 
-include cffi.e as cffi
+--include cffi.e as cffi
 include dict.e  -- (not really rqd, but used below so we may as well)
 
 -- struct flags:
@@ -427,12 +427,14 @@ include dict.e  -- (not really rqd, but used below so we may as well)
 global
 constant S_STRUCT       = #01,  -- (declared using "struct" [for error messages])
          S_CLASS        = #02,  -- (declared using "class"  [for error messages])
-         S_DYNAMIC      = #03,  -- (dynamic class; dictionary-based)
+         S_DYNAMIC      = #03   -- (dynamic class; dictionary-based)
 --?      S_DYNAMIC      = #06,  -- (dynamic class; dictionary-based)
 --       S_SEQUENCE     = #04,  -- (struct extends sequence; sequence-based) -- **incomplete/undocumented**
 --       S_SEQUENCE     = #05,  -- (struct extends sequence; sequence-based) -- **incomplete/undocumented**
-         S_CFFI         = #09   -- (struct c <"def">; cffi-based)
-constant S_CORE         = #0F   -- (mask for S_STRUCT..S_CFFI)
+--DEV to go, 19/2/26:
+--       S_CFFI         = #09   -- (struct c <"def">; cffi-based)
+--constant S_CORE       = #0F   -- (mask for S_STRUCT..S_CFFI)
+constant S_CORE         = #0F   -- (mask for S_STRUCT..S_DYNAMIC)
 
 global
 constant S_ABSTRACT     = #10,
@@ -466,12 +468,14 @@ global constant ST_INTEGER  =  1, -- (==T_integer)
 
 enum S_NAME, S_TID, S_FLAGS, S_SDX, S_BDX, S_FIELDS, S_DEFAULT -- (for use on definitions, first 3 to S_FIELDS as well)
 enum I_STRUCT, I_NAME, I_SDX, I_DATA -- (for use on individual instances)
+--DEV? unused??
+if S_BDX then end if
 
 enum C_FREELIST, C_INSTANCES -- (for use on class-struct instances table only)
 
 sequence structs,   -- elements are {name,tid,flags,sdx,base,{fields},default} [S_NAME..S_DEFAULT]
                     -- fields are {name,tid,flags} [also S_NAME..S_FLAGS]
-         instances  -- elements are 0 for > S_CLASS (ie dynamic/cffi)
+         instances  -- elements are 0 for > S_CLASS (ie dynamic)
                     -- otherwise {freelist,{{fields}}}. [C_XXX]
 
 integer vtable = -1 -- master multi-use dictionary, of all struct definitions:
@@ -483,7 +487,7 @@ integer vtable = -1 -- master multi-use dictionary, of all struct definitions:
                     -- key is {"name",rid}, data is struct_name (inc. ST_INTEGER..ST_OBJECT)
 
 function valid_type(integer tid, object v)
--- internal: type check an individual field setting
+-- internal: typecheck an individual field setting
     switch tid do
         case ST_INTEGER:  return integer(v)
         case ST_ATOM:     return atom(v)
@@ -520,7 +524,7 @@ integer sdx, flags, stype
                     flags = structs[sdx][S_FLAGS]
                     stype = and_bits(flags,S_CORE)
                     if rid!=0 and rid!=structs[sdx][S_TID] then
-                        if stype=S_CFFI then return false end if
+--                      if stype=S_CFFI then return false end if
                         integer cdx = getd({"struct",rid},vtable)
                         object cdii = getd({"extends",sdx},vtable)
                         if cdii=NULL or not find(cdx,cdii) then return false end if
@@ -529,7 +533,7 @@ integer sdx, flags, stype
                     switch stype do
                         case S_STRUCT,S_CLASS:  return is_cdx(d,sdx)
                         case S_DYNAMIC:         return is_dict(d)
-                        case S_CFFI:            return atom(d) and d!=NULL
+--                      case S_CFFI:            return atom(d) and d!=NULL
                     end switch
                     ?9/0 -- unknown stype??
                 end if -- sdx ok
@@ -561,6 +565,7 @@ global type struct(object s)
 --
     return is_struct(s,0)
 end type
+--DEV...
 constant r_struct = routine_id("struct")
             
 procedure struct_init()
@@ -616,8 +621,7 @@ integer sdx = 0
 
 global procedure struct_start(integer flags, string struct_name, integer rid=routine_id(struct_name), string base_name="")
 --
--- valid flags are: S_STRUCT/S_CLASS/S_DYNAMIC/S_CFFI, + S_ABSTRACT|S_NULLABLE
--- for S_CFFI, base_name is actually the C typdef string, rather than a parent name.
+-- valid flags are: S_STRUCT/S_CLASS/S_DYNAMIC, + S_ABSTRACT|S_NULLABLE
 --
     if sdx!=0 then ?9/0 end if
     if vtable=-1 then struct_init() end if
@@ -631,17 +635,17 @@ global procedure struct_start(integer flags, string struct_name, integer rid=rou
     integer bdx = 0,
             stype = and_bits(flags,S_CORE)
 
-    if stype=S_CFFI then
-        if and_bits(flags,S_ABSTRACT) then ?9/0 end if
---19/2/21:
---      bdx = cffi:define_struct(base_name)
-        try
-            bdx = cffi:define_struct(base_name)
-        catch e
---          crash(e[E_USER],{},1)
-            throw(e[E_USER])
-        end try
-    else
+--  if stype=S_CFFI then
+--      if and_bits(flags,S_ABSTRACT) then ?9/0 end if
+----19/2/21:
+----        bdx = cffi:define_struct(base_name)
+--      try
+--          bdx = cffi:define_struct(base_name)
+--      catch e
+----            crash(e[E_USER],{},1)
+--          throw(e[E_USER])
+--      end try
+--  else
         if base_name!="" then
             if find(base_name,{"class","struct","sequence"}) then ?9/0 end if
             bdx = getd(base_name,vtable)
@@ -652,13 +656,14 @@ global procedure struct_start(integer flags, string struct_name, integer rid=rou
             pflags -= and_bits(pflags,S_ABSTRACT)
             flags = or_bits(flags,pflags)
         end if
-    end if
+--  end if
     -- elements are {name,rid,flags,sdx,base,{fields},default}
     structs = append(structs,{struct_name,rid,flags,sdx,bdx,{},{}})
     instances = append(instances,iff(stype<=S_CLASS?{0,{}}:0))
-    if stype=S_CFFI then
-        sdx = 0
-    elsif bdx then
+--  if stype=S_CFFI then
+--      sdx = 0
+--  elsif bdx then
+    if bdx then
         sequence fields = structs[bdx][S_FIELDS]
         structs[sdx][S_FIELDS] = fields
         structs[sdx][S_DEFAULT] = structs[bdx][S_DEFAULT]
@@ -680,7 +685,7 @@ global procedure extend_struct(string struct_name, base_name="")
     integer flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
     -- (the compiler should never attempt this...)
-    if stype=S_CFFI then ?9/0 end if
+--  if stype=S_CFFI then ?9/0 end if
     if base_name!="" then
         if find(base_name,{"class","struct","sequence"}) then ?9/0 end if
         integer bdx = getd(base_name,vtable)
@@ -738,7 +743,7 @@ global procedure struct_add_field(string name, integer tid, field_flags=0, objec
     integer flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
     -- (the compiler should never attempt this...)
-    if stype=S_CFFI then ?9/0 end if
+--  if stype=S_CFFI then ?9/0 end if
     if vtable=-1 then ?9/0 end if
     sequence sn = {sdx,name}
     integer fdx = length(structs[sdx][S_FIELDS])+1,
@@ -804,8 +809,8 @@ global function get_struct_type(object s)
 --   at least that is in the code it emits rather than code you write,
 --   and in practice that will only ever be for the routine_id calls.)
 --
---  Returns S_STRUCT/S_CLASS/S_DYNAMIC/S_CFFI
---? Returns S_STRUCT/S_CLASS/S_DYNAMIC/S_CFFI or 0
+--  Returns S_STRUCT/S_CLASS/S_DYNAMIC
+--? Returns S_STRUCT/S_CLASS/S_DYNAMIC or 0
 --
     if vtable=-1 then struct_init() end if -- (structdx() crashes either way)
 --? if vtable=-1 then return 0 end if
@@ -850,7 +855,7 @@ global function get_struct_fields(object s)
     integer sdx = struct_dx(s,true),
             flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
-    if stype=S_CFFI then ?9/0 end if
+--  if stype=S_CFFI then ?9/0 end if
     sequence res
     if stype=S_DYNAMIC
     and not string(s)
@@ -866,7 +871,7 @@ global function get_struct_fields(object s)
 end function
 
 function field_dx(object sdx, string name)
--- NB can return 0 (and will on all S_CFFI structs).
+-- NB can return 0.
 -- sdx can be a string (name), struct (instance), or an already known
 --  integer, typically the result from a direct struct_dx() call, but
 --  (unlike struct_dx) it /cannot/ be a routine_id.
@@ -919,7 +924,9 @@ procedure destroy_instance(sequence s)
         --       but it shd be gone b4 destroy_instance was invoked.]
         --
 --      s = delete_routine(s,destroy_instance)
-        s = delete_routine(s,no_no_no)
+        if not still_has_delete_routine(s) then -- (added test 24/9/25)
+            s = delete_routine(s,no_no_no)
+        end if
 --trace(1)
         dtor(s)
         s = delete_routine(s,0)
@@ -927,9 +934,9 @@ procedure destroy_instance(sequence s)
     end if
     if stype=S_DYNAMIC then
         destroy_dict(cdx)
-    elsif stype=S_CFFI then
-        ?9/0    -- should not be delete_routine()'d [by new()]...
-        -- (plus, c_structs should never have a de[/con]structor)
+--  elsif stype=S_CFFI then
+--      ?9/0    -- should not be delete_routine()'d [by new()]...
+--      -- (plus, c_structs should never have a de[/con]structor)
     else
         integer freelist = instances[sdx][C_FREELIST]
         instances[sdx][C_FREELIST] = cdx
@@ -1014,25 +1021,25 @@ global function new(object sdx, sequence imm={})
             --  the same way that cffi:get_field_details() does, then we can
             --  use the former to assign each field in this loop.
 --          if stype=S_CFFI then ?9/0 end if
-            if stype=S_CFFI and dflts!={} then ?9/0 end if
+--          if stype=S_CFFI and dflts!={} then ?9/0 end if
             for i=1 to length(imm) do
                 object ii = imm[i]
-                if stype=S_CFFI then
-                    if not atom(ii) then -- (rqd by cffi:set_struct_field()...)
-                        crash("imm[%d] invalid type: %v\n",{i,ii},2)
-                    end if
-                    dflts &= ii
-                else
+--              if stype=S_CFFI then
+--                  if not atom(ii) then -- (rqd by cffi:set_struct_field()...)
+--                      crash("imm[%d] invalid type: %v\n",{i,ii},2)
+--                  end if
+--                  dflts &= ii
+--              else
                     if not valid_type(fields[i][S_TID],ii) then
                         crash("imm[%d] invalid type: %v (%v)\n",{i,ii,fields[i]},2)
                     end if
 --p2js:
 --                  dflts = deep_copy(dflts)
                     dflts[i] = ii
-                end if
+--              end if
             end for
-        elsif stype=S_CFFI then
-            ?9/0 -- c_structs should never have a con[/de]structor!
+--      elsif stype=S_CFFI then
+--          ?9/0 -- c_structs should never have a con[/de]structor!
         end if
     end if
     sequence res
@@ -1063,16 +1070,16 @@ global function new(object sdx, sequence imm={})
         res = {"struct",sname,sdx,tid}
         if ctor then res = call_func(ctor,{res}&imm) end if
         res = delete_routine(res,r_destroy_instance)
-    elsif stype=S_CFFI then
-        if ctor then ?9/0 end if
-        integer id = structs[sdx][S_BDX]
-        atom pMem = cffi:allocate_struct(id)
-        for i=1 to length(dflts) do
---          string field = fields[S_NAME]
---          cffi:set_struct_field(id,pMem,field,dflts[i])
-            cffi:set_struct_field(id,pMem,i,dflts[i])
-        end for
-        res = {"struct",sname,sdx,pMem}
+--  elsif stype=S_CFFI then
+--      if ctor then ?9/0 end if
+--      integer id = structs[sdx][S_BDX]
+--      atom pMem = cffi:allocate_struct(id)
+--      for i=1 to length(dflts) do
+----            string field = fields[S_NAME]
+----            cffi:set_struct_field(id,pMem,field,dflts[i])
+--          cffi:set_struct_field(id,pMem,i,dflts[i])
+--      end for
+--      res = {"struct",sname,sdx,pMem}
     else
         ?9/0
     end if
@@ -1084,7 +1091,7 @@ global procedure set_field_default(string struct_name, field_name, object v)
             flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
     -- (the compiler should never attempt this...)
-    if stype=S_CFFI then ?9/0 end if -- (no defaults, ever, as per docs)
+--  if stype=S_CFFI then ?9/0 end if -- (no defaults, ever, as per docs)
     integer fdx = getd({sdx,field_name},vtable),
             tid = structs[sdx][S_FIELDS][fdx][S_TID]
     if not valid_type(tid,v) then ?9/0 end if
@@ -1094,11 +1101,11 @@ end procedure
 global procedure store_field(struct s, string field_name, object v, context=0)
     integer sdx = s[I_SDX],
             stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
-    if stype=S_CFFI then
-        integer id = structs[sdx][S_BDX]
-        atom pMem = s[I_DATA]
-        cffi:set_struct_field(id,pMem,field_name,v)
-    else
+--  if stype=S_CFFI then
+--      integer id = structs[sdx][S_BDX]
+--      atom pMem = s[I_DATA]
+--      cffi:set_struct_field(id,pMem,field_name,v)
+--  else
         integer fdx = getd({sdx,field_name},vtable), tid
         if fdx=NULL then
             if stype!=S_DYNAMIC then
@@ -1153,16 +1160,17 @@ global procedure store_field(struct s, string field_name, object v, context=0)
         else
             ?9/0 -- stype is 0/has been corrupted
         end if
-    end if
+--  end if
 end procedure
 
 --16/5/24:
 global procedure store_field_element(struct s, string field_name, integer idx, object v, context=0)
     integer sdx = s[I_SDX],
             stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
-    if stype=S_CFFI then
-        crash("not supported on S_CFFI",2)
-    elsif stype=S_DYNAMIC then
+--  if stype=S_CFFI then
+--      crash("not supported on S_CFFI",2)
+--  elsif stype=S_DYNAMIC then
+    if stype=S_DYNAMIC then
         crash("not supported on S_DYNAMIC",2)
     else
         integer fdx = getd({sdx,field_name},vtable), tid
@@ -1238,10 +1246,10 @@ global function fetch_field(struct s, string field_name, object context=0)
     elsif stype=S_DYNAMIC then
         integer tid = s[I_DATA]
         res = getd(field_name,tid)
-    elsif stype=S_CFFI then
-        integer id = structs[sdx][S_BDX]
-        atom pMem = s[I_DATA]
-        res = cffi:get_struct_field(id,pMem,field_name)
+--  elsif stype=S_CFFI then
+--      integer id = structs[sdx][S_BDX]
+--      atom pMem = s[I_DATA]
+--      res = cffi:get_struct_field(id,pMem,field_name)
     else
         ?9/0 -- stype is 0/has been corrupted?
     end if
@@ -1251,7 +1259,7 @@ end function
 global function get_field_default(object s, string field_name)
     integer sdx = struct_dx(s, true),
             stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
-    if stype=S_CFFI then ?9/0 end if -- (no defaults, ever, as per docs)
+--  if stype=S_CFFI then ?9/0 end if -- (no defaults, ever, as per docs)
     integer fdx = field_dx(sdx,field_name)
     object res = iff(fdx=0?NULL:structs[sdx][S_DEFAULT][fdx])
     return res
@@ -1266,7 +1274,7 @@ global function get_field_flags(object s, string field_name, bool bAsText=false)
     integer sdx = struct_dx(s, true),
             flags = structs[sdx][S_FLAGS],
             stype = and_bits(flags,S_CORE)
-    if stype=S_CFFI then ?9/0 end if -- (see docs)
+--  if stype=S_CFFI then ?9/0 end if -- (see docs)
     integer fdx = field_dx(sdx,field_name),
             res = iff(fdx=0?NULL:structs[sdx][S_FIELDS][fdx][S_FLAGS])
 --  if res=NULL
@@ -1295,7 +1303,7 @@ global function get_field_type(object s, string field_name, bool bAsText=false)
     integer sdx = struct_dx(s, true)
     if sdx=0 then return 0 end if
     integer stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
-    if stype=S_CFFI then ?9/0 end if -- (as per docs)
+--  if stype=S_CFFI then ?9/0 end if -- (as per docs)
     integer fdx = field_dx(sdx,field_name),
             res = iff(fdx=0?NULL:structs[sdx][S_FIELDS][fdx][S_TID])
     if res=NULL
@@ -1317,11 +1325,11 @@ global function get_field_type(object s, string field_name, bool bAsText=false)
     return res
 end function
 
-global function struct_mem(object s)
-    integer sdx = struct_dx(s),
-            stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
-    if stype!=S_CFFI then ?9/0 end if
-    return s[I_DATA]
-end function
+--global function struct_mem(object s)
+--  integer sdx = struct_dx(s),
+--          stype = and_bits(structs[sdx][S_FLAGS],S_CORE)
+--  if stype!=S_CFFI then ?9/0 end if
+--  return s[I_DATA]
+--end function
 
 

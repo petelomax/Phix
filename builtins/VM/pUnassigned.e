@@ -15,11 +15,11 @@ include builtins\VM\puts1.e         -- low-level console i/o
     :%pUnassigned   -- aka e92vhnbaavesiesp
 -----------------
         -- esi is var no for e92,
-        -- edi is var no for type check error 
+        -- edi is var no for typecheck error 
         -- [ie: if [esi]==h4 then (jz/jnz valid)
         --          varname(esi)&" has not been assigned a value"
         --      else
-        --          "type check error:"&varname(edi)&" is "&sprint([edi])
+        --          "typecheck error:"&varname(edi)&" is "&sprint([edi])
         --           (in which case [esi] and [edi] should be the same, btw)
         --      end if]
     [32]
@@ -28,7 +28,7 @@ include builtins\VM\puts1.e         -- low-level console i/o
             -- [var]==h4, esi is varno
             mov al,92   -- e92vhnbaav(esi)
         je @f
-            -- type check error (edi is varno)
+            -- typecheck error (edi is varno)
 --          mov al,110  -- e110tce(ecx)
             mov al,1    -- e01tcf(ecx)
             mov ecx,edi -- DEV (minor)
@@ -40,7 +40,7 @@ include builtins\VM\puts1.e         -- low-level console i/o
             -- [var]==h4, esi is varno
             mov al,92   -- e92vhnbaav(esi)
         je @f
-            -- type check error (edi is varno)
+            -- typecheck error (edi is varno)
 --          mov al,110  -- e110tce(ecx)
             mov al,1    -- e01tcf(ecx)
             mov rcx,rdi -- DEV (minor)
@@ -182,13 +182,13 @@ include builtins\VM\puts1.e         -- low-level console i/o
 --!*/
 
     :%e01tcfDivi2   -- (opDivi2)
---      <int>:=<odd_int>/2 ---> type check error, <int> is x.5:
+--      <int>:=<odd_int>/2 ---> typecheck error, <int> is x.5:
 --;calling convention:
 --; mov eax,[p2]
 --; mov edx,p1
 --; sar eax,1
 --; jnc @f
---; call :%e01tcfDivi2  -- type check error, <p1> is xxx.5
+--; call :%e01tcfDivi2  -- typecheck error, <p1> is xxx.5
     [32]
         push eax
 --  pop ecx             ; return address
@@ -209,7 +209,7 @@ include builtins\VM\puts1.e         -- low-level console i/o
         faddp
         fdivp   -- (0.5)
         faddp
-        jmp @f  -- (type check error, <int> is x.5)
+        jmp @f  -- (typecheck error, <int> is x.5)
 
     :%e01tcfediMul -- (opMuliii)
         [32]
@@ -237,6 +237,9 @@ include builtins\VM\puts1.e         -- low-level console i/o
             sub rdx,1
             mov rcx,rdi
             jmp :!iDiag
+            int3
+        [ARM]
+          @@:
             int3
         []
 --;calling convention:

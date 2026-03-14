@@ -31,6 +31,8 @@ end function
 global function substitute_all(sequence text, strings, replacements)
     for i=1 to length(strings) do
         if string(strings) then
+--DEV (sip) might not be the case for JavaScript (test as next, should you notice something slow)
+--          if string(replacements) and platform()!=JS then -- not yet tried
             if string(replacements) then
                 -- in this case a naive in situ approach is faster:
                 integer ch = strings[i], repch = replacements[i]

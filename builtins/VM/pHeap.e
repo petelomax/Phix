@@ -24,7 +24,7 @@
 --  corruption is quite likely to be detected on some subsequent and entirely innocent
 --  statement, and pointing the programmer at that will often hinder rather than help.
 --  [update: as this matures, it seems that showing both might be increasingly useful]
---  These routines are written in a "fast fail" style.
+--  These routines are written in a "fail fast" style.
 --
 --
 -- The point of a heap manager is to scale effortlessly when it allocates /billions/ of
@@ -1106,6 +1106,10 @@ push rsi
             call "libc.so.6","malloc"
 pop rsi
 pop rdi
+--*/
+--/*
+        [ARM]
+--The ARM Procedure call Standard mentions that r4-r8, r10, r11, and the SP need to be preserved in a subroutine
 --*/
         []
             ret
@@ -4244,6 +4248,10 @@ end procedure -- (for Edita/CtrlQ)
             mov rsi,rdx                 -- start with base ptr, ie s[1]
          ::dseqelementloop
             sub rcx,8
+    [ARM]
+         ::dseqloop
+         ::dseqelementloop
+            int3
     []
             jge @f
     [32]
@@ -4659,6 +4667,9 @@ end procedure -- (for Edita/CtrlQ)
         mov rcx,[rax-8]     -- retrieve size
         sub rax,8
 --      mov rdx,[rsp]       -- era
+    [ARM]
+      :%pFree_e107ifma      -- exception here mapped to e107ifma
+        int3
     []
         call :%pFreePool
         ret

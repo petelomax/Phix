@@ -3,7 +3,11 @@
 
 include a32dpoly.ew  -- only the core- and polygon-library are necessary
 
-a32Dib0 dib = loadDib("demo.bmp"), screen_dib = 0
+--a32Dib0 dib = loadDib("demo.bmp"), screen_dib = 0
+a32Dib0 dib = loadDib("demoM.bmp"), screen_dib = 0
+--include a32dcolr.ew                               -- \ no longer
+--replaceDibColor(dib, {255,0,255}, {255,255,0})    -- / necessary
+--a32Dib0 dib = loadDib("valve.bmp"), screen_dib = 0
 assert(sequence(dib),"Cannot load demo.bmp")
 integer dx = 0, dy = 0, dw = 0, dh = 0, frames = 0
 atom t2 = time()+2
@@ -12,10 +16,18 @@ constant win = create(Window, "Arwen32Dib bitmap polygon mapping demo", 0, 0, De
 
 procedure IdleHandler()
     if sequence(screen_dib) then
+--/!*
         integer x1 = rand(dx),          y1 = rand(dy),
                 x2 = dw-rand(dx),       y2 = rand(dy),
                 x3 = dw-rand(dx),       y3 = dh-rand(dy),
                 x4 = rand(dx),          y4 = dh-rand(dy)
+--*!/
+--/*
+        integer x1 = rand(floor(dw/2)), y1 = rand(floor(dh/2)),
+                x2 = dw-x1,             y2 = rand(floor(dh/2)),
+                x4 = rand(floor(dw/2)), y3 = dh-y1,
+                x3 = dw-x4,             y4 = dh-y2
+--*/
         clearDib(screen_dib, {255, 255, 0})
         drawDibTransformedPolygon(screen_dib, dib, {{x1, y1}, {x2, y2}, {x3, y3}, {x4, y4}}, {})
     end if
@@ -26,6 +38,8 @@ procedure IdleHandler()
         t2 = time()+2
     end if
     repaintWindow(win,False)
+--  repaintWindow(win,True)
+--sleep(0.092)
 --sleep(1)
 end procedure
 setHandler(IDLE, routine_id("IdleHandler"))

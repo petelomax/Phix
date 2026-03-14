@@ -21,9 +21,9 @@ global enum
     UTF_32LE,
     $
 
-global function write_file(object file, sequence data, integer as_text = BINARY_MODE, integer encoding = ANSI, integer with_bom = 1)
-integer fn, tmp
-atom adr
+global function write_file(object file, sequence data, integer as_text=BINARY_MODE, encoding=ANSI, with_bom=true)
+    integer fn, tmp
+    atom adr
 
     if as_text!=BINARY_MODE then
         -- Truncate at first Ctrl-Z
@@ -59,7 +59,7 @@ atom adr
             
     elsif encoding=UTF_8 then
         data = toUTF(data, utf_32, utf_8)
-        if with_bom = 1 then
+        if with_bom then
             data = x"ef bb bf" & data
         end if
         as_text = BINARY_MODE
@@ -70,7 +70,7 @@ atom adr
         poke2(adr, data)
         data = peek({adr,length(data)*2})
         free(adr)
-        if with_bom = 1 then
+        if with_bom then
             data = x"ff fe" & data
         end if
         as_text = BINARY_MODE
@@ -86,7 +86,7 @@ atom adr
             data[i] = data[i+1]
             data[i+1] = tmp
         end for
-        if with_bom = 1 then
+        if with_bom then
             data = x"fe ff" & data
         end if
         as_text = BINARY_MODE
@@ -96,7 +96,7 @@ atom adr
         poke4(adr, data)
         data = peek({adr,length(data)*4})
         free(adr)
-        if with_bom=1 then
+        if with_bom then
             data = x"ff fe 00 00" & data
         end if
         as_text = BINARY_MODE
@@ -114,7 +114,7 @@ atom adr
             data[i+1] = data[i+2]
             data[i+2] = tmp
         end for
-        if with_bom = 1 then
+        if with_bom then
             data = x"00 00 fe ff" & data
         end if
         as_text = BINARY_MODE
@@ -125,15 +125,11 @@ atom adr
             
             
     if sequence(file) then
-        if as_text = TEXT_MODE then
-            fn = open(file, "w")
-        else
-            fn = open(file, "wb")
-        end if
+        fn = open(file,iff(as_text=TEXT_MODE?"w":"wb"))
     else
         fn = file
     end if
-    if fn < 0 then return -1 end if
+    if fn<0 then return -1 end if
 
     puts(fn, data)
 

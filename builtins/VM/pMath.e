@@ -354,6 +354,9 @@ end procedure -- (for Edita/CtrlQ)
             fld tbyte[rbx+rax*4]
             call rsi                    -- eg faddp
             jmp :%pStoreFlt
+    [ARM]
+      ::opMath
+            int3
 
 --/*
 procedure ::opMathi(::)
@@ -362,7 +365,7 @@ end procedure -- (for Edita/CtrlQ)
     [32]
       ::opMathi
 ---------------
-        -- as opMath, but result is integer, so this has no dealloc and a builtin type check failure
+        -- as opMath, but result is integer, so this has no dealloc and a builtin typecheck failure
         --  note that (eg) i=(1.5+1.5) is perfectly valid (so we still need a float math function).
         -- on entry, (exactly the same as above)
         --  edi is addr result
@@ -455,7 +458,7 @@ end procedure -- (for Edita/CtrlQ)
     [64]
       ::opMathi
 ---------------
-        -- as opMath, but result is integer, so this has no dealloc and a builtin type check failure
+        -- as opMath, but result is integer, so this has no dealloc and a builtin typecheck failure
         --  note that (eg) i=(1.5+1.5) is perfectly valid (so we still need a float math function).
         -- on entry, (exactly the same as above)
         --  rdi is addr result
@@ -542,6 +545,9 @@ end procedure -- (for Edita/CtrlQ)
             fld tbyte[rbx+rax*4]
             call rsi                    -- eg faddp
             jmp :opMathsToNi
+    [ARM]
+      ::opMathi
+            int3
     []
 
 --/*

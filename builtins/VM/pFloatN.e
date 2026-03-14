@@ -31,7 +31,8 @@ procedure loadFloat(atom a)
           @@:
             fild qword[a]
 --          jmp :%opRetf
-        []
+--      [ARM]
+--          int3
          }
 end procedure
 
@@ -45,7 +46,8 @@ global function atom_to_float32(atom a)
         [64]
             mov rdi,[res]
             fstp dword[rbx+rdi*4]
-        []
+--      [ARM]
+--          int3
           }
     return res
 end function
@@ -60,7 +62,8 @@ global function atom_to_float64(atom a)
         [64]
             mov rdi,[res]
             fstp qword[rbx+rdi*4]
-        []
+--      [ARM]
+--          int3
           }
     return res
 end function
@@ -75,7 +78,8 @@ global function atom_to_float80(atom a)
         [64]
             mov rdi,[res]
             fstp tbyte[rbx+rdi*4]
-        []
+--      [ARM]
+--          int3
           }
     return res
 end function
@@ -107,6 +111,8 @@ global function float32_to_atom(sequence s)
             lea rdi,[res]
             fld dword[rbx+rsi*4]
             call :%pStoreFlt
+--      [ARM]
+--          int3
            }
     return res
 end function
@@ -126,6 +132,8 @@ global function float64_to_atom(sequence s)
             lea rdi,[res]
             fld qword[rbx+rsi*4]
             call :%pStoreFlt
+--      [ARM]
+--          int3
            }
     return res
 end function
@@ -145,6 +153,8 @@ global function float80_to_atom(sequence s)
             lea rdi,[res]
             fld tbyte[rbx+rsi*4]
             call :%pStoreFlt
+--      [ARM]
+--          int3
            }
     return res
 end function

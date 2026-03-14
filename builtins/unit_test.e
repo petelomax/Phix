@@ -132,6 +132,10 @@ global procedure test_summary(bool close_log=true)
     prev_module = 0
 end procedure
 
+global function get_tests_failed()
+    return tests_failed
+end function
+
 global procedure set_test_module(string name)
 --
 --  The module name is simply a hint to the programmer about where to go to 

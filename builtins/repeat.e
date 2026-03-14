@@ -95,7 +95,8 @@ global function deep_copy(object o)
     -- bIfNeeded cannot be implemented there, and will just be quietly ignored.
     --
 --  assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
-    assert(not still_has_delete_routine(o),"deep_copy(delete_routine)")
+--removed 6/8/24... (mpfr...)
+--  assert(not still_has_delete_routine(o),"deep_copy(delete_routine)")
     if sequence(o) and not string(o) then
 --      assert(not still_has_delete_routine(o)) -- 13/4/24 (!!!)
 --/*
@@ -175,11 +176,11 @@ end function
 
 global function repeat(object x, integer n, bool allow_strings = true)
     --
-    -- Note: Prior versions of say repeat(repeat(100),100) would use just 800ish bytes and
-    --       an inner refcount of 100, vs 40,000 bytes fully expanded. However apart maybe
+    -- Note: Prior versions of say repeat(repeat(0,100),100) would use just 1600 bytes and
+    --       an inner refcount of 100, vs 80,000 bytes fully expanded. However apart maybe
     --       from a faster startup, that was always a "fake saving", that any real program 
     --       would soon undo, with the latter probably at a slight overall additional cost.
-    --       So now (for p2js) we just grab the full 40K straightaway, and be done with it.
+    --       So now (for p2js) we just grab the full 80K straightaway, and be done with it.
     --       Some "sparse array" programs may no longer work or run out of memory, by they
     --       were probably better off using a dictionary or similar instead anyway.
     --

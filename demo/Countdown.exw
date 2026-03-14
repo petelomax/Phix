@@ -17,12 +17,13 @@ int len,    -- n+1 means no solution yet found
     near,   -- nearest answer (in solution) out by this
     lenn,   -- length of ""         ""
     target
+,tries
 
 procedure countdown(int level=1)
 --
 -- Recursive search - takes two numbers, performs an op (storing result), checks
 -- for target value, and calls itself. All solutions are stored, to find shortest, 
--- so that, for example, 100+1 is chosen instead of 100+(75/25)-1-1. 
+-- so that, for example, 100+1 is chosen instead of 100+(75/25). 
 -- Optimizations are made to ensure commutative operations are only performed one 
 -- way round, division is only performed when no remainder, and */1 are skipped.
 --
@@ -37,6 +38,7 @@ procedure countdown(int level=1)
                         and (operation<MUL or stj!=1)
                         and (sti>=stj) then
                             -- worth doing...
+tries += 1
                             integer ci = sti
                             switch operation do
                                 case ADD: ci += stj
@@ -52,11 +54,12 @@ procedure countdown(int level=1)
                             -- check for solution
                             if ci==target then
                                 if level<len then
+--                              if level<=maxlev then
                                     /* solution is shortest so far - store it */
                                     len = level
                                     maxlev = level-1
                                     near = 0
-                                    solution = deep_copy(expression)
+                                    solution = deep_copy(expression[1..level])
                                 end if
                             else
                                 --store closest?
@@ -64,7 +67,7 @@ procedure countdown(int level=1)
                                 if offby<near then
                                     near = offby
                                     lenn = level
-                                    solution = deep_copy(expression)
+                                    solution = deep_copy(expression[1..level])
                                 end if
                                 -- if not at required level, recurse
                                 if level<maxlev then
@@ -87,6 +90,7 @@ procedure test(sequence list, int dest)
     maxlev = 5
     near = dest
     target = dest
+tries = 0
     chosen = deep_copy(list)
     countdown()
     /* process solution into printable form */
@@ -95,8 +99,11 @@ procedure test(sequence list, int dest)
         off = sprintf("off by %d",near)
         len = lenn
     end if
-    string soln = join(apply(true,sprintf,{{"%d%c%d=%d"},solution[1..len]}),", ")
-    printf(1,"Target %d from %18v: %s (%s)\n",{dest,list,soln,off})
+--  string soln = join(apply(true,sprintf,{{"%d%c%d=%d"},solution[1..len]}),", ")
+--  string soln = join(solution[1..len],", ",fmt:="%d%c%d=%d")
+    string soln = join(solution,", ",fmt:="%d%c%d=%d")
+--  printf(1,"Target %d from %18v: %s (%s)\n",{dest,list,soln,off})
+    printf(1,"Target %d from %18v: %s (%s) [%d tries]\n",{dest,list,soln,off,tries})
 end procedure
 
 atom t0 = time()
@@ -110,10 +117,70 @@ test({3,7,6,2,1,7},824)
 test({75,50,25,100,8,2},125)
 test({8,4,4,6,8,9},594)
 test({2,4,9,10,3,5},363)
+--===--
 test({1,3,7,6,8,3},382)
 test({1,3,7,6,8,3},348) 
+test({8,5,2,8,10,9},902)
+test({8,8,5,2,10,9},902)
+test({75,100,6,9,7,3},501)
+test({8,75,5,8,6,75},512)
+-- 512 = 64 * 8
+-- 64 = 75 - 11
+-- 11 = 6 + 5
+-- 83 = 75 + 8
+test({3,4,7,1,2,6},289)
+--289 = 287 + 2
+--287 = 41 * 7
+--41 = 42 - 1
+--42 = 7 * 6
+--7 = 4 + 3
+test({2,3,3,6,9,50},476)
+test({1,4,6,7,8,9},657)
+test({4,7,8,9,10,10},300)
+--terms: 2 3 3 6 9 50
+--target: 476
+--#solutions: 77
+--for example: (9*(3+50))-(6-(2+3))
+--   task''
+--terms: 1 4 6 7 8 9
+--target: 657
+--#solutions: 75
+--for example: 9*(8+((1+4)*(6+7)))
+--   task''
+--terms: 4 7 8 9 10 10
+--target: 300
+--#solutions: 495
+--for example: (10+(9*10))*((4+7)-8)
+test({3,8,8,6,10,3},920)
+--Using : [3, 8, 8, 6, 10, 3]
+--Target: 920
+--920 = 92 * 10
+--92 = 84 + 8
+--84 = 14 * 6
+--14 = 11 + 3
+--11 = 8 + 3
+test({50,25,1,8,7,3},477)
+--test({25,50,75,100,3,6},952) -- (already above)
+test({25,50,75,100,4,6},821)
+test({25,50,75,100,4,10},551)
+
 --test(shuffle(tagset(10)&tagset(10)&tagstart(25,4,25))[1..6],100+rand(899))
 ?time()-t0
+
+?factorial(6) -- 720
+?power(4,5) -- 1024
+?factorial(6)*power(4,5) -- 737280
+?product({1,2,3,4,5,6})
+?product({24,20,16,12,8,4})
+?product(tagstart(6*4,6,-4))
+?product(sq_mul(tagset(6),4)) -- 2,949,120 (6*4 * 5*4 * 4*4 * 3*4 * 2*4 * 1*4)
+
+
+--?941355/2764800
+--?941355/2949120
+--?52/2949120*100
+?941355/974861
+?52/974861*100
 
 {} = wait_key()
 
@@ -128,6 +195,50 @@ test({1,3,7,6,8,3},348)
 -- Target 594 from      {8,4,4,6,8,9}: 8*8=64, 64-4=60, 60+6=66, 66*9=594 (exact)
 -- Target 363 from     {2,4,9,10,3,5}: 9*4=36, 36*10=360, 360+3=363 (exact)
 -- 1.797
+--/*
+Target 737 from {75,50,25,100,8,2}: 75/25=3, 50-3=47, 100-2=98, 98*8=784, 784-47=737 (exact)
+Using {75,50,25,100,8,2}, target 737 = ((100-2)*8)-(50-(75/25))
+                                     = (98*8)-(50-3)
+                                     = 784-47
+Target 952 from {3,6,25,50,75,100}: 75*3=225, 100+6=106, 225*106=23850, 23850-50=23800, 23800/25=952 (exact)
+Target 952 from {100,75,50,25,6,3}: 100+6=106, 106*75=7950, 7950*3=23850, 23850-50=23800, 23800/25=952 (exact)
+Target 203 from   {50,100,4,2,2,4}: 50*4=200, 200+4=204, 2/2=1, 204-1=203 (exact)
+Target 465 from    {25,4,9,2,3,10}: 25-10=15, 9*3=27, 27+4=31, 31*15=465 (exact)
+Target 241 from     {9,8,10,5,9,7}: 9+9=18, 8+5=13, 18*13=234, 234+7=241 (exact)
+Target 824 from      {3,7,6,2,1,7}: 7+3=10, 10*6=60, 60-1=59, 59*2=118, 118*7=826 (off by 2)
+Using {3,7,6,2,1,7}, target 824 ~ 826 (off by 2)
+                            826 = ((((7+3)*6)-1)*2)*7
+                                = (((10*6)-1)*2)*7
+                                = ((60-1)*2)*7
+                                = (59*2)*7
+                                = 118*7
+Target 125 from {75,50,25,100,8,2}: 75+50=125 (exact)
+Target 594 from      {8,4,4,6,8,9}: 8*8=64, 64-4=60, 60+6=66, 66*9=594 (exact)
+Target 363 from     {2,4,9,10,3,5}: 9*4=36, 36*10=360, 360+3=363 (exact)
+Target 382 from      {1,3,7,6,8,3}: 6-1=5, 7*5=35, 8+3=11, 35*11=385, 385-3=382 (exact)
+Target 348 from      {1,3,7,6,8,3}: 3-1=2, 8*7=56, 56+2=58, 58*6=348 (exact)
+Target 902 from     {8,5,2,8,10,9}: 8+5=13, 13-2=11, 10*9=90, 90-8=82, 82*11=902 (exact)
+Target 902 from     {8,8,5,2,10,9}: 8/8=1, 10*5=50, 50*9=450, 450+1=451, 451*2=902 (exact)
+Target 501 from   {75,100,6,9,7,3}: 75+9=84, 84*6=504, 504-3=501 (exact)
+Target 512 from    {8,75,5,8,6,75}: 75-5=70, 70-6=64, 64*8=512 (exact)
+Target 289 from      {3,4,7,1,2,6}: 3+2=5, 7+5=12, 12*4=48, 48*6=288, 288+1=289 (exact)
+Target 476 from     {2,3,3,6,9,50}: 3-2=1, 50+3=53, 53*9=477, 477-1=476 (exact)
+Target 657 from      {1,4,6,7,8,9}: 6+4=10, 10*8=80, 80-7=73, 73*9=657 (exact)
+Target 300 from    {4,7,8,9,10,10}: 7-4=3, 10*3=30, 30*10=300 (exact)
+Target 920 from     {3,8,8,6,10,3}: 3+3=6, 8+6=14, 14*6=84, 84+8=92, 92*10=920 (exact)
+1.453
+
+--The largest number of tries was 941355, which is 31.92% of the problem space
+--The smallest number of tries was 52, which is 0.0018% of the problem space
+The largest number of tries was 941355, which is 96.56% of the problem space
+The smallest number of tries was 52, which is 0.53% of the problem space
+Note this method cannot accurately report the total number of possible solutions, for obvious reasons.
+
+? (that means 2'764'800 operations) for all possible games (with all the 13'243 combinations of six numbers out of twenty-four for all 898 possible target
+
+
+
+--*/
 
 -- couldn't quite bear to throw this away:
 --/* yep, that'll do:
@@ -139,7 +250,7 @@ function replace_innermost(string s)
                icb = rfind(')',s,cb-1)
         if icb=0 or icb<ob then
             string inner = s[ob+1..cb-1]
-            integer k = find_any(opchs,inner),
+??          integer k = find_any(opchs,inner),
                     fn = opfns[find(inner[k],opchs)]
             s[ob..cb] = sprintf("%d",fn(to_integer(inner[1..k-1]),
                                         to_integer(inner[k+1..$])))

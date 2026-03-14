@@ -64,12 +64,18 @@ include builtins\VM\pFixup.e    -- negative and floating point index handling (:
     ::e09slinespp4
         [32]
             mov edx,[esp+16]        -- era
-            mov ecx,[esp]           -- (edi already set)
+--          mov ecx,[esp]           -- (edi already set)
+            mov ecx,edi
+            mov edi,[esp]
+            add edi,1
             mov al,9                -- e09slin(edi,ecx)
             sub edx,1
         [64]
             mov rdx,[rsp+32]        -- era
-            mov rcx,[rsp]           -- (rdi already set)
+--          mov rcx,[rsp]           -- (rdi already set)
+            mov rcx,rdi
+            mov rdi,[rsp]
+            add rdi,1
             mov al,9                -- e09slin(rdi,rcx)
             sub rdx,1
         []
@@ -122,7 +128,10 @@ end procedure -- (for Edita/CtrlQ)
                                 --               (we just decremented edi)
 --DEV +8..
             mov al,8+4+0        -- [era] @ [esp+ecx*4+4], "assigning to"
+--15/1/25:
+            add ecx,3
             call :%fixupIndex   -- idx-1 in edi, len in edx, al set
+            sub ecx,3
       @@:
         --
         -- edi now contains index to replace, and edx the length
@@ -931,7 +940,10 @@ end procedure -- (for Edita/CtrlQ)
         jb @f                   -- unsigned jump, lets 0..len-1 through
                                 --               (we just decremented rdi)
             mov al,8+4+0        -- [era] @ [rsp+rcx*8+8?], "assigning to"
+--15/1/25:
+            add rcx,3
             call :%fixupIndex   -- idx-1 in rdi, len in rdx, al set
+            sub rcx,3
       @@:
         --
         -- rdi now contains index to replace, and rdx the length

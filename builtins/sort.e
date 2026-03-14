@@ -54,7 +54,7 @@ object tempi, tempj
     end while
 end function
 
-function tagsort(integer i, integer j, sequence data)
+local function tagsort(integer i, integer j, sequence data)
 -- standard function for a standard tagsort
 --26/6/20
 --  return compare(data[i],data[j])
@@ -74,13 +74,17 @@ global function custom_sort(object custom_compare, sequence x, object data = {},
     object tempi, tempj
 
     sequence args = {0,0}
-    if atom(data) then
-        args &= data
+--13/6/25: (merged)
+--  if atom(data) then
+--      args &= data
 --DEV... (broke self hosting... wtf??) [it ain't psym... afaict anyway] [seems to have righted itself 14/4/21...]
-    elsif data!={} then
+--  els
+    if data!={} then
 --  elsif length(data)!=0 then
-        if length(data)!=1 then ?9/0 end if
-        args = append(args, data[1])
+--13/6/25:
+--      if length(data)!=1 then ?9/0 end if
+--      args = append(args, data[1])
+        args &= data
     elsif sequence(custom_compare) then
         --DEV For now. We could add order to tagset() above,
         --             and/or implement that column_tagsort?
@@ -124,7 +128,7 @@ global function custom_sort(object custom_compare, sequence x, object data = {},
     end while
 end function
 
-function column_compare(object a, object b, sequence cols)
+local function column_compare(object a, object b, sequence cols)
 -- Local function used by sort_columns()
     for i=1 to length(cols) do
         integer sgn = 1,

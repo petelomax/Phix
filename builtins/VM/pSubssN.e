@@ -67,7 +67,9 @@ end procedure -- (for Edita/CtrlQ)
       ::pSubssWhile
             pop edi             -- next idx (ref)
 --expect exception here for subscript errors...
-          :!pSubsse94   -- exception here mapped to e94vhnbaav(edx)
+--2/4/25
+--        :!pSubsse94   -- exception here mapped to e94vhnbaav(edx)
+          :!pSubsse94   -- exception here mapped to e94_or_e04(edx)
             mov al,[ebx+esi*4-1]
             mov edx,[ebx+esi*4-12]  -- length
             shl esi,2
@@ -462,7 +464,9 @@ end procedure -- (for Edita/CtrlQ)
       ::pSubssWhile
             pop rdi             -- next idx (ref)
 --expect exception here for subscript errors...
-          :!pSubsse94   -- exception here mapped to e94vhnbaav(rdx)
+--2/4/25:
+--        :!pSubsse94   -- exception here mapped to e94vhnbaav(rdx)
+          :!pSubsse94   -- exception here mapped to e94_or_e04(rdx)
             mov al,[rbx+rsi*4-1]
             mov rdx,[rbx+rsi*4-24]  -- length
             shl rsi,2

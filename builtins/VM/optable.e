@@ -219,6 +219,7 @@ constant vm_names = {
                                      "%pSubse1i",
                                      "%pSubse1ip",
                                      "%pSubse1is",
+                                     "%pSubsec",
                                      "%pDeSeqip2"}},
                      {"pSubssN.e",  {"%pSubss",
                                      "%pSubsss"}},

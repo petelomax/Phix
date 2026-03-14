@@ -1020,7 +1020,7 @@ end procedure -- (for Edita/CtrlQ)
             pop eax
       @@:
         cmp ecx,255
-        ja :e110Repe1is             -- type check error
+        ja :e110Repe1is             -- typecheck error
         cmp dword[ebx+esi*4-8],1    -- if refcount!=1 then clone
         jne :opRepe1isClone
         mov [esi*4+edi],cl
@@ -1070,7 +1070,7 @@ end procedure -- (for Edita/CtrlQ)
             pop rax
       @@:
         cmp rcx,255
-        ja :e110Repe1is             -- type check error
+        ja :e110Repe1is             -- typecheck error
         cmp qword[rbx+rsi*4-16],1   -- if refcount!=1 then clone
         jne :opRepe1isClone
         mov [rsi*4+rdi],cl

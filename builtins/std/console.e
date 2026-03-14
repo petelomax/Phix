@@ -949,7 +949,7 @@ end procedure
 --   of ##s## is a sequence, a runtime error will be raised.
 --
 --   If user tries cancelling the prompt by hitting Ctrl-Z, the program will abort as well,
---   issuing a type check error.
+--   issuing a typecheck error.
 --
 -- Comments:
 --   As long as the user enters a number that is less than lower or greater

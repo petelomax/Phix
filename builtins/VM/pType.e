@@ -82,6 +82,9 @@ end procedure -- (for Edita/CtrlQ)
             sub rdx,1
             jmp :!iDiag
             int3
+        [ARM]
+          ::edi0
+            int3
         []
 
 --/*
@@ -134,6 +137,9 @@ end procedure -- (for Edita/CtrlQ)
                 jz :%pDealloc
           @@:
             ret
+        [ARM]
+          ::edi1
+            int3
         []
 
 --/*

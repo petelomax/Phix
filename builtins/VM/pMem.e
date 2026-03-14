@@ -17,6 +17,7 @@
 --               (that has not been freed) and 0<=offset<=sizeof(root), iyswim.
 --               Obviously these forms are safer but cannot be used on memory
 --               obtained from system calls, such as GetCommandLine.
+without debug
 
 include builtins\VM\pFPU.e  -- :%down53, :%near53
 
@@ -41,6 +42,15 @@ include builtins\VM\pFPU.e  -- :%down53, :%near53
     ::e110opPeekiSeq
         int3
     ::e114stbpmoca
+        [32]
+            mov edx,[esp]
+            sub edx,1
+        [64]
+            mov rdx,[rsp]
+            sub rdx,1
+        []
+        mov al,114          -- sequence to be poked must only contain atoms
+        jmp :!iDiag
         int3
     ::e39atmcmba
         int3

@@ -357,7 +357,6 @@ integer ch
     return utf16
 end function
 
-
 global function utf8_to_utf16(string utf8)
     return utf32_to_utf16(utf8_to_utf32(utf8))
 end function

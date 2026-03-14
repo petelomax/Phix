@@ -20,7 +20,7 @@
 --  Creating a new frame and invoking a routine is not that much different to how it would be done 
 --  traditionally (on the system stack), however return has to decrease reference counts and when
 --  they drop to zero deallocate the object. Additionally, specialised methods are used to perform 
---  type checking and "callonce" any top-level code. To be fair, there is very little difference 
+--  typechecking and "callonce" any top-level code. To be fair, there is very little difference 
 --  between using the system stack or virtual stack blocks, not that I ever quite got the hang of 
 --  catching some exception or other in order to extend the stack, but one idea I rather like
 --  about vsbs is that when a program runs out of memory it is quite possible to free up all but 
@@ -128,6 +128,8 @@ end procedure -- (for Edita/CtrlQ)
         mov esi,[ds+8]      -- (esi:=raw addr of symtab[1])
     [64]
         mov rsi,[ds+8]      -- (rsi:=raw addr of symtab[1])
+    [ARM]
+        int3
     []
         ret
 
@@ -141,6 +143,8 @@ end procedure -- (for Edita/CtrlQ)
         mov [ds+8],esi      -- (raw addr of symtab[1]:=esi)
     [64]
         mov [ds+8],rsi      -- (raw addr of symtab[1]:=rsi)
+    [ARM]
+        int3
     []
         ret
 
@@ -154,6 +158,8 @@ end procedure -- (for Edita/CtrlQ)
         push dword[esp]
     [64]
         push qword[rsp]
+    [ARM]
+        int3
     []
 :%opGetST       -- [e/rdi] := symtab
 ---------       -- (trashes all registers, if [edi] needs dealloc, else just eax/edx)
@@ -189,6 +195,8 @@ end procedure -- (for Edita/CtrlQ)
         jle @f
             sub qword[rbx+rdx*4-16],1
             jz :%pDealloc
+    [ARM]
+        int3
     []
       @@:
         ret
@@ -261,6 +269,8 @@ end procedure -- (for Edita/CtrlQ)
         mov qword[rax+11240],#3C565342  -- magic ("<VSB")
       @@:
 --  mov rdi,rax
+    [ARM]
+        int3
     []
         ret
 
@@ -322,6 +332,8 @@ end procedure -- (for Edita/CtrlQ)
         mov [rsi+48],rax        -- vsb_root
         mov [rsi+56],rbx        -- return address (0)
         mov rbp,rsi
+    [ARM]
+        int3
     []
         ret
 
@@ -483,6 +495,8 @@ qword [...]=0 end of envirnment
             xor rax,rax
             jmp looptop
       ::loopend
+    [ARM]
+        int3
     []
 
       ::dont_do_everything_twice
@@ -755,6 +769,8 @@ xor rbx,rbx
 --  int3
 --@@:
 --      mov qword[rax+11240],#3C565342  -- magic ("<VSB")
+    [ARM]
+        int3
     []
         ret
 
@@ -853,6 +869,8 @@ end procedure -- (for Edita/CtrlQ)
 --X     mov [rsi+32],rax            -- return address (see note above)
         mov [rsi+56],rax            -- return address (see note above)
 --      add rsp,8
+    [ARM]
+        int3
     []
       ::justRetX
         ret
@@ -990,6 +1008,8 @@ end procedure -- (for Edita/CtrlQ)
       @@:
         xor rax,rax  -- 11/2/15 (makes final top-level exit==abort(0), not abort(rand))
         ret
+    [ARM]
+        int3
     []
 
 --/*
@@ -1043,6 +1063,8 @@ end procedure -- (for Edita/CtrlQ)
         test rax,rax
         jnz @b
         xor rbp,rbp
+    [ARM]
+        int3
     []
         ret
 
@@ -1057,6 +1079,8 @@ end procedure -- (for Edita/CtrlQ)
         add esp,4
     [64]
         add rsp,8
+    [ARM]
+        int3
     []
   :%trimStack
 -------------
@@ -1187,6 +1211,8 @@ end procedure -- (for Edita/CtrlQ)
         sub rdx,1
         jmp :!iDiag
         int3
+    [ARM]
+        int3
     []
 --  A virtual stack block (32-bit) is:
 --      dd vsb_prev                 [vsb_root]
@@ -1269,7 +1295,7 @@ end procedure -- (for Edita/CtrlQ)
 --------
 -- calling convention (as used in pilx86.e)
 --  mov ecx,nparms      -- no of params/locals/tmps (aka symtab[edx][S_Ltot])
---  mov edx,N           -- type check routineNo (using isVno)
+--  mov edx,N           -- typecheck routineNo (using isVno)
 --  push :return addr
 --  push <varno>        -- var number (using isVno)
 --  push <code>         -- addr of typecheck code (aka symtab[edx][S_il])
@@ -1303,8 +1329,8 @@ end procedure -- (for Edita/CtrlQ)
         pop ecx             -- var no
         cmp eax,0
         jne @f
-    :%opTcFail
---------------
+      :%opTcFail
+----------------
 --(no)      pop eax         -- return address
 --DEV:
 --          mov [ep1],ecx   -- var no (just leave it in ecx)
@@ -1342,7 +1368,7 @@ end procedure -- (for Edita/CtrlQ)
         pop rcx             -- var no
         cmp rax,0
         jne @f
-    :%opTcFail
+      :%opTcFail
 --(no)      pop rax         -- return address
 --DEV:
 --          mov [ep1],rcx   -- var no (just leave it in rcx)
@@ -1356,6 +1382,9 @@ end procedure -- (for Edita/CtrlQ)
             int3 
       @@:
         ret
+    [ARM]
+      :%opTcFail
+        int3
     []
 
 --/*

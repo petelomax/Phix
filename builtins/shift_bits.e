@@ -73,6 +73,7 @@ global function count_bits(object n, integer nFrames=2)
 --      end if
 --javascript compatibility... (now fixed, but it's a better test anyway)
 --      while not integer(n) and n!=0 do
+--DEV (sip/tested) does NOT go wrong on 64-bit cos and_bits() is strictly 32-bit!
         while n>iff(machine_bits()=32?0x3FFF_FFFF:#3FFF_FFFF_FFFF_FFFF) do
 --          res += and_bits(n,1)
             res += odd(n)

@@ -29,7 +29,7 @@ constant e72iri     = 72    -- invalid routine_id
 constant e81ipicfp  = 81    -- insufficient parameters in call_func/proc()
 --constant e84cbpmbropr = 84    -- call_back parameter must be routine_id or {'+',routine_id}
 --constant e88atcfpmbaos    = 88    -- arguments to c_func/proc must be atoms or strings
-constant e89tmpicfp = 89    -- too many parameters in call_func/proc()
+--constant e89tmpicfp = 89  -- too many parameters in call_func/proc()
 --constant e116rrnp     = 116   -- routine requires %d parameters, not %d
 constant e117rdnrav = 117   -- routine does not return a value
 constant e118rrav   = 118   -- routine returns a value
@@ -195,7 +195,9 @@ leave_cs()
 --  if noofparams<minparams then fatalN(3,e81ipicfp) end if -- insufficient parameters in call_func/proc()
     if noofparams<minparams then fatalN(2,e81ipicfp) end if -- insufficient parameters in call_func/proc()
 --  if noofparams>maxparams then fatalN(3,e89tmpicfp) end if -- too many parameters in call_func/proc()
-    if noofparams>maxparams then fatalN(2,e89tmpicfp) end if -- too many parameters in call_func/proc()
+--10/5/25:
+--  if noofparams>maxparams then fatalN(2,e89tmpicfp) end if -- too many parameters in call_func/proc()
+    if noofparams>maxparams then noofparams = maxparams end if
 --  if noofparams>maxparams then fatalN(1,e89tmpicfp) end if -- too many parameters in call_func/proc()
 
     if string(params) then

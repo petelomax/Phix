@@ -572,7 +572,7 @@ global function create_event(object name=0, bool manualreset=false, bool initial
 -- if manualreset is true, you must use reset_event() to reset the state to nonsignalled.
 -- initialstate indicates whether the event is initially signalled or not.
 -- returns an event handle or {error_code} on error
--- (it is quite reasonable to store the result in an atom and debug any type checks)
+-- (it is quite reasonable to store the result in an atom and debug any typechecks)
 --
     if not init then t_init() end if
     if platform()=WINDOWS then

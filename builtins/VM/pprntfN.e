@@ -40,6 +40,7 @@
 
 --include builtins\VM\pUnassigned.e -- :%pRTErn (DEV/temp)
 include builtins\VM\pPower.e
+include builtins\pcase.e
 
 --/* Not required for Phix (string is builtin):
 type string(object o) return sequence(o) end type
@@ -478,6 +479,9 @@ sequence bsi = repeat(0,0)
             else
                 x[i..i] = '\\'&c    -- NB does not work on RDS Eu/OpenEuphoria
             end if
+-- 10/8/25:
+        elsif c='`' and backtick then
+            backtick = false
         elsif c<' ' or c>#FF then
 --          c = find(c,"\t\n\r")
 --          c = find(c,"\t\n\r\\\"\'\0\e")
@@ -528,13 +532,14 @@ procedure init_2()
 --      inf = 1e300*1e300
         #ilASM{ fld1
                 fldz
-                fdivp
+                fdivp            -- ST0 := 1/0
             [32]
                 lea edi,[inf]
             [64]
                 lea rdi,[inf]
             []
-                call :%pStoreFlt }
+                call :%pStoreFlt -- [inf] := ST0
+              }
 
         -- Erm, this one is a bit bizarre...
         -- On the one hand it seems RDS Eu does not support nan properly, but then it somehow does...
@@ -594,12 +599,13 @@ string result, r1
 object o, oj
 atom work
 integer base, sgn, r1len, hc
-bool lowerHex
+bool lowerHex, oprefix, properize
 --?result   --DOH, infinite loop! (use puts(1,<string>) instead!)
 integer zerofill
 integer leftjustify
 integer centre
 integer showplus
+integer underby
 integer showcommas
 integer enquote
 integer blankTZ
@@ -627,6 +633,7 @@ integer tmp
                 leftjustify = 0
                 centre = 0
                 showplus = 0
+                underby = 0
                 showcommas = 0
                 enquote = 0
                 if fi='[' then
@@ -707,7 +714,10 @@ integer tmp
                 -- 10/08/22 'F' added
                 -- 08/02/24 'r', 'R' added
                 -- 17/03/24 'O' added
+                -- 01/03/26 '/<p>s' added
+                properize = 0
                 blankTZ = false
+                oprefix = fi='O'
                 if fi='a' or fi='A' then
                     lowerHex = fi='a'
                     fidx = 0
@@ -736,7 +746,18 @@ integer tmp
                         fi = 'R'
                     elsif fi='O' then
                         lowerHex = true -- (repurposed here)
+                        oprefix = true
                         fi = 'o'
+                    elsif fi='/' then
+                        i += 1
+                        if i>length(fmt) then ueofmt() end if
+                        integer pfi = fmt[i]
+                        properize = find(pfi,"lucsi")
+                        if properize=0 then crash("/: l/u/c/s/i expected",{},3) end if
+                        i += 1
+                        if i>length(fmt) then ueofmt() end if
+                        fi = fmt[i]
+                        if fi!='s' then crash("/%c: s expected",{pfi},3) end if
                     end if
 --                  fidx = find(fi,"dxobstcvefgEXG")
 --                  fidx = find(fi,"dxobstncvefgEXG")
@@ -808,12 +829,25 @@ integer tmp
                                 o = 0
                             end if
                         end if
+--8/3/25:
+                        if fidx>1 and showplus=' ' then
+                            underby = iff(base=8?3:4)
+--?{"underby",underby} -- 4,3,4, OK
+--                          showplus = 0
+                        end if
                     end if
-                    if work then
+--17/12/24:
+--                  if work then
+--                  if work or (lowerHex and base=8) then -- (make %O show 0 as "0o0")
+                    if work 
+                    or minfieldwidth 
+                    or (lowerHex and oprefix and base=8) then -- (make %O show 0 as "0o0")
                         sgn = 0
                         if work<0 then
-                            sgn = 1
+--8/3/25:
+--                          sgn = 1
                             if base=10 then
+                                sgn = 1
                                 work = 0-work
                             else
 --DEV (found this(/64-bit version) commented out 23/7/19, no idea why... putting it back fixed my issue)
@@ -833,7 +867,9 @@ end if
 --                                        count_bits(work)=1)
                                           work>=power(2,iff(machine_bits()=32?53:75)))
                         if bViaBase2 then base = 2 end if
-                        while work do
+-- 17/12/24
+--                      while work do
+                        do
                             -- NB: The result of prepend is always a sequence, 
                             --      for performance reasons. Hence use append 
                             --      to build it backwards, then reverse it.
@@ -854,7 +890,8 @@ end if
                             -- this is ok, ^ , hexchar[] is equally valid for 
                             --  base 16/10/8/2 (just less chars get used).
                             work = floor(work/base)
-                        end while
+--                      end while
+                        until work=0
                         if bViaBase2 then
                             -- convert r1 to base 10, from base 2
                             sequence d2 = sq_sub(reverse(r1),'0')
@@ -889,7 +926,11 @@ end if
                                 r1 &= repeat('0',minfieldwidth-length(r1))
                             end if
                         end if
-                        if lowerHex and base=8 then -- 'O', 17/3/24
+--8/3/25:
+                        if underby then
+                            r1 = join(split_by(r1,underby),'_')
+                        end if
+                        if lowerHex and oprefix and base=8 then -- 'O', 17/3/24
                             r1 &= "o0"
                         end if
                         r1len = length(r1)
@@ -914,7 +955,9 @@ end if
                             r1 = Inf()
                         else
 --                          r1 = "0"
+-- 9/3/25
                             r1 = repeat('0',1)
+--                          r1 = repeat('0',max(1,minfieldwidth))
                         end if
                     end if
 --              elsif fidx<=10 then -- one of "stncvV"
@@ -949,6 +992,8 @@ end if
                         o = iff(o?"\n":"")
                     elsif enquote then
                         o = allascii(o,enquote)
+                    elsif properize then
+                        o = proper(o,{"LOWER","UPPER","CAPITALISE","SENTENCE","INVERT"}[properize])
                     end if
                     if atom(o) then
 --15/4/24:
@@ -1014,7 +1059,9 @@ end if
                     if precision=-1 then
                         precision = 6
 -- 1/11/22 (print fractional powers of 2 exactly, and this lot moved after o is set)
-                    elsif count_bits(o)!=1 then
+--10/7/24 (shape-machine showing excess 0s for the initial 4)
+--                  elsif count_bits(o)!=1 then
+                    elsif o>=1 or count_bits(o)!=1 then
                         if precision>20 then
                             crash("floating point precision may not exceed 20",{},3)
                         elsif machine_bits()=32
@@ -1137,6 +1184,8 @@ global function sprintf(sequence fmt, object args)
     return sprintf_(fmt,args)
 end function
 
+integer qu_dbg = 0
+
 --DEV move this (once newEmit is done) [better yet put it in the optable]
 -- note: printf is now defined in pfileioN.e
 global procedure printf(integer fn, sequence fmt, object args={})
@@ -1153,6 +1202,7 @@ global procedure printf(integer fn, sequence fmt, object args={})
 --              case "r_len": r_len = args[i+1]
                 case "unicode_align": unicode_align = args[i+1]
                 case "prefer_backtick": prefer_backtick = args[i+1]
+                case "qu_dbg": qu_dbg = args[i+1]
 --20/4/19:
 --              default: throw("unknown printf setting")
                 default: ?9/0
@@ -1164,6 +1214,7 @@ global procedure printf(integer fn, sequence fmt, object args={})
 end procedure
 
 local integer asChdef = false
+--              pFrom = false
 
 --global function sprint(object x, integer asCh=false, maxlen=-1, nest=0)
 global function sprint(object x, integer asCh=asChdef, maxlen=-1, nest=0)
@@ -1178,6 +1229,11 @@ global function sprint(object x, integer asCh=asChdef, maxlen=-1, nest=0)
 -- Alternative: see ppp.e (ppf/ppOpt/ppExf).
     object s, xi
     if asCh>=9 then
+--      if asCh>=19 then
+--          asCh -= 10
+--puts(1,"pFrom:=true\n")
+--          pFrom = true
+--      end if
         asCh -= 10
         assert(asCh>=-1 and asCh<=1)
         if nest=0 then asChdef = asCh end if
@@ -1270,10 +1326,17 @@ global function sprint(object x, integer asCh=asChdef, maxlen=-1, nest=0)
     return s
 end function
 
+--with trace
+
 --DEV move this to pfileioN.e:
 global procedure print(integer fn, object x, integer asCh=asChdef, maxlen=-1)
+--trace(1)
 -- Print a string representation of any data object.
 -- Alternative: see ppp.e (pp/ppOpt/ppEx).
 --printf(1,"asCh:%d\n",asCh)
-    puts(fn,sprint(x,asCh,maxlen))
+--printf(1,"pFrom:%d\n",pFrom)
+--  puts(fn,sprint(x,asCh,maxlen))
+    string s = sprint(x,asCh,maxlen)
+    if fn=1 and qu_dbg then qu_dbg(s) end if
+    puts(fn,s)
 end procedure

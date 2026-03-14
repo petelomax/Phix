@@ -259,25 +259,27 @@ integer rid
         #ilASM{ [32]
                     mov edx,[o]
                     mov eax,[ebx+edx*4-4] -- (load index & type byte)
-                    mov ecx,eax
+--                  mov ecx,eax
                     and eax,0x00FFFFFF  -- (keep delete_index only)
-                    and ecx,0xFF000000  -- (keep type byte only)
-                    mov [ebx+edx*4-4],ecx -- (zeroise delete_index on data)
+--                  and ecx,0xFF000000  -- (keep type byte only)
+--                  mov [ebx+edx*4-4],ecx -- (zeroise delete_index on data)
 --                  mov [delete_index],eax
                     mov [rid],eax
                 [64]
                     mov rdx,[o]
                     mov rax,[rbx+rdx*4-8] -- (load index & type byte)
-                    mov rcx,rax
+--                  mov rcx,rax
 --                  and rax,0x00FFFFFFFFFFFFFF  -- (keep delete_index only)
 --                  and rcx,0xFF00000000000000  -- (keep type byte only)
                     shl rax,8
-                    rol rcx,8
+--                  rol rcx,8
                     shr rax,8
-                    shl rcx,32+24   -- (56, aka 64-8)
-                    mov [rbx+rdx*4-8],rcx -- (zeroise delete_index on data)
+--                  shl rcx,32+24   -- (56, aka 64-8)
+--                  mov [rbx+rdx*4-8],rcx -- (zeroise delete_index on data)
 --                  mov [delete_index],rax
                     mov [rid],rax
+                [ARM]
+                    int3
               }
 
 --      if delete_index then
@@ -297,6 +299,20 @@ integer rid
 --          delete_sets[delete_index] = freelist
 --          freelist = delete_index
 --          leave_cs()
+            #ilASM{ [32]
+                        mov edx,[o]
+                        mov ecx,[ebx+edx*4-4] -- (load index & type byte)
+                        and ecx,0xFF000000  -- (keep type byte only)
+                        mov [ebx+edx*4-4],ecx -- (zeroise delete_index on data)
+                    [64]
+                        mov rdx,[o]
+                        mov rcx,[rbx+rdx*4-8] -- (load index & type byte)
+                        rol rcx,8
+                        shl rcx,32+24   -- (56, aka 64-8)
+                        mov [rbx+rdx*4-8],rcx -- (zeroise delete_index on data)
+                    [ARM]
+                        int3
+                  }
         end if
     end if
 end procedure
@@ -530,7 +546,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov [edi],esi
                 fild dword[edi]
                 fldpi                   -- (any non-integer value would do)
-                call :%pStoreFlt        -- (preserves all registers)
+                call :%pStoreFlt        -- ([edi]:=ST0, preserves all registers)
                 mov esi,[edi]
                 fstp qword[ebx+esi*4]
                 or [ebx+esi*4-4],eax    -- (combine rid and type byte)
@@ -586,7 +602,7 @@ end procedure -- (for Edita/CtrlQ)
                 mov [rdi],rsi
                 fild qword[rdi]
                 fldpi                   -- (any non-integer value would do)
-                call :%pStoreFlt        -- (preserves most registers)
+                call :%pStoreFlt        -- ([rdi]:=ST0, preserves most registers)
                 mov rsi,[rdi]
                 fstp tbyte[rbx+rsi*4]
 --              mov rax,[rbx+rsi*4-8]

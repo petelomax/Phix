@@ -5,6 +5,7 @@
 --  Various subscripting routines:
 --
 --      :%pSubse            -- res = ref[idx1][idx2]..[idxn]
+--      :%pSubsec           -- "" with implied isCompound
 --      :%pSubse1           -- [ecx]=esi[edi], aka p3=p1[p2]
 --      :%pSubse1i          -- [ecx]=esi[edi], aka p3=p1[p2] when [ecx] is integer (no dealloc)
 --      :%pSubse1ip         -- as opSubse1i when p1 is dword-sequence of integer, and p3 is integer
@@ -397,6 +398,7 @@ end procedure -- (for Edita/CtrlQ)
 --      mov r15,h4
 --DEV
 --    :!opSubse1Re92a:          -- exception here mapped to e94vhnbaavedxesifeh
+      :!opSubse1e04or92
         mov rdx,[rbx+rsi*4-24]  -- length
         mov ah,byte[rbx+rsi*4-1]
         shl rsi,2
@@ -489,8 +491,8 @@ end procedure -- (for Edita/CtrlQ)
             mov eax,[esi+edi*4]
             cmp eax,h4
             jl @f
---          jmp :e110ecxesp -- type check error
-            -- type check error (ecx is var addr)
+--          jmp :e110ecxesp -- typecheck error
+            -- typecheck error (ecx is var addr)
 --          mov edi,edx
             mov [ecx],eax
             pop edx
@@ -533,8 +535,8 @@ end procedure -- (for Edita/CtrlQ)
             mov r15,h4
             cmp rax,r15
             jl @f
---          jmp :e110ecxesp -- type check error
-            -- type check error (rcx is var addr)
+--          jmp :e110ecxesp -- typecheck error
+            -- typecheck error (rcx is var addr)
 --          mov rdi,rdx
             mov [rcx],rax
             pop rdx
@@ -644,6 +646,245 @@ end procedure -- (for Edita/CtrlQ)
         cmp [ma_ip],rbx
         jne :e52jsdnssd
         mov al,[rsi+rdi]
+        ret
+    []
+
+--/*
+procedure :%pSubsec(:%)
+end procedure -- (for Edita/CtrlQ)
+--*/
+    :%pSubsec   -- res = ref[idx1][idx2]..[idxn] with implied isCompound
+------------
+    [32]
+        -- calling convention (as hard-coded in pilx86.e):
+        --  push <return address>
+-- ideally, perhaps, merge opSubse[c] this way, but fiddling with era was too much [DEV, v2.0.0 perhaps]
+--      --  push isCompound
+        --  push <addr res>                                 (or lea reg [ebp-NN], push reg)
+        --  push [idxn]..[idx1]     (opUnassign'd)			(or push dword[m32 or ebp+d8/32])
+        --  mov ecx,n
+        --  mov edx,<addr ref>                              (or lea edx,[ebp+d8/32]
+        --  jmp :%pSubsec           (actually a call)
+        --<return address>
+        --  callee must ensure ref(edx) and all indexes are assigned beforehand (ie pmain.e 
+        --  should emit any required opUnassigned instructions before the opSubsec).
+        --  if result is integer, left in eax, otherwise all registers clobbered.
+        pop edi
+        mov eax,[edx]
+    ::opSubsecWhile
+        cmp eax,h4
+        jg @f
+            lea esp,[esp+ecx*4]
+            je :e93edx
+            pop edx
+            mov al,4            -- e04atssaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
+--DEV
+--    :!opSubsece92a            -- exception here mapped to opSubsee92aedxfeh
+        mov edx,[ebx+eax*4-12]  -- length
+        lea edi,[edi-1]         -- decrement edi (oh, nice comment!! :-)
+        cmp byte[ebx+eax*4-1],0x80
+        lea eax,[ebx+eax*4]
+        jne :opSubsecStr
+        cmp edi,edx
+        jb @f                   -- unsigned jump, lets 0..len-1 through
+                                --              (we just decremented edi)
+            push eax
+            add ecx,1
+            mov al,8+4+1        -- [era] @ [esp+ecx*4], "reading from"
+            call :%fixupIndex   -- idx-1 in edi, len in edx, (not: idx addr in ebx), al set
+                                -- (we have opUnassign'd all idx that we need to, because
+                                --  the new calling convention has no var addr, thus ebx 
+                                --  would not be useful here anyway)
+            sub ecx,1
+            pop eax
+      @@:
+        lea esi,[eax+edi*4]
+        mov eax,[eax+edi*4]
+        pop edi
+        sub ecx,1
+        jnz :opSubsecWhile
+
+        mov edx,[edi]
+        cmp eax,h4
+        mov [edi],eax
+        jl :opSubsecEndWhile
+            -- only if res has a refcount of 1
+            cmp dword[ebx+eax*4-8],1
+            jne @f
+                -- in eg s[i][j] &= x, s[i][j]:=0, w/o incref
+                mov [esi],ebx
+                jmp opSubsecEndWhile
+          @@:
+            add dword[ebx+eax*4-8],1
+      ::opSubsecEndWhile
+        cmp edx,h4
+        jle @f
+            sub dword[ebx+edx*4-8],1
+            jz :%pDealloc
+      @@:
+        ret
+
+      ::opSubsecStr
+        cmp ecx,1
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+        je @f
+            mov edx,[esp+ecx*4]
+            mov al,4            -- e04atssaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
+        pop ecx
+        cmp byte[eax-1],0x82
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [esp+ecx*4]
+        je @f
+            pop edx
+            mov al,4            -- e04atssaa
+            sub edx,1
+            jmp :!iDiag
+            int3
+      @@:
+        cmp edi,edx
+        jb @f                   -- unsigned jump, lets 0..len-1 through
+                                --               (we just decremented edi)
+            push eax
+            mov al,4+1          -- [era] @ [esp+8], "reading from"
+            call :%fixupIndex   -- idx-1 in edi, len in edx, (not: idx addr in ebx), al set
+                                -- (ditto note above)
+            pop eax
+       @@:
+        cmp [ma_ip],ebx
+        jne :e52jsdnssd
+        add edi,eax
+        xor eax,eax
+        mov edx,[ecx]
+        mov al,[edi]
+        cmp edx,h4
+        mov [ecx],eax
+        jle @f
+            sub dword[ebx+edx*4-8],1
+            jz :%pDealloc
+      @@:
+        ret
+    [64]
+        -- calling convention (as hard-coded in pilx86.e):
+        --  push <return address>
+        --  push <addr res>                                 (or lea reg [rbp-NN], push reg)
+        --  push [idxn]..[idx1]     (opUnassign'd)			(or push qword[m32 or rbp+d8/32])
+        --  mov rcx,n
+        --  mov rdx,<addr ref>                              (or lea rdx,[rbp+d8/32]
+        --  jmp :%pSubse            (actually a call)
+        --<return address>
+        --  callee must ensure ref(rdx) and all indexes are assigned beforehand (ie pmain.e 
+        --  should emit any required opUnassigned instructions before the opSubse).
+        --  if result is integer, left in rax, otherwise all registers clobbered.
+        pop rdi
+        mov rax,[rdx]
+        mov r15,h4
+    ::opSubsecWhile
+        cmp rax,r15
+--      jl :e04atsaa8           -- attempt to subscript an atom, era @ [esp+ecx*4]
+        jg @f
+            lea rsp,[rsp+rcx*8]
+            je :e93edx
+            pop rdx
+            mov al,4            -- e04atssaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
+--      mov rdx,[rbx+rax*4-12]  -- length
+        mov rdx,[rbx+rax*4-24]  -- length
+        lea rdi,[rdi-1]         -- decrement rdi (oh, nice comment!! :-)
+        cmp byte[rbx+rax*4-1],0x80
+        lea rax,[rbx+rax*4]
+        jne :opSubsecStr
+        cmp rdi,rdx
+        jb @f                   -- unsigned jump, lets 0..len-1 through
+                                --              (we just decremented rdi)
+            push rax
+            add rcx,1
+            mov al,8+4+1        -- [era] @ [rsp+rcx*8], "reading from"
+            call :%fixupIndex   -- idx-1 in rdi, len in rdx, (not: idx addr in rbx), al set
+                                -- (we have opUnassign'd all idx that we need to, because
+                                --  the new calling convention has no var addr, thus ebx 
+                                --  would not be useful here anyway)
+            sub rcx,1
+            pop rax
+      @@:
+        lea rsi,[rax+rdi*8]
+        mov rax,[rax+rdi*8]
+        pop rdi
+        sub rcx,1
+        jnz :opSubsecWhile
+
+        mov rdx,[rdi]
+        cmp rax,r15
+        mov [rdi],rax
+        jl :opSubsecEndWhile
+            -- only if res has a refcount of 1:
+            cmp qword[rbx+rax*4-16],1
+            jne @f
+                -- in eg s[i][j] &= x, s[i][j]:=0, w/o incref
+                mov [rsi],rbx
+                jmp opSubsecEndWhile
+          @@:
+            add qword[rbx+rax*4-16],1
+      ::opSubsecEndWhile
+--      mov r15,h4
+        cmp rdx,r15
+        jle @f
+            sub qword[rbx+rdx*4-16],1
+            jz :%pDealloc
+      @@:
+        ret
+
+      ::opSubsecStr
+        cmp rcx,1
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*8]
+        je @f
+            mov rdx,[rsp+rcx*8]
+            mov al,4            -- e04atssaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
+        pop rcx
+        cmp byte[rax-1],0x82
+--      jne :e04atsaa8          -- attempt to subscript an atom, era @ [rsp+rcx*4]
+        je @f
+            pop rdx
+            mov al,4            -- e04atssaa
+            sub rdx,1
+            jmp :!iDiag
+            int3
+      @@:
+        cmp rdi,rdx
+        jb @f                   -- unsigned jump, lets 0..len-1 through
+                                --               (we just decremented rdi)
+            push rax
+            mov al,4+1          -- [era] @ [rsp+16], "reading from"
+            call :%fixupIndex   -- idx-1 in rdi, len in rdx, (not: idx addr in rbx), al set
+                                -- (ditto note above)
+            pop rax
+       @@:
+        cmp [ma_ip],rbx
+        jne :e52jsdnssd
+        add rdi,rax
+        xor rax,rax
+        mov rdx,[rcx]
+        mov al,[rdi]
+--      mov r15,h4
+        cmp rdx,r15
+        mov [rcx],rax
+        jle @f
+            sub qword[rbx+rdx*4-16],1
+            jz :%pDealloc
+      @@:
         ret
     []
 
