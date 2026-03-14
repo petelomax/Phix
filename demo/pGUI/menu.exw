@@ -10,26 +10,43 @@ function exit_cb(Ihandle /*ih*/)
     return IUP_CLOSE
 end function
 
-Ihandle dlg, file_menu, main_menu
+function redraw_cb(Ihandle canvas)
+    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
+    IupDrawBegin(canvas)
+    IupDrawParentBackground(canvas)
+    IupDrawRectangle(canvas, 1, 1, w-2, h-2)
+    IupDrawLine(canvas,0,0,w-1,h-1)
+    IupDrawLine(canvas,0,h-1,w-1,0)
+    IupDrawEnd(canvas)
+    return IUP_DEFAULT
+end function
+
+--Ihandle dlg, file_menu, main_menu
 
 IupOpen()
 
 -- (The alternatives all work just fine, btw)  -- Ah, "mymenu" not [yet] under pwa/p2js. [DEV]
-file_menu = IupMenu({IupMenuItem("&Open"),
-                     IupMenuItem("&Save"),
-                     IupSeparator(),
---                   IupMenuItem("&Undo", NULL, NULL, "ACTIVE=NO"),
-                     IupMenuItem("&Undo", "ACTIVE=NO"),
---                   IupMenuItem("E&xit", "ACTION", Icallback("exit_cb"))})
---                   IupMenuItem("E&xit", NULL, Icallback("exit_cb"))})
-                     IupMenuItem("E&xit", Icallback("exit_cb"))})
+Ihandle file_menu = IupMenu({IupMenuItem("&Open"),
+                             IupMenuItem("&Save"),
+                             IupSeparator(),
+--                           IupMenuItem("&Undo", NULL, NULL, "ACTIVE=NO"),
+                             IupMenuItem("&Undo", "ACTIVE=NO"),
+--                           IupMenuItem("E&xit", "ACTION", Icallback("exit_cb"))})
+--                           IupMenuItem("E&xit", NULL, Icallback("exit_cb"))})
+                             IupMenuItem("E&xit", Icallback("exit_cb"))}),
 
 --IupSetHandle("mymenu", IupMenu({IupSubmenu("File", file_menu)}))
-main_menu = IupMenu({IupSubmenu("&File", file_menu),
-                     IupMenuItem("&Help")})
+        main_menu = IupMenu({IupSubmenu("&File", file_menu),
+                             IupMenuItem("&Help")}),
 --dlg = IupDialog(IupCanvas(),"MENU=mymenu, TITLE=IupMenu, SIZE=200x100")
-dlg = IupDialog(IupCanvas(),"TITLE=IupMenu, SIZE=200x100")
+        canvas = IupCanvas(),
+--      dlg = IupDialog(canvas,"TITLE=IupMenu, SIZE=200x100")
+--      dlg = IupDialog(canvas,"TITLE=IupMenu, RASTERSIZE=240x120")
+--      dlg = IupDialog(canvas,"TITLE=IupMenu, RASTERSIZE=254x127")
+        dlg = IupDialog(canvas,"TITLE=IupMenu, RASTERSIZE=254x119")
 IupSetAttributeHandle(dlg,"MENU",main_menu)
+IupSetAttribute(canvas,"BORDER","NO")
+IupSetCallback(canvas,"ACTION",Icallback("redraw_cb"))
 
 IupShow(dlg)
 --Ihandle ih = IupLayoutDialog(dlg)

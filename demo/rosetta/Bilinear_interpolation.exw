@@ -2,6 +2,127 @@
 -- demo\rosetta\Bilinear_interpolation.exw
 -- =======================================
 --
+without js  -- read_ppm()
+requires("1.0.6")
+--include theGUI.e
+include ..\theGUI\hGUI.e -- all good!!
+--gSetGlobal("DIAGNOSTICS",true)
+
+function interpolate(atom s, e, f)
+--
+-- s,e are the start and end values (one original pixel apart),
+-- f is a fraction of some point between them, 0(==s)..1(==e).
+-- eg s=91 (f=0.2) e=101, we want 0.8 of the 91 + 0.2 of 101,
+-- aka if f is 4 times closer to s than e, we want 4 times as
+-- much of s as we want of e, with sum(fractions_taken)==1.
+--
+    return s + (e-s)*f  -- aka s*(1-f) + e*f
+end function
+
+function bilinear(integer c00, c10, c01, c11, atom fx, fy)
+--
+-- for some output pixel, we have calculated the exact point
+-- on the original, and extracted the four pixels surrounding 
+-- that, with fx,fy as the fractional x,y part of the 1x1 box.
+-- Like a capital H, we want some fraction on the left and the
+-- same on the right, then some fraction along the horizontal.
+-- It would be equivalent to do top/bottom then the vertical.
+--
+    atom left = interpolate(c00,c10,fx),
+         right = interpolate(c01,c11,fx)
+    return floor(interpolate(left,right,fy))
+end function
+
+function scale_image(sequence img, atom scaleX, scaleY)
+    integer width = length(img[1]),
+            height = length(img),
+            new_width = max(floor(width * scaleX),1),
+            new_height = max(floor(height * scaleY),1)
+    sequence original = repeat(repeat(0,width),height)
+    sequence new_image = repeat(repeat(0,new_width),new_height)
+
+    -- Extract the original pixels from the image [about
+    -- twice as fast as 4*to_rgba() in the main loop.]
+    for y=1 to height do
+        for x=1 to width do
+            original[y,x] = to_rgba(img[y,x])
+        end for
+    end for
+
+    atom mx = (width-1)/new_width,
+         my = (height-1)/new_height
+    for x=1 to new_width do
+        atom ax = (x-1)*mx          -- map onto original
+        integer ix = floor(ax),     -- left
+            ix1 = ix+1, ix2 = ix+2
+        ax -= ix                    -- fraction of the 1x1 box
+        for y=1 to new_height do
+            atom ay = (y-1)*my          --  ""
+            integer iy = floor(ay),     --  top
+                iy1 = iy+1, iy2 = iy+2
+            ay -= iy                    --  ""
+            integer {r00,g00,b00} = original[iy1,ix1],
+                    {r10,g10,b10} = original[iy1,ix2],
+                    {r01,g01,b01} = original[iy2,ix1],
+                    {r11,g11,b11} = original[iy2,ix2],
+                    r = bilinear(r00,r10,r01,r11,ax,ay),
+                    g = bilinear(g00,g10,g01,g11,ax,ay),
+                    b = bilinear(b00,b10,b01,b11,ax,ay)
+            new_image[y,x] = r*#10000+g*#100+b
+        end for
+    end for
+    gdm new_img = gImage_from_Pixbuf(new_image) 
+    return new_img
+end function
+
+include ppm.e
+sequence image = read_ppm("Lena.ppm") -- (769K)
+
+gdm image1 = gImage_from_Pixbuf(image), image2
+
+atom scaleX = 1.6,
+     scaleY = 1.6
+
+procedure key(gdx dlg, integer c)
+    if c=VK_F2 then
+        image2 = scale_image(image,scaleX,scaleY)
+        if dlg then gRedraw(dlg) end if
+    end if
+end procedure
+key(NULL,VK_F2) -- create the initial image2 for redraw()
+
+integer iw = length(image[1]),
+        ih = length(image)
+
+procedure redraw(gdx canvas)
+    integer {w,h} = gGetAttribute(gGetDialog(canvas),`SIZE`)
+    gDrawImage(image1,canvas)
+    -- NB calling scale_image() here would cripple resize,
+    --   instead you have to use key/timer/idle or similar.
+    gDrawImage(image2,canvas,iw)
+-- to float/center image2, best with fixed aspect ratio, do this
+--  integer {w2,h2} = gGetAttribute(image2,`SIZE`)
+--  gDrawImage(image2,canvas,iw+max((w-2-iw-w2)/2,0),(h-32-h2)/2)
+    gDrawText(canvas,10,ih+18,"Press F2 to re-scale, to fit rhs")
+    scaleX = max((w-iw-2)/iw,0)
+    scaleY = max((h-32)/ih,0)
+-- to preserve the aspect ratio, do this:
+--  scaleX = min(scaleX,scaleY)
+--  scaleY = scaleX
+end procedure
+
+atom cw = iw*(1+scaleX), -- (original and scaled side by side)
+     ch = max(ih,ih*scaleY) -- (so add widths but max heights)
+gdx cnv = gCanvas(redraw,"==",{{"SIZE",{cw,ch}}}),
+    dlg = gDialog(cnv,"Bilinear interpolation")
+gSetAttribute(dlg, "MINSIZE", {iw+2,32})
+gSetHandler(dlg,`KEY`,key)
+gShow(dlg)
+
+gMainLoop()
+
+
+--/*
 without js  -- (imFileImageLoadBitmap(), peekNS(), IupImageRGB(), etc)
 include pGUI.e
 
@@ -37,21 +158,27 @@ function bilinear(integer c00, c10, c01, c11, atom fx, fy)
     return floor(interpolate(left,right,fy))
 end function
 
-function scale_image(imImage img, atom scaleX, scaleY)
-    integer width = im_width(img),
-            height = im_height(img),
+--function scale_image(imImage img, atom scaleX, scaleY)
+function scale_image(sequence img, atom scaleX, scaleY)
+--  integer width = im_width(img),
+    integer width = length(img[1]),
+--          height = im_height(img),
+            height = length(img),
             new_width = floor(width * scaleX)-1,
             new_height = floor(height * scaleY)-1
     atom mx = (width-1)/new_width,
          my = (height-1)/new_height
     sequence original = repeat(repeat(0,width),height)
+--  sequence original = img
     sequence new_image = repeat(repeat(0,new_width),new_height)
 
     -- Extract the original pixels from the image [about
     -- twice as fast as 4*im_pixel() in the main loop.]
     for y=height-1 to 0 by -1 do
         for x=0 to width-1 do
-            original[height-y,x+1] = im_pixel(img, x, y)
+--          original[height-y,x+1] = im_pixel(img, x, y)
+            original[y+1,x+1] = to_rgb(img[x+1,y+1])
+--          original[y+1,x+1] = to_rgb(img[y+1,x+1])
         end for
     end for
 
@@ -80,6 +207,7 @@ end function
 
 IupOpen()
 
+--/*
 constant w = machine_word()
 atom pError = allocate(w)
 --imImage im1 = imFileImageLoadBitmap("Lenna50.jpg",0,pError)
@@ -93,14 +221,23 @@ if im1=NULL then
     {} = wait_key()
     abort(0)
 end if
+--*/
+include ppm.e
+sequence image = read_ppm("Lena.ppm")
+
 --(see also Color_quantization.exw if not an IM_RGB image)
 
 Ihandle dlg,
         scale = IupValuator(NULL,"MIN=2,MAX=200,VALUE=160"),
         redraw = IupButton("redraw (160%)")
 
-Ihandln image1 = IupImageFromImImage(im1),
-        image2 = scale_image(im1,1.6,1.6),
+--Ihandln image1 = IupImageFromImImage(im1),
+integer w = length(image[1]),
+        h = length(image)
+--Ihandln image1 = IupImage(w,h,flatten(image)),
+Ihandln image1 = scale_image(image,1,1),
+--      image2 = scale_image(im1,1.6,1.6),
+        image2 = scale_image(image,1.6,1.6),
         label1 = IupLabel(),
         label2 = IupLabel()
 IupSetAttributeHandle(label1, "IMAGE", image1)
@@ -117,7 +254,8 @@ function redraw_cb(Ihandle /*redraw*/)
     IupSetAttributeHandle(label2, "IMAGE", NULL)
     image2 = IupDestroy(image2)
     atom v = IupGetDouble(scale,"VALUE")/100
-    image2 = scale_image(im1,v,v)
+--  image2 = scale_image(im1,v,v)
+    image2 = scale_image(image,v,v)
     IupSetAttributeHandle(label2, "IMAGE", image2)
     IupSetAttribute(dlg,"SIZE",NULL)
     IupRefresh(dlg)
@@ -132,4 +270,4 @@ IupShow(dlg)
 
 IupMainLoop()
 IupClose()
-
+--*/

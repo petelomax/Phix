@@ -11,15 +11,19 @@
 --DEV/SUG you could perhaps encode Scream.mp3 as base64 (or something smaller)
 --        and document.write("<meta http-equiv='refresh' content='"+a+";url="+b+".mp3'>") but properly...
 without js
+--requires(64,true)
 constant dl = `Download rosetta\bass\ from http://phix.x10.mx/pmwiki/pmwiki.php?n=Main.Bass`
 assert(get_file_type("bass")=FILETYPE_DIRECTORY,dl)
 include bass\bass.e
 BASS_Init(-1, 44100)
 atom filePlayerHandle = BASS_StreamCreateFile(false, `bass\Scream01.mp3`)
 
-include pGUI.e
+--include pGUI.e
+include theGUI.e
+--gUseGTK()
 include timedate.e
-Ihandle mainwin, clock, count, alarm, durat, vbox1, timer
+--Ihandle mainwin, clock, count, alarm, durat, vbox1, timer
+gdx mainwin, clock, count, alarm, durat, vbox1, timer
 
 constant secfmts = {"%d:%d:%d", -- h:m:s
                     "%d:%d",    --   m:s
@@ -36,10 +40,13 @@ constant secfmts = {"%d:%d:%d", -- h:m:s
 integer remain = 0  -- whole seconds (for both duration and at time),
                     -- with 0 meaning inactive/already triggered.
 
-function alarm_changed_cb(Ihandle /*alarm*/)
-    string txt = IupGetAttribute(alarm,"VALUE")
+--function alarm_changed_cb(Ihandle /*alarm*/)
+procedure alarm_changed_cb(gdx /*alarm*/)
+--  string txt = IupGetAttribute(alarm,"VALUE")
+    string txt = gGetAttribute(alarm,"VALUE")
     sequence res
-    if IupGetInt(durat,"VALUE") then
+--  if IupGetInt(durat,"VALUE") then
+    if gGetInt(durat,"VALUE") then
         -- duration in [[h:]m:]s format, eg 1:30 means perform a 90s countdown
         remain = 0
         for f=1 to length(secfmts) do
@@ -62,15 +69,19 @@ function alarm_changed_cb(Ihandle /*alarm*/)
             if remain<0 then remain += timedelta(days:=1) end if
         end if
     end if
-    return IUP_DEFAULT
-end function
+--  return IUP_DEFAULT
+--  return TG_DEFAULT
+--end function
+end procedure
 
 function get_now()
     return format_timedate(date(),"hh:mm:sspm Dddd dth Mmmm yyyy")
 end function
 
-function timer_cb(Ihandle /*timer*/)
-    IupSetStrAttribute(clock,"TITLE",get_now())
+--function timer_cb(Ihandle /*timer*/)
+procedure timer_cb(gdx /*timer*/)
+--  IupSetStrAttribute(clock,"TITLE",get_now())
+    gSetAttribute(clock,"TITLE",get_now())
     if remain then
         remain -= 1
         if remain!=0 then
@@ -78,30 +89,48 @@ function timer_cb(Ihandle /*timer*/)
                     seconds = remainder(remain,60*60),
                     minutes = floor(seconds/60)
             seconds = remainder(seconds,60)
-            IupSetStrAttribute(count,"TITLE","%02d:%02d:%02d",{hours,minutes,seconds})
+--          IupSetStrAttribute(count,"TITLE","%02d:%02d:%02d",{hours,minutes,seconds})
+            gSetAttribute(count,"TITLE","%02d:%02d:%02d",{hours,minutes,seconds})
         else
-            IupSetStrAttribute(count,"TITLE","")
+--          IupSetStrAttribute(count,"TITLE","")
+            gSetAttribute(count,"TITLE","")
             BASS_ChannelPlay(filePlayerHandle)
         end if
     end if
-    return IUP_IGNORE
-end function
+--  return IUP_IGNORE
+--  return TG_IGNORE
+--end function
+end procedure
 
-IupOpen()
-clock = IupLabel(get_now(),"EXPAND=HORIZONTAL")
-count = IupLabel("","EXPAND=HORIZONTAL")
-alarm = IupText("VALUECHANGED_CB",Icallback("alarm_changed_cb"))
-durat = IupToggle("duration","VALUE=ON, RIGHTBUTTON=YES")
-vbox1 = IupVbox({IupHbox({IupLabel("Time:"),clock}),
-                 IupHbox({IupLabel("  Left:"),count}),
-                 IupHbox({IupLabel("Alarm:"),alarm,durat},
-                         "NORMALIZESIZE=VERTICAL")},
-                "NMARGIN=10x10,GAP=5")
-mainwin = IupDialog(vbox1, `TITLE="Audio Alarm", RASTERSIZE=320x125`)
-IupShow(mainwin)
-timer = IupTimer(Icallback("timer_cb"), 1000)
-IupMainLoop()
-IupClose()
+--IupOpen()
+--clock = IupLabel(get_now(),"EXPAND=HORIZONTAL")
+clock = gLabel(get_now(),"EXPAND=HORIZONTAL")
+--count = IupLabel("","EXPAND=HORIZONTAL")
+--count = gLabel(" ","EXPAND=HORIZONTAL")
+count = gLabel(repeat(' ',40),"EXPAND=HORIZONTAL")
+--alarm = IupText("VALUECHANGED_CB",Icallback("alarm_changed_cb"))
+alarm = gText(alarm_changed_cb)
+--durat = IupToggle("duration","VALUE=ON, RIGHTBUTTON=YES")
+durat = gCheckbox("duration","VALUE=ON")
+--vbox1 = IupVbox({IupHbox({IupLabel("Time:"),clock}),
+vbox1 = gVbox({gHbox({gLabel("Time:"),clock}),
+--               IupHbox({IupLabel("  Left:"),count}),
+               gHbox({gLabel("  Left:","EXPAND=N"),count},"GAP=8,MARGIN=2"),
+--               IupHbox({IupLabel("Alarm:"),alarm,durat},
+--                       "NORMALIZESIZE=VERTICAL")},
+               gHbox({gLabel("Alarm:","EXPAND=N"),alarm,durat},"GAP=5,SPACE=AROUND")},
+--             gHbox({gLabel("Alarm:"),alarm,gVbox({durat},"SPACE=AROUND")})},
+--              "NMARGIN=10x10,GAP=5")
+                "MARGIN=10,GAP=5")
+--mainwin = IupDialog(vbox1, `TITLE="Audio Alarm", RASTERSIZE=320x125`)
+mainwin = gDialog(vbox1, `TITLE="Audio Alarm", SIZE=320x125`)
+--IupShow(mainwin)
+gShow(mainwin)
+--timer = IupTimer(Icallback("timer_cb"), 1000)
+timer = gTimer(timer_cb, 1000)
+--IupMainLoop()
+gMainLoop()
+--IupClose()
 
 --?"done"
 --{} = wait_key()

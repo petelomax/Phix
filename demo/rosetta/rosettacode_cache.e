@@ -31,7 +31,8 @@
 without js -- (libcurl, file i/o, peek..)
 include builtins\timedate.e
 local constant day = timedelta(days:=1) -- (day == 24*60*60)
-global integer refresh_cache = 21*day -- 0 for always [NB refresh_cache += day below]
+global integer refresh_cache = 521*day -- 0 for always [NB refresh_cache += day below]
+--refresh_cache = 0
 
 -- Note the following (xx_clean()*4) were all built on an ad-hoc and as needed basis.
 --  (So don't be expecting too much in the way of sound logic or certainties here.)
@@ -388,6 +389,8 @@ local function check_cache(string filename, integer gt_opt=GT_WHOLE_FILE, bool r
     return {refetch, {result, why, filename}} -- (a bool & 3 strings)
 end function
 
+constant pError = allocate(CURL_ERROR_SIZE)
+
 local function open_download(string name, url, integer i=0, n=0)
     {bool refetch, string {text, why, filename}} = check_cache(name)
 --DEV temp:
@@ -415,6 +418,43 @@ Press Enter...
         if curl=NULL then curl_init() end if
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb)
         curl_easy_setopt(curl, CURLOPT_URL, url)
+--19/6/25 (no help)
+--      curl_easy_setopt(curl, CURLOPT_USERAGENT, "libcurl-agent/1.0")
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Rosetta Code Task bot")
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, true)
+--/*
+*   Trying 104.18.6.190...
+* TCP_NODELAY set
+* Connected to rosettacode.org (104.18.6.190) port 443 (#0)
+* schannel: SSL/TLS connection with rosettacode.org port 443 (step 1/3)
+* schannel: checking server certificate revocation
+* schannel: sending initial handshake data: sending 180 bytes...
+* schannel: sent initial handshake data: sent 180 bytes
+* schannel: SSL/TLS connection with rosettacode.org port 443 (step 2/3)
+* schannel: failed to receive handshake, need more data
+* schannel: SSL/TLS connection with rosettacode.org port 443 (step 2/3)
+* schannel: encrypted data got 7
+* schannel: encrypted data buffer: offset 7 length 4096
+* schannel: next InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE (0x80090326) - This error usually occurs when a fatal SSL/TLS alert is received (e.g. handshake failed). 
+            More detail may be available in the Windows System event log.
+* Closing connection 0
+* schannel: shutting down SSL/TLS connection with rosettacode.org port 443
+* schannel: clear security context handle
+Error 35 downloading file, retry?(Y/N):
+
+The application-specific permission settings do not grant Local Activation permission for the COM Server application with CLSID 
+{2593F8B9-4EAF-457C-B68A-50F6B8EA6B54}
+ and APPID 
+{15C20B67-12E7-4BB6-92BB-7AFF07997402}
+ to the user DESKTOP-Q6C6MGM\petel SID (S-1-5-21-360394844-2743332172-2340607888-1001) from address LocalHost (Using LRPC) running 
+ in the application container Unavailable SID (Unavailable). 
+ This security permission can be modified using the Component Services administrative tool.
+--*/
+--      curl_easy_setopt(curl,CURLOPT_ERRORBUFFER,pError)
+--/*
+"schannel: next InitializeSecurityContext failed: SEC_E_ILLEGAL_MESSAGE (0x80090326) - This error usually occurs when a fatal SSL/TLS alert is received (e.g. handshake failed). 
+           More detail may be available in the Windows System event log."
+--*/
         integer fn = open(filename,"wb")
         assert(fn!=-1,"cannot open "&filename)
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, fn)
@@ -428,7 +468,10 @@ Press Enter...
             string error = sprintf("%d",res)
             if res=CURLE_COULDNT_RESOLVE_HOST then
                 error &= " [CURLE_COULDNT_RESOLVE_HOST]"
+--          elsif res=CURLE_SSL_CONNECT_ERROR then
+--              ?peek_string(pError)
             end if
+?url
             progress("Error %s downloading file, retry?(Y/N):",{error})
             if lower(wait_key())!='y' then abort(0) end if
             printf(1,"Y\n")

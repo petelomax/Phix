@@ -2,6 +2,10 @@
 -- demo\rosetta\mastermind.exw
 -- ===========================
 --
+--DEV makes me want to make spinboxes (might need text first) and checkboxes canvas-based...
+--  OK, decision made: **NOT** worth faffing about with native spins any more... do ""
+?9/0 -- see demo/theGUI/hSpin.exw [DEV]
+--
 --  A configurable version of the board game Mastermind, with a Knuth solver.
 --
 --  Recommended reading: http://www.antonellaperucca.net/FioreLangPerucca.pdf
@@ -50,8 +54,16 @@ and colours are replaced with "GAME OVER - YOU WIN/LOSE" under the
 actual answer.
 """
 
+--requires(64,true) -- YUK:
+--/* -- hmm:
+(p64.exe:87060): Gtk-CRITICAL **: 12:41:09.857: gtk_spin_button_get_value: assertion 'GTK_IS_SPIN_BUTTON (spin_button)' failed
+(p64.exe:87060): Gtk-CRITICAL **: 12:41:09.862: gtk_spin_button_get_wrap: assertion 'GTK_IS_SPIN_BUTTON (spin_button)' failed
+(p64.exe:87060): Gtk-WARNING **: 12:41:09.882: Could not load a pixbuf from /org/gtk/libgtk/theme/Adwaita/assets/check-symbolic.svg.
+This may indicate that pixbuf loaders or the mime database could not be found.
+(PL: note there /is/ a checkbox-symbolic.svg in Phix\demo\theGUI\win_gtk64\share\icons\Adwaita\scalable\status\ ...)
+--*/
 without debug
-include pGUI.e
+include theGUI.e
 include builtins\VM\pprntfN.e
 include builtins\VM\pcfunc.e
 include builtins\pfile.e
@@ -62,9 +74,10 @@ include builtins\pretty.e
 include builtins\factorial.e
 include builtins\VM\pTime.e
 with debug
+--gUseGTK() -- YUK! no buttons, won't resize down...
 
-Ihandle dlg, colours, codelen, maxgoes, repeats, progres, 
-        usehint, game_canvas, colour_canvas
+--Ihandle dlg, colours, codelen, maxgoes, repeats, progres, 
+--      usehint, game_canvas, colour_canvas
 integer ncolours, ncodelen, nmaxgoes
 bool brepeats
 
@@ -201,6 +214,10 @@ end procedure
 
 atom done, is_done, best
 
+--Ihandle dlg, colours, codelen, maxgoes, repeats, progres, 
+--      usehint, game_canvas, colour_canvas
+gdx progres, usehint, game_canvas, colour_canvas
+
 function idle_action()
     atom to_do = excluded-1,
          t1 = time()+0.04
@@ -222,43 +239,58 @@ function idle_action()
                 end if
             end for
             if length(counts)=0 then
-                IupSetStrAttribute(progres,"TITLE","[answer not in %,d%s]",{SET_LIMIT,samp})
-                return IUP_IGNORE   -- (stop idle)
+--              IupSetStrAttribute(progres,"TITLE","[answer not in %,d%s]",{SET_LIMIT,samp})
+                gSetAttribute(progres,"TITLE","[answer not in %,d%s]",{SET_LIMIT,samp})
+--              return IUP_IGNORE   -- (stop idle)
+                return TG_IGNORE    -- (stop idle)
             end if
             integer k = largest(counts,return_index:=true),
                     ck = counts[k]
             if ck<best then
                 best = ck
                 hint = guest
-                IupSetInt(usehint,"ACTIVE",true)
-                IupUpdate(colour_canvas)
+--              IupSetInt(usehint,"ACTIVE",true)
+                gSetInt(usehint,"ACTIVE",true)
+--              IupUpdate(colour_canvas)
+                gRedraw(colour_canvas)
             end if
         end if
     
         if done=length(initial_set) then
-            IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (100%%)",{is_done,to_do,samp})
-            return IUP_IGNORE   -- (stop idle)
+--          IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (100%%)",{is_done,to_do,samp})
+            gSetAttribute(progres,"TITLE","%,d/%,d%s (100%%)",{is_done,to_do,samp})
+--          return IUP_IGNORE   -- (stop idle)
+            return TG_IGNORE    -- (stop idle)
         end if
         if time()>t1 then exit end if
     end for
-    IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
-    return IUP_DEFAULT
+--  IupSetStrAttribute(progres,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
+    gSetAttribute(progres,"TITLE","%,d/%,d%s (%d%%)",{is_done,to_do,samp,100*(is_done/to_do)})
+--  return IUP_DEFAULT
+--  return TG_DEFAULT
+    return TG_CONTINUE
 end function
 
 procedure start_idle()
     done = 0
     is_done = 0
     best = length(initial_set)+1
-    IupSetAttribute(progres,"TITLE","-")
-    IupSetInt(usehint,"ACTIVE",false)
-    IupSetGlobalFunction("IDLE_ACTION",Icallback("idle_action"))
+--  IupSetAttribute(progres,"TITLE","-")
+    gSetAttribute(progres,"TITLE","-")
+--  IupSetInt(usehint,"ACTIVE",false)
+    gSetInt(usehint,"ACTIVE",false)
+--  IupSetGlobalFunction("IDLE_ACTION",Icallback("idle_action"))
+--?`    IupSetGlobalFunction("IDLE_ACTION",Icallback("idle_action"))`
+    gSetGlobal("IDLE_ACTION",idle_action)
 end procedure
 
+gdx colours, codelen, maxgoes, repeats
+
 procedure new_game()
-    ncolours = IupGetInt(colours,"VALUE")
-    ncodelen = IupGetInt(codelen,"VALUE")
-    nmaxgoes = IupGetInt(maxgoes,"VALUE")
-    brepeats = IupGetInt(repeats,"VALUE")
+    ncolours = gGetInt(colours,"VALUE")
+    ncodelen = gGetInt(codelen,"VALUE")
+    nmaxgoes = gGetInt(maxgoes,"VALUE")
+    brepeats = gGetInt(repeats,"VALUE")
     secret = random_set()
 --testing:
 --secret = tagset(ncodelen)
@@ -291,32 +323,34 @@ constant colour_table = {#e6194b,   -- Red
                          #000075,   -- Navy
                          #a9a9a9}   -- Grey
 
--- saved in redraw_cb(), for click testing in button_cb():
+-- saved in redraw(), for click testing in canvas_click():
 sequence last_guess = {},
          colour_centres = {}
 integer guess_r2 = 0,
         colour_r2 = 0
 
-function redraw_cb(Ihandle ih)
-    Ihandle frame = IupGetParent(ih)
-    string title = IupGetAttribute(ih,"TITLE")
+procedure redraw(gdx canvas, integer cw, ch)
+    gdx frame = gGetParent(canvas)
+    string title = gGetAttribute(frame,"TITLE")
     if not find(title,{"Game","Colours"}) then ?9/0 end if
-    integer {cw,ch} = IupGetIntInt(ih, "DRAWSIZE")
+--  integer {cw,ch} = IupGetIntInt(canvas, "DRAWSIZE")
     
-    cdCanvas cddbuffer = IupGetAttributePtr(ih,"DBUFFER")
-    IupGLMakeCurrent(ih)
-    cdCanvasActivate(cddbuffer)
-    cdCanvasClear(cddbuffer)
+--  cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
+--  IupGLMakeCurrent(canvas)
+--  cdCanvasActivate(cddbuffer)
+--  cdCanvasClear(cddbuffer)
 --  cdCanvasSetLineWidth(cddbuffer, 1)  -- (no effect)
 
     if title="Game" then
         integer mx = min(floor(cw/(ncodelen*1.5+0.5)),floor(ch/(nmaxgoes+1))),
                 diameter = floor(mx/2),
                 px = floor((cw-(ncodelen*1.5+0.5)*mx)/2), -- (set margin)
-                cy = ch, cx, c, r
+--              cy = ch, cx, c, r
+                cy = 0, cx, c, r
         last_guess = {}
         for g=1 to length(guesses) do
-            cy -= mx
+--          cy -= mx
+            cy += mx
             cx = px+floor(mx/2)
             for i=1 to 2*ncodelen+1 do
                 if i!=ncodelen+1 then
@@ -324,25 +358,28 @@ function redraw_cb(Ihandle ih)
                         if i<=length(guesses[g]) then
                             c = colour_table[guesses[g][i]]
                             if g=length(guesses) then
-                                last_guess = {{cx,ch-cy}}
+--                              last_guess = {{cx,ch-cy}}
+                                last_guess = {{cx,cy}}
                             end if
                         else
-                            c = CD_GREY
+                            c = TG_GREY
                         end if
-                        r = diameter
+                        r = floor(diameter/2)
                     else
-                        c = CD_GREY
+                        c = TG_GREY
                         if g<=length(scores) then
                             integer k = i-ncodelen-1,
                                     {b,w} = scores[g]
-                            c = iff(k<=b ? CD_BLACK : iff(k<=b+w ? CD_WHITE : CD_GREY))
+                            c = iff(k<=b ? TG_BLACK : iff(k<=b+w ? TG_WHITE : TG_GREY))
                         end if
-                        r = floor(diameter*0.5)
+                        r = floor(diameter/4)
                     end if
-                    cdCanvasSetForeground(cddbuffer,c)
-                    cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
-                    cdCanvasSetForeground(cddbuffer,CD_DARK_GREY)
-                    cdCanvasCircle(cddbuffer, cx, cy, r)
+--                  cdCanvasSetForeground(cddbuffer,c)
+--                  cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
+                    gDrawCircle(canvas, cx, cy, r, true, c)
+--                  cdCanvasSetForeground(cddbuffer,TG_DARK_GREY)
+--                  cdCanvasCircle(cddbuffer, cx, cy, r)
+                    gDrawCircle(canvas, cx, cy, r, false, TG_DARK_GREY)
                 end if
                 cx += iff(i<ncodelen?mx:floor(mx/2))
             end for
@@ -350,34 +387,40 @@ function redraw_cb(Ihandle ih)
         guess_r2 = floor(diameter*diameter/4)
     elsif title="Colours" then
         integer mx = min(floor(cw/ncodelen),floor(ch/2)),
-                r = floor(mx/2),
+                r = floor(mx/4),
                 px = floor((cw-ncodelen*mx)/2), -- (set margin)
-                cy = ch-r, cx, c
+--              cy = ch-r, cx, c
+                cy = r*2, cx, c
         cx = px+floor(mx/2)
         bool active = length(hint)>0
+--?{"hint",hint}
         if length(scores)=nmaxgoes then
 --      if length(scores)=length(guesses) then
             hint = secret
             active = true
         end if
         for i=1 to ncodelen do
-            c = iff(active?colour_table[hint[i]]:CD_GREY)
-            cdCanvasSetForeground(cddbuffer,c)
-            cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
-            cdCanvasSetForeground(cddbuffer,CD_DARK_GREY)
-            cdCanvasCircle(cddbuffer, cx, cy, r)
+            c = iff(active?colour_table[hint[i]]:TG_GREY)
+--?{i,c,active,hint}
+--          cdCanvasSetForeground(cddbuffer,c)
+--          cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
+            gDrawCircle(canvas, cx, cy, r, true, c)
+--          cdCanvasSetForeground(cddbuffer,TG_DARK_GREY)
+--          cdCanvasCircle(cddbuffer, cx, cy, r)
+            gDrawCircle(canvas, cx, cy, r, false, TG_DARK_GREY)
             cx += mx
         end for
         if length(scores)=nmaxgoes
         or guesses[$]=secret then
             ch -= floor(mx/2)
-            cdCanvasSetTextAlignment(cddbuffer, CD_CENTER)
+--          cdCanvasSetTextAlignment(cddbuffer, TG_CENTER)
             string wl = iff(guesses[$]=secret?"WIN":"LOSE"),
                    msg = sprintf("GAME OVER - YOU %s",{wl})
-            cdCanvasText(cddbuffer, cw/2, ch/2, msg) 
+--          cdCanvasText(cddbuffer, cw/2, ch/2, msg) 
+            gDrawText(canvas, cw/2, ch/2, msg, align:=TG_C) 
         else
             integer ch0 = ch
-            ch -= mx
+--          ch -= mx
             --
             -- calculate the best nw*nh way to fit all the colours in:
             -- (if nw ends up = ncodelen there is no clear separation
@@ -397,62 +440,72 @@ function redraw_cb(Ihandle ih)
             -- now draw all the colours
             --
             mx = min(floor(cw/nw),floor(ch/nh))
-            r = floor(mx/2)
+--          r = floor(mx/4)
             px = floor((cw-nw*mx)/2)
             cx = px+floor(mx/2)
-            cy = ch-r
+--          cy = ch-r
+            cy = mx+r*2
             integer this_row = 0
             colour_centres = repeat(0,ncolours)
             colour_r2 = floor(r*r/4)
             for i=1 to ncolours do
-                colour_centres[i] = {cx,ch0-cy}
+--              colour_centres[i] = {cx,ch0-cy}
+                colour_centres[i] = {cx,cy}
                 c = colour_table[i]
-                cdCanvasSetForeground(cddbuffer,c)
-                cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
-                cdCanvasSetForeground(cddbuffer,CD_DARK_GREY)
-                cdCanvasCircle(cddbuffer, cx, cy, r)
+--              cdCanvasSetForeground(cddbuffer,c)
+--              cdCanvasSector(cddbuffer, cx, cy, r, r, 0, 360)
+                gDrawCircle(canvas, cx, cy, r, true, c)
+--              cdCanvasSetForeground(cddbuffer,TG_DARK_GREY)
+--              cdCanvasCircle(cddbuffer, cx, cy, r)
+                gDrawCircle(canvas, cx, cy, r, false, TG_DARK_GREY)
                 cx += mx
                 this_row += 1
                 if this_row>=nw then
                     this_row = 0
                     cx = px + floor(mx/2)
-                    cy -= mx
+--                  cy -= mx
+                    cy += mx
                 end if
             end for
         end if
     end if
-    cdCanvasFlush(cddbuffer)
-    return IUP_DEFAULT
-end function
+--  cdCanvasFlush(cddbuffer)
+--  return IUP_DEFAULT
+--end function
+end procedure
 
-function map_cb(Ihandle ih)
-    IupGLMakeCurrent(ih)
-    cdCanvas cddbuffer
-    if platform()=JS then
-        cddbuffer = cdCreateCanvas(CD_IUP, ih)
-    else
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-        cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    end if
-    IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
-    cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
-    return IUP_DEFAULT
-end function
+--function map_cb(Ihandle ih)
+--  IupGLMakeCurrent(ih)
+--  cdCanvas cddbuffer
+--  if platform()=JS then
+--      cddbuffer = cdCreateCanvas(CD_IUP, ih)
+--  else
+--      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--      cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+--  end if
+--  IupSetAttributePtr(ih,"DBUFFER",cddbuffer)
+--  cdCanvasSetBackground(cddbuffer, CD_PARCHMENT)
+--  return IUP_DEFAULT
+--end function
 
-function canvas_resize_cb(Ihandle canvas)
-    cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
-    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
-    return IUP_DEFAULT
-end function
+--function canvas_resize_cb(Ihandle canvas)
+--  cdCanvas cddbuffer = IupGetAttributePtr(canvas,"DBUFFER")
+--  integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+--  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+--  cdCanvasSetAttribute(cddbuffer, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+--  return IUP_DEFAULT
+--end function
 
 procedure redraw_all()
-    IupUpdate({game_canvas,colour_canvas})
+--  IupUpdate({game_canvas,colour_canvas})
+--DEV... (minor)
+--  gRedraw({game_canvas,colour_canvas})
+    gRedraw(game_canvas)
+    gRedraw(colour_canvas)
 end procedure
 
 procedure undo_move()
-    -- Called from button_cb and from K_DEL, but latter may be invalid.
+    -- Called from canvas_click and from K_DEL, but latter may be invalid.
     if length(guesses[$])!=0 then
         guesses[$] = guesses[$][1..$-1]
         redraw_all()
@@ -487,22 +540,24 @@ procedure add_move(integer i)
     redraw_all()
 end procedure
 
-function usehint_cb(Ihandle /*usehint*/)
+procedure hint_action()
     guesses[$] = hint
     add_move(0)
-    return IUP_DEFAULT
-end function
+end procedure
 
-function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus*/)
-    Ihandle frame = IupGetParent(canvas)
-    string title = IupGetAttribute(frame,"TITLE")
+--function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus*/)
+procedure canvas_click(gdx canvas, sequence status, integer x, y)
+    gdx frame = gGetParent(canvas)
+    string title = gGetAttribute(frame,"TITLE")
     if not find(title,{"Game","Colours"}) then ?9/0 end if
-    if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+--  if button=IUP_BUTTON1 and not pressed then      -- (left button released)
+    if status[1..2]="LR" then       -- (left button released)
         {sequence centres, integer r2} = iff(title="Game"?{last_guess,guess_r2}
                                                          :{colour_centres,colour_r2})
+--?{centres,{x,y}}
         for i=1 to length(centres) do
             integer {cx,cy} = sq_sub(centres[i],{x,y})
-            if (cx*cx+cy*cy)<=r2 then
+            if (cx*cx+cy*cy)<=r2*2 then
                 if title="Game" then
                     undo_move()
                 else
@@ -512,42 +567,42 @@ function button_cb(Ihandle canvas, integer button, pressed, x, y, atom /*pStatus
             end if
         end for
     end if
-    return IUP_CONTINUE
-end function
+--  return IUP_CONTINUE
+end procedure
 
-function new_game_cb(Ihandle /*ih*/)
+procedure new_game_action()
     new_game()
     redraw_all()
-    return IUP_DEFAULT
+end procedure
+
+--function exit_cb(Ihandle /*ih*/)
+--  return IUP_CLOSE
+--end function
+
+function help_action()
+    gMsgBox("Mastermind",help_text)
+    return TG_IGNORE -- (don't open browser help!)
 end function
 
-function exit_cb(Ihandle /*ih*/)
-    return IUP_CLOSE
+--function key_cb(Ihandle /*dlg*/, atom c)
+function key_handler(gdx /*dlg*/, integer c)
+    if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+    if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+    if c=VK_F1 then return help_action() end if
+    if find(c,{VK_DEL,VK_BS}) then undo_move() end if
+    return TG_CONTINUE
 end function
 
-function help_cb(Ihandln /*ih*/)
-    IupMessage("Mastermind",help_text)
-    return IUP_IGNORE -- (don't open browser help!)
-end function
-
-function key_cb(Ihandle /*dlg*/, atom c)
-    if c=K_ESC then return IUP_CLOSE end if -- (standard practice for me)
-    if c=K_F5 then return IUP_DEFAULT end if -- (let browser reload work)
-    if c=K_F1 then return help_cb(NULL) end if
-    if find(c,{K_DEL,K_BS}) then undo_move() end if
-    return IUP_CONTINUE
-end function
-
-function valuechanged_cb(Ihandle ih)
-    ncolours = IupGetInt(colours,"VALUE")
-    ncodelen = IupGetInt(codelen,"VALUE")
-    nmaxgoes = IupGetInt(maxgoes,"VALUE")
-    IupSetInt(repeats,"ACTIVE",ncodelen<=ncolours)
+procedure value_changed(gdx id, integer /*v*/)
+    ncolours = gGetInt(colours,"VALUE")
+    ncodelen = gGetInt(codelen,"VALUE")
+    nmaxgoes = gGetInt(maxgoes,"VALUE")
+    gSetInt(repeats,"ACTIVE",ncodelen<=ncolours)
     if ncodelen>ncolours then
-        IupSetInt(repeats,"VALUE",true)
+        gSetInt(repeats,"VALUE",true)
     end if
-    brepeats = IupGetInt(repeats,"VALUE")
-    if ih!=maxgoes
+    brepeats = gGetInt(repeats,"VALUE")
+    if id!=maxgoes
     or length(scores)=length(guesses) then  -- (game over)
 --  or length(scores)>=nmaxgoes then    -- (game over)
         new_game()
@@ -555,56 +610,325 @@ function valuechanged_cb(Ihandle ih)
         -- (signal/force game over state)
         guesses = guesses[1..length(scores)]
     end if
-    redraw_all()
-    return IUP_DEFAULT
-end function
-constant cb_valuechanged = Icallback("valuechanged_cb")
+--DEV...
+--  redraw_all()
+end procedure
 
 procedure main()
-    IupOpen()
+--  IupOpen()
  
-    colours = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=20, VALUE=6, RASTERSIZE=34x")
-    codelen = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=10, VALUE=4, RASTERSIZE=34x")
-    maxgoes = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=20, VALUE=7, RASTERSIZE=34x")
-    repeats = IupToggle("Repeatable?","VALUE=YES, RIGHTBUTTON=YES, PADDING=5x4")
-    progres = IupLabel("-","EXPAND=HORIZONTAL, PADDING=5x4")
-    usehint = IupButton("Use",Icallback("usehint_cb"),"PADDING=5x4, ACTIVE=NO")
-    game_canvas = IupGLCanvas("RASTERSIZE=200x")
-    colour_canvas = IupGLCanvas("RASTERSIZE=x200")
-    Ihandle newgame = IupButton("New Game",Icallback("new_game_cb"),"PADDING=5x4"),
-            help = IupButton("Help (F1)",Icallback("help_cb"),"PADDING=5x4"),
-            quit = IupButton("E&xit",Icallback("exit_cb"),"PADDING=5x4"),
-            vbox = IupVbox({IupHbox({IupLabel("Colours (1-20)","PADDING=5x4"),colours}),
-                            IupHbox({IupLabel("Code Length (1-10)","PADDING=5x4"),codelen}),
-                            IupHbox({IupLabel("Guesses (1-20)","PADDING=5x4"),maxgoes}),
-                            IupHbox({repeats},"MARGIN=10x5"),
-                            IupHbox({progres}),
-                            IupHbox({usehint,newgame,help,quit})},"MARGIN=5x5"),
-            game_frame = IupFrame(IupHbox({game_canvas},"MARGIN=3x3"),"TITLE=Game"),
-            option_frame = IupFrame(vbox,"TITLE=Options"),
-            colour_frame = IupFrame(colour_canvas,"TITLE=Colours"),
-            full = IupHbox({game_frame,IupVbox({option_frame,colour_frame})})
-    IupSetCallbacks({colours,codelen,maxgoes,repeats}, {"VALUECHANGED_CB", cb_valuechanged})
-    IupSetCallbacks({game_canvas,colour_canvas}, {"ACTION", Icallback("redraw_cb"),
-                                                  "MAP_CB", Icallback("map_cb"),
-                                                  "RESIZE_CB", Icallback("canvas_resize_cb"),
-                                                  "BUTTON_CB", Icallback("button_cb")})
-    dlg = IupDialog(IupHbox({full},"MARGIN=3x3"),"TITLE=Mastermind")
-    IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
-    IupSetAttributeHandle(dlg,"DEFAULTENTER", usehint)
-    IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
+    colours = gSpin(value_changed,"==",{{"RANGE",{1,20}},{"VALUE",6}})
+--  codelen = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=10, VALUE=4, RASTERSIZE=34x")
+    codelen = gSpin(value_changed,"==",{{"RANGE",{1,10}},{"VALUE",4}})
+--  maxgoes = IupText("SPIN=Yes, SPINMIN=1, SPINMAX=20, VALUE=7, RASTERSIZE=34x")
+    maxgoes = gSpin(value_changed,"==",{{"RANGE",{1,20}},{"VALUE",7}})
+--  repeats = IupToggle("Repeatable?","VALUE=YES, RIGHTBUTTON=YES, PADDING=5x4")
+    repeats = gCheckbox("Repeatable?",value_changed,"VALUE=YES")
+    progres = gLabel("-","EXPAND=HORIZONTAL")
+--  usehint = IupButton("Use",Icallback("usehint_cb"),"PADDING=5x4, ACTIVE=NO")
+    usehint = gButton("Use",hint_action,"ACTIVE=NO")
+--  game_canvas = IupGLCanvas("RASTERSIZE=200x")
+    game_canvas = gCanvas(redraw,"SIZE=200x200")
+--  game_canvas = gCanvas(redraw,"SIZE=200x200, EXPAND=BOTH")
+--  colour_canvas = IupGLCanvas("RASTERSIZE=x200")
+    colour_canvas = gCanvas(redraw,"SIZE=200x200")
+--DEV this should probably be the default...
+--  gSetAttribute({game_canvas,colour_canvas},"WU_BLEND",true)
+--  gSetAttribute({game_canvas,colour_canvas},"WU_BLEND",false)
+    gdx newgame = gButton("New Game",new_game_action),
+           help = gButton("Help (F1)",help_action),
+           quit = gButton("E&xit",gQuit),
+           vbox = gVbox({gHbox({gLabel("Colours (1-20)"),colours}),
+--                       gHbox({gLabel("Code Length (1-10)","PADDING=5x4"),codelen}),
+                         gHbox({gLabel("Code Length (1-10)"),codelen}),
+                         gHbox({gLabel("Guesses (1-20)"),maxgoes}),
+                         gHbox({repeats},"MARGIN=10x5"),
+                         gHbox({progres}),
+                         gHbox({usehint,newgame,help,quit})},"MARGIN=5x5,GAP=5"),
+--          game_frame = gFrame(gHbox({game_canvas},"MARGIN=3x3"),"TITLE=Game"),
+            game_frame = gFrame(game_canvas,"Game"),
+            option_frame = gFrame(vbox,"Options"),
+--          option_frame = gFrame(vbox,"Options","EXPAND=HORIZONTAL"),
+            colour_frame = gFrame(colour_canvas,"Colours"),
+            full = gHbox({game_frame,gVbox({option_frame,colour_frame})})
+--  IupSetCallbacks({colours,codelen,maxgoes,repeats}, {"VALUECHANGED_CB", cb_valuechanged})
+--  gSetHandler({colours,codelen,maxgoes,repeats}, {"VALUE_CHANGED", value_changed})
+--  IupSetCallbacks({game_canvas,colour_canvas}, {--"ACTION", Icallback("redraw_cb"),
+--                                                "MAP_CB", Icallback("map_cb"),
+--                                                "RESIZE_CB", Icallback("canvas_resize_cb"),
+--                                                "BUTTON_CB", Icallback("button_cb")})
+    gSetHandler({game_canvas,colour_canvas},"CLICK",canvas_click)
+    gdx dlg = gDialog(gHbox({full},"MARGIN=3x3"),"TITLE=Mastermind")
+--  IupSetCallback(dlg, "KEY_CB", Icallback("key_cb"))
+    gSetHandler(dlg,"KEY",key_handler)
+    gSetAttribute(dlg,"DEFAULTENTER",usehint)
+--  IupSetAttributeHandle(NULL,"PARENTDIALOG",dlg)
 
     new_game()
 
-    IupShow(dlg)
-    IupSetAttribute(dlg, "RASTERSIZE", NULL)
-    IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
-    if platform()!=JS then
-        IupMainLoop()
-        IupClose()
-    end if
+    gShow(dlg)
+--  IupSetAttribute(dlg, "RASTERSIZE", NULL)
+--  IupSetStrAttribute(dlg, "MINSIZE", IupGetAttribute(dlg,"RASTERSIZE"))
+    gMainLoop()
 end procedure
  
 main()
 
+--/*
+BUG: all spin text are at 0,0: (g_log does not yet seem to have XY)
+{"gShow",31,445,2,440,32' ',{443,408}}
+set(ctrl_sizeWH[5139],{10,200,386})
+set(ctrl_sizeWH[5139],{25,202,402})
+set(ctrl_sizeWH[5139],{15,80,15})
+set(ctrl_sizeWH[5139],{1,16,16})            ****
+set(ctrl_sizeWH[5139],{16,223,22})
+set(ctrl_sizeWH[5139],{17,107,15})
+set(ctrl_sizeWH[5139],{3,16,16})
+set(ctrl_sizeWH[5139],{18,223,22})
+set(ctrl_sizeWH[5139],{19,87,15})
+set(ctrl_sizeWH[5139],{5,16,16})
+set(ctrl_sizeWH[5139],{20,223,22})
+set(ctrl_sizeWH[5139],{7,97,29})
+set(ctrl_sizeWH[5139],{21,213,20})
+set(ctrl_sizeWH[5139],{8,223,15})
+set(ctrl_sizeWH[5139],{22,223,21})
+set(ctrl_sizeWH[5139],{9,40,25})
+set(ctrl_sizeWH[5139],{12,79,25})
+set(ctrl_sizeWH[5139],{13,68,25})
+set(ctrl_sizeWH[5139],{14,36,25})
+set(ctrl_sizeWH[5139],{23,223,34})
+set(ctrl_sizeWH[5139],{24,223,161})
+set(ctrl_sizeWH[5139],{26,235,187})
+set(ctrl_sizeWH[5139],{11,233,199})
+set(ctrl_sizeWH[5139],{27,235,215})
+set(ctrl_sizeWH[5139],{28,235,402})
+set(ctrl_sizeWH[5139],{29,437,402})
+set(ctrl_sizeWH[5139],{30,437,402})
+set(ctrl_sizeWH[5139],{31,445,440})
+set(ctrl_sizeWH[5139],{10,200,386})
+set(ctrl_sizeWH[5139],{25,202,402})
+set(ctrl_sizeWH[5139],{15,80,15})
+set(ctrl_sizeWH[5139],{1,16,16})
+set(ctrl_sizeWH[5139],{16,223,22})
+set(ctrl_sizeWH[5139],{17,107,15})
+set(ctrl_sizeWH[5139],{3,16,16})
+set(ctrl_sizeWH[5139],{18,223,22})
+set(ctrl_sizeWH[5139],{19,87,15})
+set(ctrl_sizeWH[5139],{5,16,16})
+set(ctrl_sizeWH[5139],{20,223,22})
+set(ctrl_sizeWH[5139],{7,97,29})
+set(ctrl_sizeWH[5139],{21,213,20})
+set(ctrl_sizeWH[5139],{8,223,15})
+set(ctrl_sizeWH[5139],{22,223,21})
+set(ctrl_sizeWH[5139],{9,40,25})
+set(ctrl_sizeWH[5139],{12,79,25})
+set(ctrl_sizeWH[5139],{13,68,25})
+set(ctrl_sizeWH[5139],{14,36,25})
+set(ctrl_sizeWH[5139],{23,223,34})
+set(ctrl_sizeWH[5139],{24,223,161})
+set(ctrl_sizeWH[5139],{26,235,187})
+set(ctrl_sizeWH[5139],{11,233,199})
+set(ctrl_sizeWH[5139],{27,235,215})
+set(ctrl_sizeWH[5139],{28,235,402})
+set(ctrl_sizeWH[5139],{29,437,402})
+set(ctrl_sizeWH[5139],{30,437,402})
+set(ctrl_sizeWH[5139],{31,445,440})
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Spin        86  19  16  16  16  16   0   0 16  0          CF_MAPPED+UNMAPATTR
+ 2 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 3 Spin       113  46  16  16  16  16   0   0 18  0          CF_MAPPED+UNMAPATTR
+ 4 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 5 Spin        93  73  16  16  16  16   0   0 20  0          CF_MAPPED+UNMAPATTR
+ 6 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 7 Checkbox    11 110  97  29  97  29   0   0 21  0          CF_MAPPED+UNMAPATTR
+ 8 Label        6 125 223  15   4  15   0   0 22  0          CF_EXPANDH+MAPPED
+ 9 Button       6 151  40  25  40  25   0   0 23  0          CF_INACTIVE+MAPPED
+10 Canvas       1  14 200 386  11  15 200 200 25  0          CF_EXPANDB+MAPPED+UNMAPATTR
+11 Canvas       1  14 233 199  11  15 200 200 27  0          CF_EXPANDB+MAPPED+UNMAPATTR
+12 Button      46 151  79  25  79  25   0   0 23  0          CF_MAPPED
+13 Button     125 151  68  25  68  25   0   0 23  0          CF_MAPPED
+14 Button     193 151  36  25  36  25   0   0 23  0          CF_MAPPED
+15 Label        6  19  80  15  80  15   0   0 16  0          CF_MAPPED
+16 Hbox         6  19 223  22   0   0   0   0 24  {15,1}     CF_EXPANDB+CTNR+MAPPED
+17 Label        6  46 107  15 107  15   0   0 18  0          CF_MAPPED
+18 Hbox         6  46 223  22   0   0   0   0 24  {17,3}     CF_EXPANDB+CTNR+MAPPED
+19 Label        6  73  87  15  87  15   0   0 20  0          CF_MAPPED
+20 Hbox         6  73 223  22   0   0   0   0 24  {19,5}     CF_EXPANDB+CTNR+MAPPED
+21 Hbox         6 100 213  20   0   0   0   0 24  {7}        CF_EXPANDB+CTNR+MAPPED
+22 Hbox         6 125 223  21   0   0   0   0 24  {8}        CF_EXPANDB+CTNR+MAPPED
+23 Hbox         6 151 223  34   0   0   0   0 24  {9,12..14} CF_EXPANDB+CTNR+MAPPED
+24 Vbox         1  14 223 161   0   0   0   0 26  {16,18,20..23} CF_EXPANDB+CTNR+MAPPED
+25 Frame        3   3 202 402  34  15   0   0 29  {10}       CF_EXPANDB+CTNR+DECOR+MAPPED
+26 Frame      205   3 235 187  43  15   0   0 28  {24}       CF_EXPANDB+CTNR+DECOR+MAPPED
+27 Frame      205 190 235 215  44  15   0   0 28  {11}       CF_EXPANDB+CTNR+DECOR+MAPPED
+28 Vbox       205   3 235 402   0   0   0   0 29  {26,27}    CF_EXPANDB+CTNR+MAPPED
+29 Hbox         3   3 437 402   0   0   0   0 30  {25,28}    CF_EXPANDB+CTNR+MAPPED
+30 Hbox         0   0 437 402   0   0   0   0 31  {29}       CF_EXPANDB+CTNR+MAPPED
+31 Dialog     737 320 445 440   0   0   0   0  0  {30}       CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+set(ctrl_sizeWH[5139],{11,233,199})
 
+XY:
+{"gShow",31,445,2,440,32' ',{443,408}}
+set(ctrl_sizeXY[4940],{30,0,0})
+set(ctrl_sizeXY[4940],{29,3,3})
+set(ctrl_sizeXY[4940],{25,3,3})
+set(ctrl_sizeXY[4940],{10,1,14})
+set(ctrl_sizeXY[4940],{28,205,3})
+set(ctrl_sizeXY[4940],{26,205,3})
+set(ctrl_sizeXY[4940],{24,1,14})
+set(ctrl_sizeXY[4940],{16,6,19})
+set(ctrl_sizeXY[4940],{15,6,19})
+set(ctrl_sizeXY[4940],{1,86,19})    ****
+set(ctrl_sizeXY[4940],{18,6,46})
+set(ctrl_sizeXY[4940],{17,6,46})
+set(ctrl_sizeXY[4940],{3,113,46})
+set(ctrl_sizeXY[4940],{20,6,73})
+set(ctrl_sizeXY[4940],{19,6,73})
+set(ctrl_sizeXY[4940],{5,93,73})
+set(ctrl_sizeXY[4940],{21,6,100})
+set(ctrl_sizeXY[4940],{7,11,110})
+set(ctrl_sizeXY[4940],{22,6,125})
+set(ctrl_sizeXY[4940],{8,6,125})
+set(ctrl_sizeXY[4940],{23,6,151})
+set(ctrl_sizeXY[4940],{9,6,151})
+set(ctrl_sizeXY[4940],{12,46,151})
+set(ctrl_sizeXY[4940],{13,125,151})
+set(ctrl_sizeXY[4940],{14,193,151})
+set(ctrl_sizeXY[4940],{27,205,190})
+set(ctrl_sizeXY[4940],{11,1,14})
+set(ctrl_sizeXY[23338],{31,737,320})
+set(ctrl_sizeXY[4940],{30,0,0})
+set(ctrl_sizeXY[4940],{29,3,3})
+set(ctrl_sizeXY[4940],{25,3,3})
+set(ctrl_sizeXY[4940],{10,1,14})
+set(ctrl_sizeXY[4940],{28,205,3})
+set(ctrl_sizeXY[4940],{26,205,3})
+set(ctrl_sizeXY[4940],{24,1,14})
+set(ctrl_sizeXY[4940],{16,6,19})
+set(ctrl_sizeXY[4940],{15,6,19})
+set(ctrl_sizeXY[4940],{1,86,19})
+set(ctrl_sizeXY[4940],{18,6,46})
+set(ctrl_sizeXY[4940],{17,6,46})
+set(ctrl_sizeXY[4940],{3,113,46})
+set(ctrl_sizeXY[4940],{20,6,73})
+set(ctrl_sizeXY[4940],{19,6,73})
+set(ctrl_sizeXY[4940],{5,93,73})
+set(ctrl_sizeXY[4940],{21,6,100})
+set(ctrl_sizeXY[4940],{7,11,110})
+set(ctrl_sizeXY[4940],{22,6,125})
+set(ctrl_sizeXY[4940],{8,6,125})
+set(ctrl_sizeXY[4940],{23,6,151})
+set(ctrl_sizeXY[4940],{9,6,151})
+set(ctrl_sizeXY[4940],{12,46,151})
+set(ctrl_sizeXY[4940],{13,125,151})
+set(ctrl_sizeXY[4940],{14,193,151})
+set(ctrl_sizeXY[4940],{27,205,190})
+set(ctrl_sizeXY[4940],{11,1,14})
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Spin        86  19  16  16  16  16   0   0 16  0          CF_MAPPED+UNMAPATTR
+ 2 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 3 Spin       113  46  16  16  16  16   0   0 18  0          CF_MAPPED+UNMAPATTR
+ 4 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 5 Spin        93  73  16  16  16  16   0   0 20  0          CF_MAPPED+UNMAPATTR
+ 6 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 7 Checkbox    11 110  97  29  97  29   0   0 21  0          CF_MAPPED+UNMAPATTR
+ 8 Label        6 125 223  15   4  15   0   0 22  0          CF_EXPANDH+MAPPED
+ 9 Button       6 151  40  25  40  25   0   0 23  0          CF_INACTIVE+MAPPED
+10 Canvas       1  14 200 386  11  15 200 200 25  0          CF_EXPANDB+MAPPED+UNMAPATTR
+11 Canvas       1  14 233 199  11  15 200 200 27  0          CF_EXPANDB+MAPPED+UNMAPATTR
+12 Button      46 151  79  25  79  25   0   0 23  0          CF_MAPPED
+13 Button     125 151  68  25  68  25   0   0 23  0          CF_MAPPED
+14 Button     193 151  36  25  36  25   0   0 23  0          CF_MAPPED
+15 Label        6  19  80  15  80  15   0   0 16  0          CF_MAPPED
+16 Hbox         6  19 223  22   0   0   0   0 24  {15,1}     CF_EXPANDB+CTNR+MAPPED
+17 Label        6  46 107  15 107  15   0   0 18  0          CF_MAPPED
+18 Hbox         6  46 223  22   0   0   0   0 24  {17,3}     CF_EXPANDB+CTNR+MAPPED
+19 Label        6  73  87  15  87  15   0   0 20  0          CF_MAPPED
+20 Hbox         6  73 223  22   0   0   0   0 24  {19,5}     CF_EXPANDB+CTNR+MAPPED
+21 Hbox         6 100 213  20   0   0   0   0 24  {7}        CF_EXPANDB+CTNR+MAPPED
+22 Hbox         6 125 223  21   0   0   0   0 24  {8}        CF_EXPANDB+CTNR+MAPPED
+23 Hbox         6 151 223  34   0   0   0   0 24  {9,12..14} CF_EXPANDB+CTNR+MAPPED
+24 Vbox         1  14 223 161   0   0   0   0 26  {16,18,20..23} CF_EXPANDB+CTNR+MAPPED
+25 Frame        3   3 202 402  34  15   0   0 29  {10}       CF_EXPANDB+CTNR+DECOR+MAPPED
+26 Frame      205   3 235 187  43  15   0   0 28  {24}       CF_EXPANDB+CTNR+DECOR+MAPPED
+27 Frame      205 190 235 215  44  15   0   0 28  {11}       CF_EXPANDB+CTNR+DECOR+MAPPED
+28 Vbox       205   3 235 402   0   0   0   0 29  {26,27}    CF_EXPANDB+CTNR+MAPPED
+29 Hbox         3   3 437 402   0   0   0   0 30  {25,28}    CF_EXPANDB+CTNR+MAPPED
+30 Hbox         0   0 437 402   0   0   0   0 31  {29}       CF_EXPANDB+CTNR+MAPPED
+31 Dialog     737 320 445 440   0   0   0   0  0  {30}       CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+set(ctrl_sizeXY[4940],{11,1,14})
+
+winapi:
+c_func(SetWindowPos[6096],{{10,"Canvas"},0,0,0,200,200,"SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE"}) ==> 1
+c_func(SetWindowPos[20812],{{2,"Text"},"NULL",13,13,0,0,"SWP_NOSIZE+SWP_NOACTIVATE"}) ==> 1
+c_func(SetWindowPos[20812],{{4,"Text"},"NULL",13,13,0,0,"SWP_NOSIZE+SWP_NOACTIVATE"}) ==> 1
+c_func(SetWindowPos[20812],{{6,"Text"},"NULL",13,13,0,0,"SWP_NOSIZE+SWP_NOACTIVATE"}) ==> 1
+c_func(SetWindowPos[6096],{{11,"Canvas"},0,0,0,200,200,"SWP_NOMOVE+SWP_NOZORDER+SWP_NOACTIVATE"}) ==> 1
+{"gShow",31,445,2,440,32' ',{443,408}}
+c_func(SetWindowPos[5457],{{10,"Canvas"},0,1,14,200,386,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{25,"Frame"},0,3,3,202,403,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{15,"Label"},0,6,19,80,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{17,"Label"},0,6,46,107,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{19,"Label"},0,6,73,87,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{7,"Checkbox"},0,11,110,97,29,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{8,"Label"},0,6,125,223,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{9,"Button"},0,6,151,40,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{12,"Button"},0,46,151,79,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{13,"Button"},0,125,151,68,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{14,"Button"},0,193,151,36,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{26,"Frame"},0,205,3,235,188,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{11,"Canvas"},0,1,14,233,199,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{27,"Frame"},0,205,190,235,216,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{31,"Dialog"},0,0,0,459,447,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[23366],{{31,"Dialog"},0,737,320,447,472,"SWP_NOSIZE+SWP_NOZORDER+SWP_NOACTIVATE"}) ==> 1
+c_func(SetWindowPos[5457],{{10,"Canvas"},0,1,14,200,386,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{25,"Frame"},0,3,3,202,403,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{15,"Label"},0,6,19,80,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{17,"Label"},0,6,46,107,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{19,"Label"},0,6,73,87,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{7,"Checkbox"},0,11,110,97,29,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{8,"Label"},0,6,125,223,15,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{9,"Button"},0,6,151,40,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{12,"Button"},0,46,151,79,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{13,"Button"},0,125,151,68,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{14,"Button"},0,193,151,36,25,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{26,"Frame"},0,205,3,235,188,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{11,"Canvas"},0,1,14,233,199,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{27,"Frame"},0,205,190,235,216,"SWP_NOZORDER"}) ==> 1
+c_func(SetWindowPos[5457],{{31,"Dialog"},0,737,320,459,447,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags
+ 1 Spin        86  19  16  16  16  16   0   0 16  0          CF_MAPPED+UNMAPATTR
+ 2 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 3 Spin       113  46  16  16  16  16   0   0 18  0          CF_MAPPED+UNMAPATTR
+ 4 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 5 Spin        93  73  16  16  16  16   0   0 20  0          CF_MAPPED+UNMAPATTR
+ 6 Text         0   0   0   0  70  22   0   0  0  0          CF_MAPPED
+ 7 Checkbox    11 110  97  29  97  29   0   0 21  0          CF_MAPPED+UNMAPATTR
+ 8 Label        6 125 223  15   4  15   0   0 22  0          CF_EXPANDH+MAPPED
+ 9 Button       6 151  40  25  40  25   0   0 23  0          CF_INACTIVE+MAPPED
+10 Canvas       1  14 200 386  11  15 200 200 25  0          CF_EXPANDB+MAPPED+UNMAPATTR
+11 Canvas       1  14 233 199  11  15 200 200 27  0          CF_EXPANDB+MAPPED+UNMAPATTR
+12 Button      46 151  79  25  79  25   0   0 23  0          CF_MAPPED
+13 Button     125 151  68  25  68  25   0   0 23  0          CF_MAPPED
+14 Button     193 151  36  25  36  25   0   0 23  0          CF_MAPPED
+15 Label        6  19  80  15  80  15   0   0 16  0          CF_MAPPED
+16 Hbox         6  19 223  22   0   0   0   0 24  {15,1}     CF_EXPANDB+CTNR+MAPPED
+17 Label        6  46 107  15 107  15   0   0 18  0          CF_MAPPED
+18 Hbox         6  46 223  22   0   0   0   0 24  {17,3}     CF_EXPANDB+CTNR+MAPPED
+19 Label        6  73  87  15  87  15   0   0 20  0          CF_MAPPED
+20 Hbox         6  73 223  22   0   0   0   0 24  {19,5}     CF_EXPANDB+CTNR+MAPPED
+21 Hbox         6 100 213  20   0   0   0   0 24  {7}        CF_EXPANDB+CTNR+MAPPED
+22 Hbox         6 125 223  21   0   0   0   0 24  {8}        CF_EXPANDB+CTNR+MAPPED
+23 Hbox         6 151 223  34   0   0   0   0 24  {9,12..14} CF_EXPANDB+CTNR+MAPPED
+24 Vbox         1  14 223 161   0   0   0   0 26  {16,18,20..23} CF_EXPANDB+CTNR+MAPPED
+25 Frame        3   3 202 402  34  15   0   0 29  {10}       CF_EXPANDB+CTNR+DECOR+MAPPED
+26 Frame      205   3 235 187  43  15   0   0 28  {24}       CF_EXPANDB+CTNR+DECOR+MAPPED
+27 Frame      205 190 235 215  44  15   0   0 28  {11}       CF_EXPANDB+CTNR+DECOR+MAPPED
+28 Vbox       205   3 235 402   0   0   0   0 29  {26,27}    CF_EXPANDB+CTNR+MAPPED
+29 Hbox         3   3 437 402   0   0   0   0 30  {25,28}    CF_EXPANDB+CTNR+MAPPED
+30 Hbox         0   0 437 402   0   0   0   0 31  {29}       CF_EXPANDB+CTNR+MAPPED
+31 Dialog     737 320 445 440   0   0   0   0  0  {30}       CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED+UNMAPATTR
+c_func(SetWindowPos[5457],{{11,"Canvas"},0,1,14,233,199,"SWP_NOMOVE+SWP_NOZORDER"}) ==> 1
+
+
+--*/

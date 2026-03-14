@@ -7,15 +7,15 @@
 --with garbage
 with javascript_semantics
 requires("1.0.3")
-include xpGUI.e
+include theGUI.e
 --gUseGTK()
 gdx dlg, canvas, timer
 
 constant title = "Elevator Simulation",
-         XPG_DARKER_GREY = #383838,     -- (darker than XPG_DARK_GREY)
-         XPG_LIGHTER_ORANGE = #FFA500,  -- (lighter than XPG_ORANGE)
-         XPG_PALE_BLUE = #98C5DA,       -- (lighter than XPG_LIGHT_BLUE)
-         XPG_MEDIUM_BLUE = #759EB4,     -- (darker than XPG_LIGHT_BLUE)
+         TG_DARKER_GREY = #383838,      -- (darker than TG_DARK_GREY)
+         TG_LIGHTER_ORANGE = #FFA500,   -- (lighter than TG_ORANGE)
+         TG_PALE_BLUE = #98C5DA,        -- (lighter than TG_LIGHT_BLUE)
+         TG_MEDIUM_BLUE = #759EB4,      -- (darker than TG_LIGHT_BLUE)
          panels = {{195,30,45,12},      -- indicator
                    {380,150,50,90},     -- up/down
                    {380,465,100,210},   -- main 
@@ -43,7 +43,7 @@ end procedure
 
 procedure redraw(gdx /*canvas*/)
     integer {width, height} = gGetIntInt(canvas, "SIZE")
-    gSetAttribute(canvas,"FGCLR",XPG_LIGHTER_ORANGE)
+    gSetAttribute(canvas,"FGCLR",TG_LIGHTER_ORANGE)
 --  cdCanvasSetInteriorStyle(cdcanvas, CD_SOLID)
     for i=1 to length(panels) do
         integer {cx,cy,hw,hh} = panels[i],
@@ -53,18 +53,17 @@ procedure redraw(gdx /*canvas*/)
 --              ymax = height-(cy-hh)
                 ymin = cy+hh,
                 ymax = cy-hh
-        gCanvasRect(canvas,xmin,xmax,ymin,ymax, true, 10) --rc(*2):]5,4)
+        gDrawRect(canvas,xmin,ymin,xmax,ymax, true, 10) --rc(*2):]5,4)
         // (a filled box has no antialiasing, so overwrite with an outline box too:)
 --      cdCanvasRoundedRect(cdcanvas,xmin,xmax,ymin,ymax,5,4)
-        gCanvasRect(canvas,xmin,xmax,ymin,ymax,false,10)
+        gDrawRect(canvas,xmin,ymin,xmax,ymax,false,10)
     end for
-    gSetAttribute(canvas,"FGCLR",XPG_BLACK)
+    gSetAttribute(canvas,"FGCLR",TG_BLACK)
     gSetAttribute(canvas,"FONT","Helvetica, 16")
---  gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](canvas,XPG_CENTRE)
+--  gCanvasSetTextAlignment?[use gDrawText(align:=x) instead](canvas,TG_CENTRE)
     integer {cx,cy} = panels[1]
     string floor_text = iff(cur_floor=0?"GF":sprintf("%d",cur_floor))
---  gCanvasText(canvas,cx,height-cy,floor_text,align:=XPG_CENTRE)
-    gCanvasText(canvas,cx,cy,floor_text,align:=XPG_CENTRE)
+    gDrawText(canvas,cx,cy,floor_text,{},align:=TG_CENTRE)
     cy += 75
     for i=6 to 0 by -1 do
         integer minx = cx-40,
@@ -73,37 +72,37 @@ procedure redraw(gdx /*canvas*/)
 --              maxy = height-(cy-40)
                 miny = cy+45,
                 maxy = cy-40
---      gSetAttribute(canvas,"FGCLR",XPG_PARCHMENT)
-        gCanvasRect(canvas,minx,maxx,miny,maxy,bFill:=true,colour:=XPG_PARCHMENT)
+--      gSetAttribute(canvas,"FGCLR",TG_PARCHMENT)
+        gDrawRect(canvas,minx,miny,maxx,maxy,bFill:=true,colour:=TG_PARCHMENT)
         if i=cur_floor then
             if i=wait_sign then wait_sign = -1 end if
---          gSetAttribute(canvas,"FGCLR",XPG_MEDIUM_BLUE)
-            gCanvasRect(canvas,minx,maxx,miny,maxy,bFill:=true,colour:=XPG_MEDIUM_BLUE)
---          gSetAttribute(canvas,"FGCLR",XPG_PALE_BLUE)
-            gCanvasRect(canvas,minx+5,maxx-5,miny,maxy,bFill:=true,colour:=XPG_PALE_BLUE)
+--          gSetAttribute(canvas,"FGCLR",TG_MEDIUM_BLUE)
+            gDrawRect(canvas,minx,miny,maxx,maxy,bFill:=true,colour:=TG_MEDIUM_BLUE)
+--          gSetAttribute(canvas,"FGCLR",TG_PALE_BLUE)
+            gDrawRect(canvas,minx+5,miny,maxx-5,maxy,bFill:=true,colour:=TG_PALE_BLUE)
             if door_open then
---              gSetAttribute(canvas,"FGCLR",XPG_CYAN)
-                gCanvasRect(canvas,minx+8,maxx-8,miny,maxy,bFill:=true,colour:=XPG_CYAN)
+--              gSetAttribute(canvas,"FGCLR",TG_CYAN)
+                gDrawRect(canvas,minx+8,miny,maxx-8,maxy,bFill:=true,colour:=TG_CYAN)
             else
---              gSetAttribute(canvas,"FGCLR",XPG_MEDIUM_BLUE)
-                gCanvasLine(canvas,cx,miny,cx,maxy,colour:=XPG_MEDIUM_BLUE)
+--              gSetAttribute(canvas,"FGCLR",TG_MEDIUM_BLUE)
+                gDrawLine(canvas,cx,miny,cx,maxy,colour:=TG_MEDIUM_BLUE)
             end if
         elsif i=wait_sign then
 --          integer y3 = height-cy-3
             integer y3 = cy+3
             sequence poly = {{cx, miny+3},{maxx-2, y3},{cx, maxy-4},{minx+1, y3}}
 --          for j=1 to 2 do
-            for j,c in {XPG_YELLOW,XPG_BLACK} do
---              gSetAttribute(canvas,"FGCLR",{XPG_YELLOW,XPG_BLACK}[j])
+            for j,c in {TG_YELLOW,TG_BLACK} do
+--              gSetAttribute(canvas,"FGCLR",{TG_YELLOW,TG_BLACK}[j])
 --              cdCanvasBegin(cdcanvas,{CD_FILL,CD_CLOSED_LINES}[j])
 --              cdCanvasVertex(cdcanvas, cx, miny+3)
 --              cdCanvasVertex(cdcanvas, maxx-2, y3)
 --              cdCanvasVertex(cdcanvas, cx, maxy-4)
 --              cdCanvasVertex(cdcanvas, minx+1, y3)
 --              cdCanvasEnd(cdcanvas)
-                gCanvasPolygon(canvas,poly,j=1,colour:=c)
+                gDrawPolygon(canvas,poly,j=1,colour:=c)
             end for
-            gCanvasText(canvas,cx,y3,"WAIT",align:=XPG_CENTRE)
+            gDrawText(canvas,cx,y3,"WAIT",align:=TG_CENTRE)
         end if
         cy += 90
     end for
@@ -111,22 +110,20 @@ procedure redraw(gdx /*canvas*/)
     for i=1 to length(buttons) do
         {cx,cy,floor_text} = buttons[i]
 --      cy = height-cy
-        gSetAttribute(canvas, "FGCLR", XPG_SILVER)
-        gCanvasCircle(canvas, cx, cy, 30, true)
-        gSetAttribute(canvas, "FGCLR", XPG_BLACK)
-        gCanvasCircle(canvas, cx, cy, 25)
-        gCanvasCircle(canvas, cx, cy, 30)
---      cdCanvasSetTextOrientation?[use gCanvasText(angle:=x) instead](cdcanvas, iff(i=1?180:0)) 
-        gCanvasText(canvas,cx,cy,iff(i=1?"v":floor_text),align:=XPG_CENTRE,angle:=iff(i=1?{XPG_C,180}:0))
+        gSetAttribute(canvas, "FGCLR", TG_SILVER)
+        gDrawCircle(canvas, cx, cy, 30, true)
+        gSetAttribute(canvas, "FGCLR", TG_BLACK)
+        gDrawCircle(canvas, cx, cy, 25)
+        gDrawCircle(canvas, cx, cy, 30)
+--      cdCanvasSetTextOrientation?[use gDrawText(angle:=x) instead](cdcanvas, iff(i=1?180:0)) 
+        gDrawText(canvas,cx,cy,iff(i=1?"v":floor_text),align:=TG_CENTRE,angle:=iff(i=1?{TG_C,180}:0))
     end for
     gSetAttribute(canvas,"FONT","Helvetica, 16")
-    gSetAttribute(canvas,"FGCLR",XPG_BLACK)
+    gSetAttribute(canvas,"FGCLR",TG_BLACK)
     {cx,cy} = panels[4]
---  gCanvasText(canvas,cx,height-cy,"Restart")
-    gCanvasText(canvas,cx,cy,"Restart",align:=XPG_CENTRE)
+    gDrawText(canvas,cx,cy,"Restart",align:=TG_CENTRE)
     {cx,cy} = panels[5]
---  gCanvasText(canvas,cx,height-cy,"Exit")
-    gCanvasText(canvas,cx,cy,"Exit",align:=XPG_CENTRE)
+    gDrawText(canvas,cx,cy,"Exit",align:=TG_CENTRE)
     --cdCanvasFlush(cdcanvas)
 end procedure
 
@@ -147,7 +144,7 @@ procedure canvas_click(gdx canvas, sequence status, integer x, y)
             {cx,cy,hw,hh} = panels[i]
             if x>=cx-hw and x<=cx+hw
             and y>=cy-hh and y<=cy+hh then  
---              if i=5 then return XPG_CLOSE end if
+--              if i=5 then return TG_CLOSE end if
                 if i=5 then
                     gHide(dlg)
                 else
@@ -197,7 +194,7 @@ procedure main()
     
     canvas = gCanvas(redraw,"SIZE=800x700")
     gSetHandler(canvas, `CLICK`, canvas_click)
-    gSetAttribute(canvas,"BGCLR",XPG_DARKER_GREY)
+    gSetAttribute(canvas,"BGCLR",TG_DARKER_GREY)
 --  dlg = gDialog(canvas,`TITLE="%s", RESIZE[*charsize]=NO`,{title})
 --  dlg = gDialog(canvas,`TITLE="%s", RESIZE=NO`,{title})
 --DEV:

@@ -11,6 +11,18 @@ constant TITLE = "Canny Edge Detection",
                   {-1,  8, -1},
                   {-1, -1, -1}}
 
+function sq_min_max_d(object a, atom b,c,d)
+    -- equivalent to sq_min(sq_max(sq_floor_div(a,d),b),c), but single-pass
+    sequence res = repeat(0,length(a))
+    for i,ai in a do
+        ai = floor(ai/d)
+        if b>ai then ai = b end if
+        if c<ai then ai = c end if
+        res[i] = ai
+    end for
+    return res
+end function
+
 function detect_edges(imImage img)
     integer width = im_width(img),
             height = im_height(img)
@@ -38,7 +50,8 @@ function detect_edges(imImage img)
                     newrgb = sq_add(newrgb,sq_mul(C_E_D[i+hh+1,j+hw+1],original[y+i,x+j]))
                 end for
             end for
-            new_image[y,x] = sq_max(sq_min(sq_floor_div(newrgb,divisor),255),0)
+--          new_image[y,x] = sq_max(sq_min(sq_floor_div(newrgb,divisor),255),0)
+            new_image[y,x] = sq_min_max_d(newrgb,0,255,divisor)
         end for
     end for
 

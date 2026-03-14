@@ -6,13 +6,16 @@
 --          https://github.com/ssloy/tinyrenderer/wiki/Lesson-4:-Perspective-projection
 --
 -- Aside: low CPU usage, at least when using a 30ms timer (33 FPS, which is plenty).
+-- Update: that was so in pGUI, it's ~10% in theGUI, all down to gDrawPolygon()...
 --
 with javascript_semantics
-include pGUI.e
+--without debug
+--requires(64,true) -- nb IDLE_ACTION does not work on (my) GTK2... [ERM, it does now...]
+include theGUI.e
+--gUseGTK()     -- GTK2 4* better than WinAPI, GTK3 1000*(!!) better - no idea why/how..
+                -- (that is, btw, when using an idle routine rather than a fixed timer)
 
 constant title = "Draw a Rotating Cube"
-Ihandle dlg, canvas
-cdCanvas cd_canvas
 
 --
 -- First, define 8 corners equidistant from {0,0,0}:
@@ -43,13 +46,13 @@ constant corners = {{+l,+l,+l},     -- 1 (front top right)
 -- those match the above diagram, but of course they would be
 -- swapped were you looking "at" the face/rotated it by 180.
 
-constant faces = {{CD_RED,          1,2,3,4},   -- right
-                  {CD_YELLOW,       1,5,6,2},   -- top
-                  {CD_DARK_GREEN,   1,4,8,5},   -- front
-                  {CD_BLUE,         2,3,7,6},   -- back
-                  {CD_WHITE,        3,4,8,7},   -- bottom
---                {CD_ORANGE,       5,6,7,8}}   -- left
-                  {CD_ORANGE,       8,7,6,5}}   -- left
+constant faces = {{TG_RED,          1,2,3,4},   -- right
+                  {TG_YELLOW,       1,5,6,2},   -- top
+                  {TG_DARK_GREEN,   1,4,8,5},   -- front
+                  {TG_BLUE,         2,3,7,6},   -- back
+                  {TG_WHITE,        3,4,8,7},   -- bottom
+--                {TG_ORANGE,       5,6,7,8}}   -- left
+                  {TG_ORANGE,       8,7,6,5}}   -- left
 
 -- rotation angles, 0..359, on a timer
 atom rx = 45,   -- initially makes cube like a H
@@ -64,7 +67,7 @@ function rotate(sequence points, atom angle, integer axis)
 --
 -- rotate points by the specified angle about the given axis
 --
-    atom radians = angle*CD_DEG2RAD,
+    atom radians = angle*TG_DEG2RAD,
          sin_t = sin(radians),
          cos_t = cos(radians)
     integer {nx,ny} = naxes[axis]
@@ -97,7 +100,7 @@ function nearest(sequence points)
     return largest(vslice(points,Z),true)
 end function
 
-procedure draw_cube(integer cx, cy)
+procedure draw_cube(gdx canvas, integer cx, cy)
     -- {cx,cy} is the centre point of the canvas
     sequence points = deep_copy(corners)
     points = rotate(points,rx,X)
@@ -131,94 +134,72 @@ procedure draw_cube(integer cx, cy)
     end for
     faceset = sort(faceset)
     for i=1 to length(faceset) do
-        sequence face = faces[faceset[i][2]]
-        cdCanvasSetForeground(cd_canvas,face[1])
-        -- first fill sides (with bresenham edges), then
-        -- redraw edges, but anti-aliased aka smoother
-        sequence modes = {CD_FILL,CD_CLOSED_LINES}
-        for m=1 to length(modes) do
-            cdCanvasBegin(cd_canvas,modes[m])
-            for fdx=2 to 5 do
-                sequence pt = points[face[fdx]]
-                cdCanvasVertex(cd_canvas,cx+pt[X],cy-pt[Y])
-            end for
-            cdCanvasEnd(cd_canvas)
+--  for i=1 to 3 do
+        sequence face = faces[faceset[i][2]], poly = {}
+        atom clr = face[1]
+--      atom clr = iff(i<=3?TG_BLACK:face[1])
+        for corner in face from 2 do
+            sequence pt = points[corner]
+            poly &= {{cx+pt[X],cy+pt[Y]}}
         end for
+        gDrawPolygon(canvas,poly,colour:=clr)
+--      gDrawPolygon(canvas,poly,false,colour:=clr)
     end for
 end procedure
 
-function canvas_action_cb(Ihandle canvas)
-    cdCanvasActivate(cd_canvas)
-    cdCanvasClear(cd_canvas)
-    integer {w, h} = IupGetIntInt(canvas, "DRAWSIZE")
-    draw_cube(floor(w/2),floor(h/2))
-    cdCanvasFlush(cd_canvas)
-    return IUP_DEFAULT
-end function
+procedure redraw(gdx canvas, integer w, h)
+    draw_cube(canvas, floor(w/2),floor(h/2))
+end procedure
 
-function canvas_map_cb(Ihandle canvas)
-    IupGLMakeCurrent(canvas)
-    if platform()=JS then
-        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
-    else
-        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
-    end if
-    cdCanvasSetBackground(cd_canvas, CD_PARCHMENT)
-    return IUP_DEFAULT
-end function
+atom t1 = time()+1
+integer fps = 0 -- (about 1150 under idle_action, 32 under a 30ms timer)
 
-function canvas_resize_cb(Ihandle /*canvas*/)
-    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
-    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
-    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
-    return IUP_DEFAULT
-end function
-
---atom t1 = time()+1
---integer fps = 0 -- (about 1150 under idle_action, 32 under a 30ms timer)
-
-function timer_cb(Ihandln /*ih*/)
+procedure update_rxyz(gdx canvas)
     -- (feel free to add a bit more randomness here, maybe)
     rx = mod(rx+359,360)
     ry = mod(ry+359.5,360)
     rz = mod(rz+359.75,360)
---  fps += 1
---  if time()>t1 then
---      IupSetStrAttribute(dlg,"TITLE","%s (%d FPS)",{title,fps})
---      t1 = time()+1
---      fps = 0
---  end if
-    IupRedraw(canvas)
-    return IUP_IGNORE
-end function
+    fps += 1
+    if time()>t1 then
+        gdx dlg = gGetDialog(canvas)
+        gSetAttribute(dlg,"TITLE","%s (%d FPS)",{title,fps})
+        t1 = time()+1
+        fps = 0
+    end if
+    gRedraw(canvas)
+end procedure
 
---/*
-function idle_action()
-    {} = timer_cb(NULL)
-    return IUP_DEFAULT
+procedure timer_action(gdx timer)
+    gdx canvas = gGetAttribute(timer,"USER_DATA")
+    update_rxyz(canvas)
+end procedure
+
+function idle_action(gdx canvas)
+--?{"idle_action",gVersion()}
+    update_rxyz(canvas)
+    return TG_CONTINUE
+--  return TG_IGNORE
 end function
-constant idle_action_cb = Icallback("idle_action")
---*/
 
 procedure main()
-    IupOpen()
-    canvas = IupGLCanvas("RASTERSIZE=640x480")
-    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
-                             "MAP_CB", Icallback("canvas_map_cb"),
-                             "RESIZE_CB", Icallback("canvas_resize_cb")})
-    dlg = IupDialog(canvas,`TITLE="%s"`,{title})
-    IupShow(dlg)
-    IupSetAttribute(canvas, "RASTERSIZE", NULL)
---if 01 then -- low cpu, maybe 1%:
-    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 30)
+    gdx canvas = gCanvas(redraw,"SIZE=640x480,BGCLR=PARCHMENT"),
+        dlg = gDialog(canvas,title)
+--DEV again a good reason to suggest this should be the default...
+--gSetAttribute(canvas,"WU_BLEND",true)
+    gShow(dlg)
+--
+-- Aside: Note the currently poor performance of gDrawPolygon() means this is  
+--        not really the best place to compare an idle handler with a timer...
+--        Under GTK3, the idle handler manages an astonishing 25,000+ FPS...
+--
+--if 01 then -- low cpu, maybe 5%: (actually not...)
+--  gdx timer = gTimer(timer_action, 30, user_data:=canvas)
 --else -- obvs 100% cpu:
---  IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
+--  gSetGlobal("IDLE_ARGS",{canvas})
+--  gSetGlobal("IDLE_ACTION",idle_action)
+    gSetGlobal("IDLE_ACTION",{idle_action,{canvas}})
 --end if
-    if platform()!=JS then
-        IupMainLoop()
-        IupClose()
-    end if
+    gMainLoop()
 end procedure
 
 main()

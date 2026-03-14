@@ -394,3 +394,280 @@ Ihandln timer
 
 end procedure
 main()
+
+--DEV this is what ChatGPT threw at me:
+--/*
+package main
+
+import std
+import gl
+import time
+
+// Vertex shader (GLES 2.0)
+const vert_shader_src = """
+attribute vec3 a_position;
+attribute vec3 a_normal;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_proj;
+
+varying vec3 v_normal;
+varying vec3 v_pos;
+
+void main() {
+    v_normal = a_normal;
+    vec4 world_pos = u_model * vec4(a_position, 1.0);
+    v_pos = world_pos.xyz;
+    gl_Position = u_proj * u_view * world_pos;
+}
+"""
+
+// Fragment shader
+const frag_shader_src = """
+precision mediump float;
+varying vec3 v_normal;
+varying vec3 v_pos;
+
+uniform vec3 u_light_pos;
+uniform vec4 u_color;
+
+void main() {
+    vec3 N = normalize(v_normal);
+    vec3 L = normalize(u_light_pos - v_pos);
+    float diff = max(dot(N, L), 0.0) + 0.1;
+    gl_FragColor = u_color * diff;
+}
+"""
+
+// Minimal gear mesh representation
+struct Mesh {
+    vertices []float32
+    normals  []float32
+    count    int
+    vbo, nbo gl.Uint
+}
+
+// Build a single gear (cylindrical spiked wheel)
+--fn make_gear(inner_r, outer_r, width, teeth, tooth_depth, color: Vec4) Mesh {
+--  verts := []float32{}
+--  norms := []float32{}
+--  // ... compute vertices & normals ...
+--  // For brevity: generate a cylinder with spike-like teeth.
+--  // A full implementation would match gear.c math.
+--  mesh := Mesh{verts, norms, len(verts)/3, 0, 0}
+--  return mesh
+--}
+function make_gear(atom inner_radius, outer_radius, width, integer teeth, atom tooth_depth)
+    sequence vertices = {}, normals = {}
+    atom r0 = inner_radius,
+         r1 = outer_radius - tooth_depth / 2,
+         r2 = outer_radius + tooth_depth / 2
+    atom da = PI / teeth / 4
+
+    -- Create front face
+    for i = 0 to teeth-1 do
+        atom angle = i * 2 * PI / teeth
+        atom u = angle
+        atom v = angle + da
+
+        -- inner radius segment
+        vertices &= { r0 * cos(u), r0 * sin(u), width*0.5,
+                      r1 * cos(u), r1 * sin(u), width*0.5,
+                      r0 * cos(v), r0 * sin(v), width*0.5,
+                      
+                      r1 * cos(u), r1 * sin(u), width*0.5,
+                      r1 * cos(v), r1 * sin(v), width*0.5,
+                      r0 * cos(v), r0 * sin(v), width*0.5 }
+        for _ = 1 to 6 do normals &= {0, 0, 1} end for
+    end for
+
+    -- Teeth front faces
+    for i = 0 to teeth-1 do
+        atom angle = i * 2 * PI / teeth
+        atom u1 = angle + da
+        atom u2 = angle + 2*da
+
+        vertices &= { r1 * cos(u1), r1 * sin(u1), width*0.5,
+                      r2 * cos(angle + da), r2 * sin(angle + da), width*0.5,
+                      r1 * cos(u2), r1 * sin(u2), width*0.5 }
+
+        for _ = 1 to 3 do normals &= {0, 0, 1} end for
+    end for
+
+    -- Back face (reversed Z)
+    for i = 0 to teeth-1 do
+        atom angle = i * 2 * PI / teeth
+        atom u = angle
+        atom v = angle + da
+
+        vertices &= { r0 * cos(u), r0 * sin(u), -width*0.5,
+                      r0 * cos(v), r0 * sin(v), -width*0.5,
+                      r1 * cos(u), r1 * sin(u), -width*0.5,
+                      
+                      r1 * cos(u), r1 * sin(u), -width*0.5,
+                      r0 * cos(v), r0 * sin(v), -width*0.5,
+                      r1 * cos(v), r1 * sin(v), -width*0.5 }
+        for _ = 1 to 6 do normals &= {0, 0, -1} end for
+    end for
+
+    -- Teeth back faces
+    for i = 0 to teeth-1 do
+        atom angle = i * 2 * PI / teeth
+        atom u1 = angle + da
+        atom u2 = angle + 2*da
+
+        vertices &= { r1 * cos(u2), r1 * sin(u2), -width*0.5,
+                      r2 * cos(angle + da), r2 * sin(angle + da), -width*0.5,
+                      r1 * cos(u1), r1 * sin(u1), -width*0.5 }
+
+        for _ = 1 to 3 do normals &= {0, 0, -1} end for
+    end for
+
+    -- Outer edge of gear teeth (side walls)
+    for i = 0 to teeth-1 do
+        atom angle = i * 2 * PI / teeth
+        atom u1 = angle + da
+        atom u2 = angle + 2*da
+        atom u3 = angle + 3*da
+
+        atom x1 = r1 * cos(u1), y1 = r1 * sin(u1)
+        atom x2 = r2 * cos(angle + da), y2 = r2 * sin(angle + da)
+        atom x3 = r1 * cos(u2), y3 = r1 * sin(u2)
+
+        sequence tri = {
+            -- side wall of tooth
+            x1, y1, width*0.5,
+            x2, y2, width*0.5,
+            x2, y2, -width*0.5,
+
+            x1, y1, width*0.5,
+            x2, y2, -width*0.5,
+            x1, y1, -width*0.5,
+
+            -- repeat for tip
+            x2, y2, width*0.5,
+            x3, y3, width*0.5,
+            x3, y3, -width*0.5,
+
+            x2, y2, width*0.5,
+            x3, y3, -width*0.5,
+            x2, y2, -width*0.5
+        }
+        vertices &= tri
+
+        for j = 1 to length(tri) by 3 do
+            atom x = tri[j], y = tri[j+1]
+            atom len = sqrt(x*x + y*y)
+            atom nx = x / len, ny = y / len
+            normals &= {nx, ny, 0}
+        end for
+    end for
+
+    return {vertices, normals}
+end function
+
+How to Use
+Inside your rendering setup, use:
+
+phix
+Copy code
+{vertices, normals} = make_gear(0.5, 1.2, 0.3, 20, 0.1)
+Then upload vertices and normals to VBOs as float32.
+
+fn main() {
+    // Initialize PHIX window & ES2 context (platform-specific)
+    win := phix.create_window("Gears ES2", 800, 600, phix.ContextES2)
+    defer win.destroy()
+
+    // Compile shaders
+    prog := gl.create_program()
+    vs := gl.create_shader(gl.VERTEX_SHADER)
+    fs := gl.create_shader(gl.FRAGMENT_SHADER)
+    gl.shader_source(vs, vert_shader_src)
+    gl.compile_shader(vs)
+    gl.check_shader_compile(vs)
+
+    gl.shader_source(fs, frag_shader_src)
+    gl.compile_shader(fs)
+    gl.check_shader_compile(fs)
+
+    gl.attach_shader(prog, vs)
+    gl.attach_shader(prog, fs)
+    gl.link_program(prog)
+    gl.check_program_link(prog)
+    gl.use_program(prog)
+
+    // Attributes & uniforms
+    pos_loc := gl.get_attrib_location(prog, "a_position")
+    norm_loc := gl.get_attrib_location(prog, "a_normal")
+    uni_model := gl.get_uniform_location(prog, "u_model")
+    uni_view := gl.get_uniform_location(prog, "u_view")
+    uni_proj := gl.get_uniform_location(prog, "u_proj")
+    uni_light := gl.get_uniform_location(prog, "u_light_pos")
+    uni_color := gl.get_uniform_location(prog, "u_color")
+
+    // Create gears
+    gears := []Mesh{
+        make_gear(0.5, 1.0, 0.3, 20, 0.1, Vec4{0.8,0.1,0.0,1.0}),
+        make_gear(0.3, 0.7, 0.3, 10, 0.1, Vec4{0.0,0.8,0.2,1.0}),
+        make_gear(0.4, 0.9, 0.3, 15, 0.1, Vec4{0.2,0.2,0.8,1.0}),
+    }
+    for i := 0; i < len(gears); i++ {
+        g := &gears[i]
+        // Upload VBO
+        gl.gen_buffers(1, &g.vbo)
+        gl.bind_buffer(gl.ARRAY_BUFFER, g.vbo)
+        gl.buffer_data(gl.ARRAY_BUFFER, gl.sizeof<float32>()*len(g.vertices),
+                       g.vertices.ptr, gl.STATIC_DRAW)
+        gl.gen_buffers(1, &g.nbo)
+        gl.bind_buffer(gl.ARRAY_BUFFER, g.nbo)
+        gl.buffer_data(gl.ARRAY_BUFFER, gl.sizeof<float32>()*len(g.normals),
+                       g.normals.ptr, gl.STATIC_DRAW)
+    }
+
+    // Basic transform setup
+    aspect := 800.0 / 600.0
+    proj := glm.perspective(45.0, aspect, 0.1, 100.0)
+    view := glm.look_at(glm.vec3(0,0,5), glm.vec3(0,0,0), glm.vec3(0,1,0))
+
+    start := time.now().seconds()
+    for !win.should_close() {
+        t := f32(time.now().seconds() - start)
+        gl.clear_color(0,0,0,1)
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+        gl.enable(gl.DEPTH_TEST)
+        gl.use_program(prog)
+        gl.uniform_matrix4fv(uni_view, false, view.data)
+        gl.uniform_matrix4fv(uni_proj, false, proj.data)
+        gl.uniform3f(uni_light, 5, 5, 10)
+
+        for i, _ := range gears {
+            g := &gears[i]
+            angle := t * (if i==0 {20.0} elif i==1 {-30.0} else {45.0})
+            model := glm.rotate(glm.mat4_identity(), angle*pi/180, glm.vec3(0,0,1))
+            gl.uniform_matrix4fv(uni_model, false, model.data)
+            col := if i==0 {glm.vec4(0.8,0.1,0.0,1.0)}
+                   elif i==1 {glm.vec4(0.0,0.8,0.2,1.0)}
+                   else {glm.vec4(0.2,0.2,0.8,1.0)}
+            gl.uniform4f(uni_color, col.x, col.y, col.z, col.w)
+
+            gl.enable_vertex_attrib_array(pos_loc)
+            gl.bind_buffer(gl.ARRAY_BUFFER, g.vbo)
+            gl.vertex_attrib_pointer(pos_loc, 3, gl.FLOAT, false, 0, nil)
+            gl.enable_vertex_attrib_array(norm_loc)
+            gl.bind_buffer(gl.ARRAY_BUFFER, g.nbo)
+            gl.vertex_attrib_pointer(norm_loc, 3, gl.FLOAT, false, 0, nil)
+
+            gl.draw_arrays(gl.TRIANGLES, 0, g.count)
+
+            gl.disable_vertex_attrib_array(pos_loc)
+            gl.disable_vertex_attrib_array(norm_loc)
+        }
+
+        win.swap_buffers()
+        phix.sleep_ms(16)
+        win.poll_events()
+    }
+}
+--*/

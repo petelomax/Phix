@@ -19,7 +19,7 @@
 --
 Ihandln filelist_dlg = NULL, 
         fd_config = NULL
-Ihandle matrix, bt_help, lbl_fill, filter, bt_ok, bt_cancel
+Ihandle matrix, bt_help, lbl_fill, filt, bt_ok, bt_cancel
 
 constant titles = {"File", "ext", "Directory", "Size", "Last modified", "rec"},
          twidth = { 120,    40,     400,        50,     110,             50},
@@ -83,7 +83,7 @@ procedure set_filters(integer clr)
 -- clr is 1 if the filter should be cleared when all get filtered
 sequence ftxt
 integer k
-    ftxt = lower(IupGetAttribute(filter,"VALUE"))
+    ftxt = lower(IupGetAttribute(filt,"VALUE"))
 --  fmap = repeat(0,length(files))
     fmap = {}
     k=1
@@ -102,7 +102,7 @@ integer k
 --  if k=1 and clr then
     if length(fmap)=0 and clr then
 --      setText(TLfilt,"")
-        IupSetAttribute(filter,"VALUE","")
+        IupSetAttribute(filt,"VALUE","")
 --      k = length(fmap)+1
 --      for i=1 to k-1 do
 --          fmap[i] = i
@@ -317,15 +317,15 @@ function key_cb(Ihandle /*ih*/, atom c)
         select_line()
     elsif c=K_DEL
        or c=K_BS then
-        string Ftext = IupGetAttribute(filter,"VALUE")
+        string Ftext = IupGetAttribute(filt,"VALUE")
         if length(Ftext) then
             Ftext = Ftext[1..$-1]
-            IupSetAttribute(filter,"VALUE",Ftext)
+            IupSetAttribute(filt,"VALUE",Ftext)
             set_filters(0)
         end if
     elsif c>=' ' and c<='~' then
-        string Ftext = IupGetAttribute(filter,"VALUE")&c
-        IupSetAttribute(filter,"VALUE",Ftext)
+        string Ftext = IupGetAttribute(filt,"VALUE")&c
+        IupSetAttribute(filt,"VALUE",Ftext)
         set_filters(0)
     end if
 --  if selected_line!=0 then
@@ -370,12 +370,12 @@ procedure create_filelist_dialog(string title)
 
     bt_help   = IupButton("Help","ACTION",cb_help,"PADDING=10x2")
     lbl_fill = IupLabel("Filter")
-    filter = IupText("EXPAND=HORIZONTAL,ACTIVE=NO")
+    filt = IupText("EXPAND=HORIZONTAL,ACTIVE=NO")
 
     bt_ok     = IupButton("OK","ACTION",cb_ok,"PADDING=10x2")
     bt_cancel = IupButton("Cancel","ACTION",cb_cancel,"PADDING=10x2")
 
-    Ihandle buttons = IupHbox({bt_help,lbl_fill,filter,bt_ok,bt_cancel},
+    Ihandle buttons = IupHbox({bt_help,lbl_fill,filt,bt_ok,bt_cancel},
                               "MARGIN=20x0,ALIGNMENT=ACENTER")
     Ihandle box = IupVbox({matrix,
 --                         IupFill(),

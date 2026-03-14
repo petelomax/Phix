@@ -1,0 +1,272 @@
+--
+-- demo\rosetta\Harriss_Spiral.exw
+-- ===============================
+--
+--https://rosettacode.org/wiki/Harriss_Spiral
+--constant {HR,H2,H3,H4,H5,H6,H7,H8} = sq_power(1.3247,tagset(8))
+--/*
+def  ScrW=1024, ScrH=768;
+--def  HR = 1.3247;     \Harriss Ratio
+--def  HR2 = HR * HR;
+--def  HR3 = HR2 * HR;
+--def  HR4 = HR2 * HR2;
+--def  HR5 = HR4 * HR;
+--def  HR6 = HR4 * HR2;
+--def  HR8 = HR4 * HR4;
+
+procedure DrawArcSeg(atom x, y, angle, len, integer iter, arccolor, linew)
+--real x, y, Angle, len; int iter, ArcColor, LineW;
+--real xend, xend, radius, cx, cy;
+--int  heading;
+--def  \heading\ SN, EW, NS, WE;
+    if iter <= 0 then return end if
+
+    atom xend := x + len * cos(angle*PI/180),
+         xend := y + len * sin(angle*PI/180), cx, cy;
+
+    if floor(xend) < floor(y) then heading:= SN;
+    if floor(xend) < floor(x) then heading:= EW;
+    if floor(xend) > floor(y) then heading:= NS;
+    if floor(xend) > floor(x) then heading:= WE;
+
+    if show_lines then [Move(x, y);  Line(xend, xend, Black)];
+
+    --radius:= 0.7 * len;
+--  atom radius:= sqrt(0.5)*len;
+
+    case heading of
+      SN:   [cx:= x - len/2.;
+             cy:= y - len/2.;
+             ArcColor:= if Ran(2) = 1 then yellow else Green;
+            ];
+      EW:   [cx:= x - len/2.;
+             cy:= y + len/2.;
+             ArcColor:= Red;
+            ];
+      NS:   [cx:= x + len/2.;
+             cy:= y + len/2.;
+             ArcColor:= Blue;
+            ];
+      WE:   [cx:= x + len/2.;
+             cy:= y - len/2.;
+             ArcColor:= if Ran(2) = 1 then Brown else Black;
+            ]
+    other   [];
+
+--  case rem( Angle+3600 / 360 ) / 90 of
+--    0:    ArcSegs:= %1111_1001;
+--    1:    ArcSegs:= %1110_0111;
+--    2:    ArcSegs:= %1001_1111;
+--    3:    ArcSegs:= %0111_1110
+--  other   ArcSegs:= %1010_1010;
+
+    LineWidth:= LineW/2;
+--  DrawCircle(cx, cy, radius, ArcColor, false \fill\);
+    DrawCircle(cx, cy, sqrt(0.5)*len, ArcColor, false \fill\);
+
+    DrawArcSeg(xend, xend, Angle-90, len/HR, iter-1, ArcColor, LineW);
+end procedure
+
+procedure DrawHarrissSpiral()
+def  H = 600.;
+def  Sx = float(ScrW/2 + 80);           \Starting x
+def  Sy = float(ScrH   - 80);           \Starting y
+def  IL = H / HR2;                      \Initial Length
+    DrawArcSeg(Sx+(IL/HR),        Sy-(IL+IL/HR2),   0., IL/HR4, 4, Green,  6);
+    DrawArcSeg(Sx+(IL/HR4),       Sy-(IL+IL/HR2), 270., IL/HR5, 3, Black,  6);
+    DrawArcSeg(Sx-(IL/HR+IL/HR3), Sy-(IL+IL/HR2), 270., IL/HR5, 3, Black,  6);
+    DrawArcSeg(Sx-(IL/HR+IL/HR3), Sy-(IL/HR8),    180., IL/HR6, 2, Blue,   6);
+    DrawArcSeg(Sx-(IL/HR4),       Sy-(IL/HR3),   -270., IL/HR4, 3, Blue,   8);
+    DrawArcSeg(Sx-(IL/HR4),       Sy-(IL/HR),       0., IL/HR5, 2, Green,  8);
+    DrawArcSeg(Sx-(IL/HR),        Sy-(IL),        270., IL/HR2, 5, Red,   12);
+    DrawArcSeg(Sx-(IL/HR),        Sy-(IL/HR3),    180., IL/HR3, 4, Black, 12);
+    DrawArcSeg(Sx,                Sy-(IL),          0., IL/HR,  6, Black, 16);
+    DrawArcSeg(Sx,                Sy,             -90., IL,     7, Brown, 16);
+end procedure
+
+[SetVid($105);          \1024x768x8
+InitDraw;
+DrawRectangle(0, 0, ScrW, ScrH, if LINES then White else Gray, true \fill\);
+--Attrib($0E0E);            \yellow
+--Cursor(1024/8/2-8, 0);    Text(6, " Harriss Spiral ");
+DrawHarrissSpiral;
+]
+--constant HR = 1.3247
+--*/
+--/!*
+with javascript_semantics
+--requires("1.0.6")
+include theGUI.e
+--gUseGTK()
+
+constant title = "Harriss Spiral",
+         help_text = """
+Harriss Spiral demo.
+Cycle construction line display with 'L',
+  or NSQR for None/Single/sQuare/Rect.
+Toggle the initial line with 'I'.
+Toggle termination style with 'T'.
+Toggle diagnostic info with 'D'.
+Increase or decrease depth with +/-.""",
+        HARRIS_RATIO = 1.3247,
+        IHR = 1/(1+HARRIS_RATIO),
+        HHR = HARRIS_RATIO*IHR
+
+integer show_lines = 0, // 0:none, 1=line, 2=square, 3=rect. cycle with 'l'
+        max_depth = 1
+bool initial = true,
+     termination = false, // true = match line tails of other rc entries 
+     diagnostics = false  // true = show side(level) in each rectangle
+
+procedure draw_harris(gdx canvas, integer x,y,w,h, side=1, depth=max_depth)
+    -- x,y is the pre-rotated top left corner, with side 1..4:
+    --  1: horizontal, upright, so x,y top left and square is lower right
+    --  2: on left edge, so x,y btm left and the square is at the top right
+    --  3: horizontal upside down edge, so x,y btm right and square top left
+    --  4: on right edge, so x,y top right and the square is in the lower left
+    --  or graphically, with XX/XX representing the position of the square:
+    --           3
+    --    x,y +----+--+         +--+--+      +--+--+        +--+--+ x,y 
+    --        |    |  |         |  |XX|      |XX|  |        |     |
+    --        +    +--+ 4/h     |  |XX| w    |XX|  | h      +--+--+ w
+    --      2 |    |XX|     or  +--+--+   or +--+  +    or  |XX|  |
+    --        |    |XX|         |     |      |  |  |        |XX|  |
+    --        +----+--+     x,y +--+--+      +--+--+ x,y    +--+--+
+    --           1/w              2/h          3/w            4/h
+    --
+    -- note that w,h are pre-rotated... max(w,h)/min(w,h) ~= HARRIS_RATIO.
+    --
+    -- first off calculate [sub]square side and left/mid/right top/mid/low:
+    integer ss = round(min(h,w)*HHR),
+            sss = ss-round(ss*IHR),
+            ss2 = floor(ss/2),
+            sss2 = floor(sss/2),
+            {lx,mx,rx} = {{x,x+w-ss,x+w-1},
+                          {x-w,x-w+ss,x}}[floor((side+1)/2)],
+            {ty,my,ly} = {{y,y+h-ss,y+h},
+                          {y-h,y-h+ss,y}}[odd(floor(side/2))+1]
+    if diagnostics then
+        integer {w2,h2} = sq_floor_div({w,h},2),
+                {sx,sy} = {{x+w2,y+h2},
+                           {x+w2,y-h2},
+                           {x-w2,y-h2},
+                           {x+w2,y+h2}}[side]
+        gDrawText(canvas,sx,sy,"%d(%d)",{side,depth},TG_C)
+    end if
+    if show_lines then
+        -- x1,y1 is the middle T point
+        -- x2,y2 is where the botton of the T hits the edge
+        -- x3,y3 is the opposite square corner to x1,y1
+        integer {x1,y1,x2,y2,x3,y3} = {{mx,my,rx,my,rx,ly},
+                                       {mx,my-1,mx,ty-1,rx,ty-1},
+                                       {lx,my,mx,my,mx,ty},
+                                       {mx,my,mx,ly-1,lx,ly-1}}[side]
+        if show_lines=2 then
+            gDrawRect(canvas, x1,y1, x3,y3)
+        elsif show_lines=3 then
+            gDrawLine(canvas, x1,y1, x2,y2)
+            {x1,y1,x2,y2} = {{mx,ty,mx,ly},
+                             {lx,my,rx,my}}[even(side)+1]
+            gDrawRect(canvas, x,y, x3,y3)
+            gDrawLine(canvas, x1,y1, x2,y2) -- divider (top of T)
+        end if
+    end if
+    integer {cx,cy,a1,a2} = {{mx-ss2,my+ss2,315,45},
+                             {mx+ss2,my+ss2,225,315},
+                             {mx+ss2,my-ss2,135,225},
+                             {mx-ss2,my-ss2,45,135}}[side]
+    atom r = sqrt(2)*ss
+    if initial or depth<max_depth then
+        if show_lines=1 then
+            integer {ex,ey} = {{mx,my+ss},
+                               {mx+ss,my},
+                               {mx,my-ss},
+                               {mx-ss,my}}[side]
+            gDrawLine(canvas, mx,my, ex,ey)
+        end if
+        gDrawArc(canvas,cx,cy,r,r,a1,a2,width:=depth+1)
+    end if
+    if depth>1 or not termination then
+        if show_lines=1 then
+            integer {ex,ey} = {{mx+sss,my},
+                               {mx,my-sss},
+                               {mx-sss,my},
+                               {mx,my+sss}}[side]
+            gDrawLine(canvas, mx,my, ex,ey)
+        end if
+        {cx,cy,a1,a2} = {{mx+sss2,my-sss2,45,135},
+                         {mx-sss2,my-sss2,315,45},
+                         {mx-sss2,my+sss2,225,315},
+                         {mx+sss2,my+sss2,135,225}}[side]
+        r = sqrt(2)*sss
+        gDrawArc(canvas,cx,cy,r,r,a1,a2,width:=depth)
+    end if
+    if depth>1 then
+        switch side
+            case 1: draw_harris(canvas, mx,ty,ss,h-ss, 1, depth-1)
+                    draw_harris(canvas, lx,ly,w-ss,h,  2, depth-1)
+            case 2: draw_harris(canvas, lx,my,w-ss,ss, 2, depth-1)
+                    draw_harris(canvas, rx,ly,w,h-ss,  3, depth-1)
+            case 3: draw_harris(canvas, mx,ly,ss,h-ss, 3, depth-1)
+                    draw_harris(canvas, rx,ty,w-ss,h,  4, depth-1)
+            case 4: draw_harris(canvas, rx,my,w-ss,ss, 4, depth-1)
+                    draw_harris(canvas, lx,ty,w,h-ss,  1, depth-1)
+        end switch
+    end if
+end procedure
+
+procedure redraw(gdx canvas, integer w,h)
+    --- determine margins for a horizontal centred harris ratio rectangle:
+    integer {mw,mh} = iff(h>w/HARRIS_RATIO?{0,floor((h-w/HARRIS_RATIO)/2)}
+                                          :{floor((w-h*HARRIS_RATIO)/2),0})
+--  integer {mw,mh} = iff(w>h/HARRIS_RATIO?{floor((w-h/HARRIS_RATIO)/2),0}
+--                                        :{0,floor((h-w*HARRIS_RATIO)/2)})
+    gDrawRect(canvas, mw, mh, w-mw, h-mh, true, colour:=TG_PARCHMENT)
+--  w -= mw*2
+--  h -= mh*2
+--  draw_harris(canvas, mw, mh, w, h)
+    draw_harris(canvas, mw, mh, w-mw*2, h-mh*2)
+--  draw_harris(canvas, mw, mh, w, h, 1, max_depth)
+--  draw_harris(canvas, mw, h-mh, w, h, 2, max_depth)
+--  draw_harris(canvas, mw+w, h+mh, w, h, 3, max_depth)
+--  draw_harris(canvas, mw+w, mh, w, h, 4, max_depth)
+--  string fmt = iff(board==solved?"%s - solved":"%s")
+    gdx dlg = gGetParent(canvas)
+    gSetAttribute(dlg,"TITLE","%s (max_depth %d)",{title,max_depth})
+end procedure
+
+function show_help(gdx dlg)
+--DEV heading squished
+--  gMsgBox(dlg,title&" Help",help_text)
+--DEV OK btn squished (as it is above)
+    gMsgBox(dlg,"Help",help_text)
+    return TG_IGNORE -- (don't open browser help!)
+end function
+
+function key_handler(gdx dlg, integer c)
+--?? (testme w/o)
+    if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+    if c=VK_F1 then return show_help(dlg) end if
+    switch upper(c)
+        case 'L': show_lines = rmdr(show_lines+1,4)
+        case 'N': show_lines = 0
+        case 'S': show_lines = 1
+        case 'Q': show_lines = 2
+        case 'R': show_lines = 3
+        case 'I': initial = not initial
+        case 'T': termination = not termination
+        case 'D': diagnostics = not diagnostics
+        case '+','=': max_depth = min(max_depth+1,12)
+        case '-','_': max_depth = max(max_depth-1,1)
+    end switch
+    gRedraw(dlg)
+    return TG_DEFAULT
+end function
+
+gdx canvas = gCanvas(redraw)
+gdx dialog = gDialog(canvas,title,"SIZE=510x540, MINSIZE=273x58")
+gSetHandler(dialog, `KEY`, key_handler)
+gShow(dialog)
+gMainLoop()
+
+

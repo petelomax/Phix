@@ -1,4 +1,4 @@
---
+﻿--
 -- demo\rosetta\LinearScanRegisterAllocation.exw
 -- =============================================
 --
@@ -1842,15 +1842,144 @@ http://rosettacode.org/mw/index.php?title=Ramanujan_primes#Phix - Phix 2.7s, Go 
 https://rosettacode.org/wiki/Numbers_which_are_the_cube_roots_of_the_product_of_their_proper_divisors#Phix -- 8x slower than gcc/C++ [as I'd expect... (tio vs desktop)]
 ...Project Euler 74
 tests/t68forin.exw count_primes() is about 15 times faster under Julia... (15s vs 3:45 on 32 bit, 2:39 on 64bit [presumably latter does far fewer %pLoadFlt])
-Investigate xpGUI.e/gRotatePolygon() as well... I really didn't expect 33 vs 5 pts would be even slightly noticeable, but it really is.
+Investigate theGUI.e/gRotatePolygon() as well... I really didn't expect 33 vs 5 pts would be even slightly noticeable, but it really is.
 C:\FPC\3.0.4\bin\i386-win32\ormiston2.pas - 3s vs Phix 39.8s...
 C:\FPC\3.0.4\bin\i386-win32\perfect.pas - 9:29 vs Phix 9:34 (but worth a look purely on the grounds of simplicity...)
 C:\FPC\3.0.4\bin\i386-win32\squarefree.pas - 1e9 in 4.6s vs Phix/square_free() doing 1e7 in 1min 6s....
 https://rosettacode.org/wiki/Smallest_square_that_begins_with_n#Phix (10* slower than fpc... 3* faster than wren)
 ==> see E:\downloads\misc\wren\wren-cli-windows-0.4.0\ssq.wren which also contains the Phix version,
     and C:\FPC\3.0.4\bin\i386-win32\ssq.pas
+-- demo\rosetta\incomsummate_numbers.exw - shockingly slow sum(digits)
+https://rosettacode.org/wiki/Wagstaff_primes#Phix is about 4* slower than it probably should be, may be worth experimenting with #ilASM instead of c_proc...
+demo\rosetta\Rare_Numbers.exw - Phix 3.19, Go 19s, so >10 times slower...
+demo\rosetta\Pythagorean_triples.exw -- demonstrates a 5-fold speedup by inlining gcd(), so v2 should certainly do that!
+
+https://intezer.com/all-your-go-binaries-are-belong-to-us
 
 That'll do for now...
+
+A register may contain:
+* garbage aka anything of no further [long-term] use
+* a variable address
+* a variable ref/value
+* a variable raw address (ie bit-shifted ref)
+Nowt else springs to mind...
+
+Rethinking the symbol table:
+Keeping globals and locals in the same thing is just silly... (make locals -ve?)
+There is really only one localscope, that gets cropped back by "end xxx"...?
+Extremely compact form in .exe files...
+Something the debugger can "resurrect" to the state it would have been during compilation... (speed irrelevant)
+Maybe it's a symbol tree rather than a symbol table...
+Let's see what vlang is doing...
+
+Right: start with the world's best ever debugger...
+First off, a completely fake mock-up... Actually, the debugger should become part of xpEditer:
+  -- watch window [clickable, with value trap, fmt rule/name, remove, etc] - a new splitter on the RHS...
+  -- debug session management:
+    -- ensure we have a backup [of any displayed files] in place [inc when "rebasing"]
+      -- Map [a list of] trapped line numbers [with their source] to modified files. 
+        -- Use Levenstein distance? See also that plan9 thing...
+    -- default name of now() to nearest second
+    -- purge five days after last use, by default (whole number of days, 0=keep forever)
+  -- F5 becomes "reactivate last debug session" as long as current file is somewhere in the project tree (else new/error)
+"diaglogstics" - a log of enough diagnostic information to drive the debugger.
+
+It's almost as if we are saying that we can't possibly be smart enough to understand these bugs, so why even bother? 
+The basic problem is a computer never tells you anything unless instructed to. \\
+Using a debugger you can learn the things the programmer did not explicitly ask to be told. 
+When your mental model of your code does not fit the output given by your code
+
+https://www.atomic14.com/2020/08/25/how-do-we-debug
+There’s a classic programmer joke - the stages of debugging:
+
+That can’t happen
+That doesn’t happen on my machine
+That shouldn’t happen
+Why does that happen
+Oh, I see…
+How did that ever work?
+It’s funny because it’s true.
+
+But why do we laugh at this? It’s a pretty terrible state of affairs.
+
+SUG: Directories such as C:\Program Files (x86)\Phix\1.0.5\Phix should be assumed to hold past versions of Phix, 
+and indeed there is no reason why a new "upgrade" process should not set them up. Also, requires() should cope 
+with a leading "<" or "<=" on a version number, and switch to/look in one of said directories. (">=" is being 
+what it does right now, and ">" would be quite useless, presumably for summat not yet written/installed/tested, 
+aka you would just use say "1.0.6" instead of ">1.0.5" anyway.) Note that "upgrade" would be a new program that
+like python's pip is run locally and fetches what it needs, but download/install would "still/only clobber",
+and requires() should be enhanced to fire off "upgrade" and maybe eg "upgrade 1.0.6" to fetch an older version.
+Obviously "upgrade" run manually would often just say eg "Latest version of Phix (1.0.6) already installed",
+and perhaps show a list of uninstalled older versions it still knows how to install, while being smart about
+whether it was run from say Phix\1.0.5\Phix (which should/might also apply to requires() itself).
+Making upgrade check for newer versions of any previously installed packages should also be considered, but
+there would need to be a published official strategy/pattern for third party authors to follow, eg leading
+comments of file "xxx" contain "version" and the rest of that line is then checked to match exactly.
+Maybe there should be an "upgrades" page on PCAN that 3rd party authors can manually maintain.
+
+Suppose I took 5 days to write a one or two thousand line non-trivial program. I wouldn't be particularly
+embarassed about that, it's a reasonable productivity rate, but I would struggle to keep a straight face
+trying to claim it took me more than one day to type in that code - which pretty much means I just spent 
+four whole days or 80% of that time debugging it. Granted, I can't edit code in my debugger so frequently
+quit that for an edit session, but if I could I would and it really would be 80% in the debugger.
+
+I tapped "best ever debugger" into my favorite search engine, and found myself downright ashamed at the 
+best humanity has yet achieved. Some quick ideas:
+
+* make variable-ids in the source code clickable, then easily added to a watch window.
+* make watch window entries clickable for easy detailed configuration (inc value traps).
+* add/remove breakpoints and ignore/skip line simple clicks in the source code window.
+* full time-travel debugging, with save/resume/restart debug sessions, is a must.
+* exploring a "diaglog" from a live production machine should be perfectly possible.
+
+Granted, a "store everything" on a live production machine is totally impractical, and
+by default a "diaglog" should be empty, but shipping [just them] a tweaked version that
+saves whatever you're interested in should be pretty straightforward. One form of such
+a file we already have is the ex.err file: in the first instance you should be able to
+load that up in the debugger to a "fixed state", with next(/prev) "greyed out", but at
+least you've got a full machine state and call stack to explore. Now, rather than have
+to quit the debugger and start an edit session, imagine you could set things up in the 
+watch window, along with [silently logged] breakpoints, and easily send that back to
+the user for the next run of the program. With the updated [non-empty "diaglog"] you
+w/should find "prev" is no longer greyed out. Now you would only be able to step back
+to previously saved silent breakpoints, and except at the very end only be able to 
+view watch variables as previously logged on said breakpoints, but again tweaking the
+"debug session" and sending back an update should be trivial. I am in fact considering
+a live collaberation with a semi-competent user on-site, but they shouldn't need to
+read 100+ manual pages to achieve what you want. Alternatively a remote login could be
+used to do all that yourself, but what I'm really trying to do here is consolidate the
+useful changes for remote/post-mortem debugging with local/live benefits, so I shall
+now switch this little conversation to the latter. One last point before I do however:
+I have only considered dealing with a fatal breakpoint, and am not actually interested
+in making any of this stuff actually work myself, just that it could, and use pretty
+much the exact same fundamental technology I plan to use locally.
+
+Even on a local beefed-up development machine, said "store everything" approach would 
+only be even slightly useful were restart/re-run/resume somehow tricky. Ideally when
+trying to view something that wasn't logged it should just automatically restart and 
+stop back at the same place, with whatever you wanted now properly logged. It should
+be easy to add conditions to any proper/pause breakpoint so it doesn't stop there a
+thousand or more iterations before you want, but you would have to manually set such
+up.
+
+The fantastical "time-travelling debugging", whereby you can appear to run a program
+backwards as well as forwards, is of course no such thing, but instead emulates that
+from a big old blob of previously stored data.
+
+One of the more tedious aspects of traditional debugging is the regular need to quit
+the debugger, edit the source code, and restart the debug session from scratch, with
+for instance an empty watch window. Admittedly that is more of a legacy Phix thing.
+
+Hot reloading: instead of trying to patch running binary on the fly, think about the
+keystrokes needed to quit and get back to where you are. Now automate them. Ta-da!
+
+The current debugger is buried in p.exe - it should be separate, and in fact part of
+the editor (xpEditor).
+
+Tee-hee (getting a bit ahead of myself):
+One downside to the phix debugger is that when translating (say) python code to phix, 
+I often quickly become quite frustrated trying to get the same info out of python.
 
 48:017 054 300
 0o017 0o054 0o300
@@ -3782,3 +3911,5 @@ Need to do something about eliding refcount updates...
 It is fairly foolish to store unnamed temporary variables in the symtab....
 In fact a flat symtab is probably wrong too, for instance if we want "scope" in the debugger...
 --*/
+
+

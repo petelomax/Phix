@@ -1,0 +1,541 @@
+--
+-- demo\rosetta\geocentric.exw
+--
+-- Heliocentric on the left, proper (modern) geocentric on the right, with retrograde motion. 
+-- The moon and the sun are oribting normally, but in the geocentric view everything else is just going haywire. 
+-- It still blows my mind that at all times it is displaying the exact same image the same way up on the right 
+-- as the one on the left... take and examine a screenshot or seven should you not believe me!
+--
+with javascript_semantics
+requires("1.0.6")
+include theGUI.e
+
+constant number_of_steps = 720,
+         jupiter_rounds = 2,
+         jupiter_year_ms = 30000,
+         jupiter_step = jupiter_rounds * 360 / number_of_steps,
+         frame_delay_ms = floor((jupiter_year_ms * jupiter_rounds) / number_of_steps),
+         SUN = 1, EARTH = 4, SATURN = 7,
+         names = {"sun","mercury","venus","earth","mars","jupiter","saturn"},
+         radius = {7,3,4,4,3,5,4},
+         orbit_radius = {0,24,48,72,96,120,160},
+         angular_step = sq_mul(jupiter_step,{0,49,19,11.86,6.3,1,0.4}),
+         colours = {TG_YELLOW,TG_SILVER,TG_LIGHT_GREY,TG_TEAL,TG_DARK_RED,TG_AMBER,TG_INDIGO},
+         moon_radius = 8
+sequence angular = repeat(0,SATURN)
+atom moon_angle = 0, moon_step = 360/10    -- exaggerated orbital speed
+
+function planet_xy(integer planet, atom xshift=0, yshift=0)
+    atom a = angular[planet]*PI/180,
+         r = orbit_radius[planet],
+         x = r*cos(a)+xshift,
+         y = r*sin(a)+yshift
+    return {x,y}
+end function
+
+function moon_xy()
+    atom {x,y} = planet_xy(EARTH),
+             a = moon_angle*PI/180
+    return {x+moon_radius*cos(a),
+            y+moon_radius*sin(a)}
+end function
+
+procedure draw_projection(gdx canvas, sequence shift, win_shift)
+    atom xshift = win_shift[1] + shift[1],
+         yshift = win_shift[2] + shift[2], x, y
+    for p=SUN to SATURN do
+        {x,y} = planet_xy(p,xshift,yshift)
+        gDrawCircle(canvas,x,y,radius[p],true,colour:=colours[p])
+    end for
+    {x,y} = moon_xy()
+    gCanvasPixel(canvas,x+xshift,y+yshift,TG_WHITE)
+end procedure
+
+function helio_shift()  -- Heliocentric projection shift
+    return {0,0}
+end function
+
+function geo_shift()  -- Geocentric projection shift
+    atom {sx,sy} = planet_xy(SUN),
+         {ex,ey} = planet_xy(EARTH)
+    return {sx-ex,sy-ey}
+end function
+
+procedure redraw(gdx canvas)
+    draw_projection(canvas,helio_shift(),{240,240})
+    draw_projection(canvas,geo_shift(),{760,240})
+end procedure
+
+procedure tick(gdx timer)
+    for p=SUN to SATURN do
+        angular[p] = rmdr(angular[p]+angular_step[p],360)
+    end for
+    moon_angle = rmdr(moon_angle+moon_step,360)
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(canvas)
+end procedure
+
+gdx canvas = gCanvas(redraw,"SIZE=1050x480,BGCLR=BLACK"),
+    dialog = gDialog(canvas,`TITLE="Geocentric model"`),
+    timer = gTimer(tick,80,true,canvas)
+gMainLoop(dialog)
+
+--/*
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant number_of_steps = 720,
+         jupiter_rounds = 2,
+         jupiter_year_ms = 30000,
+         jupiter_step = jupiter_rounds * 360 / number_of_steps,
+         frame_delay_ms = floor((jupiter_year_ms * jupiter_rounds) / number_of_steps),
+         SUN = 1, EARTH = 4, SATURN = 7,
+         names = {"sun","mercury","venus","earth","mars","jupiter","saturn"},
+         radius = {7,3,4,4,3,5,4},
+         orbit_radius = {0,24,48,72,96,120,160},
+         angular_step = sq_mul(jupiter_step,{0,49,19,11.86,6.3,1,0.4}),
+         colours = {CD_YELLOW,CD_SILVER,CD_LIGHT_GREY,CD_TEAL,CD_DARK_RED,CD_AMBER,CD_INDIGO},
+         moon_radius = 8
+sequence angular = repeat(0,length(names))
+atom moon_angle = 0, moon_step = 360/30    -- exaggerated orbital speed
+
+function planet_xy(integer planet, atom xshift=0, yshift=0)
+    atom a = angular[planet]*PI/180,
+         r = orbit_radius[planet],
+         x = r*cos(a)+xshift,
+         y = r*sin(a)+yshift
+    return {x,y}
+end function
+
+function moon_xy()
+    atom {x,y} = planet_xy(EARTH),
+             a = moon_angle*PI/180
+    return {x+moon_radius*cos(a),
+            y+moon_radius*sin(a)}
+end function
+
+procedure draw_projection(atom cd_canvas, sequence shift, win_shift)
+    atom xshift = win_shift[1] + shift[1],
+         yshift = win_shift[2] + shift[2], x, y
+    for p=SUN to SATURN do
+        {x,y} = planet_xy(p,xshift,yshift)
+        cdCanvasSetForeground(cd_canvas,colours[p])
+        cdCanvasCircle(cd_canvas, x, y, radius[p]*2, true)
+    end for
+    {x,y} = moon_xy()
+    cdCanvasPixel(cd_canvas,x+xshift,y+yshift,CD_WHITE)
+end procedure
+
+function helio_shift()  -- Heliocentric projection shift
+    return {0,0}
+end function
+
+function geo_shift()  -- Geocentric projection shift
+    atom {sx,sy} = planet_xy(SUN),
+         {ex,ey} = planet_xy(EARTH)
+    return {sx-ex,sy-ey}
+end function
+
+function canvas_action_cb(Ihandle canvas)
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    draw_projection(cd_canvas,helio_shift(),{240,240})
+    draw_projection(cd_canvas,geo_shift(),{760,240})
+    cdCanvasFlush(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+function timer_cb(Ihandln /*ih*/)
+    for p=SUN to SATURN do
+        angular[p] = rmdr(angular[p]+angular_step[p],360)
+    end for
+    moon_angle = rmdr(moon_angle+moon_step,360)
+    IupRedraw(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=1050x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "UNMAP_CB", Icallback("canvas_unmap_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
+    dlg = IupDialog(canvas,`TITLE="Geocentric model"`)
+    IupShow(dlg)
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 80)
+
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+--*/
+--/* before cleanup:
+with javascript_semantics
+include pGUI.e
+
+Ihandle dlg, canvas
+cdCanvas cd_canvas
+
+constant number_of_steps = 720,
+         jupiter_rounds = 2,
+         jupiter_year_ms = 30000,
+         jupiter_step = jupiter_rounds * 360 / number_of_steps,
+         frame_delay_ms = floor((jupiter_year_ms * jupiter_rounds) / number_of_steps)
+
+enum SUN = 1, EARTH = 4, SATURN = 7
+constant names = {"sun","mercury","venus","earth","mars","jupiter","saturn"},
+         radius = {7,3,4,4,3,5,4},
+         orbit_radius = {0,24,48,72,96,120,160},
+--       angular_step = sq_mul(jupiter_step,{0,24,12,10,6,1,0.4}),
+         angular_step = sq_mul(jupiter_step,{0,49,19,11.86,6.3,1,0.4}),
+--       colours = {"#909020","#404000","#A0A0A0","#101080","#801010","#505050","#YYYYYY"}
+--X      colours = {TG_YELLOW,TG_SILVER,TG_LIGHT_GREY,TG_BLUE,TG_MAROON,TG_DARK_GREY,TG_DARK_YELLOW}
+--       colours = {TG_YELLOW,TG_SILVER,TG_LIGHT_GREY,TG_TEAL,TG_MAROON,TG_AMBER,TG_DARK_YELLOW}
+--       colours = {CD_YELLOW,CD_SILVER,CD_LIGHT_GREY,CD_TEAL,CD_DARK_RED,CD_AMBER,CD_DARK_YELLOW}
+--       colours = {CD_YELLOW,CD_SILVER,CD_LIGHT_GREY,CD_TEAL,CD_DARK_RED,CD_AMBER,CD_OLIVE}
+         colours = {CD_YELLOW,CD_SILVER,CD_LIGHT_GREY,CD_TEAL,CD_DARK_RED,CD_AMBER,CD_INDIGO}
+--/*
+--names &= {"saturn"}
+--radius &= {6}        -- slightly larger than Jupiter visually
+--orbit_radius &= {160}  -- further out than Jupiter (120)
+--step &= {jupiter_step*0.4}
+--colour &= {"#C8C080"}  -- pale yellow
+--| Planet  | Multiplier |
+--| ------- | ---------- |
+--| Mercury | 49           |
+--| Venus   | 19           |
+--| Earth   | 11.86    |
+--| Mars      | 6.3        |
+--| Jupiter | 1        |
+--| Saturn  | 0.40     |
+--*/
+sequence angular = repeat(0,length(names))
+
+atom moon_angle = 0
+atom moon_step = 360/30    -- exaggerated orbital speed
+constant moon_radius = 8
+
+function planet_xy(integer planet, atom xshift=0, yshift=0)
+    atom a = angular[planet]*PI/180,
+         r = orbit_radius[planet],
+         x = r*cos(a)+xshift,
+         y = r*sin(a)+yshift
+    return {x,y}
+end function
+
+function moon_xy()
+
+    sequence earth = planet_xy(EARTH)
+--  atom {x,y} = planet_xy(EARTH),
+
+    atom a = moon_angle*PI/180
+
+    atom x = earth[1] + moon_radius*cos(a)
+    atom y = earth[2] + moon_radius*sin(a)
+
+    return {x,y}
+--  return {x+moon_radius*cos(a),
+--          y+moon_radius*sin(a)}
+
+end function
+
+--/*
+constant TRAIL_LEN = 240
+
+sequence trail_x = repeat(repeat(0,TRAIL_LEN),length(names))
+sequence trail_y = repeat(repeat(0,TRAIL_LEN),length(names))
+
+integer trail_pos = 1
+--only one planet at a time:
+integer trail_planet = 1
+integer trail_timer = 0
+constant TRAIL_SWITCH = 400
+--*/
+
+--/*
+procedure draw_trail(atom cd_canvas, integer i, sequence shift, win)
+
+    for j=0 to TRAIL_LEN-1 do
+
+        integer idx = trail_pos-j
+        if idx<1 then idx += TRAIL_LEN end if
+
+        atom fade = (TRAIL_LEN-j)/TRAIL_LEN
+
+        atom x = win[1] + shift[1] + trail_x[i][idx]
+        atom y = win[2] + shift[2] + trail_y[i][idx]
+
+--      draw_pixel(x,y,colour[i],fade)
+integer p = i
+--      cdCanvasSetForeground(cd_canvas,colours[p]+and_bits(fade*255,#FF)*#1000000)
+        cdCanvasPixel(cd_canvas, x, y,colours[p]+and_bits((1-fade)*255,#FF)*#1000000)
+
+    end for
+
+end procedure
+--*/
+
+procedure draw_projection(atom cd_canvas, sequence shift, win_shift)
+--procedure draw_projections(sequence hshift, hwin_shift,
+--                                    gshift, gwin_shift)
+    atom xshift = win_shift[1] + shift[1],
+         yshift = win_shift[2] + shift[2], x, y
+--  for p=SUN to JUPITER do
+    for p=SUN to SATURN do
+        {x,y} = planet_xy(p,xshift,yshift)
+--      atom {x,y} = planet_xy(p)
+        cdCanvasSetForeground(cd_canvas,colours[p])
+        cdCanvasCircle(cd_canvas, x, y, radius[p]*2, true)
+--      draw_trail(cd_canvas, p, shift, win_shift)
+
+--      ?{"draw_planet",names[p],{x,y},radius[p],colours[p]}
+--      ?{"draw_planet",names[p],{x+xshift,y+yshift},radius[p],colours[p]}
+--      ?{"draw_planet",names[p],{x+hxshift,y+hyshift},radius[p],colours[p]}
+--      ?{"draw_planet",names[p],{x+gxshift,y+gyshift},radius[p],colours[p]}
+    end for
+    {x,y} = moon_xy()
+    cdCanvasPixel(cd_canvas,x+xshift,y+yshift,CD_WHITE)
+--  draw_trail(trail_planet,shift,win)
+end procedure
+
+function helio_shift()  -- Heliocentric projection shift
+    return {0,0}
+end function
+
+function geo_shift()  -- Geocentric projection shift
+    atom {sx,sy} = planet_xy(SUN),
+         {ex,ey} = planet_xy(EARTH)
+    return {sx-ex,sy-ey}
+end function
+
+function canvas_action_cb(Ihandle canvas)
+    cdCanvasActivate(cd_canvas)
+    cdCanvasClear(cd_canvas)
+    draw_projection(cd_canvas,helio_shift(),{240,240})
+    draw_projection(cd_canvas,geo_shift(),{760,240})
+    cdCanvasFlush(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_map_cb(Ihandle canvas)
+    IupGLMakeCurrent(canvas)
+    if platform()=JS then
+        cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+    else
+        atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+        cd_canvas = cdCreateCanvas(CD_GL, "10x10 %g", {res})
+    end if
+    cdCanvasSetBackground(cd_canvas, CD_BLACK)
+    return IUP_DEFAULT
+end function
+
+function canvas_unmap_cb(Ihandle canvas)
+    cdKillCanvas(cd_canvas)
+    return IUP_DEFAULT
+end function
+
+function canvas_resize_cb(Ihandle /*canvas*/)
+    integer {canvas_width, canvas_height} = IupGetIntInt(canvas, "DRAWSIZE")
+    atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
+    cdCanvasSetAttribute(cd_canvas, "SIZE", "%dx%d %g", {canvas_width, canvas_height, res})
+    return IUP_DEFAULT
+end function
+
+--/*
+procedure record_trails()
+
+    for i=1 to length(names) do
+
+        sequence xy = planet_xy(i)
+
+        trail_x[i][trail_pos] = xy[1]
+        trail_y[i][trail_pos] = xy[2]
+
+    end for
+
+    trail_pos += 1
+    if trail_pos>TRAIL_LEN then
+        trail_pos = 1
+    end if
+
+end procedure
+--*/
+
+function timer_cb(Ihandln /*ih*/)
+    for p=SUN to SATURN do
+        angular[p] = rmdr(angular[p]+angular_step[p],360)
+    end for
+moon_angle += moon_step
+if moon_angle>=360 then
+    moon_angle -= 360
+end if
+--/*
+trail_timer += 1
+if trail_timer>TRAIL_SWITCH then
+    trail_timer = 0
+    trail_planet += 1
+    if trail_planet>length(names) then
+        trail_planet = 1
+    end if
+end if
+--*/
+--record_trails()
+    IupRedraw(canvas)
+    return IUP_IGNORE
+end function
+
+procedure main()
+    IupOpen()
+    canvas = IupGLCanvas("RASTERSIZE=1050x480")
+    IupSetCallbacks(canvas, {"ACTION", Icallback("canvas_action_cb"),
+                             "MAP_CB", Icallback("canvas_map_cb"),
+                             "UNMAP_CB", Icallback("canvas_unmap_cb"),
+                             "RESIZE_CB", Icallback("canvas_resize_cb")})
+    dlg = IupDialog(canvas,`TITLE="Geocentric model"`)
+    IupShow(dlg)
+--  IupSetAttribute(canvas, "RASTERSIZE", NULL)
+    Ihandle hTimer = IupTimer(Icallback("timer_cb"), 80)
+
+    if platform()!=JS then
+        IupMainLoop()
+        IupClose()
+    end if
+end procedure
+
+main()
+--*/
+
+--?"done"
+--wait_key()
+
+--/*
+EasyLang heliocentric:
+showtrace = 0
+nbody = 1
+#
+gbackground 000
+gcolor 999
+#
+subr interact
+   dx = x[j] - x[i]
+   dy = y[j] - y[i]
+   dist2 = dx * dx + dy * dy
+   dist = sqrt dist2
+   a = G * m[j] / dist2 / dist
+   vx[i] += dx * a
+   vy[i] += dy * a
+.
+subr draw_obj
+   gcolor col[i]
+   gcircle x[i] / 5.3 + 50 y[i] / 5.3 + 50 sz[i] / 15
+.
+gclear
+gtextsize 2.5
+on animate
+   if showtrace = 0 : gclear
+   for i to n
+      gcolor col[i]
+      gtext 2 100 - i * 4 n$[i]
+      draw_obj
+      h = 1
+      if nbody = 1 : h = n
+      for j = 1 to h : if j <> i
+         interact
+      .
+   .
+   for i = 1 to n
+      x[i] += vx[i]
+      y[i] += vy[i]
+   .
+.
+subr init
+   G = 3e-6
+   n$[] = [ "Sun" "Mercury" "Venus" "Earth" "Mars" ]
+   col[] = [ 990 777 975 559 933 ]
+   sz[] = [ 20 4.9 12.1 12.8 6.8 ]
+   x[] = [ 0 70 108 152 249 ]
+   el[] = [ 0 0.89 1 0.992 0.952 ]
+   y[] = [ 0 0 0 0 0 0 ]
+   m[] = [ 1.989e7 3.285 48.67 59.72 6.39 ]
+   vx[] = [ 0 ]
+   vy[] = [ 0 ]
+   n = len x[]
+   for i = 2 to n
+      r = sqrt (x[i] * x[i] + y[i] * y[i])
+      v = sqrt (G * m[1] / r)
+      v *= el[i]
+      vx[] &= -y[i] / r * v
+      vy[] &= x[i] / r * v
+   .
+.
+init
+--*/
+--/*
+EasyLang "geocentric":
+name$[] = [ "Moon" "Mercury" "Venus" "Sun" "Mars" "Jupiter" ]
+dist[] = [ 9.3 16 22.7 30.7 40 48 ]
+speed[] = [ 0.5 0.375 0.3 0.25 0.175 0.1 ]
+size[] = [ 1 0.8 1.2 2.4 1 1.8 ]
+angle[] = [ 0 0 0 0 0 0 ]
+color[] = [ 888 666 990 960 930 964 ]
+gbackground 001
+gtextsize 2
+glinewidth 0.2
+cx = 50
+cy = 50
+proc circ x0 y0 r .
+   gpenup
+   for a = 0 to 360
+      x = x0 + sin a * r
+      y = y0 + cos a * r
+      glineto x y
+   .
+.
+on animate
+   gclear
+   for i = 1 to len name$[]
+      angle[i] -= speed[i]
+      gcolor 333
+      circ cx cy dist[i]
+   .
+   for i = 1 to len name$[]
+      px = cx + cos angle[i] * dist[i]
+      py = cy + sin angle[i] * dist[i]
+      gcolor color[i]
+      gcircle px py size[i]
+      gcolor 999
+      gtext px + size[i] + 1 py name$[i]
+   .
+.
+--*/

@@ -2,10 +2,11 @@
 -- demo\rosetta\9billionnames.exw
 -- ==============================
 --
+with javascript_semantics
 
 sequence cache = {{1}}
 function cumu(integer n)
-    for l=length(cache) to n do
+    for l=length(cache) to n-1 do
         sequence r = {0}
         for x=1 to l do
             r = append(r,r[$]+cache[l-x+1][min(x,l-x)+1])
@@ -16,21 +17,15 @@ function cumu(integer n)
 end function
 
 function row(integer n)
-    sequence r = cumu(n+1),
-             res = repeat(0,n)
-    for i=1 to n do
-        res[i] = r[i+1]-r[i]
-    end for
-    return res
+    sequence r = cumu(n+1)
+    return sq_sub(r[2..-1],r[1..-2])
 end function
 
 for i=1 to 25 do
-    puts(1,repeat(' ',50-2*i))
-    sequence r = row(i)
-    for j=1 to i do
-        printf(1,"%4d",r[j])
-    end for
-    puts(1,"\n")
+--  printf(1,"%=101s\n",{join(row(i),"",fmt:="%4d")})
+--  printf(1,"%=101s\n",{join(row(i),"","",fmt:="%4d")})
+    printf(1,"%=79s\n",{join(row(i)," "," ",fmt:="%d")})
+--  printf(1,"%=101s\n",{join(row(i),"","",fmt:=" %d")})
 end for
 --====--
 
@@ -43,18 +38,27 @@ sequence p
 procedure calc(integer n)
     n += 1
     for k=1 to n-1 do
-        integer d = n - k * (3 * k - 1) / 2;
+        integer d = n - k*(3*k-1)/2
+--         mpz_fn = iff(odd(k)?mpz_add:mpz_sub)
+--      mpz pn = p[n]
         if d<1 then exit end if
-        if and_bits(k,1) then mpz_add(p[n],p[n],p[d])
-                         else mpz_sub(p[n],p[n],p[d]) end if
-        d -= k;
+        if odd(k) then mpz_add(p[n],p[n],p[d])
+                  else mpz_sub(p[n],p[n],p[d]) end if
+--      mpz_fn(p[n],p[n],p[d])
+--      mpz_fn(pn,pn,p[d])
+        d -= k
         if d<1 then exit end if
-        if and_bits(k,1) then mpz_add(p[n],p[n],p[d])
-                         else mpz_sub(p[n],p[n],p[d]) end if
+        if odd(k) then mpz_add(p[n],p[n],p[d])
+                  else mpz_sub(p[n],p[n],p[d]) end if
+--      mpz_fn(p[n],p[n],p[d])
+--      mpz_fn(pn,pn,p[d])
     end for
 end procedure
  
 constant cx = {23, 123, 1234, 12345}
+--constant cx = {23, 123, 1234, 12345,2e4,3e4,4e4,5e4,1e5}
+--constant cx = {12, 123, 1234, 12345}
+--constant cx = {1, 12, 123, 1234, 12345}
 --constant cx = {1,2,3,5,10,21,22,23, 123, 1234}
 puts(1,"sums:\n")
 integer at = 1
@@ -64,42 +68,113 @@ mpz_set_si(p[1],1)
 for i=1 to cx[$] do
     calc(i)
     if i=cx[at] then
-        printf(1,"%2d:%s\n",{i,mpz_get_str(p[i+1])})
+        printf(1,"%d:%s\n",{i,mpz_get_short_str(p[i+1])})
         at += 1
     end if
 end for
 ?elapsed(time()-t0)
 --{} = wait_key()
+--/*
+                                                   1
+                                                 1   1
+                                               1   1   1
+                                             1   2   1   1
+                                           1   2   2   1   1
+                                         1   3   3   2   1   1
+                                       1   3   4   3   2   1   1
+                                     1   4   5   5   3   2   1   1
+                                   1   4   7   6   5   3   2   1   1
+                                 1   5   8   9   7   5   3   2   1   1
+                               1   5  10  11  10   7   5   3   2   1   1
+                             1   6  12  15  13  11   7   5   3   2   1   1
+                           1   6  14  18  18  14  11   7   5   3   2   1   1
+                         1   7  16  23  23  20  15  11   7   5   3   2   1   1
+                       1   7  19  27  30  26  21  15  11   7   5   3   2   1   1
+                     1   8  21  34  37  35  28  22  15  11   7   5   3   2   1   1
+                   1   8  24  39  47  44  38  29  22  15  11   7   5   3   2   1   1
+                 1   9  27  47  57  58  49  40  30  22  15  11   7   5   3   2   1   1
+               1   9  30  54  70  71  65  52  41  30  22  15  11   7   5   3   2   1   1
+             1  10  33  64  84  90  82  70  54  42  30  22  15  11   7   5   3   2   1   1
+           1  10  37  72 101 110 105  89  73  55  42  30  22  15  11   7   5   3   2   1   1
+         1  11  40  84 119 136 131 116  94  75  56  42  30  22  15  11   7   5   3   2   1   1
+       1  11  44  94 141 163 164 146 123  97  76  56  42  30  22  15  11   7   5   3   2   1   1
+     1  12  48 108 164 199 201 186 157 128  99  77  56  42  30  22  15  11   7   5   3   2   1   1
+   1  12  52 120 192 235 248 230 201 164 131 100  77  56  42  30  22  15  11   7   5   3   2   1   1
+sums:
+23:1255
+123:2552338241
+1234:156978797223733228787865722354959930
+12345:69420357953926116819...42519870679768681736 (119 digits)
+20000:25211481381252969791...78166735959242113097 (153 digits)
+30000:42963584246325385174...75743614022636192786 (188 digits)
+40000:22807728274470728289...90082673857997469797 (218 digits)
+50000:36261860971416678445...91627302489739548263 (244 digits)
+100000:27493510569775696512...80158600569421098519 (347 digits)
+"34.8s"
+
+G (23)     1255
+G (123)    2552338241
+G (1234)   156978797223733228787865722354959930
+G (12345)  69420357953926116819.56297720520938446066767309467146362027032170080
+           60741958459539599514253061409719.42519870679768681736
+G (20000)  25211481381252969791.66195332304704522813289496018115934368503141080
+           342844238015649566239707316898243691923247893519949030164118262305.7
+           8166735959242113097
+G (30000)  42963584246325385174.88315748300592091269024864540113906601448061276
+           4163986215458185192990173314832179564211367228855321718015074490598
+           0954697277841822549875925696215763.75743614022636192786
+G (40000)  22807728274470728289.34057124081695970464622037835161185943949940867
+           2657828590548093703330014605000554127042566412316061732771683740688
+           0512642374788938691635864264873546003424774916205066033895952328.900
+           82673857997469797
+G (50000)  36261860971416678445.92140891595633728165383082527785049015872755414
+           1099042567120827181227473166105658246308817729102175442616592394326
+           7067153241385837825618898733387712189158660795738975053844747471259
+           29792637190124618587197.91627302489739548263
+G (100000) 27493510569775696512.67751632098635268817342931598005475820312598430
+           2147328114964173055050741660736621590157844774296248940493063070200
+           4617927644930335101160793424571901557189435097253124661084520063695
+           5893446424871682878983218234500926285383140459702130713067451062441
+           92273112389997022844086093709355316296978515695698921961084.80158600
+           569421098519
+--*/
 
 --A simple graph, using row() from above:
 --/!*
-requires("1.0.3")
-include xpGUI.e
+requires("1.0.6")
+include theGUI.e
 
-function p10(integer a) return sprintf("%g",power(10,a)) end function
-
-function get_data(gdx /*graph*/)
+function get_data()
     sequence x = {}, y = {}
     for i=1 to 1000 do
         x &= log10(i)
         y &= log10(sum(row(i)))
     end for
-    return {--{"XRID",p10},
---          {"YRID",p10},
-            {x,y,XPG_RED}}
+    return {{x,y,TG_RED}}
 end function
 
---gdx graph = gGraph(get_data,"SIZE=960x600"),
-gdx graph = gGraph(get_data),
+function p10(integer a) return sprintf("%g",power(10,a)) end function
+
+gdx graph = gGraph(get_data,"SIZE=960x600"),
+--gdx graph = gGraph(get_data),
 --    dlg = gDialog(graph,`TITLE="9 Billion Names",MINSIZE[*charsize]=270x430`)
---    dlg = gDialog(graph,`TITLE="9 Billion Names",MINSIZE=270x430`)
-      dlg = gDialog(graph,`TITLE="9 Billion Names",MINSIZE=270x430,SIZE=962x632`)
+      dlg = gDialog(graph,`TITLE="9 Billion Names",MINSIZE=270x430`)
+--    dlg = gDialog(graph,`TITLE="9 Billion Names",MINSIZE=270x430,SIZE=962x632`)
 --?gGetAttribute(dlg,"SIZE")
-gSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=3,XMARGIN=25,YTICK=1,YMIN=0,YMAX=32")
+gSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=3,XMARGIN=45,YTICK=1,YMIN=0,YMAX=32")
+gSetAttributes(graph,`GTITLE="9 Billion Names",XNAME="x",YNAME="G(x)"`)
 gSetHandlers(graph,{"XRID",p10,"YRID",p10})
-gShow(dlg)
+--gSetAttribute(graph,`LEGEND`,"legend")
+--DEV YNAME wrong way up:
+--gShow(dlg)
 --gSetAttribute(graph,`SIZE`,NULL)
-gMainLoop()
+gMainLoop(dlg)
+--IupSetAttribute(plot, "TITLE", "9 Billion Names");
+--IupSetAttribute(plot, "TITLEFONTSIZE", "10");
+--IupSetAttribute(plot, "TITLEFONTSTYLE", "ITALIC");
+--IupSetAttribute(plot, "AXS_XLABEL", "x");
+--IupSetAttribute(plot, "AXS_YLABEL", "G(x)");
+
 --*!/
 --/*
 include pGUI.e
@@ -124,6 +199,40 @@ Ihandle graph = IupGraph(get_data,"RASTERSIZE=960x600"),
 IupSetAttributes(graph,"XTICK=1,XMIN=0,XMAX=3,XMARGIN=25,YTICK=1,YMIN=0,YMAX=32")
 IupShow(dlg)
 IupSetAttribute(graph,`RASTERSIZE`,NULL)
+if platform()!=JS then
+    IupMainLoop()
+    IupClose()
+end if
+--*/
+
+--/*
+include pGUI.e
+IupOpen()
+IupControlsOpen()
+Ihandle plot = IupPlot("MENUITEMPROPERTIES=Yes, SIZE=640x320")
+IupSetAttribute(plot, "TITLE", "9 Billion Names");
+IupSetAttribute(plot, "TITLEFONTSIZE", "10");
+IupSetAttribute(plot, "TITLEFONTSTYLE", "ITALIC");
+IupSetAttribute(plot, "GRIDLINESTYLE", "DOTTED");
+IupSetAttribute(plot, "GRID", "YES");
+IupSetAttribute(plot, "AXS_XLABEL", "x");
+IupSetAttribute(plot, "AXS_YLABEL", "G(x)");
+IupSetAttribute(plot, "AXS_XFONTSTYLE", "ITALIC");
+IupSetAttribute(plot, "AXS_YFONTSTYLE", "ITALIC");
+IupSetAttribute(plot, "AXS_XSCALE", "LOG10");
+IupSetAttribute(plot, "AXS_YSCALE", "LOG10");
+IupSetAttribute(plot, "AXS_YTICKSIZEAUTO", "NO");
+IupSetAttribute(plot, "AXS_YTICKMAJORSIZE", "8");
+IupSetAttribute(plot, "AXS_YTICKMINORSIZE", "0");
+IupPlotBegin(plot)
+for x=1 to 999 do
+    IupPlotAdd(plot, x, sum(row(x))) -- (row() from part 1)
+end for
+{} = IupPlotEnd(plot)
+Ihandle dlg = IupDialog(plot)
+IupSetAttribute(dlg, "TITLE", "9 Billion Names")
+IupMap(dlg)
+IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
 if platform()!=JS then
     IupMainLoop()
     IupClose()

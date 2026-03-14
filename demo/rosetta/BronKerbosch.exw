@@ -1,0 +1,94 @@
+--
+-- BronKerbosch.exw
+-- ================
+--
+with javascript_semantics
+--requires("1.0.6") -- (or grab latest sets.e from github repo)
+--include sets.e
+
+procedure BronKerbosch(atom r, p, x, g, cliques)
+    // r: Current clique (Set of strings)
+    // p: Potential candidates to expand the clique (Set of strings)
+    // x: Vertices already processed (Set of strings)
+    // g: Graph represented as an adjacency list (Dict of strings to Sets)
+    // cliques: List to store all maximal cliques (Set of Lists of strings)
+
+    if is_empty(p) and is_empty(x) then
+        if set_size(r)>2 then
+            {} = add_member(cliques,get_members(r))
+        end if
+        return
+    end if
+    
+    // Select a pivot vertex from union(p,x) with the maximum degree.
+    object pivot
+    integer maxC = -1
+    for v in union(p,x) do
+        integer l = length(getd(v,g))
+        if l>maxC then
+            {maxC,pivot} = {l,v}
+        end if
+    end for
+
+    // Candidates are vertices in P that are not neighbours of the pivot.
+    sequence candidates = difference(p, getd(pivot,g), symmetric:=false)
+
+    for v in candidates do
+        // New clique including vertex v.
+        atom newR = new_set(r)
+        {} = add_member(newR,v)
+
+        // New potential candidates are neighbours of v in p.
+        // New excluded vertices are neighbours of v in x.
+        sequence neighbours = getd(v,g)
+        atom newP = intersection(p,neighbours,-1),
+             newX = intersection(x,neighbours,-1)
+
+        // Recursive call with updated sets.
+        BronKerbosch(newR, newP, newX, g, cliques)
+
+        // Move vertex v from p to x.
+        {} = remove_member(p,v)
+        {} = add_member(x,v)
+    end for
+end procedure
+
+function make_adjacency_list()
+    // Build the graph as an adjacency list.
+    integer graph = new_dict()
+    // Define the input edges as a list of tuples.
+    sequence input = {
+        {"a", "b"}, {"b", "a"}, {"a", "c"}, {"c", "a"},
+        {"b", "c"}, {"c", "b"}, {"d", "e"}, {"e", "d"},
+        {"d", "f"}, {"f", "d"}, {"e", "f"}, {"f", "e"}
+    }
+    input = sort(input) -- (collects sorted neighbours for each vertex)
+    while length(input) do
+        object v = input[1][1]
+        integer l = 1
+        for n in input from 2 do -- how many v are there?
+            if n[1]!=v then exit end if
+            l += 1
+        end for
+        setd(v,vslice(input[1..l],2),graph)
+        input = input[l+1..$] -- discard all v
+    end while
+    return graph
+end function
+
+integer graph = make_adjacency_list()
+
+atom r = new_set(),
+     p = new_set(getd_all_keys(graph)),
+     x = new_set(),
+     cliques = new_set()    
+
+BronKerbosch(r, p, x, graph, cliques)
+
+// cliques is naturally/implicitly sorted
+?get_members(cliques) -- (freed as bDestroy is true)
+discard_set({r,p,x}) -- (automatically done were they
+                     --  to simply drop out of scope)
+
+-- Output: {{"a","b","c"},{"d","e","f"}}
+

@@ -27,7 +27,7 @@ display (while each pile is >=20 pixels).
 
 --without debug
 requires("1.0.3")
-include xpGUI.e
+include theGUI.e
 --include builtins\VM\pprntfN.e
 --include builtins\VM\pcfunc.e
 --include builtins\pfile.e
@@ -69,15 +69,15 @@ procedure redraw(gdx canvas)
     if not pixel_mode then
         if mx>8 then
             -- draw grid
-            gSetAttribute(canvas,"FGCLR",XPG_LIGHT_GREY)
+            gSetAttribute(canvas,"FGCLR",TG_LIGHT_GREY)
             while cx<cw or cy>0 do
-                gCanvasLine(canvas,cx,1,cx,ch)
-                gCanvasLine(canvas,1,cy,cw,cy)
+                gDrawLine(canvas,cx,1,cx,ch)
+                gDrawLine(canvas,1,cy,cw,cy)
                 cx += mx
                 cy -= mx
             end while
 --          if show_text and mx>=20 then    
---              gCanvasSetTextAlignment?[use gCanvasText(align:=x) instead](canvas, XPG_CENTRE) 
+--              gCanvasSetTextAlignment?[use gDrawText(align:=x) instead](canvas, TG_CENTRE) 
 --          end if
         else
             t += 1
@@ -91,18 +91,17 @@ procedure redraw(gdx canvas)
         for x=1 to bw do 
             integer c = board[y][x]
             if c!=0 then
---              integer colour = {XPG_YELLOW,XPG_ORANGE,XPG_RED}[c]
-                integer colour = {XPG_VIOLET,XPG_RED,XPG_BLUE}[c]
+--              integer colour = {TG_YELLOW,TG_ORANGE,TG_RED}[c]
+                integer colour = {TG_VIOLET,TG_RED,TG_BLUE}[c]
                 if pixel_mode then
                     gCanvasPixel(canvas, cx, cy, colour)
                 else
 --                  gSetAttribute(canvas,"FGCLR",colour)
-                    gCanvasCircle(canvas, cx, cy, t/2, true, colour:=colour)
+                    gDrawCircle(canvas, cx, cy, t/2, true, colour:=colour)
                     if show_text and mx>=20 then
-                        gSetAttribute(canvas,"FGCLR",XPG_DARK_GREY)
-                        gCanvasCircle(canvas, cx, cy, t/2)
-                        string txt = sprintf("%d",c)
-                        gCanvasText(canvas, cx, cy, txt, XPG_CENTRE)
+                        gSetAttribute(canvas,"FGCLR",TG_DARK_GREY)
+                        gDrawCircle(canvas, cx, cy, t/2)
+                        gDrawText(canvas, cx, cy, "%d",{c}, TG_CENTRE)
                     end if
                 end if
             end if
@@ -111,7 +110,7 @@ procedure redraw(gdx canvas)
         cy -= mx
     end for
     --cdCanvasFlush(cddbuffer)
---  return XPG_DEFAULT
+--  return TG_DEFAULT
 end procedure
 
 --function map_cb(gdx /*canvas*/)
@@ -122,15 +121,15 @@ end procedure
 --      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
 --      cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
 --  end if
---  gCanvasSetBackground(cddbuffer, XPG_PARCHMENT)
---  return XPG_DEFAULT
+--  gCanvasSetBackground(cddbuffer, TG_PARCHMENT)
+--  return TG_DEFAULT
 --end function
 --
 --function canvas_resize_cb(gdx canvas)
 --  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
 --  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
 --  cdCanvasSetAttribute(cddbuffer, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
---  return XPG_DEFAULT
+--  return TG_DEFAULT
 --end function
 
 --integer maxmlen = 100
@@ -213,15 +212,15 @@ procedure timer_action(gdx /*ih*/)
 --  string title = sprintf("Abelian sandpile model (%d, %d moves/s)",{drops,mps})
     gSetAttribute(dlg,"TITLE","Abelian sandpile model (%d, %d moves/s)",{drops,mps})
 --  gSetAttribute(dlg,"TITLE",title)
---  return XPG_DEFAULT
+--  return TG_DEFAULT
 end procedure
 
 function key_cb(gdx /*dlg*/, integer c)
---  if c=VK_ESC then return XPG_CLOSE end if -- (standard practice for me)
---  if c=VK_F5 then return XPG_DEFAULT end if -- (let browser reload work)
+--  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
     if c=VK_F1 then
         gMsgBox(dlg,"Abelian sandpile model",help_text)
-        return XPG_IGNORE -- (don't open browser help!)
+        return TG_IGNORE -- (don't open browser help!)
     elsif find(c,"+-") then
         if c='-' and mps>1 then
             mps /= 10
@@ -235,21 +234,21 @@ function key_cb(gdx /*dlg*/, integer c)
         elsif c='T' then show_text = not show_text
         end if
     end if
---  return XPG_CONTINUE
-    return XPG_DEFAULT
+--  return TG_CONTINUE
+    return TG_DEFAULT
 end function
 
 procedure main()
  
-    canvas = gCanvas(redraw,"SIZE=800x800")
+    canvas = gCanvas(redraw,"SIZE=800x800,BGCLR=PARCHMENT")
 --  gSetHandlers({canvas}, {"ACTION", redraw_cb,
 --                             ?MAP_CB?[DEAD], map_cb,
 --                             "RESIZE[*charsize]_CB", canvas_resize_cb})
-    gSetAttribute(canvas,"BGCLR",XPG_PARCHMENT)
+--  gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
     dlg = gDialog(canvas,`Abelian sandpile model`)
     gSetHandler(dlg,`KEY`,key_cb)
 --  gSetAttributeHandle(NULL,?PARENTDIALOG?[DEAD],dlg)
-    gShow(dlg,XPG_CENTER,XPG_CENTER)
+    gShow(dlg,TG_CENTER,TG_CENTER)
 --  gSetAttribute(dlg, "SIZE", NULL)
 --  gSetAttribute(dlg, "MINSIZE[*charsize]", gGetAttribute(dlg,"SIZE"))
 -- Qu: does not the size on the canvas force this?? DEV:NO

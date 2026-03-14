@@ -16,38 +16,38 @@
 -- Note: The task given here is related to the elementary theorem, not the actual AKS algorithm. Using the elementary theorem directly 
 --       as a way of testing for primes is interesting as an exercise but impractical.
 
--- Does not work for primes above 53, which is actually beyond the original task anyway.
--- Translated from the C version, just about everything is (working) out-by-1, what fun.
+-- Does not work for primes above 67 (56 on 32bit), which is actually beyond the original task anyway.
+-- Translated from the C version (with all out-by-1 stuff now eradicated).
 
-sequence c = repeat(0,100)
+with javascript_semantics
+--requires(64,true)
+constant limit = iff(machine_bits()=32?56:67)
+sequence c = repeat(0,limit+1)
  
 procedure coef(integer n)
--- out-by-1, ie coef(1)==^0, coef(2)==^1, coef(3)==^2 etc.
-    c[n] = 1
-    for i=n-1 to 2 by -1 do
-        c[i] = c[i]+c[i-1]
+    c[n+1] = 1
+    for i=n to 2 by -1 do
+        c[i] += c[i-1]
     end for
 end procedure
 
 function is_aks_prime(integer n)
-    coef(n+1); -- (I said it was out-by-1)
-    for i=2 to n-1 do   -- (technically "to n" is more correct)
+    coef(n)
+    for i=2 to n-1 do
         if remainder(c[i],n)!=0 then
-            return 0
+            return false
         end if
     end for
-    return 1
+    return true
 end function
  
 procedure show(integer n)
--- (As per coef, this is (working) out-by-1)
-object ci
-    for i=n to 1 by -1 do
-        ci = c[i]
+    for i=n+1 to 1 by -1 do
+        object ci = c[i]
         if ci=1 then
-            if remainder(n-i,2)=0 then
+            if remainder(n-i+1,2)=0 then
                 if i=1 then
-                    if n=1 then
+                    if n=0 then
                         ci = "1" 
                     else
                         ci = "+1" 
@@ -59,7 +59,7 @@ object ci
                 ci = "-1"
             end if
         else
-            if remainder(n-i,2)=0 then
+            if remainder(n-i+1,2)=0 then
                 ci = sprintf("+%d",ci)
             else
                 ci = sprintf("-%d",ci)
@@ -76,24 +76,104 @@ object ci
 end procedure
  
 procedure main()
-    for n=1 to 10 do -- (0 to 9 really)
+    for n=0 to 9 do
         coef(n);
-        printf(1,"(x-1)^%d = ", n-1);
+        printf(1,"(x-1)^%d = ", n);
         show(n);
         puts(1,'\n');
     end for
  
-    puts(1,"\nprimes (<=53):");
---  coef(2); -- (needed to reset c, if we want to avoid saying 1 is prime...)
+    printf(1,"\nprimes (<=%d):",limit);
+--  coef(1); -- (needed to reset c, if we want to avoid saying 1 is prime...)
     c[2] = 1 -- (this manages "", which is all that call did anyway...)
-    for n = 2 to 53 do
+    for n=2 to limit do
         if is_aks_prime(n) then
             printf(1," %d", n);
         end if 
     end for
     puts(1,'\n');
-    if getc(0) then end if
+--  wait_key()
 end procedure
 main()
 
+--/*
+(x-1)^0 = 1
+(x-1)^1 = x-1
+(x-1)^2 = x^2-2x+1
+(x-1)^3 = x^3-3x^2+3x-1
+(x-1)^4 = x^4-4x^3+6x^2-4x+1
+(x-1)^5 = x^5-5x^4+10x^3-10x^2+5x-1
+(x-1)^6 = x^6-6x^5+15x^4-20x^3+15x^2-6x+1
+(x-1)^7 = x^7-7x^6+21x^5-35x^4+35x^3-21x^2+7x-1
+(x-1)^8 = x^8-8x^7+28x^6-56x^5+70x^4-56x^3+28x^2-8x+1
+(x-1)^9 = x^9-9x^8+36x^7-84x^6+126x^5-126x^4+84x^3-36x^2+9x-1
 
+primes (<=67): 2 3 5 7 11 13 17 19 23 29 31 37 41 43 47 53 59 61 67
+
+-- 32bit shows 3 less primes (<=56)
+
+--*/
+
+-- higher limits using gmp
+--Performace could probably be nearly doubled by only computing half the triangle, ditto sans gmp below.
+--Then again, it would still be so slow it hardly makes any such effort worthwhile. (stretch only, "")
+--/*
+include mpfr.e
+mpz z = mpz_init()
+atom t0 = time(), t1 = t0+1
+sequence p = {}
+integer maxn = 0
+for n=2 to 10000 do -- (more than we can manage in 10s)
+    bool nprime = true
+    for k=1 to n-1 do
+        mpz_bin_uiui(z,n,k)
+        if not mpz_divisible_ui_p(z,n) then
+            nprime = false
+            exit
+        end if
+    end for
+    if nprime then
+        p &= n
+    end if
+    maxn = n
+    if time()>t1 then
+        if time()>t10 then progress("") exit end if
+        progress("checking %d",{n})
+        t1 = time()+1
+    end if
+end for
+sequence q = get_primes_le(maxn)
+printf(1,"%d primes < %d found, correctly:%t, in %s\n",{length(p),maxn,p=q,elapsed(time()-t0)})
+wait_key()
+--*/
+--115 primes < 631 found, correctly:true, in 11.0s
+
+-- higher limits without gmp
+--Since we're only interested in the remainders of the pascal triangle, that's all we have to store.
+--/!*
+atom t0 = time(), t1 = t0+1
+sequence p = {}
+integer maxn = 0
+for n=2 to 10000 do -- (more than we can manage in 10s)
+    sequence r = {1}
+    for k=1 to n do
+        r &= 1
+        for l=k to 2 by -1 do
+            r[l] = remainder(r[l]+r[l-1],n)
+        end for
+    end for
+    if sum(r)=2 then -- ie {1,<==all 0s==>,1}
+        p &= n
+    end if
+    maxn = n
+    if time()>t1 then
+        if time()>t0+10 then progress("") exit end if
+        progress("checking %d",{n})
+        t1 = time()+1
+    end if
+end for
+sequence q = get_primes_le(maxn)
+printf(1,"%d primes < %d found, correctly:%t, in %s\n",{length(p),maxn,p=q,elapsed(time()-t0)})
+wait_key()
+--260 primes < 1661 found, correctly:true, in 10.2s
+--*!/

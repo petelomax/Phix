@@ -2,6 +2,11 @@
 -- filedump.exw
 -- ============
 --
+-- WARNING: The *VAST BULK* of this is dirty one-off hacks to get one thing working
+--          on one random file, and as a consequence this is probably the least well
+--          structured and poorly / completely undesigned mess I have ever released/
+--          inflicted on the world at large... Magic numbers are just everywhere...
+--
 --  Originally written to display the contents of Windows PE format executable files
 --  and help me get my head around the import section, and therefore implement ilASM
 --  statements such as: 'call "kernel32.dll","ReadFile"'. While similar programs are
@@ -43,8 +48,8 @@
 --  Also (especially given the extreme flexibility of the elf specification) note this
 --  may not fare particularly well on any non-Phix-generated elf files.
 --  Lastly, I have made a start on ARM dissassembly, using the few examples I could 
---  find, with a view to eventually writing ELF/ARM for Linux/Android, but I have yet
---  to locate/install anything suitable for testing on.
+--  find, with a view to eventually writing ELF/ARM for Linux/Android, and have got
+--  meself an ancient Raspberry Pi emulator to test a few things on.
 --
 --  The FLV file handling arose from stumbling upon an online article (I forget where)
 --  and wondering if I could somehow repair things (see also flvmerge.exw), and (quite
@@ -54,9 +59,9 @@
 --  incomplete and never proved to be of any practical value (sorry!).
 --
 --  I have also dabbled a bit with .ico, .bmp, .edb, and .udd files. What happens is,
---  I wander in here, have a quick play, and leave yet something else unfinis....
+--  I wander in here, have a quick play, and leave yet something else unfin....
 --
--- This is one of the "cool" demos.
+-- This is one of the "cool" demos. (HA HA)
 --
 -- TODO:
 --  keep separate scroll settings per tab. [DONE]
@@ -927,7 +932,7 @@ integer xlen
 function decode(string description, object size, string notes="")
 object val
 sequence line
-integer byte
+integer abyte
 atom mi
     line = {address,description,size,0,notes}
     if string(size)
@@ -958,24 +963,26 @@ atom mi
         signed = 0
         val = binary[address+1]
         for i=2 to size do
-            byte = binary[address+i]
+--if address+i>length(binary) then return fatal("oops 961") end if
+--if address+i>length(binary) then ?9/0 end if
+            abyte = binary[address+i]
             if asHex then
-                val = val*#100+byte
+                val = val*#100+abyte
             else
-                if byte!=0 then
+                if abyte!=0 then
                     if i<=length(mul) then
                         mi = mul[i]
                     else
                         mi = power(2,(i-1)*8)
                     end if
-                    if i=size and size>4 and and_bits(byte,#80) then
-                        byte -= #80
+                    if i=size and size>4 and and_bits(abyte,#80) then
+                        abyte -= #80
                         signed = 1
-                        if byte!=0 then
-                            val += byte*mi
+                        if abyte!=0 then
+                            val += abyte*mi
                         end if
                     else
-                        val += byte*mi
+                        val += abyte*mi
                     end if
                 end if
             end if
@@ -1106,18 +1113,28 @@ procedure binary_dump(integer size, string desc)
 -- (and increments) addr, which can therefore be a virtual 
 -- address.
 --
-string hex, text
+string hex, text, name
 sequence line
 integer addrMax
-integer byte
+integer abyte
+atom aword = 0
+atom amul
 --?{"binary_dump",address,size,desc}
     if size<0 then ?9/0 end if
     while size do
         hex = ""
         text = ""
+        name = ""
+        aword = 0
+        amul = 1
+        integer k = find(addr,knownAddr)
+        if k then
+--?{k,addr,knownNames[k]}
+            name = sprintf("%s (reloc tgt)",{knownNames[k]})
+            addrMax = address+3
 --29/8/14:
 --      if size<16 then
-        if size<=16 then
+        elsif size<=16 then
             addrMax = address+size-1
         else
             addrMax = address+16
@@ -1151,20 +1168,41 @@ integer byte
 --?"filedump.exw line 1131"
 --{485,13}...
 if a>=length(binary) then ?"filedump.exw line 1132" ?{a,size} size=0 exit end if
-            byte = binary[a+1]
-            hex &= sprintf("%02x",byte)
+            abyte = binary[a+1]
+            if addrMax = address+3 then
+                aword += abyte*amul
+                amul *= #100
+            end if
+            hex &= sprintf("%02x",abyte)
             if remainder(a+5,4)=0 then
                 hex &= ' '
             end if
-            if byte<' ' or byte>#7E or byte='`' then byte = '.' end if
-            text &= byte
+            if abyte<' ' or abyte>#7E or abyte='`' then abyte = '.' end if
+            text &= abyte
         end for
+--if k then ?{k,aword} end if
+        if aword then
+            integer k2 = find(aword,knownAddr)
+--?{k,aword,knownAddr}
+            if k2 then
+--              text = knownNames[k]
+                text = sprintf(`%s [@#%08x, see "Data Segment"]`,{knownNames[k2],aword})
+                knownNames[k] = knownNames[k2]
+--?9/0
+            end if              
+        end if              
+        if length(name) and text="...." then
+            text = name
+        end if
         if match("%08x",desc) then
-            line = {address,sprintf(desc,{addr}),"-",hex,text,""}
+            line = {address,sprintf(desc,{addr}),"-",hex,text}
             addr += (addrMax-address+1)
         else
-            line = {address,desc,"-",hex,text,""}
+            line = {address,desc,"-",hex,text}
         end if
+--?tabidx
+--?res[tabidx]
+--?line
         res[tabidx] = append(res[tabidx],line)
         size -= (addrMax-address+1)
         address = addrMax+1
@@ -4914,9 +4952,13 @@ integer k
         end if
         res[tabidx][$][R_NOTES] = desc
         if machine=32 then
-            p_offset = decode("p_offset","h4","file offset")
+--          p_offset = decode("p_offset","h4","file offset")
+            object poff = decode("p_offset","h4","file offset")
+            if not integer(poff) then return fatal("oops, 4919") end if         
+            p_offset = poff
             p_vaddr = decode("p_vaddr","h4","virtual address")
             vdx = length(res[tabidx])
+--?res[tabidx]
             p_paddr = decode("p_paddr","h4","physical addressing(ignored)")
             p_filesz = decode("p_filesz","h4","bytes in file image")
             p_memsz = decode("p_memsz","h4","bytes in memory image")
@@ -4959,6 +5001,7 @@ integer k
         p_vaddrs = append(p_vaddrs,p_vaddr)
         p_paddrs = append(p_paddrs,p_paddr)
         p_seetab = append(p_seetab,vdx)
+--?p_seetab
 --      p_paddrs = append(p_paddrs,p_paddr)
         p_fileszs = append(p_fileszs,p_filesz)
 --      p_memszs = append(p_memszs,p_memsz)
@@ -4976,7 +5019,7 @@ integer k
             elsif p_flags=PF_RW then
                 sDataSegments = append(sDataSegments,i)
 else
-    ?{p_flags,"???"}
+    ?{p_flags,"??? line 4985"}
             end if
         elsif p_type=PT_PHDR then
             res[tabidx][vdx-1][R_NOTES] = "file offset (this tab)"
@@ -4997,13 +5040,14 @@ else
 end function
 
 procedure set_seetab(string desc, integer idx)
-integer vdx
-    vdx = p_seetab[idx]
+--?{"set_seetab",desc,idx}
+    integer vdx = p_seetab[idx]
     desc = sprintf(`virtual address (see "%s" tab)`,desc)
     res[phtab][vdx][R_NOTES] = desc
 end procedure
 
 procedure set_seetab2(string desc, integer idx, integer pstab)
+--?{"set_seetab2",desc,idx,pstab}
 -- (Phix programs don't have section headers, btw)
     integer vdx = shseetabs[idx]
     desc = sprintf(`(see "%s" tab)`,{desc})
@@ -5207,9 +5251,9 @@ constant R_X86_DESCS = {"R_X86_64_NONE",            -- 0,
 constant DUPE = "duplicate DT entry"
 
 
-function decode_ELF_dynamic_segment(integer idx, e_machine)
+function decode_ELF_dynamic_segment(integer idx, e_machine, string desc)
 integer size = p_fileszs[idx]
-string desc
+--string desc
 atom d_tag
 integer nidx
 integer p_got
@@ -5267,7 +5311,7 @@ sequence string_addrs
 sequence reloc_addrs
 atom reloc_base
 
-    desc = "Dynamic Link Info"
+--  desc = "Dynamic Link Info"
     SetTabIdx(desc,false)
     dyntab = tabidx
     set_seetab(desc,idx)
@@ -5289,7 +5333,10 @@ atom reloc_base
     elfv = append(elfv,{desc,address,0})
     while size>0 do
         if machine=32 then
-            d_tag = decode("d_tag","h4","")
+--          d_tag = decode("d_tag","h4","")
+            object dt = decode("d_tag","h4","")
+            if not atom(dt) then return fatal("oops, 5298") end if
+            d_tag = dt
         elsif machine=64 then
 --          d_tag = decode("d_tag","h8","")
             object ddt = decode("d_tag","h8","")
@@ -5360,7 +5407,8 @@ if d_un!=D_ignored then
             if d_un=D_ignored then
                 d_val = decode("-","h4","")
             elsif d_un=D_val then
-                d_val = decode("d_val",4,"")
+--              d_val = decode("d_val",4,"")
+                d_val = decode("d_val","h4","")
             elsif d_un=D_ptr then
                 d_val = decode("d_ptr","h4","")
             end if
@@ -5372,7 +5420,8 @@ if d_un!=D_ignored then
             if d_un=D_ignored then
                 d_val = decode("-","h8","")
             elsif d_un=D_val then
-                d_val = decode("d_val",8,"")
+--              d_val = decode("d_val",8,"")
+                d_val = decode("d_val","h8","")
             elsif d_un=D_ptr then
                 d_val = decode("d_ptr","h8","")
             end if
@@ -5394,7 +5443,7 @@ if d_un!=D_ignored then
                 set_seetab2("Symtab/Hash",n,pstab)
             end if
         elsif d_tag=DT_SYMTAB then
-            res[tabidx][$][R_NOTES] = `(See "Symtab" tab)`
+            res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Symtab)`
             n = find(0xB,shtypes)
             if n!=0 then
                 -- (Phix programs don't have section headers, btw)
@@ -5409,8 +5458,14 @@ if d_un!=D_ignored then
             res[tabidx][$][R_NOTES] = `(See "Symtab" tab, Relocations)`
 --          res[tabidx][$][R_NOTES] = `(See ".rel.dyn" tab)`
         elsif d_tag=DT_STRSZ then
+--if p_strtab>length(p_vals) then ?"oops 5412"; return 0 end if
+--if p_strtab>length(p_vals) then return fatal("oops 5413") end if
+if p_strtab<=length(p_vals) then
             n_strtab = ds_normalise(p_vals[p_strtab])
             res[tabidx][$][R_NOTES] = sprintf(" (- strings end at #%08x)",n_strtab+d_val-1)
+else
+            res[tabidx][$][R_NOTES] = sprintf("???[5425] (%d>%d)",{p_strtab,length(p_vals)})
+end if
         elsif d_tag=DT_SYMENT then
             res[tabidx][$][R_NOTES] = " (- size of one symtab entry)"
         elsif d_tag=DT_RELSZ then
@@ -5461,6 +5516,7 @@ end if
         or d_tag=DT_RPATH   then
             d_val = p_vals[i]
             desc = get_string(n_strtab+d_val)
+--?{desc,i,n_strtab,d_val}
             res[tabidx][p_didx[i]][R_NOTES] = desc
             string_addrs = append(string_addrs,n_strtab+d_val)
         end if
@@ -5487,7 +5543,9 @@ end if
         if p_hash!=-1 then -- hmm...
             if p_symtab!=-1 then todo = append(todo,{p_vals[p_symtab],p_symtab})    end if
         end if
+if p_rel>length(p_vals) then ?"oops line 5542"; ?{p_rel, p_vals, p_tags}; else
         if p_rel!=-1    then todo = append(todo,{p_vals[p_rel],p_rel})          end if
+end if
         if p_rela!=-1   then todo = append(todo,{p_vals[p_rela],p_rela})        end if
 --      if p_rela!=-1   then todo = append(todo,{p_vals[p_rela],p_rela})
 --      elsif relasz>-1 then todo = append(todo,{p_vals[relasz],relasz})        end if
@@ -5675,12 +5733,18 @@ end if
                             desc = sprintf("DT_SYMTAB [#%08x]",p_vals[p_symtab])
                         else
                             string_addrs = append(string_addrs,n_strtab+st_name)
+if n_strtab+st_name>=length(binary) then return fatal("oops,5687") end if
                             desc = get_string(n_strtab+st_name)
                         end if
                         res[tabidx][$][R_NOTES] = desc
                         st_names = append(st_names,desc)
                         if machine=32 then
                             st_value = decode("st_value","h4","")
+                            if st_value=#D4 then
+                                res[tabidx][$][R_NOTES] &= ` (See "Interpreter" tab)`
+                            elsif st_value then
+                                res[tabidx][$][R_NOTES] &= ` (See "Data Segment" tab)`
+                            end if
                             st_size = decode("st_size",4,"")
                             st_info = decode("st_info","h1","")
                             st_info_idx = length(res[tabidx])
@@ -5779,7 +5843,8 @@ end if
 --              address = ds_normalise(p_rel)
                     if relsz=-1 then ?9/0 end if
                     if relent=-1 then ?9/0 end if
-                    size = p_vals[relsz]
+--                  size = p_vals[relsz]
+                    size = min(p_vals[relsz],100)
                     if atom(sy_size) then
                         sy_size -= size
                     end if
@@ -5793,6 +5858,11 @@ end if
                     while size do
                         if machine=32 then
                             r_offset = decode("relocation offset","h4",desc)
+                            if r_offset<#8000 then
+                                res[tabidx][$][R_NOTES] &= ` (See "Code Segment" tab)`
+                            else
+                                res[tabidx][$][R_NOTES] &= ` (See "Data Segment" tab)`
+                            end if
                             r_info = decode("r_info","h4","")
                             r_symidx = floor(r_info/#100)
                             r_type = and_bits(r_info,#FF)
@@ -5813,11 +5883,16 @@ end if
                             ?9/0
                         end if
                         if r_type=R_386_RELATIVE then
-                            if r_symidx!=0 then ?9/0 end if
+--                          if r_symidx!=0 then ?9/0 end if
+if r_symidx=0 then
                             res[tabidx][$][R_NOTES] = sprintf("%s",{desc})
+else
+                            res[tabidx][$][R_NOTES] = sprintf("%s ??r_symidx=%d[5835]",{desc,r_symidx})
+end if
                         elsif p_hash=-1 then
                             res[tabidx][$][R_NOTES] = sprintf("%s, symtab[%d]=???",{desc,r_symidx})
-                        elsif r_symidx>=length(st_names) then
+--                      elsif r_symidx>=length(st_names) then
+                        elsif (not object(st_names)) or r_symidx>=length(st_names) then
                             name = sprintf("*** ioob st_names[%d]=??? ***",r_symidx+1)
                             res[tabidx][$][R_NOTES] = name
                             ?name
@@ -6428,6 +6503,7 @@ string asm, err = "", xtra, regs
             binary_dump(data_size,"%08x")
             size -= data_size
 --          addr += data_size
+            addsymtabsep("--e_entry--")
         end if
         assert(size>=0)
         while size do
@@ -6439,6 +6515,7 @@ string asm, err = "", xtra, regs
             ins = decode(sprintf("%08x",addr),"h4","unknown")
             if string(ins) then return fatal(ins) end if
             assert(atom(ins))
+--if ins=#E12FFF34 then trace(1) end if
 --if ins=#E1540003 then trace(1) end if
 --if ins=#E2D66000 then trace(1) end if
 --00000718,00008718,h4,E2D66000h,sbc r6, 0
@@ -6546,9 +6623,9 @@ string asm, err = "", xtra, regs
 --if ??=0 then return fatal("SBZ error") end if
 --if ??=1 then return fatal("SBO error") end if
 --          if o8=0b00010010 and mask(ins,{#000000F0,#00000010})=0b0001 then
-            if o8=0b00010010 and o4=0b0001 then
+            if o8=0b00010010 and (o4=0b0001 or o4=0b0011) then
                 assert(Rn=0b1111 and Rd=0b1111 and Rs=0b1111)
-                asm = "bx"&ccs[cond]&" "&ARMREGS[Rm+1]
+                asm = {"bx",0,"blx"}[o4]&ccs[cond]&" "&ARMREGS[Rm+1]
                 res[tabidx][$][R_NOTES] = asm
 --          elsif and_bits(ins,0x0FFF0FF0)=0x016F0F10 then
             elsif and_bits(ins,0b0000_1111_1111_1111_0000_1111_1111_0000)
@@ -6796,7 +6873,8 @@ if not negop then
                     hexcomment = sprintf(" = 0x%x",tmp)
                 end if
                 if rot!=0 then
-                    hexcomment &= sprintf(" (rotate=%04b)",{rot})
+--                  hexcomment &= sprintf(" (rotate=%04b)",{rot})
+                    hexcomment &= sprintf(" (rotate=%d)",{2*rot})
                 elsif tmp>=' ' and tmp<='~' then
                     string bs = iff(find(tmp,"\\\"\'")?"\\":"")
                     hexcomment &= sprintf(" ('%s%c')",{bs,tmp})
@@ -6833,7 +6911,12 @@ end if
                     string sgn = iff(lit12<0?"-":"+")
                     asm &= sprintf("[%s%s%d]",{ARMREGS[Rn+1],sgn,abs(lit12)})
                     if Rn=15 then -- pc
-                        xtra = sprintf(" -- (#%08x)",{addr+lit12+4})
+                        atom al4 = addr+lit12+4
+                        xtra = sprintf(" -- (#%08x)",{al4})
+                        integer k = find(al4,knownAddr)
+                        if k then
+                            xtra = sprintf(" -- (#%08x, %s)",{al4,knownNames[k]})
+                        end if
                     end if
                 else
                     asm &= sprintf("[%s], %d",{ARMREGS[Rn+1],lit12})
@@ -8047,6 +8130,7 @@ end if
 --      line = {taddr,asm,"-",hex,analysis}
         ilen = addr-ilen
         line = {address,sprintf("%08x:  %s",{taddr,asm}),"-",hex,analysis}
+--?line
         address += ilen
         res[tabidx] = append(res[tabidx],line)
     end while
@@ -8075,8 +8159,8 @@ ff9383a4:       00006574        andeq   r6, r0, r4, ror r5
 --*/
 end procedure
 
---function decode_ELF_data_segment(integer idx, e_machine)
-function decode_ELF_data_segment(integer idx)
+function decode_ELF_data_segment(integer idx, e_machine=0, bool bPhixGenerated=false)
+--function decode_ELF_data_segment(integer idx)
 --string desc
 --integer dsidx
 --integer size = p_fileszs[idx]
@@ -8105,14 +8189,43 @@ function decode_ELF_data_segment(integer idx)
 --?desc
     set_seetab(desc,idx)    -- DEV phtab/pstab
     elfv = append(elfv,{desc,address,0})
+    -- aside: gawd 'elp me... (I don't rightly understand precisely what I'm saving/restoring here, but it seems to work)
+    -- aside2: where exacly is "addr" actually defined??!! (ah - it is [probably using] the one in p2asm.e...)
+    integer rest_address, save_addr, dump_addr
     if size then
+        if bPhixGenerated then
+            integer ds_size = 80 -- DEV
+            integer next_address = address+ds_size
+            dump_addr = addr+ds_size
+            addsymtabsep("--Dynamic Link Info--")
+--          if not decode_ELF_dynamic_segment(i,e_machine,desc) then return 0 end if
+            if not decode_ELF_dynamic_segment(idx+1,e_machine,desc) then ?9/0 end if
+            rest_address = address
+            save_addr = addr
+            size -= ds_size
+--?{"size,8137",size,address}
+            SetTabIdx(desc,false)
+            addsep()
+--Maybe: (iff we can have/locate a suitable end as well, and ideally name each of them)
+--          addsymtabsep("--Reloc Targets--")
+--          addsymtabsep("--Application Data--") -- (some time later...)
+            address = next_address
+            addr = dump_addr
+        end if
 --27/6/22
 --      {} = phix_datadump(size,"%08x")
 --?"line 7962"
         if size<0 then return fatal("size<0 (see line 7963)") end if
-        binary_dump(size,"%08x")
+        if size then
+--?"8218.."
+            binary_dump(size,"%08x")
+        end if
     end if
     elfv[$][$] = address
+    if bPhixGenerated then
+        address = rest_address
+        addr = save_addr
+    end if
     return 1
 end function
 
@@ -8228,6 +8341,7 @@ function decode_ELF_ARM_attributes(integer idx, string desc)
 --
 -- This part may want/need to be more flexible, but I'm planning on either omitting
 --  this whole section if I can, or just dumping a fixed 24-byte block, specifically
+--  UPDATE: successfully omitted!
 --      .ARM.attributes
 --      ===============
 --      41170000 00616561 62690001 0D000000 06020801 09012C01 ,A....aeabi............,.
@@ -8401,12 +8515,17 @@ end if
         elsif sh_type=0x6FFFFFFF then   desc = "DT_VERSYM"
         elsif sh_type=0x6FFFFFFE then   desc = "DT_VERNEED"
         elsif sh_type=DT_RELCOUNT then  desc = "DT_RELCOUNT"
-    else                                desc = "?"
+        else                            desc = "?"
         end if
         res[tabidx][$][R_NOTES] = desc
 --      shdescs = append(shdescs,desc)
+        object dsf
         if machine=32 then
-            sh_flags = decode("sh_flags","h4","")
+--          sh_flags = decode("sh_flags","h4","")
+            dsf = decode("sh_flags","h4","")
+--          if not integer(dsf) then ?"line 8412, dsf..."; dsf = 0 end if
+            if not integer(dsf) then ?"line 8412, dsf..."; return 0 end if
+            sh_flags = dsf
             desc = decode_flags(ELFsflagSet,sh_flags)
             res[tabidx][$][R_NOTES] = desc
             sh_addr = decode("sh_addr","h4","")
@@ -8414,8 +8533,8 @@ end if
             sh_size = decode("sh_size","h4","")
         elsif machine=64 then
 --          sh_flags = decode("sh_flags","h8","")
-            object dsf = decode("sh_flags","h8","")
-            if not integer(dsf) then ?"line 8332, dsf..."; dsf = 0 end if
+            dsf = decode("sh_flags","h8","")
+            if not integer(dsf) then ?"line 8422, dsf..."; dsf = 0 end if
             sh_flags = dsf
             desc = decode_flags(ELFsflagSet,sh_flags)
             res[tabidx][$][R_NOTES] = desc
@@ -9446,15 +9565,16 @@ integer dti
             if odd(l2b) then
                 desc = "Thumb code"
             elsif l2b=0b00 then
-                desc = "ARM code"
+                desc = `ARM code (see "Code Segment" tab)`
             else -- 0b10?
                 return fatal(sprintf("ARM/Thumb?? e_entry=#%x ends in 0b%2b",{e_entry,l2b}))
             end if
             res[tabidx][$][R_NOTES] = desc
         end if
-        e_phoff = decode("e_phoff","h4","program header table")
+        e_phoff = decode("e_phoff","h4",`program header table (see "Program Headers" tab)`)
+--DEV if not 0 `see "Section Headers" tab)`...
         e_shoff = decode("e_shoff","h4","section header table")
-    elsif machine=64 then
+    elsif machine=64 then -- (nb untested)
         e_entry = decode("e_entry","h8","")
         if e_entry = 0x4000FE and bTromp then
             e_entry = 0x400050
@@ -9465,13 +9585,14 @@ integer dti
             if and_bits(e_entry,0b01)=0b01 then
                 desc = "Thumb code"
             elsif and_bits(e_entry,0b11)=0b00 then
-                desc = "ARM code"
+                desc = `ARM code (see "Code Segment" tab)`
             else -- 0b10
                 return fatal("reserved")
             end if
             res[tabidx][$][R_NOTES] = desc
         end if
-        e_phoff = decode("e_phoff","h8","program header table")
+        e_phoff = decode("e_phoff","h8",`program header table (see "Program Headers" tab)`)
+--ditto...
         e_shoff = decode("e_shoff","h8","section header table")
     else
         ?9/0
@@ -9622,6 +9743,13 @@ end if
 --return 0
                 codesegments = {}
 --?p_types -- {3,2,1,1,1}
+--DEV (3/5/25)
+--?p_types -- {6,3,1,1,2}
+                bool bPhixGenerated = (p_types=={6,3,1,1,2} and e_machine=0x28)
+--if we can...
+--              bool bPhixGenerated = (p_types=={6,3,1,2,1} and e_machine=0x28)
+bPhixGenerated = false
+if bPhixGenerated then ?"Phix Generated.." end if
                 for i=1 to length(p_types) do
 --if i=2 then trace(1) end if
 --DEV/SUG
@@ -9688,17 +9816,22 @@ end if
                         elsif pflags=PF_RW then
 --5/9/22:
                             if e_machine=0x28 then                   -- ARM (#28=40)
+if not bPhixGenerated then
                                 SetTabIdx("Dynamic Link Info",true)
 ?i          -- 4
+end if
 --?p_fileszs    -- {160,25,456,164,160} 
 --?p_vaddrs     -- {52,212,0,33224,33224}
 --?p_offsets    -- {52,212,0,456,456}
-                                if i=length(p_fileszs)-1
-                                and p_types[i]=PT_LOAD
-                                and p_types[i+1]=PT_DYNAMIC
-                                and p_vaddrs[i]=p_vaddrs[i+1]
-                                and p_offsets[i]=p_offsets[i+1] then
+                                bool bDynamicNext = (i=length(p_fileszs)-1
+                                                     and p_types[i]=PT_LOAD
+                                                     and p_types[i+1]=PT_DYNAMIC
+                                                     and p_vaddrs[i]=p_vaddrs[i+1]
+                                                     and p_offsets[i]=p_offsets[i+1])
+                                if bDynamicNext then
                                     integer nfs = p_fileszs[i+1]
+--?{"nfs",nfs} -- 80
+--nfs = 0 --DEV (5/3/25) no discernable effect...
                                     p_fileszs[i] -= nfs
                                     p_vaddrs[i] += nfs
                                     p_offsets[i] += nfs
@@ -9707,8 +9840,9 @@ end if
 
 --25/8/22:
 --                          if e_machine!=0x28 then                -- ARM (#28=40)
---                              if not decode_ELF_data_segment(i,e_machine) then return 0 end if
-                                if not decode_ELF_data_segment(i) then return 0 end if
+--?"decode_ELF_data_segment" -- first
+                                if not decode_ELF_data_segment(i,e_machine,bPhixGenerated) then return 0 end if
+--                              if not decode_ELF_data_segment(i) then return 0 end if
 --27/8/22:
 --                          else
 --                              eds = i
@@ -9716,7 +9850,13 @@ end if
                         end if
 --end if
                     elsif p_type=PT_DYNAMIC then -- Dynamic linking information
-                        if not decode_ELF_dynamic_segment(i,e_machine) then return 0 end if
+if not bPhixGenerated then
+--?"decode_ELF_dynamic_segment" -- second (DEV suppress?) [DONE]
+--  desc = "Dynamic Link Info"
+--  SetTabIdx(desc,false)
+--  set_seetab(desc,i)
+--end if
+                        if not decode_ELF_dynamic_segment(i,e_machine,"Dynamic Link Info") then return 0 end if
 --25/8/22:
                         if e_machine=0x28 then                   -- ARM (#28=40)
 --DEV hwZ only...
@@ -9733,6 +9873,10 @@ end if
 --?addr -- 320 = #140
 --?address = 344 = #158
                         end if
+else -- no idea whether I actually need this...
+    SetTabIdx("Data Segment",true)
+    dti = i
+end if
                     elsif p_type=PT_INTERP then -- interpreter
 --                      if not decode_ELF_data_segment(i,e_machine) then return 0 end if
                         if not dump_ELF_interpreter(i) then return 0 end if
@@ -9793,6 +9937,8 @@ end if
 --*/
                         elsif find(desc,{
                                          ".shstrtab",
+--12/3/25:
+--                                       ".dynstr",
                                         }) then
                             -- use string_dump() instead of binary_dump()
                             if dump_ELF_misc(i,desc,true) then end if
@@ -9825,8 +9971,12 @@ end if
 --                                       ".hash",
                                          ".gnu.version",
                                          ".gnu.version_r",
-                                         ".rel.dyn"
---                                       ".dynamic"
+                                         ".rel.dyn",
+--12/3/25:
+--                                       ".dynamic",
+                                         ".dynsym",
+--                                       ".dynstr",
+--                                       ".hash",
                                         }) then
                             if dump_ELF_misc(i,desc) then end if
 --else
@@ -11699,9 +11849,11 @@ procedure mainELF()
 --      load_file(`F:\misc\rpi\fasm\libc\fasm-1.73.30\fasm\fasm.o`)
 --      load_file(`C:\Users\Pete\Downloads\qman70\Share2\fasmg`)
 --      load_file(`C:\Users\Pete\Downloads\qman70\Share2\hello_world`)
+--      load_file(`J:\Users\Pete\Downloads\qman70\Share2\hello_world`) -- 64 bit elf, this pgm fails to show code and string table...
 --      load_file(`C:\FPC\3.0.4\bin\i386-win32\humble.exe`) -- 90K... cannot quite identify the entry point...
 --      load_file(`C:\Users\Pete\Documents\porn\test\older\lambda.com`)
-        load_file(`C:\Users\Pete\Documents\porn\test\older\blc`) -- ugh!
+--      load_file(`C:\Users\Pete\Documents\porn\test\older\blc`) -- ugh!
+--      load_file(`C:\Program Files (x86)\Phix\demo\GDIview\32\GDIview.exe`) -- UPX-compressed (now uncompressed)
 --      load_file(`C:\Users\Pete\Documents\porn\test\older\Blc1`) -- ugh!
 --      load_file(`C:\gtkX\bin\gtk3-demo.exe`) -- 32 bit!!
 --      load_file(`C:\gtkX\bin\libgtk-3-0.dll`)
@@ -11710,11 +11862,14 @@ procedure mainELF()
 --      load_file(`C:\Users\Pete\.julia\packages\WinRPM\Y9QdZ\deps\usr\i686-w64-mingw32\sys-root\mingw\bin\libgtk-win32-2.0-0.dll`)
 --      load_file(`C:\Program Files (x86)\Phix\test.exe`)
 --      load_file(`C:\Program Files (x86)\Phix\demo\misc\eugraphix\wingraph12.dll`)
+--      load_file(`C:\Program Files (x86)\Phix\demo\theGUI\win_gtk64a\libgtk-win32-2.0-0.dll`) -- 64bit!
+        load_file(`C:\Program Files (x86)\Phix\demo\theGUI\precompiled-sdk\gtk32\gtk-3-vs16.dll`)
 --      load_file(`C:\Program Files (x86)\Phix\demo\rpi\elf32hw`)
 --DEV does not reset tabs properly when manually opened...
 --      load_file(`C:\Program Files (x86)\Phix\pwa\test.htm`)
 --      load_file(`C:\Program Files (x86)\Phix\test.exe`) -- (from go build)
 --      load_file(`C:\Program Files (x86)\Phix\demo\rosetta\bw.bmp`)
+--      load_file(`C:\Program Files (x86)\Phix\e07`) -- still says x86...
 --      load_file(`E:\downloads\misc\wren\PicoMite_Firmware\PicoMiteV5.07.04.uf2`)
             -- many "UF2.WQ]" spotted...
 --      load_file(`E:\downloads\misc\wren\qemu\puttyarm\PLINK.EXE`)
@@ -11735,7 +11890,7 @@ procedure mainELF()
 --      load_file(`E:\downloads\misc\wren\qemu\putty\printpi`) -- """
 --bsf:
 --offs: take this and see what [if any] segments you can blat with \0 and it still works...
---      make one with those all-imposrtant dlopen/dlsym... Install IUP?.
+--      make one with those all-important dlopen/dlsym... Install IUP?.
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw2`)  -- (14 tabs)
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw3`)  -- (15 tabs)
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hwX`)  -- (15 tabs)
@@ -11743,8 +11898,11 @@ procedure mainELF()
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hwZr`) -- (7 tabs, borken) [and still borken] [but at least the relocs now appear ok]
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw7`)  -- (3 tabs, data-less)
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw5`)  -- (15 tabs, 1604)
+--      load_file(`E:\downloads\misc\wren\qemu\putty\hw5`)  -- (16 tabs, 1732 with dlopen/dlsym .. but Symtab empty... [DEV fixme! - much better with bPhixGenerated=false])
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw5np`)    -- (16 tabs, 1408)
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw5r`) -- (7 tabs, #21C = 540) [GOOD!!!]
+--      load_file(`E:\downloads\misc\wren\qemu\putty\hw5s`) -- (7 tabs, #21C = 540) [GOOD!!!]
+--      load_file(`E:\downloads\misc\wren\qemu\putty\libc-2.13.so`) -- (more than a wee bit hopeful, tbh...)
 --      load_file(`C:\Users\Pete\Documents\porn\test\older\p64`)
 --      load_file(`E:\downloads\misc\arm\2012-07-15-wheezy-raspbian\1\bin\nano`) -- (was a bit hopeful, that...)
 --      load_file(`E:\downloads\misc\wren\qemu\putty\hw5npr`)   -- (16 tabs, 1408) [GOOD]
@@ -11758,6 +11916,8 @@ procedure mainELF()
 --      load_file(`E:\downloads\misc\wren\qemu\putty\cmdline`)  -- hmm, 6 tabs... (rework as fasmarm [DONE:])
 --      load_file(`E:\downloads\misc\arm\FASMARM_win32\cmdln`)  -- "", yay, 3 tabs!!
 --      load_file(`E:\downloads\misc\arm\FASMARM_win32\envlst`)  -- "", yay, 3 tabs!!
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\envlst`)  -- "", yay, 3 tabs!!
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\EXAMPLES\ARMELF\armelf`)
 --      load_file(`E:\downloads\misc\arm\minimal-arm-elf-master\helloworld\hello`)  -- nope...
 --      load_file(`E:\downloads\misc\arm\minimal-arm-elf-master\helloworld\chello`) -- rubbish
 --GraphR:{{"ELF Header (#0..#33)",0,52},{"Program Headers (#34..#73)",52,64},{"Code Segment (#8074..#8097)",32884,36}}
@@ -11795,6 +11955,27 @@ XX/03/2021  21:27            19,140 ldd-arm-static
 15/03/2021  21:27           783,432 strace-android-static
 15/03/2021  21:27           541,964 telnetd-static
 15/03/2021  21:27           590,709 xxd-armel-static
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\gdb-arm-static-7.11`)             -- nope
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\gdbserver-armel-static-8.0.1`)    -- nope
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\ltrace-arm-static-0.7.91`)        -- nope
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\ldd-arm-static`)  -- 32 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\nc-arm-static`)   -- 28 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\nc-armel-static`) -- 28 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\netstat-armel-static`) -- 30 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\ifconfig-armel-static`) -- 30 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\datapipe-armel-static`) -- 30 sections
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\`)
+--      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\`)
+947d94994555662758c6ad57ec25672e40ce688e135e9b81090d1d58b34392b2  socat-armel-static
+b4ce411a404dda84effa7fe4bcc5f045330711fe5436e059ab2370781eb3fb49  nohup-armel-static
+52b6b5bceb3db5856166457f2047dd503a4e6aec3bbe50388978029149b6c977  dd-armel-static
+50f5e7d7ab83bdb674e013da4c54ad81766a013597de502c43f6fbeb2f00b8f3  id-armel-static
+22b8bb65ff649d6a33b4ef9e216c0f7560b52014d6ae5a3817880e1bd6a12bfa  strace-android-static
+04b956d9c5c5682623359b5f16accbafe90d513eefc7b54a9962a98f770f2f9e  xxd-armel-static
+bca854d2209e2cdd5cb83fdb88d3e66543efdf5890c02eb15f555c5d6290b360  lsof-armel-static
+3fc7b82244e1da23f6ada3f270ec7ae76d59f3ec4f5c05e0560206e575283cd1  telnetd-static
+995d2acd901b92c0e039f0e168e951e9408c817ffb71fd853c55c811cacbb87d  lspci-static
+92baf98acc85b73234fcb776eb034fb2c226252ab6462826c23dd15540ca9a62  setpci-static
 --*/
 --      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\ldd-arm-static`)
 --      load_file(`E:\downloads\misc\arm\FASMARM_win32\static-arm-bins-master\lsof-armel-static`)
@@ -11813,7 +11994,7 @@ XX/03/2021  21:27            19,140 ldd-arm-static
 --      load_file(`E:\downloads\misc\arm\ldap_client\dll\DLL\HXDLL\HXDLL\WLDAP32.DLL`)
 --      load_file(`C:\Windows\system32\wldap32.dll`)
 --      load_file(`C:\Windows\sysWOW64\wldap32.dll`)
---      load_file(`E:\downloads\misc\arm\asm\hw`)
+--      load_file(`E:\downloads\misc\arm\asm\hw`) -- x64 elf
 --      load_file(`E:\downloads\misc\arm\asm\p64`)
 --      load_file(`E:\downloads\misc\wren\wren_cli-windows-0.3.0\wren_cli-0.3.0.exe`)   -- nah!
 --/*
@@ -11993,6 +12174,11 @@ C:\Users\Pete\Downloads\FASMARM_full.ZIP 681.00 KB 05/05/2017 18:12:29
     --  load_file(`C:\Program Files (x86)\Phix\asm\fasm\EXAMPLES\WIN64\OPENGL\OPENGL.EXE`)
 --      load_file(`C:\Program Files (x86)\Phix\demo\libxlsxwriter\mfasm\EXAMPLES\ARM\TEST.BIN`)
 --      load_file(`C:\Program Files (x86)\Phix\demo\misc\euchipmunkphy\chipmunk.dll`)
+--      load_file(`E:\downloads\Edita14\com.jecelyin\lib\armeabi\libCharsetDetector.so`)
+--      load_file(`E:\downloads\Edita14\com.jecelyin\lib\armeabi\libgrep.so`)
+--      load_file(`E:\downloads\Edita14\com.jecelyin\lib\armeabi\libhighlight.so`)
+--      load_file(`E:\downloads\misc\js\Download\love\love-0.10.2-android\lib\armeabi\liblove.so`)
+--      load_file(`C:\Program Files (x86)\Phix\docs\phix\images\gTable80.png`)
     else
         load_file("/usr/lib/libiup.so")
     end if

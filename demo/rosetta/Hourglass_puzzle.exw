@@ -107,6 +107,37 @@ solve({4,5},7)   -- (logo solution stops timer at t=12, this manages t=11)
 solve({7,11},15) -- (logo solution stops timer at t=22, this manages t=15)
 solve({5,8},14)  -- (logo solution stops timer at t=24, this manages t=19)
 
+--for want=1 to 20 do
+--  solve({4,7},want)
+--end for
+
+procedure findinterval(integer want, t1, t2)
+--function findinterval(integer want, t1, t2)
+    for i=0 to want*t1*t2 do -- (aside: slight overrun, makes no odds)
+        if (rmdr(i+want,t1)=0 or rmdr(i+want,t2)=0) and (rmdr(i,t1)=0 or rmdr(i,t2)=0) then
+            printf(1,"To get %d minute%s, Start at time %d and End at time %d\n",{want,iff(want=1?"":"s"),i,i+want})
+            return
+--          return i
+        end if
+    end for
+    printf(1,"%d is not possible\n",want)
+end procedure
+--  return -1
+--end function
+
+--for want=1 to 20 do
+--  findinterval(want, 4, 7)
+--end for
+if 0 then
+    puts(1,"\n\nPerl equivalent:\n")
+    papply(true,findinterval,{tagset(20),4,7})
+end if
+--sequence r = apply(true,findinterval,{tagset(20),4,7})
+-- Same output, you would however have to fiddle about with your timers quite a bit more before you can start cooking:
+--Perl setup times [1..20 with 4 and 7 timers]: {7,12,4,0,7,8,0,0,7,4,21,0,7,0,20,0,4,14,16,0}
+--Phix setup times [1..20 with 4 and 7 timers]: {7,7,4,0,7,4,0,0,0,0,0,0,4,0,0,0,0,0,0,0}
+
+
 puts(1,"\nPress enter...")
 {} = wait_key()
 --/*
@@ -156,4 +187,142 @@ At t=11, flip 8, then when 8 runs out...
 At t=19, stop timer
 --*/
 
+--/*
+Perl:
+use strict;
+use warnings;
+use feature 'bitwise';
 
+findinterval( $_, 4, 7 ) for 1 .. 20;
+
+sub findinterval
+  {
+  my ($want, $hour1, $hour2) = @_;
+  local $_ = (('1' |. ' ' x $hour1) x $hour2 | ('2' |. ' ' x $hour2) x $hour1) x $want;
+  print /(?=\d).{$want}(?=\d)/
+    ? "To get $want minute@{[$want == 1 ? '' : 's'
+      ]}, Start at time $-[0] and End at time $+[0]\n"
+    : "$want is not possible\n";
+  }
+and obtain the following output
+To get 1 minute, Start at time 7 and End at time 8
+To get 2 minutes, Start at time 12 and End at time 14
+To get 3 minutes, Start at time 4 and End at time 7
+To get 4 minutes, Start at time 0 and End at time 4
+To get 5 minutes, Start at time 7 and End at time 12
+To get 6 minutes, Start at time 8 and End at time 14
+To get 7 minutes, Start at time 0 and End at time 7
+To get 8 minutes, Start at time 0 and End at time 8
+To get 9 minutes, Start at time 7 and End at time 16
+To get 10 minutes, Start at time 4 and End at time 14
+To get 11 minutes, Start at time 21 and End at time 32
+To get 12 minutes, Start at time 0 and End at time 12
+To get 13 minutes, Start at time 7 and End at time 20
+To get 14 minutes, Start at time 0 and End at time 14
+To get 15 minutes, Start at time 20 and End at time 35
+To get 16 minutes, Start at time 0 and End at time 16
+To get 17 minutes, Start at time 4 and End at time 21
+To get 18 minutes, Start at time 14 and End at time 32
+To get 19 minutes, Start at time 16 and End at time 35
+To get 20 minutes, Start at time 0 and End at time 20
+
+====
+To get 1 minute, Start at time 7 and End at time 8
+To get 2 minutes, Start at time 12 and End at time 14
+To get 3 minutes, Start at time 4 and End at time 7
+To get 4 minutes, Start at time 0 and End at time 4
+To get 5 minutes, Start at time 7 and End at time 12
+To get 6 minutes, Start at time 8 and End at time 14
+To get 7 minutes, Start at time 0 and End at time 7
+To get 8 minutes, Start at time 0 and End at time 8
+To get 9 minutes, Start at time 7 and End at time 16
+To get 10 minutes, Start at time 4 and End at time 14
+To get 11 minutes, Start at time 21 and End at time 32
+To get 12 minutes, Start at time 0 and End at time 12
+To get 13 minutes, Start at time 7 and End at time 20
+To get 14 minutes, Start at time 0 and End at time 14
+To get 15 minutes, Start at time 20 and End at time 35
+To get 16 minutes, Start at time 0 and End at time 16
+To get 17 minutes, Start at time 4 and End at time 21
+To get 18 minutes, Start at time 14 and End at time 32
+To get 19 minutes, Start at time 16 and End at time 35
+To get 20 minutes, Start at time 0 and End at time 20
+
+import re
+
+def bitwise_or_strings(s1, s2):
+    # Pad the shorter string
+    max_len = max(len(s1), len(s2))
+    s1 = s1.ljust(max_len)
+    s2 = s2.ljust(max_len)
+    return ''.join(chr(ord(a) | ord(b)) for a, b in zip(s1, s2))
+
+def findinterval(want, hour1, hour2):
+    # Equivalent of: ('1' |. ' ' x $hour1) x $hour2
+    seg1 = bitwise_or_strings('1', ' ' * hour1) * hour2
+    # Equivalent of: ('2' |. ' ' x $hour2) x $hour1
+    seg2 = bitwise_or_strings('2', ' ' * hour2) * hour1
+    # Combined pattern and repeated `want` times
+    timeline = bitwise_or_strings(seg1, seg2) * want
+    print(f"timeline:{timeline}")
+
+    # Match `want` characters (of any kind) between two digit-like non-space characters
+    match = re.search(rf'(?=[^\s]).{{{want}}}(?=[^\s])', timeline)
+
+    if match:
+        print(f"To get {want} minute{'s' if want != 1 else ''}, Start at time {match.start()} and End at time {match.end()}")
+    else:
+        print(f"{want} is not possible")
+
+# Run for 1 to 20
+for i in range(1, 21):
+    findinterval(i, 4, 7)
+
+C:\Program Files (x86)\Phix>py test.py
+timeline[1]:3   1  21   1 2 1   12  1
+            1234567890123456789012345678
+To get 1 minute, Start at time 7 and End at time 8
+timeline[2]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+            12345678901234567890123456789012345678901234567890123456
+To get 2 minutes, Start at time 12 and End at time 14
+timeline[3]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+            123456789012345678901234567890123456789012345678901234567890123456789012345678901234
+To get 3 minutes, Start at time 4 and End at time 7
+timeline[4]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 4 minutes, Start at time 0 and End at time 4
+timeline[5]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 5 minutes, Start at time 7 and End at time 12
+timeline[6]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 6 minutes, Start at time 8 and End at time 14
+timeline[7]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 7 minutes, Start at time 0 and End at time 7
+timeline[8]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 8 minutes, Start at time 0 and End at time 8
+timeline[9]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 9 minutes, Start at time 7 and End at time 16
+timeline[10]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 10 minutes, Start at time 4 and End at time 14
+timeline[11]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 11 minutes, Start at time 21 and End at time 32
+timeline[12]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 12 minutes, Start at time 0 and End at time 12
+timeline[13]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 13 minutes, Start at time 7 and End at time 20
+timeline[14]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 14 minutes, Start at time 0 and End at time 14
+timeline[15]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 15 minutes, Start at time 20 and End at time 35
+timeline[16]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 16 minutes, Start at time 0 and End at time 16
+timeline[17]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 17 minutes, Start at time 4 and End at time 21
+timeline[18]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 18 minutes, Start at time 14 and End at time 32
+timeline[19]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 19 minutes, Start at time 16 and End at time 35
+timeline[20]:3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1   3   1  21   1 2 1   12  1
+To get 20 minutes, Start at time 0 and End at time 20
+
+C:\Program Files (x86)\Phix>
+
+--*/

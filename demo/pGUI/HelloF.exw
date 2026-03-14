@@ -22,35 +22,38 @@ include opengl.e
 --  There are four distinct x (left/right) values and five distinct y (up/down) values, and 12 vertices, 
 --  two of which are the same point (where the upright and the top rung meet). 
 --  For a 3D 'F' replicate that with a different z (front/back), now we have 24 vertices.
---  The right hand side of the upright needs (splitting into) two faces and the left hand side of both rungs have none, plus
---  the top of the upright and the top of the top rung are in practice merged together into a single face.
+--  The right hand side of the upright needs (splitting into) two faces and the left hand side of both rungs have none,
+--  plus the top of the upright and the top of the top rung are in practice merged together into a single face.
 --  In total we have 16 faces[1], each of which we are going to specify as two triangles[2].
---  [1] Just to clarify and not of any great significance, 6 of those faces are flat and 5 each are horizonal/vertical edge-on.
+--  [1] Just to clarify and not of any great significance, 6 faces are flat and 5 are horizonal/vertical edge-on.
 --  [2] While OpenGL 1.0's glBegin() supported quads and polygons, OpenGL ES 2.0 and WebGL stop at triangles.  
 --
---  Let that all sink in. If you cannot imagine or arrange a few suitable things on the desktop in front of you to resemble 
---  a 3D 'F', and verify the numbers above (esp 16), then I'm afraid to say you are a lost cause.
---  Don't worry about the units: internally OpenGL maps everything to 0.0..1.0 or -1.0..+1.0 as needed anyway (I think),
+--  Let that all sink in. If you cannot imagine or arrange a few suitable things on the desktop in front of you to 
+--  resemble a 3D 'F', and verify the numbers above (esp 16), then I'm afraid to say you are a lost cause.
+--  Don't worry about the units: internally OpenGL maps everything to 0..1 or -1..+1 as needed anyway (I think),
 --  along with the "camera" position, so just use the numbers you find easiest. Do however bear in mind that we are
 --  (probably) going to be rotating about {0,0,0}, so making that the "centre of gravity" usually helps, though of
 --  course you can specify things more naturally and then add/subtract some {dx,dy,dz} to/from every point.
 --  See sequence F_positions below.
 --
---  It is important to note that each face can be drawn using two triangles in 144 different ways, which could have a significant
---  impact when it comes to applying textures. There are two diagonals that split a rectangle into two triangles, but you can start 
---  on any one of those four, and draw by starting on any of the three corners of a triangle and go clockwise or anticlockwise, so 
---  4*3*2*3*2=144. On top of that we have different pixel coordinates for Canvas Draw and OpenGL, as well as low-level differences 
---  between OpenGL (on the desktop) and WebGL (as in a browser). We need to take the simplest possible route here (and we do).
+--  It is important to note that each face can be drawn using two triangles in 144 different ways, which could have a 
+--  significant impact when it comes to applying textures. There are two diagonals that split a rectangle into two 
+--  triangles, but you can start on any one of those four, and draw by starting on any of the three corners of a 
+--  triangle and go clockwise or anticlockwise, so 4*3*2*3*2=144. On top of that we have different pixel coordinates 
+--  for Canvas Draw and OpenGL, as well as low-level differences between OpenGL (on the desktop) and WebGL (as in a 
+--  browser). We need to take the simplest possible route here (and we do).
 --
---  Next we want to apply a texture to each of those faces. This is a simple matter of matching each and every vertex previously 
---  specified to the corresponding position on the texture. We can make things much simpler by declaring the faces in a consistent
---  manner and applying textures using a standard platform-specific approach, which means opengl.e vs opengl.js in this context.
+--  Next we want to apply a texture to each of those faces. This is a simple matter of matching each and every vertex  
+--  previously specified to the corresponding position on the texture. We can make things much simpler by declaring 
+--  the faces in a consistent manner and applying textures using a standard platform-specific approach, which means 
+--  opengl.e vs opengl.js in this context.
 --  Applying a world map to a sphere needs a bit more math and probably more triangles, but it is basically the same. 
 --
---  The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling glVertexAttribPointer() 
---  with the right size, type, and possibly stride settings, and finally glDrawArrays() with the desired mode, here GL_TRIANGLES, not 
---  forgetting the total length. Of course there are all sorts of other things to achieve smoothing, rotation, lighting effects, and 
---  so on, but this quick little intro endeth here. The following notes are all very specific to this particular program.
+--  The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling 
+--  glVertexAttribPointer() with the right size, type, and possibly stride settings, and finally glDrawArrays() with 
+--  the desired mode, here GL_TRIANGLES, not forgetting the total length. Of course there are all sorts of other 
+--  things to achieve smoothing, rotation, lighting effects, and so on, but this quick little intro endeth here. 
+--  The following notes are all very specific to this particular program.
 --
 -- First define a 2D 'F' as follows
 --
@@ -233,7 +236,7 @@ integer program = 0
 
 function canvas_action_cb(Ihandle /*canvas*/)
 
-    if program=0 then -- (do this lot once only! but not b4 desktop/Phix is ready)
+    if program=0 then -- (do this lot once only! but not before desktop/Phix is ready)
 
         program = create_program({load_shader(vertex_shader, GL_VERTEX_SHADER),
                                   load_shader(fragment_shader, GL_FRAGMENT_SHADER)})
