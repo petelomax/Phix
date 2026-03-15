@@ -378,7 +378,11 @@ local procedure tg_redraw_table(gdx table)
         ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_LINEHT] = line_height
     end if
     bool bActive = gGetAttribute(table,`ACTIVE`)
-    if hov_col and sequence(coldrag) then hov_col = coldrag[hov_col] end if
+    if not bActive then
+        {selected,hov_line,hov_col} = {NULL,0,0}
+    elsif hov_col and sequence(coldrag) then
+        hov_col = coldrag[hov_col]
+    end if
     for i,c in columns do
 -- should have been done in gSetAttribute(table,"COLUMNS")...
         if string(c) then ?9/0 end if
@@ -626,176 +630,176 @@ local procedure tg_redraw_table(gdx table)
         end if
     end for
 end procedure
---internal_rtns &= tg_redraw_table; -- (let/permit/allow this to be a perfectly valid rtn)
 
 --local procedure tg_table_mousemove(gdx table, integer x,y, left,middle,right, bool onscroll)
 local procedure tg_table_mousemove(gdx table, integer x,y, left,middle,right, ctrl,shift,alt, bool onscroll)
 --?9/0
 --?{`tg_table_mousemove`,{x,y}, {left,middle,right}, onscroll}
-    -- note the hover line is completely unaffected by sorting, whereas selected /is/.
-    object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
-            coldrag = tbl_attr[CXTBL_COLDRAG]
---  atom bgclr = ctrl_bg[table],
-    atom bgclr = gGetAttribute(table,`BGCLR`) -- hTable
-    sequence cols = tbl_attr[CXTBL_ACTCOLS]
-    integer {ox,oy,vw,vh} = hGetAttribute(table,`VIEWPORT`),
-             was_hov_line = tbl_attr[CXTBL_HOVLINE],
-              was_hov_col = tbl_attr[CXTBL_HOVCOL],
-                  selmode = tbl_attr[CXTBL_SELMODE],
-                       lh = tbl_attr[CXTBL_LINEHT],
-                      rcx = tbl_attr[CXTBL_RCX],
---X               coldrag = tbl_attr[CXTBL_COLDRAG],
-                  colsize = tbl_attr[CXTBL_COLSIZE],
-               resize_hov = tbl_attr[CXTBL_RESIZEHOV],
-              resize_sink = tbl_attr[CXTBL_RESIZESINK], -- (a ddx)
-               drag_title = tbl_attr[CXTBL_DRAGTITLE],
-                 on_title = 0,
-                   n_cols = length(cols),
-                 hov_line = 0,
-                  hov_col = 0 -- nb display dx
-    tbl_attr = 0 -- (kill refcount)
-    if lh=0 then lh = 24 end if
+    if gGetAttribute(table,`ACTIVE`) then
+        -- note the hover line is completely unaffected by sorting, whereas selected /is/.
+        object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
+                coldrag = tbl_attr[CXTBL_COLDRAG]
+--      atom bgclr = ctrl_bg[table],
+        atom bgclr = gGetAttribute(table,`BGCLR`) -- hTable
+        sequence cols = tbl_attr[CXTBL_ACTCOLS]
+        integer {ox,oy,vw,vh} = hGetAttribute(table,`VIEWPORT`),
+                 was_hov_line = tbl_attr[CXTBL_HOVLINE],
+                  was_hov_col = tbl_attr[CXTBL_HOVCOL],
+                      selmode = tbl_attr[CXTBL_SELMODE],
+                           lh = tbl_attr[CXTBL_LINEHT],
+                          rcx = tbl_attr[CXTBL_RCX],
+--X                   coldrag = tbl_attr[CXTBL_COLDRAG],
+                      colsize = tbl_attr[CXTBL_COLSIZE],
+                   resize_hov = tbl_attr[CXTBL_RESIZEHOV],
+                  resize_sink = tbl_attr[CXTBL_RESIZESINK], -- (a ddx)
+                   drag_title = tbl_attr[CXTBL_DRAGTITLE],
+                     on_title = 0,
+                       n_cols = length(cols),
+                     hov_line = 0,
+                      hov_col = 0 -- nb display dx
+        tbl_attr = 0 -- (kill refcount)
+        if lh=0 then lh = 24 end if
 
-    if not onscroll then
-        if colsize and resize_hov and left then
+        if not onscroll then
+            if colsize and resize_hov and left then
 --?`resize!`
---      if resize_hov and left and not onscroll then
-            -- (cols[widths]:=act_cols, adjusted:)
-            integer rc = resize_hov,
-                    rn = resize_hov+1 -- next non-zero... (no)
-            if sequence(coldrag) then
-                rc = coldrag[rc]
-                rn = coldrag[rn]
-            end if
-            tg_table_transfer_actcols_to_columns(table)
-            integer rcw = cols[rc],
-                    rnw = cols[rn],
-                    nx = x-rcx
-            if rcw+nx<0 then nx = -rcw end if
-            if rnw-nx<0 then nx = rnw end if
-            sequence columns = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = 0
---          for i=resize_hov to resize_hov+1 do
+--          if resize_hov and left and not onscroll then
+                -- (cols[widths]:=act_cols, adjusted:)
+                integer rc = resize_hov,
+                        rn = resize_hov+1 -- next non-zero... (no)
+                if sequence(coldrag) then
+                    rc = coldrag[rc]
+                    rn = coldrag[rn]
+                end if
+                tg_table_transfer_actcols_to_columns(table)
+                integer rcw = cols[rc],
+                        rnw = cols[rn],
+                        nx = x-rcx
+                if rcw+nx<0 then nx = -rcw end if
+                if rnw-nx<0 then nx = rnw end if
+                sequence columns = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = 0
+--              for i=resize_hov to resize_hov+1 do
 --?{"resize_sink",{rcw,rnw},{columns[rc][2],columns[rn][2]},nx}
-            for i in {rc,rn} do
-                columns[i][2] += nx
-                nx = -nx
+                for i in {rc,rn} do
+                    columns[i][2] += nx
+                    nx = -nx
+                end for
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = columns
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] += nx
+                gRedraw(table)
+                return
+            end if
+            hov_line = iff(y<=lh?0:floor((y+oy)/lh))
+            integer w = x+ox, -- (work copy/scratch var)
+                  otl = 0       -- lh edge of on_title
+            for i,cw in cols do
+                if sequence(coldrag) then cw = cols[coldrag[i]] end if
+--              integer cw = cols[table,dd0_to_cdx(i)]
+                hov_col += 1
+                if drag_title=0 and hov_line=0 and colsize and not left then
+                    resize_hov = i<n_cols and abs(cw-w)<=5 -- (nb :=0 important!)
+                    if resize_hov then resize_hov = i exit end if
+                end if
+                on_title = i -- (only kept when c>w)
+                if cw>w then exit end if -- (ie next edge would be past it)
+                w -= cw
+                otl += cw
             end for
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = columns
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] += nx
-            gRedraw(table)
-            return
-        end if
-        hov_line = iff(y<=lh?0:floor((y+oy)/lh))
-        integer w = x+ox, -- (work copy/scratch var)
-              otl = 0       -- lh edge of on_title
-        for i,cw in cols do
-            if sequence(coldrag) then cw = cols[coldrag[i]] end if
---          integer cw = cols[table,dd0_to_cdx(i)]
-            hov_col += 1
-            if drag_title=0 and hov_line=0 and colsize and not left then
-                resize_hov = i<n_cols and abs(cw-w)<=5 -- (nb :=0 important!)
-                if resize_hov then resize_hov = i exit end if
-            end if
-            on_title = i -- (only kept when c>w)
-            if cw>w then exit end if -- (ie next edge would be past it)
-            w -= cw
-            otl += cw
-        end for
 --?{coldrag,drag_title,on_title,left}
-        if coldrag!=false and drag_title and on_title and left then
-            --
-            -- Column dragging: drag_title is a display index, such that
-            --  columns[coldrag[drag_title]] was left-clicked on, where
-            --  coldrag==true is treated as tagset(length(columns)).
-            -- First determine which (display) column the mouse is on
-            --  (already done above and saved in on_title, also otl).
-            -- Flip when doing so would mean the mouse is on the moved
-            --  drag_title, and since that has moved, update/replace it.
-            -- For example with {{description,50},{OK,10}} dragging OK
-            --  left flips when the mouse reaches 0..10, and then drag
-            --  right flips back when the mouse reaches 50..60.
-            -- Note that some columns may be zero-width, so it has to
-            --  cope with {1,0,3,0,5} => {3,1,0,0,5} or {1,0,0,5,3}.
-            --                 ^dt        ^ot                    ^ot
-            -- (were it to shuffle the 0s about quietly, I wouldn't
-            --  care at all, but cw>w won't ever trigger when cw=0,
-            --  besides, we must never replace drag_title with "".)
-            --
-            if on_title!=drag_title then
-                if coldrag==true then coldrag = tagset(length(cols)) end if
-                integer dtw = cols[coldrag[drag_title]],
-                        otw = cols[coldrag[on_title]],
-                        bWasRS = drag_title==resize_sink
-                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG] = 0 -- kill refcount
-                if on_title<drag_title then
-                    if x<=otl+dtw then
-                        sequence lo = coldrag[on_title..drag_title-1]
-                        coldrag[on_title] = coldrag[drag_title]
-                        coldrag[on_title+1..drag_title] = lo
-                        drag_title = 0
+            if coldrag!=false and drag_title and on_title and left then
+                --
+                -- Column dragging: drag_title is a display index, such that
+                --  columns[coldrag[drag_title]] was left-clicked on, where
+                --  coldrag==true is treated as tagset(length(columns)).
+                -- First determine which (display) column the mouse is on
+                --  (already done above and saved in on_title, also otl).
+                -- Flip when doing so would mean the mouse is on the moved
+                --  drag_title, and since that has moved, update/replace it.
+                -- For example with {{description,50},{OK,10}} dragging OK
+                --  left flips when the mouse reaches 0..10, and then drag
+                --  right flips back when the mouse reaches 50..60.
+                -- Note that some columns may be zero-width, so it has to
+                --  cope with {1,0,3,0,5} => {3,1,0,0,5} or {1,0,0,5,3}.
+                --                 ^dt        ^ot                    ^ot
+                -- (were it to shuffle the 0s about quietly, I wouldn't
+                --  care at all, but cw>w won't ever trigger when cw=0,
+                --  besides, we must never replace drag_title with "".)
+                --
+                if on_title!=drag_title then
+                    if coldrag==true then coldrag = tagset(length(cols)) end if
+                    integer dtw = cols[coldrag[drag_title]],
+                            otw = cols[coldrag[on_title]],
+                            bWasRS = drag_title==resize_sink
+                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG] = 0 -- kill refcount
+                    if on_title<drag_title then
+                        if x<=otl+dtw then
+                            sequence lo = coldrag[on_title..drag_title-1]
+                            coldrag[on_title] = coldrag[drag_title]
+                            coldrag[on_title+1..drag_title] = lo
+                            drag_title = 0
+                        end if
+                    else -- on_title>drag_title
+                        if x>=otl+otw-dtw then
+                            sequence hi = coldrag[drag_title+1..on_title]
+                            coldrag[on_title] = coldrag[drag_title]
+                            coldrag[drag_title..on_title-1] = hi
+                            drag_title = 0
+                        end if
                     end if
-                else -- on_title>drag_title
-                    if x>=otl+otw-dtw then
-                        sequence hi = coldrag[drag_title+1..on_title]
-                        coldrag[on_title] = coldrag[drag_title]
-                        coldrag[drag_title..on_title-1] = hi
-                        drag_title = 0
+                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG] = coldrag
+                    if drag_title=0 then
+                        -- both CXTBL_RESIZESINK and CXTBL_DRAGTITLE are ddx [FFS cdx!!]
+--                      on_title_ddx = on_title*10+1
+--                      on_title_ddx = tg_make_ddx(on_title)
+                        if bWasRS then
+                            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = on_title
+                        end if
+                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = on_title
+                        gRedraw(table)
                     end if
                 end if
-                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG] = coldrag
-                if drag_title=0 then
-                    -- both CXTBL_RESIZESINK and CXTBL_DRAGTITLE are ddx [FFS cdx!!]
---                  on_title_ddx = on_title*10+1
---                  on_title_ddx = tg_make_ddx(on_title)
-                    if bWasRS then
-                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = on_title
-                    end if
-                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = on_title
-                    gRedraw(table)
-                end if
+                return
             end if
-            return
-        end if
 --*!/
-    end if
+        end if
 --/!*
 --DEV this is right clever 'n all, but all in the wrong place!!! - it needs to be in click!! (no, not WE_RESIZE)
 --/!*
 --?{"mousemove",colsize,resize_hov,hov_line}
-    if colsize and resize_hov and hov_line=0 then
+        if colsize and resize_hov and hov_line=0 then
 --?{`resize!`,resize_hov}
 --?"CURSOR WE"
-        gSetAttribute(table,`CURSOR`,`WE_RESIZE`)
-        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = resize_hov
-        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] = x
+            gSetAttribute(table,`CURSOR`,`WE_RESIZE`)
+            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = resize_hov
+            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] = x
 --NO, only once we shift_click down...
---  elsif on_title and shift and hov_line=0 then
+--      elsif on_title and shift and hov_line=0 then
 --/*
-    elsif coldrag!=false and on_title and shift and hov_line=0 then
+        elsif coldrag!=false and on_title and shift and hov_line=0 then
 ?"size_all"
-        gSetAttribute(table,`CURSOR`,`SIZE_ALL`)
-        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = 0
+            gSetAttribute(table,`CURSOR`,`SIZE_ALL`)
+            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = 0
 if drag_title=0 then
-        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = on_title
+            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = on_title
 end if
---      ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] = x
+--          ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RCX] = x
 --*/
-    else
+        else
 --?"CURSOR NULL (move)"
-        gSetAttribute(table,`CURSOR`,NULL)
-        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = 0
+            gSetAttribute(table,`CURSOR`,NULL)
+            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZEHOV] = 0
 --*!/
-        if hov_line!=was_hov_line
-        or hov_col!=was_hov_col then
-            -- (nb we still need these even when bghov==bgclr)
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_HOVLINE] = hov_line
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_HOVCOL] = hov_col
-            gRedraw(table)
+            if hov_line!=was_hov_line
+            or hov_col!=was_hov_col then
+                -- (nb we still need these even when bghov==bgclr)
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_HOVLINE] = hov_line
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_HOVCOL] = hov_col
+                gRedraw(table)
+            end if
         end if
     end if
 end procedure
---internal_rtns &= tg_table_mousemove; -- (let/permit/allow this to be a perfectly valid rtn)
 
 procedure tg_table_mouseleave(gdx table)
 --?`tg_table_mouseleave`
@@ -807,7 +811,6 @@ procedure tg_table_mouseleave(gdx table)
         gRedraw(table)
     end if
 end procedure
---internal_rtns &= tg_table_mouseleave; -- (let/permit/allow this to be a perfectly valid rtn)
 
 --DEV no such routine in theGUI.e as yet... [CLEANUP RQD]
 local procedure tg_table_set_top_line(gdx table, integer top_line=-1, col=-1)
@@ -1049,88 +1052,89 @@ end procedure
 
 local procedure tg_table_click(gdx table, sequence status, integer x, y) 
 --?{`tg_list_click`,status, x, y}
-    object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
-            coldrag = tbl_attr[CXTBL_COLDRAG],
-               cols = tbl_attr[CXTBL_COLSORT],
-             colset = tbl_attr[CXTBL_SORTCOLS]
---             tags = tbl_attr[CXTBL_TAGSET],
---             itag = tbl_attr[CXTBL_INVTAG]
-    sequence data = tbl_attr[CXTBL_DATA][1]
-    integer col = tbl_attr[CXTBL_HOVCOL],       -- ddx
-           line = tbl_attr[CXTBL_HOVLINE],
-        selmode = tbl_attr[CXTBL_SELMODE],
-     resize_hov = tbl_attr[CXTBL_RESIZEHOV], -- (don't colsort or select when non-zero)
-    resize_sink = tbl_attr[CXTBL_RESIZESINK], -- a ddx
-     drag_title = tbl_attr[CXTBL_DRAGTITLE], -- (ditto)
-         n_rows = length(data)
-    tbl_attr = 0 -- (kill refcount)
+    if gGetAttribute(table,`ACTIVE`) then
+        object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
+                coldrag = tbl_attr[CXTBL_COLDRAG],
+                   cols = tbl_attr[CXTBL_COLSORT],
+                 colset = tbl_attr[CXTBL_SORTCOLS]
+--                 tags = tbl_attr[CXTBL_TAGSET],
+--                 itag = tbl_attr[CXTBL_INVTAG]
+        sequence data = tbl_attr[CXTBL_DATA][1]
+        integer col = tbl_attr[CXTBL_HOVCOL],       -- ddx
+               line = tbl_attr[CXTBL_HOVLINE],
+            selmode = tbl_attr[CXTBL_SELMODE],
+         resize_hov = tbl_attr[CXTBL_RESIZEHOV], -- (don't colsort or select when non-zero)
+        resize_sink = tbl_attr[CXTBL_RESIZESINK], -- a ddx
+         drag_title = tbl_attr[CXTBL_DRAGTITLE], -- (ditto)
+             n_rows = length(data)
+        tbl_attr = 0 -- (kill refcount)
 --?{`col`,col,`resize_hov`,resize_hov}
---  if status[1..2]=`LS` and col then
---  if status[1..2]=`LS` and col and resize_hov=0 and drag_title=0 then
---  if status[1..2]=`LR` and col then -- (see below/partial)
---      ?{`click`,line,col}
-    if status[1]='L' then
-        if status[2]='S' and col and resize_hov=0 and drag_title=0 then
-            if line=0 then
-                bool ctrl = status[3],
-                    shift = status[4]
+--      if status[1..2]=`LS` and col then
+--      if status[1..2]=`LS` and col and resize_hov=0 and drag_title=0 then
+--      if status[1..2]=`LR` and col then -- (see below/partial)
+--          ?{`click`,line,col}
+        if status[1]='L' then
+            if status[2]='S' and col and resize_hov=0 and drag_title=0 then
+                if line=0 then
+                    bool ctrl = status[3],
+                        shift = status[4]
 --DEV not yet working for coldrag... [I THINK IT IS...]
-                if ctrl then -- resize sink
-                    tg_table_transfer_actcols_to_columns(table)
-                    if shift then
-                        -- reveal/hide any "lost" columns with widths <= 5:
-                        sequence columns = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]
-                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = 0
-                        integer coldx = iff(sequence(coldrag)?coldrag[col]:col),
-                                   cw = columns[coldx][2]
-                        for i,c in columns do -- (each c being {title,width,align})
-                            c = c[2]          --                      ^
-                            if i!=coldx then  -- (not the resize sink itself!)
-                                if    c=5           then cw += 5    c = 0
-                                elsif c<5 and cw>10 then cw -= 5-c  c = 5 end if
-                                columns[i][2] = c
-                            end if
-                        end for
-                        columns[coldx][2] = cw
-                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = columns
-                    end if
-                    -- toggle, or just replace if/when moved:
-                    if col=resize_sink then col = 0 end if
-                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = col      -- THAT'S A DDX
-                elsif shift and line=0 and col then
---?"CURSOR ALL (shift click)"
-                    gSetAttribute(table,`CURSOR`,`SIZE_ALL`)
-                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = col
---SUG maybe alt-click to (restore) fixed width handling?
-                else
---?"ZRS"
-                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = 0
---DEV wrong for column resize/drag.... (needs to be LR and not recently dragged...)
-                    -- column sort
-                    if col and sequence(coldrag) then col = coldrag[col] end if
-                    if cols=true -- (ignore sort attempts when false)
-                    or (sequence(cols) and cols[col]) then
-                        if atom(colset) then
-                            colset = {col}
-                        else
-                            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SORTCOLS] = NULL
-                            if col=colset[1] then
-                                colset[1] = -col
-                            elsif col=-colset[1] then
-                                if length(colset)=1 then
-                                    colset = true
-                                else
-                                    colset = colset[2..$]
+                    if ctrl then -- resize sink
+                        tg_table_transfer_actcols_to_columns(table)
+                        if shift then
+                            -- reveal/hide any "lost" columns with widths <= 5:
+                            sequence columns = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]
+                            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = 0
+                            integer coldx = iff(sequence(coldrag)?coldrag[col]:col),
+                                       cw = columns[coldx][2]
+                            for i,c in columns do -- (each c being {title,width,align})
+                                c = c[2]          --                      ^
+                                if i!=coldx then  -- (not the resize sink itself!)
+                                    if    c=5           then cw += 5    c = 0
+                                    elsif c<5 and cw>10 then cw -= 5-c  c = 5 end if
+                                    columns[i][2] = c
                                 end if
-                            else
-                                integer k = find(col,sq_abs(colset))
-                                -- (implicitly k!=1 here, and when k!=0
-                                --  then "" length(cols)>1 as well, btw)
-                                if k then colset[k..k] = {} end if
-                                colset = prepend(colset,col)
-                            end if
+                            end for
+                            columns[coldx][2] = cw
+                            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS] = columns
                         end if
-                        tg_table_set_tagsets(table,colset)
+                        -- toggle, or just replace if/when moved:
+                        if col=resize_sink then col = 0 end if
+                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = col      -- THAT'S A DDX
+                    elsif shift and line=0 and col then
+--?"CURSOR ALL (shift click)"
+                        gSetAttribute(table,`CURSOR`,`SIZE_ALL`)
+                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = col
+--SUG maybe alt-click to (restore) fixed width handling?
+                    else
+--?"ZRS"
+                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK] = 0
+--DEV wrong for column resize/drag.... (needs to be LR and not recently dragged...)
+                        -- column sort
+                        if col and sequence(coldrag) then col = coldrag[col] end if
+                        if cols=true -- (ignore sort attempts when false)
+                        or (sequence(cols) and cols[col]) then
+                            if atom(colset) then
+                                colset = {col}
+                            else
+                                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SORTCOLS] = NULL
+                                if col=colset[1] then
+                                    colset[1] = -col
+                                elsif col=-colset[1] then
+                                    if length(colset)=1 then
+                                        colset = true
+                                    else
+                                        colset = colset[2..$]
+                                    end if
+                                else
+                                    integer k = find(col,sq_abs(colset))
+                                    -- (implicitly k!=1 here, and when k!=0
+                                    --  then "" length(cols)>1 as well, btw)
+                                    if k then colset[k..k] = {} end if
+                                    colset = prepend(colset,col)
+                                end if
+                            end if
+                            tg_table_set_tagsets(table,colset)
 --selmode = tbl_attr[CXTBL_SELMODE],
 --/*
     if sequence(tags) then line = tags[line] end if
@@ -1145,54 +1149,56 @@ local procedure tg_table_click(gdx table, sequence status, integer x, y)
 --                            {   CXTBL_SELMODE:=$,'B',`SELMODE`    }, -- t/f/-1 for cell/line/multi
 --                            {  CXTBL_SELECTED:=$,'O',`SELECTED`   }, -- line or {line,col}, r/cdx
 
-                        object sel = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED]
-                        if selmode=1 and sequence(sel) then -- cell: {line,col}
-                            sel = sel[1]
+                            object sel = ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED]
+                            if selmode=1 and sequence(sel) then -- cell: {line,col}
+                                sel = sel[1]
+                            end if
+--                          tg_table_ensure_visible(gdx table, integer line, col=-1)
+                            if atom(sel) and sel!=NULL then
+                                tg_table_ensure_line_visible(table, sel, true)
+                            end if
+                            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SSTART] = 0
                         end if
---                      tg_table_ensure_visible(gdx table, integer line, col=-1)
-                        if atom(sel) and sel!=NULL then
-                            tg_table_ensure_line_visible(table, sel, true)
-                        end if
-                        ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SSTART] = 0
                     end if
+                else
+                    integer ctrl = status[3],
+                           shift = status[4]
+                    tg_table_set_selection(table,line,col,ctrl,shift)
                 end if
-            else
-                integer ctrl = status[3],
-                       shift = status[4]
-                tg_table_set_selection(table,line,col,ctrl,shift)
-            end if
-            gRedraw(table)
---      elsif status[2]='R' and col then -- (see below/partial)
---      elsif status[2]='R' and drag_title then
-        elsif status[2]='R' then
-            if not resize_hov then
+                gRedraw(table)
+--          elsif status[2]='R' and col then -- (see below/partial)
+--          elsif status[2]='R' and drag_title then
+            elsif status[2]='R' then
+                if not resize_hov then
 --?"CURSOR NULL (clickLR)"
-                gSetAttribute(table,`CURSOR`,NULL)
-            end if
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = 0
+                    gSetAttribute(table,`CURSOR`,NULL)
+                end if
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DRAGTITLE] = 0
 --   resize_hov = tbl_attr[CXTBL_RESIZEHOV], -- (don't colsort or select when non-zero)
 -- nope...
---          tg_table_restore_columns(table)
+--              tg_table_restore_columns(table)
+            end if
         end if
     end if
 end procedure
 
 local function tg_table_key(gdx table, integer c, bool ctrl, shift)--, alt, up)
 -- note: this replaces tg_scrollbar_key_handler in h_scrollbars.e, except for mousewheel use.
-    object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
-           selected = tbl_attr[CXTBL_SELECTED],
-            coldrag = tbl_attr[CXTBL_COLDRAG],
-               itag = tbl_attr[CXTBL_INVTAG],
-               tags = tbl_attr[CXTBL_TAGSET]
---  sequence data = tbl_attr[CXTBL_DATA][1]
-    integer selmode = tbl_attr[CXTBL_SELMODE],
-             n_cols = length(tbl_attr[CXTBL_COLUMNS]),
---           n_rows = length(data)      
-               line = tbl_attr[CXTBL_CURSORY],
-                col = tbl_attr[CXTBL_CURSORX],
-           top_line = tbl_attr[CXTBL_TOPLINE], // shd be SDX
-             n_rows = tbl_attr[CXTBL_N_ROWS], -- aka length(data)
-                lpp = tbl_attr[CXTBL_LINESPP]
+    if gGetAttribute(table,`ACTIVE`) then
+        object tbl_attr = ctrl_xtra[table][CX_GTL_ATTRS],
+               selected = tbl_attr[CXTBL_SELECTED],
+                coldrag = tbl_attr[CXTBL_COLDRAG],
+                   itag = tbl_attr[CXTBL_INVTAG],
+                   tags = tbl_attr[CXTBL_TAGSET]
+--      sequence data = tbl_attr[CXTBL_DATA][1]
+        integer selmode = tbl_attr[CXTBL_SELMODE],
+                 n_cols = length(tbl_attr[CXTBL_COLUMNS]),
+--               n_rows = length(data)      
+                   line = tbl_attr[CXTBL_CURSORY],
+                    col = tbl_attr[CXTBL_CURSORX],
+               top_line = tbl_attr[CXTBL_TOPLINE], // shd be SDX
+                 n_rows = tbl_attr[CXTBL_N_ROWS], -- aka length(data)
+                    lpp = tbl_attr[CXTBL_LINESPP]
 
 --/*
 --      resize_hov = tbl_attr[CXTBL_RESIZEHOV],
@@ -1212,88 +1218,89 @@ sel = {line,col}                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED] =
                     sel = line
                 elsif selmode=-1 then -- multi
 --*/
-    tbl_attr = 0 -- kill refcount
-    if ctrl then
-        if upper(c)='A' then
-            if selmode=-1 then -- multiple
-                selected = repeat(true,n_rows)
-                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED] = selected
+        tbl_attr = 0 -- kill refcount
+        if ctrl then
+            if upper(c)='A' then
+                if selmode=-1 then -- multiple
+                    selected = repeat(true,n_rows)
+                    ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED] = selected
+                    gRedraw(table)
+                end if
+            end if
+        elsif c=VK_LEFT
+           or c=VK_RIGHT then
+            if selmode=1 then -- cell
+--              integer line = 1, col = 1
+                if sequence(selected) then
+                    {line,col} = selected
+                    if sequence(coldrag) then
+                        for i,ci in coldrag do
+                            if ci=col then
+                                if c=VK_LEFT and i>1 then
+                                    col = coldrag[i-1]
+                                elsif c=VK_RIGHT and i<n_cols then
+                                    col = coldrag[i+1]
+                                end if
+                                exit
+                            end if
+                        end for
+                    else
+                        if c=VK_LEFT and col>1 then
+                            col -= 1
+                        elsif c=VK_RIGHT and col<n_cols then
+                            col += 1
+                        end if
+                    end if
+                else
+--                  line = 1
+--                   col = 1
+--                  if sequence(coldrag) then col = find(col,coldrag) end if
+--                  if sequence(coldrag) then col = coldrag[1] end if
+--                  if sequence(itag) then line = itag[1] end if
+--                  if sequence(tags) then line = tags[1] end if
+                    line = iff(sequence(tags)?tags[1]:1)
+                    col = iff(sequence(coldrag)?coldrag[1]:1)
+                end if          
+--?{line,col,ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DATA][1][line],itag,tags}
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED] = {line,col}
+--DEV line is an RDX here..
+                tg_table_ensure_visible(table,line,col) -- (primarily widthwise here)
                 gRedraw(table)
             end if
-        end if
-    elsif c=VK_LEFT
-       or c=VK_RIGHT then
-        if selmode=1 then -- cell
---          integer line = 1, col = 1
-            if sequence(selected) then
-                {line,col} = selected
-                if sequence(coldrag) then
-                    for i,ci in coldrag do
-                        if ci=col then
-                            if c=VK_LEFT and i>1 then
-                                col = coldrag[i-1]
-                            elsif c=VK_RIGHT and i<n_cols then
-                                col = coldrag[i+1]
-                            end if
-                            exit
-                        end if
-                    end for
-                else
-                    if c=VK_LEFT and col>1 then
-                        col -= 1
-                    elsif c=VK_RIGHT and col<n_cols then
-                        col += 1
-                    end if
-                end if
-            else
---              line = 1
---               col = 1
---              if sequence(coldrag) then col = find(col,coldrag) end if
---              if sequence(coldrag) then col = coldrag[1] end if
---              if sequence(itag) then line = itag[1] end if
---              if sequence(tags) then line = tags[1] end if
-                line = iff(sequence(tags)?tags[1]:1)
-                col = iff(sequence(coldrag)?coldrag[1]:1)
-            end if          
---?{line,col,ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_DATA][1][line],itag,tags}
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_SELECTED] = {line,col}
---DEV line is an RDX here..
-            tg_table_ensure_visible(table,line,col) -- (primarily widthwise here)
-            gRedraw(table)
-        end if
 --temp/test:
-    elsif c='5' then
-        integer tl = 15
---      if sequence(tags) then tl = tags[tl] end if -- display -> data idx
-        if sequence(itag) then tl = itag[tl] end if -- data -> display idx
-        tg_table_set_top_line(table,tl)
---      tg_table_set_top_line(table,15,true)
-    elsif c='!' then 
-        ?9/0
-    elsif c='?' then 
-        ?{"CXTBL_COLUMNS",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]}
-        ?{"CXTBL_COLDRAG",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG]}
-        ?{"CXTBL_RESIZESINK",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK]}
-        ?{"CXTBL_ACTCOLS",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_ACTCOLS]}
-        ?{"VIEWPORT",hGetAttribute(table,`VIEWPORT`)}
---  elsif upper(c)='X' then
---      gToggleInt(table,`ACTIVE`) -- (nb one-way!)
---  elsif not find(c,{VK_LSHIFT,VK_RSHIFT,VK_LCTRL,VK_RCTRL}) then
---      ?{`tg_table_key`,gGetKeyName(c),ctrl,shift}--,alt,up}
-    else
-        switch c do
-            case VK_UP:     line = max(line-1,1)            top_line = min(top_line,line)
-            case VK_DOWN:   line = min(line+1,n_rows)       top_line = max(top_line,line-lpp+1)
-            case VK_PGUP:   line = max(line-lpp,1)          top_line = max(top_line-lpp,1)
-            case VK_PGDN:   line = min(line+lpp,n_rows)     top_line = min(top_line+lpp,n_rows)
-            case VK_HOME:   line = 1                        top_line = 1
-            case VK_END:    line = n_rows                   top_line = max(top_line,line-lpp+1)
-            default: c = 0
-        end switch
-        if c then
-            tg_table_set_top_line(table,top_line)
-            ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_CURSORY] = line -- (an SDX)
-            tg_table_set_selection(table,line,col,false,shift)
+        elsif c='5' then
+            integer tl = 15
+--          if sequence(tags) then tl = tags[tl] end if -- display -> data idx
+            if sequence(itag) then tl = itag[tl] end if -- data -> display idx
+            tg_table_set_top_line(table,tl)
+--          tg_table_set_top_line(table,15,true)
+        elsif c='!' then 
+            ?9/0
+        elsif c='?' then 
+            ?{"CXTBL_COLUMNS",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLUMNS]}
+            ?{"CXTBL_COLDRAG",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_COLDRAG]}
+            ?{"CXTBL_RESIZESINK",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_RESIZESINK]}
+            ?{"CXTBL_ACTCOLS",ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_ACTCOLS]}
+            ?{"VIEWPORT",hGetAttribute(table,`VIEWPORT`)}
+--      elsif upper(c)='X' then
+--          gToggleInt(table,`ACTIVE`) -- (nb one-way!)
+--      elsif not find(c,{VK_LSHIFT,VK_RSHIFT,VK_LCTRL,VK_RCTRL}) then
+--          ?{`tg_table_key`,gGetKeyName(c),ctrl,shift}--,alt,up}
+        else
+            switch c do
+                case VK_UP:     line = max(line-1,1)            top_line = min(top_line,line)
+                case VK_DOWN:   line = min(line+1,n_rows)       top_line = max(top_line,line-lpp+1)
+                case VK_PGUP:   line = max(line-lpp,1)          top_line = max(top_line-lpp,1)
+                case VK_PGDN:   line = min(line+lpp,n_rows)     top_line = min(top_line+lpp,n_rows)
+                case VK_HOME:   line = 1                        top_line = 1
+                case VK_END:    line = n_rows                   top_line = max(top_line,line-lpp+1)
+                default: c = 0
+            end switch
+            if c then
+                tg_table_set_top_line(table,top_line)
+                ctrl_xtra[table][CX_GTL_ATTRS][CXTBL_CURSORY] = line -- (an SDX)
+                tg_table_set_selection(table,line,col,false,shift)
+            end if
         end if
     end if
     return TG_CONTINUE

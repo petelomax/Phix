@@ -87,7 +87,7 @@ local constant ONEDAY = timedelta(days:=1),
             SEVENDAYS = timedelta(days:=7)
 
 local function tg_greyscale(atom clr)
-?"gGreyscale"
+--?"gGreyscale"
     integer {rr,gg,bb,aa} = to_rgba(clr)
     rr = floor(sqrt((rr+gg+bb)/(255*3))*255)
     atom res = rgba(rr,rr,rr,aa)
@@ -223,7 +223,7 @@ local procedure tg_redraw_calendar(gdx calendar, integer w, h)
 --       bFocus = true,
          bFocus = gGetFocus()==calendar
     object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
-    integer hov = cal_attr[CXCAL_HOV],
+    integer hov = iff(bActive?cal_attr[CXCAL_HOV]:0),
           state = cal_attr[CXCAL_STATE],
            year = cal_attr[CXCAL_YEAR],
           month = cal_attr[CXCAL_MONTH],
@@ -424,7 +424,6 @@ x c #313131
         end for
     end if
 end procedure
---internal_rtns &= tg_redraw_calendar; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local procedure tg_calendar_mousemove(gdx calendar, integer x,y)
 --?"tg_calendar_mousemove"
@@ -467,7 +466,6 @@ local procedure tg_calendar_mousemove(gdx calendar, integer x,y)
         gRedraw(calendar)
     end if
 end procedure
---internal_rtns &= tg_calendar_mousemove; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local procedure tg_calendar_recalculate_hover(gdx calendar)
     --
@@ -487,7 +485,6 @@ procedure tg_calendar_mouseleave(gdx calendar)
         gRedraw(calendar)
     end if
 end procedure
---internal_rtns &= tg_calendar_mouseleave; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local function tg_get_sig(rtn rid) -- (copied verbatim from theGUI.e)
     return get_routine_info(rid,false)[3] -- eg `FI` (nb and that when rid==null, probably)
@@ -592,7 +589,7 @@ local function tg_calendar_click(gdx calendar, sequence status, integer x, y)
 --if status[2]!='S' then ?9/0 end if
     integer hov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV],
             res = TG_DEFAULT
-    if hov and status[1..2]=`LS` then
+    if hov and status[1..2]=`LS` and gGetAttribute(calendar,`ACTIVE`) then
         tg_calendar_scroll(calendar,hov-2)
         if hov>3 
         and ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE]=TG_MONTH
@@ -606,7 +603,6 @@ local function tg_calendar_click(gdx calendar, sequence status, integer x, y)
     end if
     return res
 end function
---internal_rtns &= tg_calendar_click; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local function tg_calendar_key(gdx calendar, integer c)
 --?{"tg_calendar_key",calendar,c}
@@ -725,7 +721,6 @@ local function tg_calendar_key(gdx calendar, integer c)
     end if
     return TG_CONTINUE
 end function
---internal_rtns &= tg_calendar_key; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local procedure tg_calendar_mousewheel(gdx calendar, integer direction)
 --?{"tg_calendar_mousewheel",calendar,direction}
@@ -736,7 +731,6 @@ local procedure tg_calendar_mousewheel(gdx calendar, integer direction)
         gRedraw(calendar)
     end if
 end procedure
---internal_rtns &= tg_calendar_mousewheel; -- (let/permit/allow this to be a perfectly valid rtn)
 
 local function tg_intint(string val) -- (copied verbatim from theGUI.e)
     --
@@ -829,8 +823,8 @@ local function hCalendar(rtn value_changed=NULL, object ymd=NULL, string attribu
     ctrl_xtra[calendar] = cxi
     cxi = 0
 --DEV/SUG MINSIZE/MAXSIZE as well?
---  gSetAttribute(calendar,`EXPAND`,false)
-    gSetAttribute(calendar,`EXPAND`,"NO")
+    gSetAttribute(calendar,`EXPAND`,false)
+--  gSetAttribute(calendar,`EXPAND`,"NO")
 --  gSetAttribute(calendar,`CANFOCUS`,true) -- already OK?
     hSetAttribute(calendar,`RANGE`,NULL)
     -- some test cases:

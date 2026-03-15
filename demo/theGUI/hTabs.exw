@@ -147,7 +147,7 @@ constant tabset = {{`First`,xpm},`Second`,`Third`,`Fourth`,`Fifth`,`Sixth`,`Seve
 --?tabset
 -- (temp/DEV *5: [keep in CX_GTL_ATTRS])
 integer selected = 3, --- POSN
-        firsttab = 2
+        firsttab = 1
 --bool bClose = true
 bool bClose = false
 bool rover_needed = false
@@ -166,7 +166,8 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
       {mx,my} = gGetAttribute(tabs,`MOUSEPOS`)
     rover_needed = false
     bool bTrackMouse = false,   -- DEV see theGUI.e
-         bHasFocus = gGetFocus()=tabs
+         bHasFocus = gGetFocus()=tabs,
+         bActive = gGetAttribute(tabs,`ACTIVE`)
     x = iff(firsttab>1?10:0)
     for i,t in tabset from firsttab do
         tw = 0
@@ -215,7 +216,7 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
     if firsttab>1 then
         -- show leftarrow:
         if mx>=0 and mx<10 
-        and my>2 and my<22 then
+        and my>2 and my<22 and bActive then
             -- show hover highlight on leftarrow:
             gDrawRect(tabs, 0, 3, 9, 21, true, colour:=TAB_OVER_HOV)
             bTrackMouse = true
@@ -228,17 +229,18 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
 --  ctrl_xtras[tabs][?] = tabwidths
     twsave = tabwidths
     x = iff(firsttab>1?10:0)
+    atom txtclr = iff(bActive?TG_BLACK:TG_DARK_GREY)
     for i,t in tabset from firsttab do
         integer wdx = i-firsttab+1, ty, bg
         if wdx>length(tabwidths) then exit end if
         tw = tabwidths[wdx]
-        if i=selected then
+        if i=selected and bActive then
             ty = 0
             bg = TAB_BG_SEL
         else
             ty = 2
             if mx>x and mx<x+tw
-            and my>2 and my<22 then
+            and my>2 and my<22 and bActive then
                 bg = TAB_BG_HOV
                 bTrackMouse = true
             else
@@ -246,7 +248,7 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
             end if
         end if
         gDrawRect(tabs,x,ty,x+tw,h-1,true,colour:=bg)
-        if bHasFocus and i=selected then
+        if bHasFocus and i=selected and bActive then
             -- draw focus rect  
             gDrawRect(tabs,x+2,ty+2,x+tw-1,h-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
         end if
@@ -259,12 +261,14 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
 --          ih = t[2][2][3]
 --          ih = gImage_get_height(t[2])
 --          {iw,ih} = gImage_get_wh(t[2])
-            {iw,ih} = gGetAttribute(t[2],`SIZE`)
+            gdm img = t[2]
+            {iw,ih} = gGetAttribute(img,`SIZE`)
             iw += 4
-            gDrawImage(t[2],tabs,x+6,ty+10-floor(ih/2))
+            if not bActive then img = gGreyscale_XPM(img) end if
+            gDrawImage(img,tabs,x+6,ty+10-floor(ih/2))
             t = t[1]
         end if
-        gDrawText(tabs,x+iw+5,ty+3,t,{},TG_SE)
+        gDrawText(tabs,x+iw+5,ty+3,t,{},TG_SE,colour:=txtclr)
         if bClose then
             gDrawImage(ximg,tabs,x+tw-12,ty+6)
         end if
@@ -280,7 +284,7 @@ procedure tg_tabs_redraw(gdx tabs, integer w,h)
     end for
     if rover_needed then
         if mx>=w-10 and mx<w
-        and my>2 and my<22 then
+        and my>2 and my<22 and bActive then
             gDrawRect(tabs, w-10, 3, w-1, 21, true, colour:=TAB_OVER_HOV)
             bTrackMouse = true
         end if
@@ -338,81 +342,83 @@ procedure tg_tabs_click(gdx tabs, sequence status, integer x, y)
 --if the handler is declared as a procedure it is treated the same as a function which always returns TG_IGNORE.
 --Returning TG_IGNORE prevents the event from being propagated, all other values do not,though it is probably best to use TG_CONTINUE to implicitly imply that propagation. 
 --*/
-    integer {w,h} = gGetAttribute(tabs,`SIZE`), tdx = -2
-    bool doleft = false,
-         doright = false,
-         doclose = false,
-         dochange = false
-    if status[1..2]=`LS` 
-    and y>2 and y<22 then
-        if firsttab>1 
-        and x>=0 and x<10 then
-            doleft = true
-            tdx = -1
-        elsif rover_needed
-          and x>=w-10 and x<w then
-            doright = true
-            tdx = 0
-        else
-            integer tx = iff(firsttab>1?10:0)
-            for i,rhs in twsave do
-                tx += rhs
-                if x<=tx then
-                    tdx = firsttab+i-1
-                    doclose = bClose and tx-x<=10
-                    dochange = not doclose
-                    exit
+    if gGetAttribute(tabs,`ACTIVE`) then
+        integer {w,h} = gGetAttribute(tabs,`SIZE`), tdx = -2
+        bool doleft = false,
+             doright = false,
+             doclose = false,
+             dochange = false
+        if status[1..2]=`LS` 
+        and y>2 and y<22 then
+            if firsttab>1 
+            and x>=0 and x<10 then
+                doleft = true
+                tdx = -1
+            elsif rover_needed
+              and x>=w-10 and x<w then
+                doright = true
+                tdx = 0
+            else
+                integer tx = iff(firsttab>1?10:0)
+                for i,rhs in twsave do
+                    tx += rhs
+                    if x<=tx then
+                        tdx = firsttab+i-1
+                        doclose = bClose and tx-x<=10
+                        dochange = not doclose
+                        exit
+                    end if
+                end for
+            end if
+        end if
+        rtn tabclick = gGetHandler(tabs,`TABCLICK`)
+        if tabclick then
+            integer res = tabclick(tabs,status,x,y,tdx,doclose)
+            if res=TG_IGNORE then return end if
+            assert(res=TG_CONTINUE or res=TG_DEFAULT)
+        end if
+        if doleft then
+            firsttab -= 1
+            gRedraw(tabs)
+        elsif doright then
+            firsttab += 1
+            gRedraw(tabs)
+        elsif doclose then
+            rtn tabclosed = gGetHandler(tabs,`TABCLOSED`)
+            if tabclosed then
+                string sig = get_routine_info(tabclosed,false)[3]
+                if sig=`POI` then
+                    tabclosed(tabs,tdx)
+                elsif sig=`PI` then
+                    tabclosed(tdx)
+                else
+                    ?9/0
                 end if
-            end for
-        end if
-    end if
-    rtn tabclick = gGetHandler(tabs,`TABCLICK`)
-    if tabclick then
-        integer res = tabclick(tabs,status,x,y,tdx,doclose)
-        if res=TG_IGNORE then return end if
-        assert(res=TG_CONTINUE or res=TG_DEFAULT)
-    end if
-    if doleft then
-        firsttab -= 1
-        gRedraw(tabs)
-    elsif doright then
-        firsttab += 1
-        gRedraw(tabs)
-    elsif doclose then
-        rtn tabclosed = gGetHandler(tabs,`TABCLOSED`)
-        if tabclosed then
-            string sig = get_routine_info(tabclosed,false)[3]
-            if sig=`POI` then
-                tabclosed(tabs,tdx)
-            elsif sig=`PI` then
-                tabclosed(tdx)
             else
-                ?9/0
+--              assert(tabclick,`neither TABCLICK nor TABCLOSED defined`)
+                if not tabclick then ?`WARNING: neither TABCLICK nor TABCLOSED defined` end if
             end if
-        else
---          assert(tabclick,`neither TABCLICK nor TABCLOSED defined`)
-            if not tabclick then ?`WARNING: neither TABCLICK nor TABCLOSED defined` end if
-        end if
 --DEV move selected down if > COUNT
---      if selected=gGetAttribute(tabs,`COUNT`) then
---          selected -= 1
---      end if
-    elsif dochange then
-        integer old_posn = selected
-        selected = tdx
---      rtn tabchanged = gGetHandler(tabs,`TABCHANGED`)
-        rtn tabchanged = hGetHandler()
-        if tabchanged then
-            string sig = get_routine_info(tabchanged,false)[3]
-            if sig=`POII` then
-                tabchanged(tabs,old_posn,tdx)
-            elsif sig=`PII` then
-                tabchanged(old_posn,tdx)
-            else
-                ?9/0
+--          if selected=gGetAttribute(tabs,`COUNT`) then
+--              selected -= 1
+--          end if
+        elsif dochange then
+            integer old_posn = selected
+            selected = tdx
+--          rtn tabchanged = gGetHandler(tabs,`TABCHANGED`)
+            rtn tabchanged = hGetHandler()
+            if tabchanged then
+                string sig = get_routine_info(tabchanged,false)[3]
+                if sig=`POII` then
+                    tabchanged(tabs,old_posn,tdx)
+                elsif sig=`PII` then
+                    tabchanged(old_posn,tdx)
+                else
+                    ?9/0
+                end if
             end if
+            gRedraw(tabs)
         end if
-        gRedraw(tabs)
     end if
 end procedure
 
@@ -420,18 +426,20 @@ end procedure
 --?{`key_handler`,tabs,c,gGetKeyName(c),ctrl,shift,alt}
 function tg_tabs_key_handler(gdx tabs, integer c) 
 --?{`key_handler`,tabs,c,gGetKeyName(c)}
-    if c=VK_LEFT then
-        if selected>1 then
-            selected -= 1
-            if firsttab>selected then firsttab = selected end if
-            gRedraw(tabs)
-            return TG_IGNORE
-        end if
-    elsif c=VK_RIGHT then
-        if selected<length(tabset) then
-            selected += 1
-            gRedraw(tabs)
-            return TG_IGNORE
+    if gGetAttribute(tabs,`ACTIVE`) then
+        if c=VK_LEFT then
+            if selected>1 then
+                selected -= 1
+                if firsttab>selected then firsttab = selected end if
+                gRedraw(tabs)
+                return TG_IGNORE
+            end if
+        elsif c=VK_RIGHT then
+            if selected<length(tabset) then
+                selected += 1
+                gRedraw(tabs)
+                return TG_IGNORE
+            end if
         end if
     end if
     return TG_DEFAULT
@@ -496,6 +504,7 @@ gdx vbox = gVbox({tabs}),
 --gSetAttribute(tabs,`POSN`,3)
 --gSetAttribute(tabs,`VALUE`,3)
 --gSetAttribute(tabs,`SIZE`,`240x`)
+--gSetAttribute(tabs,`ACTIVE`,false)
 
 function key_handler(gdx dlg, integer c, bool ctrl, shift, alt) 
 --function key_handler(gdx dlg, integer c) 

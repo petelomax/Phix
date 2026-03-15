@@ -463,24 +463,26 @@ end procedure
 local procedure tg_list_click(gdx list, sequence status, integer x, y) 
 --?{`tg_list_click`,status, x, y}
 --tg_reactivate_caret(list)
-    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+    if gGetAttribute(list,`ACTIVE`) then
+        object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
 --         data = list_attr[CXLIST_DATA]
 --  object data = list_data -- (hList fudge)
-    integer ox = gGetAttribute(list,`VIEWPORT`)[1],
-            line_height = list_attr[CXLIST_LINEHT],
-            char_width = list_attr[CXLIST_CHARWID],
-            top_line = list_attr[CXLIST_TOPLINE],
-            n_rows = list_attr[CXLIST_N_ROWS]
-    list_attr = 0 -- (kill refcount)
-    integer line = top_line + floor(y/line_height),
-            col = floor((ox+x-2)/char_width)+1
+        integer ox = gGetAttribute(list,`VIEWPORT`)[1],
+                line_height = list_attr[CXLIST_LINEHT],
+                char_width = list_attr[CXLIST_CHARWID],
+                top_line = list_attr[CXLIST_TOPLINE],
+                n_rows = list_attr[CXLIST_N_ROWS]
+        list_attr = 0 -- (kill refcount)
+        integer line = top_line + floor(y/line_height),
+                col = floor((ox+x-2)/char_width)+1
 
-    if status[1..2]=`LS` and line>=1 and line<=n_rows then
-        tg_list_set_line_col(list,line,col)
-        tg_reactivate_caret(list)
-        integer ctrl = status[3],
-               shift = status[4]
-        tg_list_set_selection(list,line,ctrl,shift)
+        if status[1..2]=`LS` and line>=1 and line<=n_rows then
+            tg_list_set_line_col(list,line,col)
+            tg_reactivate_caret(list)
+            integer ctrl = status[3],
+                   shift = status[4]
+            tg_list_set_selection(list,line,ctrl,shift)
+        end if
     end if
 end procedure
 
@@ -488,9 +490,10 @@ end procedure
 local procedure tg_list_hover(gdx list, integer /*x*/,y, left,middle,right)
 bool onscroll=false -- hList-specific (fudge/broken)
 --?{`tg_list_click`,status, x, y}
-    tg_reactivate_caret(list)
-    object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
-    if sequence(list_attr) then
+    if gGetAttribute(list,`ACTIVE`) then
+        tg_reactivate_caret(list)
+        object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+--??        if sequence(list_attr) then
 --      atom bgclr = ctrl_bg[list],
         atom bgclr = gGetAttribute(list,`BGCLR`), -- hList
              bghov = list_attr[CXLIST_BGHOV],
@@ -543,45 +546,47 @@ end procedure
 local function tg_list_key(gdx list, integer c, bool ctrl, shift) 
 -- note: this replaces tg_scrollbar_key_handler in h_scrollbars.e, except for mousewheel use.
 --       LEFT/RIGHT should perhaps do the scrollbar thing...
-    tg_reactivate_caret(list)
-    if c=VK_UP
-    or c=VK_DOWN
-    or c=VK_PGUP
-    or c=VK_PGDN
-    or c=VK_HOME
-    or c=VK_END then
-        object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
-        integer line = list_attr[CXLIST_CURSORY],
-                 col = list_attr[CXLIST_CURSORX],
-            top_line = list_attr[CXLIST_TOPLINE],
-              n_rows = list_attr[CXLIST_N_ROWS], -- aka length(data)
---       line_height = list_attr[CXLIST_LINEHT],
-                 lpp = list_attr[CXLIST_LINESPP]
-        list_attr = 0 -- (kill refcount)
-        if c=VK_UP then         line = max(line-1,1)            top_line = min(top_line,line)
-        elsif c=VK_DOWN then    line = min(line+1,n_rows)       top_line = max(top_line,line-lpp+1)
-        elsif c=VK_PGUP then    line = max(line-lpp,1)          top_line = max(top_line-lpp,1)
-        elsif c=VK_PGDN then    line = min(line+lpp,n_rows)     top_line = min(top_line+lpp,n_rows)
-        elsif c=VK_HOME then    line = 1                        top_line = 1
-        elsif c=VK_END then     line = n_rows                   top_line = max(top_line,line-lpp+1)
-        end if
-        tg_list_set_top_line(list,top_line)
-        tg_list_set_line_col(list,line,col)
-        tg_list_set_selection(list,line,false,shift)
---  elsif c=VK_LEFT
---     or c=VK_RIGHT then
---      return tg_scrollbar_key_handler(list, c, ctrl, shift, false)
-    elsif ctrl and upper(c)='A'
-      and ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_MULTIPLE] then
-        integer n_rows = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_N_ROWS]
-        ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] = repeat(true,n_rows)
-        gRedraw(list)
-    -- Aside: VK_ESC cancelling select all is a feature of theEditor, not a gList.
+    if gGetAttribute(list,`ACTIVE`) then
+        tg_reactivate_caret(list)
+        if c=VK_UP
+        or c=VK_DOWN
+        or c=VK_PGUP
+        or c=VK_PGDN
+        or c=VK_HOME
+        or c=VK_END then
+            object list_attr = ctrl_xtra[list][CX_GTL_ATTRS]
+            integer line = list_attr[CXLIST_CURSORY],
+                     col = list_attr[CXLIST_CURSORX],
+                top_line = list_attr[CXLIST_TOPLINE],
+                  n_rows = list_attr[CXLIST_N_ROWS], -- aka length(data)
+--           line_height = list_attr[CXLIST_LINEHT],
+                     lpp = list_attr[CXLIST_LINESPP]
+            list_attr = 0 -- (kill refcount)
+            if c=VK_UP then         line = max(line-1,1)            top_line = min(top_line,line)
+            elsif c=VK_DOWN then    line = min(line+1,n_rows)       top_line = max(top_line,line-lpp+1)
+            elsif c=VK_PGUP then    line = max(line-lpp,1)          top_line = max(top_line-lpp,1)
+            elsif c=VK_PGDN then    line = min(line+lpp,n_rows)     top_line = min(top_line+lpp,n_rows)
+            elsif c=VK_HOME then    line = 1                        top_line = 1
+            elsif c=VK_END then     line = n_rows                   top_line = max(top_line,line-lpp+1)
+            end if
+            tg_list_set_top_line(list,top_line)
+            tg_list_set_line_col(list,line,col)
+            tg_list_set_selection(list,line,false,shift)
+--      elsif c=VK_LEFT
+--         or c=VK_RIGHT then
+--          return tg_scrollbar_key_handler(list, c, ctrl, shift, false)
+        elsif ctrl and upper(c)='A'
+          and ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_MULTIPLE] then
+            integer n_rows = ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_N_ROWS]
+            ctrl_xtra[list][CX_GTL_ATTRS][CXLIST_SELECTED] = repeat(true,n_rows)
+            gRedraw(list)
+        -- Aside: VK_ESC cancelling select all is a feature of theEditor, not a gList.
 --temp/test:
---  elsif c='5' then
---      tg_ensure_visible(list, 50)
---  elsif not find(c,{VK_LSHIFT,VK_RSHIFT,VK_LCTRL,VK_RCTRL,VK_CAPSLOCK,VK_ESC}) then
---      ?{`tg_list_key`,list,c,gGetKeyName(c),ctrl,shift}
+--      elsif c='5' then
+--          tg_ensure_visible(list, 50)
+--      elsif not find(c,{VK_LSHIFT,VK_RSHIFT,VK_LCTRL,VK_RCTRL,VK_CAPSLOCK,VK_ESC}) then
+--          ?{`tg_list_key`,list,c,gGetKeyName(c),ctrl,shift}
+        end if
     end if
     return TG_CONTINUE
 end function

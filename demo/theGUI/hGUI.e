@@ -3331,6 +3331,10 @@ local constant
 --X DF_SET_NAT  := 0x08,
 --  DF_SET_NORM := 0x10,
     DF_SET_NORM := 0x08,
+--DEV this is just silly, better would be an enum and setting catch[<DF_ACTIVE>], as it were...
+-- OH, that wouldn't work for API calls... but even so...
+    DF_FLAGS = new_dict() -- key is string, data is (int) DEBUG_FLAGS
+bool dump_ctrls_on_resize = false
 --  DF_ACTIVE = DF_SIZE_API,    -- to/from backend API
 --  DF_ACTIVE = DF_SIZE_API+DF_SET_WH,
 --  DF_ACTIVE = DF_SIZE_API+DF_SET_WH+DF_SET_NORM,
@@ -3339,13 +3343,10 @@ local constant
 --  DF_ACTIVE = DF_SET_XY+DF_SET_WH,
 --X DF_ACTIVE = DF_SET_NAT,     -- setting ctrl_size[id][SZ_NATURAL_W|SZ_NATURAL_H]
 --  DF_ACTIVE = DF_SET_NORM,    -- setting ctrl_size[id][SZ_NORMAL_W|SZ_NORMAL_H]
-    DF_ACTIVE = DF_NONE,        -- show nowt
---DEV this is just silly, better would be an enum and setting catch[<DF_ACTIVE>], as it were...
--- OH, that wouldn't work for API calls... but even so...
-    DF_FLAGS = new_dict() -- key is string, data is (int) DEBUG_FLAGS
-bool dump_ctrls_on_resize = false
+integer DF_ACTIVE = DF_NONE     -- show nowt
+
 --bool dump_ctrls_on_resize = true
-if DF_ACTIVE!=DF_NONE then
+--if DF_ACTIVE!=DF_NONE then
     setd(`SetWindowPos`,DF_SIZE_API,DF_FLAGS)
     setd(`gtk_window_resize`,DF_SIZE_API,DF_FLAGS)
     setd(`gtk_window_set_default_size`,DF_SIZE_API,DF_FLAGS)
@@ -3359,7 +3360,7 @@ if DF_ACTIVE!=DF_NONE then
 --  setd(`tg_lm_apply_sizes_and_offsets`,DF_SIZE_API,DF_FLAGS)
 --  setd(`tg_lm_apply_sizes_and_offsets`,DF_NONE,DF_FLAGS)
     setd(`tg_lm_apply_sizes_and_offsets`,DF_SET_WH,DF_FLAGS)
-end if
+--end if
 
 bool nodump = false -- (unit tests i/p) mainly don't call tg_lm_dump_ctrls(), but several other things too
 
@@ -7333,6 +7334,12 @@ local function tg_WinAPI_has_menu(gdx dlg)
     return false
 end function
 
+--local function tg_is_split(gdx id)
+--  return ctrl_types[id]=BOX
+--     and length(children_ids[id])=3
+--     and and_bits(ctrl_flags[children_ids[id][2]],CF_SPLIT)!=0
+--end function
+
 --DEV: this is not taking margins etc into account....
 --SUG: TG_SPACE_BALANCE on its own could mean there is a length(children) sequence of weights somewhere...
 --with trace
@@ -7463,6 +7470,7 @@ if bDiagnostics then ?{"non_virtual?",id,source_line()} end if
              bHorz = bBoth or not bVert,
 --???
             bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0
+--          bSplit = tg_is_split(id)
 --          bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0 and 
 --                   ctrl_xtra[children[2]][CX_GTL_ATTRS][CXSPLT_FRAC]!=-1
 --DEV flags are 0bVHB, ie 4: vertical, 2: horiontal, 1:both, 0:none
@@ -7855,14 +7863,16 @@ if line or what then end if -- DEV temp
         ctrl_size[id][SZ_X] = x
         ctrl_size[id][SZ_Y] = y
     end if
-    if ct=BOX and and_bits(cfi,CF_SPLIT) then
-        -- a gSplit is a gH/Vbox with **no** GAP/MARGIN/SPACE handling...
-        -- (todo: verify it complains when attempting to set the above)
-        -- (actually, (box) MARGINS will be lopped off child1/2 when recursing??)
-        -- (obviously this only covers the resize part, not dragging)
-        ?9/0
-        -- gdx {c1,splitter,c2} = children...
-    elsif ct=BOX and and_bits(cfi,CF_CONCRETE) then
+--  if ct=BOX and and_bits(cfi,CF_SPLIT) then
+--X if tg_is_split(id) then
+--      -- a gSplit is a gH/Vbox with **no** GAP/MARGIN/SPACE handling...
+--      -- (todo: verify it complains when attempting to set the above)
+--      -- (actually, (box) MARGINS will be lopped off child1/2 when recursing??)
+--      -- (obviously this only covers the resize part, not dragging)
+--      ?9/0
+--      -- gdx {c1,splitter,c2} = children...
+--  els
+    if ct=BOX and and_bits(cfi,CF_CONCRETE) then
 --      -- do nothing... (maybe validate only cBox-nesting?)
     elsif ct=BOX then
 --  elsif ct=BOX or ct=DIALOG then
@@ -7902,6 +7912,7 @@ if line or what then end if -- DEV temp
 --           bHorz = bBoth or not bVert,
 --???
 --          bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0
+--X         bSplit = tg_is_split(id) and 
 --          bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0 and 
 --                   ctrl_xtra[children[2]][CX_GTL_ATTRS][CXSPLT_FRAC]!=-1
 --DEV flags are 0bVHB, ie 4: vertical, 2: horiontal, 1:both, 0:none
@@ -8298,6 +8309,7 @@ if line or what then end if -- DEV temp
 --*/
 --???
 --          bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0
+--X         bSplit = tg_is_split(id)
         integer flag = iff(bVert?CF_VEXPAND:CF_HEXPAND)
         sequence bexpand = repeat(false,length(children))
 --X     -- aside: one of these is unused/nonsense... [???]
@@ -9141,13 +9153,15 @@ end procedure
 
 local procedure tg_set_natural_size(gdx id)
     integer ct = ctrl_xtra[id][CX_CANVAS_TYPE]
-    if ct=CANVAS then -- or...
+    if ct=CANVAS then -- or... (FRAME,...)
         string font = gGetAttribute(id,`FONT`)
         if ct=CANVAS then
-            integer {nw,nh} = gGetTextExtent("W",font)
-            g_log(`set`,`ctrl_sizeNORM`,{"tg_set_natural_size",source_line()},{id,nw,nh})
-            ctrl_size[id][SZ_NORMAL_W] = nw
-            ctrl_size[id][SZ_NORMAL_H] = nh
+            if and_bits(ctrl_flags[id],CF_SPLIT)=0 then
+                integer {nw,nh} = gGetTextExtent("W",font)
+                g_log(`set`,`ctrl_sizeNORM`,{"tg_set_natural_size",source_line()},{id,nw,nh})
+                ctrl_size[id][SZ_NORMAL_W] = nw
+                ctrl_size[id][SZ_NORMAL_H] = nh
+            end if
         end if
     end if
 end procedure
@@ -9558,7 +9572,9 @@ end if
         assert(ct!=DIALOG,`no MARGIN on dialogs!`)
         integer cfi = ctrl_flags[id]
         bool bSplit = ct==BOX and and_bits(cfi,CF_SPLIT)!=0
+--X     bool bSplit = tg_is_split(id)
         assert(not bSplit,`no MARGIN on gSplit!`,nFrames:=nFrames+1)
+--X     assert(not tg_is_split(id),`no MARGIN on gSplit!`,nFrames:=nFrames+1)
         ctrl_size[id][SZ_MARGIN] = v -- (save as 1..4 integers, pre-{t,r,b,l} mapping)
 
     elsif name=`MINSIZE`
@@ -11071,7 +11087,7 @@ global function gGetBrother(gdx id, bool bPrev=false)
 --  end if
 --  return iff(k=length(children)?NULL:children[k+1])
 end function
---/*
+
 global function gGetChild(gdx id, integer pos)
     -- (deliberately crashes for non-containers)
     return children_ids[id][pos]
@@ -11087,7 +11103,7 @@ end function
 global function gGetParent(gdx id)
     return ctrl_parent[id]
 end function
-
+--/*
 local procedure tg_gtk_add_to(gdx parent, atom child_handle)
     atom ph = ctrl_handles[parent]
     if ctrl_types[parent]=BOX then
@@ -11268,7 +11284,8 @@ local function tg_tab_to_next_valid_control(integer id, nextsibling, owner, bool
         id = siblings[index]
 --      if tg_WinAPI_Tab_isFocussable(id) then
 --if bDiagnostics then ?{"tnc",id, gGetAttribute(id,`CANFOCUS`)} end if
-        if gGetAttribute(id,`CANFOCUS`) then
+        if gGetAttribute(id,`CANFOCUS`)
+        and  gGetAttribute(id,`ACTIVE`) then
 --trace(1)
             return id
         end if
@@ -11283,7 +11300,8 @@ local function tg_tab_to_next_valid_control(integer id, nextsibling, owner, bool
         for i=first to last by step do
             id = siblings[i]
 --          if tg_WinAPI_Tab_isFocussable(id) then
-            if gGetAttribute(id,`CANFOCUS`) then
+            if gGetAttribute(id,`CANFOCUS`)
+            and gGetAttribute(id,`ACTIVE`) then
                 return id
 --          elsif tg_tab_is_enterable(id) then
             elsif not find(ctrl_types[id],{DIALOG,MENU}) then
@@ -17276,6 +17294,9 @@ global procedure gSetGlobal(string name, object v)
         if v="MARGINS" then
             bDumpMargins = true
             v = true
+        elsif v="SET_NORM" then
+            DF_ACTIVE = or_bits(DF_ACTIVE,DF_SET_NORM)
+            v = true
         end if
         if v=true then
             bDiagnostics = true
@@ -19315,9 +19336,11 @@ function tg_set_box_attribute(gdx id, string name, object v)--, bool bMapped)
     elsif name=`GAP` then
         if string(v) then v = to_number(v) end if
 --      assert(ct=BOX)
---      bool bSplit = /*ct==BOX and*/ and_bits(cfi,CF_SPLIT)!=0
---      assert(not bSplit,`no GAP on splitters!`)
-        assert(integer(v) and (v=0 or and_bits(cfi,CF_SPLIT)=0))
+        bool bSplit = /*ct==BOX and*/ and_bits(cfi,CF_SPLIT)!=0
+        assert(not bSplit,`no GAP on splitters!`)
+--      assert(not tg_is_split(id),`no GAP on splitters!`)
+--      assert(integer(v) and (v=0 or and_bits(cfi,CF_SPLIT)=0))
+        assert(integer(v) and v>=0)
         ctrl_xtra[id][CX_BOX_GAP] = v
 --      printf(1,"gSetAttribute(BOX,\"%s\",%v)...\n",{name,v})
         return true
@@ -19329,6 +19352,7 @@ function tg_set_box_attribute(gdx id, string name, object v)--, bool bMapped)
 --          (perhaps with eg {{20,80}} equivalent to {{20,80},TG_SPACE_RIGHT}?...)
 --          (and then probably {seq,int} -> {int,seq} for a gVbox, to keep it {h,v} style)
         bool bSplit = /*ct==BOX and*/ and_bits(cfi,CF_SPLIT)!=0
+--X     bool bSplit = tg_is_split(id)
         assert(not bSplit,`no SPACE on splitters!`)
         if string(v) then
             if v[1]='{' then
@@ -19393,6 +19417,11 @@ function tg_set_box_attribute(gdx id, string name, object v)--, bool bMapped)
 ----            return true
 ----        end if
 
+    elsif name=`SPLIT` then -- (private/undocumented, for hSplit.exw only)
+        assert(v=`AYE`)
+        assert(and_bits(ctrl_flags[id],CF_SPLIT)=0)
+        ctrl_flags[id] += CF_SPLIT
+        return true
     end if
     return false
 end function
@@ -19415,6 +19444,7 @@ function tg_get_box_attribute(gdx id, string name, object dflt)
 --DEV ditto...
 --      --  elsif and_bits(cfi,CF_SPLIT)!=0 then
 --          elsif and_bits(cfi,CF_SPLIT)!=0 and name=`FIX` then
+--X         elsif tg_is_split(id) and name=`FIX` then
 --      --      integer ndx = find(name,{`FIX`,`FRAC`})
 --      --      if ndx then
 --      --      if ndx then
@@ -23213,16 +23243,19 @@ local function tg_set_canvas_attribute(gdx id, string name, object v)--, bool bM
             return true
 --      elsif ct=TABLE and
         end if
-    elsif name=`SPLIT` then -- (private/undocumented)
+    elsif name=`SPLIT` then -- (private/undocumented, for hSplit.exw only)
         assert(v=`AYE`)
         -- (just do both...)
         assert(and_bits(ctrl_flags[id],CF_SPLIT)=0)
         ctrl_flags[id] += CF_SPLIT
-        gdx parent = ctrl_parent[id] -- nb cannot still be null!
-        assert(ctrl_types[parent]==BOX)
-        assert(length(children_ids[parent])==3)
-        assert(and_bits(ctrl_flags[parent],CF_SPLIT)=0)
-        ctrl_flags[parent] += CF_SPLIT
+--DEV why bother then?
+--      gdx parent = ctrl_parent[id] -- nb cannot still be null!
+--      if parent then
+--          assert(ctrl_types[parent]==BOX)
+--          assert(length(children_ids[parent])==3)
+--          assert(and_bits(ctrl_flags[parent],CF_SPLIT)=0)
+--          ctrl_flags[parent] += CF_SPLIT
+--      end if
         return true
     end if
     return false
@@ -23267,7 +23300,8 @@ function tg_get_canvas_attribute(gdx id, string name, object dflt)
         end if
         return sbinfo
     elsif name=`SPLIT` then -- (private/undocumented/once parent "known")
-        return and_bits(ctrl_flags[id],CF_SPLIT)!=0
+crash("SPLIT?")
+--      return and_bits(ctrl_flags[id],CF_SPLIT)!=0
 --      gdx parent = ctrl_parent[id]
 --      assert(ctrl_types[parent]==BOX)
 --      assert(length(children_ids[parent])==3)

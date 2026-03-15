@@ -809,7 +809,7 @@ integer tree_selected = NULL -- hTree's replacement for gSetHandler(tree,`SELECT
 
 local procedure tg_tree_click(gdx tree, sequence status, integer x, y) 
 --?{`tg_tree_click`,status, x, y}
-    if status[1..2]=`LS` then
+    if status[1..2]=`LS` and gGetAttribute(tree,`ACTIVE`) then
         integer ox = gGetAttribute(tree,`VIEWPORT`)[1],
                 xx = x+ox,
                vnc = tg_tree_vnc(tree)
@@ -872,8 +872,9 @@ end procedure
 local procedure tg_tree_hover(gdx tree, integer /*x*/,y, left,middle,right)
 bool onscroll=false -- hTree-specific (fudge/broken)
 --?{`tg_tree_click`,status, x, y}
-    object tree_attr = ctrl_xtra[tree][CX_GTL_ATTRS]
-    if sequence(tree_attr) then
+    if gGetAttribute(tree,`ACTIVE`) then
+        object tree_attr = ctrl_xtra[tree][CX_GTL_ATTRS]
+--?     if sequence(tree_attr) then
 --      atom bgclr = ctrl_bg[tree],
         atom bgclr = gGetAttribute(tree,`BGCLR`), -- hTree
              bghov = tree_attr[CXTREE_BGHOV]
@@ -894,6 +895,14 @@ bool onscroll=false -- hTree-specific (fudge/broken)
                 end if
             end if
         end if
+    end if
+end procedure
+
+local procedure tg_tree_mouseleave(gdx tree)
+--?"tg_tree_mouseleave"
+    if ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_HOVLINE] then
+        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_HOVLINE] = 0
+        gRedraw(tree)
     end if
 end procedure
 
@@ -1027,6 +1036,7 @@ function hTree(sequence nodes, string attributes=``, sequence args={})
     ctrl_xtra[tree][CX_GTL_ATTRS] = tree_attr
     gSetHandler(tree,`CLICK`,tg_tree_click)
     gSetHandler(tree,`MOUSEMOVE`,tg_tree_hover)
+    gSetHandler(tree,`MOUSELEAVE`,tg_tree_mouseleave)
     gSetHandler(tree,`KEY`,tg_tree_key_handler)
 --  gSetHandler(tree,`REDRAW`,my_redraw) -- NOT HERE, try in gTree.exw.
 --  if selected!=NULL then

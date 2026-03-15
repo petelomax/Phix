@@ -5,14 +5,14 @@
 --  The canvas-based implementation of gCheckbox (including gRadio).
 --
 --requires(64,true)
-puts(1,"")
+puts(1,``)
 with javascript_semantics
 --include theGUI.e
 include hGUI.e
-gSetGlobal("DIAGNOSTICS",true)
+gSetGlobal(`DIAGNOSTICS`,true)
 --gUseGTK()
 
-constant {ucb,ccb,urb,crb} = get_checks() -- unchecked and checked gImages, all 13x13
+constant {ucb,ccb,urb,crb,irb} = get_checks() -- unchecked and checked gImages, all 13x13
 
 rtn chk_click -- (OK since only ever the same 'action')
 constant backend = gVersion(-1),
@@ -47,7 +47,7 @@ procedure tg_chk_key(gdx chk, integer c)
 --      if tg_process_mnemonics(c,btn)==TG_IGNORE then
 --          return TG_IGNORE
 --      end if
-    if c=' ' then
+    if c=' ' and gGetAttribute(chk,`ACTIVE`) then
         bool bState = true
         integer radio = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO]
         if radio then
@@ -69,8 +69,8 @@ procedure tg_chk_key(gdx chk, integer c)
 end procedure
 
 local procedure tg_chk_mouse_click(gdx chk, sequence status)
---?{"tg_chk_mouse_click",chk,status}
-    if begins("LR",status) then
+--?{`tg_chk_mouse_click`,chk,status}
+    if begins(`LR`,status) and gGetAttribute(chk,`ACTIVE`) then
         gSetFocus(chk)
         tg_chk_key(chk,' ')
     end if
@@ -90,19 +90,29 @@ procedure tg_chk_redraw(gdx chk, integer w, h)
     end if
     gdm image = iff(bRadio?iff(bChecked?crb:urb)
                           :iff(bChecked?ccb:ucb))
+--  if not bActive then image = gGreyscale_XPM(image) end if
+--  if not bActive and not bRadio then image = gGreyscale_XPM(image) end if
+    if not bActive then
+        if bRadio then
+            if bChecked then image = irb end if
+        else
+            image = gGreyscale_XPM(image)
+        end if
+    end if
     gDrawImage(image,chk,tx,ty-7)
-    gDrawText(chk,tx+16,ty,chk_txt)
-    if gGetFocus()==chk then
+    atom txtclr = iff(bActive?TG_BLACK:TG_DARK_GREY)
+    gDrawText(chk,tx+16,ty,chk_txt,colour:=txtclr)
+    if gGetFocus()==chk and bActive then
         gDrawRect(chk,2,2,tw,th-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
     end if
 end procedure   
 
---function hCheckbox(nullable_string title=NULL, rtn value_changed=NULL, string attributes="", dword_seq args={}) 
+--function hCheckbox(nullable_string title=NULL, rtn value_changed=NULL, string attributes=``, dword_seq args={}) 
 function hCheckbox(nullable_string title=NULL, rtn value_changed=NULL) 
 --  {title,value_changed,attributes,args} = paranormalise_traa(title,value_changed,attributes,args)
 --  if not bInit then tg_Init() end if
     gdx chk = gCanvas(tg_chk_redraw)
-    gSetAttribute(chk,"EXPAND",false)
+    gSetAttribute(chk,`EXPAND`,false)
     if platform()!=JS then
         ctrl_xtra &= repeat(0,chk-length(ctrl_xtra))
     end if
@@ -134,10 +144,10 @@ local procedure set_chk_sizes(sequence chks)
 end procedure
 
 procedure value_changed(gdx chk, bool bState)
-?{"value_changed",chk,bState}
+?{`value_changed`,chk,bState}
     gdx dlg = gGetDialog(chk)
-    gSetAttribute(dlg,"TITLE","ticked:%t",{bState})
---  gSetAttribute(chk,"TITLE","This %s c&hecked",{iff(bState?"is":"ain't")})
+    gSetAttribute(dlg,`TITLE`,`ticked:%t`,{bState})
+--  gSetAttribute(chk,`TITLE`,`This %s c&hecked`,{iff(bState?`is`:`ain't`)})
 end procedure
 
 procedure hRadio(gdx chks)
@@ -166,26 +176,28 @@ function gRadioItem(gdx id)
 end function
 --*/
 
---/!*
+--/*
 -- if not <included by gRadio.exw?> then
---gdx chk = gCheckbox("Is this c&hecked?",value_changed),
-gdx chk = hCheckbox("Is this c&hecked?",value_changed),
---gdx chk = gCheckbox("Is this checked?",value_changed,"CANFOCUS=NO"),
+--gdx chk = gCheckbox(`Is this c&hecked?`,value_changed),
+gdx chk = hCheckbox(`Is this c&hecked?`,value_changed),
+--gdx chk = gCheckbox(`Is this checked?`,value_changed,`CANFOCUS=NO`),
     chks = {chk}, -- (as used below)
     -- aside: a gVbox works equally well here
-    hbx = gHbox(chks,"SPACE=AROUND"),
-    dlg = gDialog(hbx,"gCheckbox","SIZE=240x80")
---gSetAttribute(chk,"VALUE",true)
---?gGetAttribute(chk,"VALUE")
+    hbx = gHbox(chks,`SPACE=AROUND`),
+    dlg = gDialog(hbx,`gCheckbox`,`SIZE=240x80`)
+--gSetAttribute(chk,`VALUE`,true)
+--ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE] = true
+--gSetAttribute(chk,`ACTIVE`,false)
+--?gGetAttribute(chk,`VALUE`)
 set_chk_sizes(chks)
 gShow(dlg)
 gMainLoop()
---*!/
---/*
+--*/
+--/!*
 -- gRadio:
 procedure radio_changed(gdx toggle, bool bState)
 --?9/0
---  string title = gGetAttribute(toggle,"TITLE")
+--  string title = gGetAttribute(toggle,`TITLE`)
     string title = ctrl_xtra[toggle][CX_GTL_ATTRS][CXCHK_TITLE]
     printf(1,"toggle(%s), state:%t\n",{title,bState})
 end procedure
@@ -199,17 +211,18 @@ gdx ygitb = {hCheckbox(`&You`,radio_changed),
              hCheckbox(`&bowl`,radio_changed)},
      hbox = gHbox(ygitb,`MARGIN=9x8`),
       dlg = gDialog(hbox,`gRadio`,`SIZE=240x80`)
-gSetAttribute(ygitb[1],`FONT`,"Arial, italic 9")
-ctrl_xtra[ygitb[1]][CX_GTL_ATTRS][CXCHK_VALUE] = true
+gSetAttribute(ygitb[1],`FONT`,`Arial, italic 9`)
+--ctrl_xtra[ygitb[2]][CX_GTL_ATTRS][CXCHK_VALUE] = true
 --gRadio(ygitb)
 hRadio(ygitb)
---gSetAttribute(ygitb[1],"VALUE",false) -- illegal!
---gSetAttribute(ygitb[1],"VALUE",true) -- (ok if we no-attr g)
+--gSetAttribute(ygitb[1],`ACTIVE`,false)
+--gSetAttribute(ygitb[1],`VALUE`,false) -- illegal!
+--gSetAttribute(ygitb[1],`VALUE`,true) -- (ok if we no-attr g)
 --gShow(dlg)
---gSetAttribute(ygitb[2],"VALUE",false) -- still illegal
---gSetAttribute(ygitb[3],"VALUE",true) - ok
+--gSetAttribute(ygitb[2],`VALUE`,false) -- still illegal
+--gSetAttribute(ygitb[3],`VALUE`,true) - ok
 --gdx selected = gRadioItem(ygitb[5])
---?gGetAttribute(selected,"TITLE")
+--?gGetAttribute(selected,`TITLE`)
 set_chk_sizes(ygitb)
 gMainLoop(dlg)
---*/
+--*!/

@@ -796,6 +796,7 @@ b___________b
 a___________a
 .ab_______ba."""
 
+-- unchecked radio button
 local constant urb = """
 13 13 11 1
 . c #f0f0f0
@@ -823,6 +824,7 @@ afh_______hfa
 ..efgh_hgfe..
 ...abcdcba..."""
 
+-- checked radio button (active)
 local constant crb = """
 13 13 8 1
 . c #f0f0f0
@@ -846,6 +848,30 @@ accccccccccca
 .dcccccccccd.
 ..dcccccccd..
 ...abcccba..."""
+
+-- checked radio button (inactive)
+local constant irb = """
+13 13 6 1
+. c #f0f0f0
+a c #b4cce2
+b c #689ed0
+c c #989898
+d c #c8d8f0
+_ c #ffffff
+...accccca...
+..bcccccccb..
+.bcccccccccb.
+accccccccccca
+cccccd_dccccc
+ccccd___dcccc
+cccc_____cccc
+ccccd___dcccc
+cccccd_dccccc
+accccccccccca
+.bcccccccccb.
+..bcccccccb..
+...accccca..."""
+
 
 local constant cal_ltxt = `
 6 9 2 1
@@ -879,7 +905,7 @@ local function tg_XPM_from_shorthand(string name)
     if name="dp_xpm" then return dp_xpm_txt end if
     if name="xlr_xpm" then return {x_txt,l_txt,r_txt} end if
     if name="scroll_arrows" then return tg_create_scroll_arrows() end if
-    if name="chk_xpm" then return {ucb,ccb,urb,crb} end if
+    if name="chk_xpm" then return {ucb,ccb,urb,crb,irb} end if
     if name="calendar_arrows" then return {cal_ltxt,cal_rtxt} end if
     ?9/0
 end function

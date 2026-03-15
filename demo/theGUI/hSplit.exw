@@ -1,0 +1,86 @@
+--
+-- demo\theGUI\hSplit.exw
+-- ======================
+-- 
+-- DEV need to get the canvas sizes accumulating up properly before I can sign this off as finished...
+--                           ("""""     """"     "" is technically nowt to do with a gSplit)
+-- simple...
+-- DOC? There is a default natural size of about 23x33 (when child1/2 are both a canvas, which are 
+--                                                  effectively smaller or equal to everything else)
+--
+puts(1,"")
+--requires(64,true)
+with javascript_semantics
+--include theGUI.e
+include hGUI.e
+gSetGlobal(`DIAGNOSTICS`,"SET_NORM")
+--gUseGTK() -- MIN/MAXSIZE now apply correctly [to the canvas] in tg_resize/tg_lm_disperse_user_sizes, but not window-drag...
+            -- NB MAXSIZE does not work in the 2.24.10 (from Feb 2012!) GTK2 windows dlls I still use... (bug fixed 2013!)
+
+local constant HV = {"HORIZONTAL","VERTICAL"}
+
+local procedure tg_draw_split(gdx splitter, integer w,h)
+    integer o = find(gGetAttribute(gGetParent(splitter),`ORIENTATION`),HV)
+    -- note the non-expanding w|h must be odd, else
+    --  a) this will typecheck due to the 0.5
+    --  b) the thing would display lop-sided.
+    {w,h} = {w-1,h-1}
+    {w,h} = {{w/2,h},{w,h/2}}[o]        -- \ *nb* these steps
+    integer {x,y} = {{w,0},{0,h}}[o]    -- / cannot be merged
+    gDrawLine(splitter,x,y,w,h,style:=TG_DOTTED)
+end procedure
+
+
+function hSplit(gdx child1, child2, string orientation="HORIZONTAL")
+    integer o = find(orientation,HV),
+            gBox = {gHbox,gVbox}[o]
+--  gSetAttribute(s,`SPLIT`,`AYE`) -- (private/undocumented, creation-only)
+    gdx s = gCanvas(tg_draw_split,"SIZE=3x3,SPLIT=AYE"),
+      box = gBox({child1,s,child2},"SPLIT=AYE")
+--DEV                               ^^^^ set CF_SPLIT directly instead!
+    gSetAttribute(s,`EXPAND`,HV[-o])
+    gSetAttribute(s,`BGCLR`,TG_CYAN)
+--  gSetAttribute(s,`BGCLR`,TG_LIGHT_GREY)
+--  gSetHandler(s,`CLICK`,tg_split_click)
+--  gSetHandler(s,`MOUSEMOVE`,tg_split_mousemove)
+--  gSetHandler(s,`MOUSELEAVE`,tg_split_mouseleave)
+    return box
+end function
+
+gdx l = gCanvas(),
+    r = gCanvas(),
+  box = hSplit(l,r), 
+--  box = hSplit(l,r,"VERTICAL"), -- (sweet!!)
+-- dlg = gDialog(box,`gSplit`,`SIZE=0x112`)
+-- dlg = gDialog(box,`gSplit`,`SIZE = 302x332`)
+  dlg = gDialog(box,`gSplit`)
+gSetAttribute(dlg,"MINSIZE","202x232") -- (ie a 200x200 canvas)
+gSetAttribute(dlg,"MAXSIZE","402x432") -- (ie a 400x400 canvas)
+--DEV borken:
+--gSetAttribute(cnv,"MINSIZE","200x200")
+--gSetAttribute(dlg,"MAXSIZE","400x400")
+--DEV broken/no visible difference... (works on a hbox - maybe I should just document it like that... and the BGCLR test below confirms that...)
+--gSetAttribute(cnv,"MARGIN",10)
+--excellent!
+--gSetAttribute(cnv,"BGCLR","PARCHMENT")
+--gSetAttribute(box,"BGCLR","BLUE")
+gShow(dlg)
+gMainLoop()
+
+--/*
+"WM_SETFOCUS"
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
+ 1 gCanvas      0   0 300 300  11  15   0   0  2  0          CF_EXPANDB
+ 2 gDialog    809 374 302 332 226  47 302 332  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+oh dear:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
+ 1 gCanvas      0   0 230 200  11  15 300 300  2  0          CF_EXPANDB
+ 2 gDialog    847 516 232 232 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+even worse, w/o minsize:
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26868, gShow]
+ 1 gCanvas      0   0 120   0  11  15 300 300  2  0          CF_EXPANDB
+ 2 gDialog    847 516 122  32 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
+
+--*/
