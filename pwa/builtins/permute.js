@@ -164,37 +164,72 @@ function premutes(integer i)
 end function
 */ 
 
-/*global*/ function combinations(/*sequence*/ s, /*integer*/ k, at=1, /*sequence*/ res=["sequence"], part="") {
-    //
-    // eg join(combinations("123",2),',') ==> "12,13,23"
-    //
+/*local*/ function $combos(/*sequence*/ s, res, part, /*integer*/ k, at) {
     if (k===0) { // got a full set
         res = append(res,part);
     } else {
-        if (equal(res,["sequence"])) { s = unique(s); }
         if (compare((at+k)-1,length(s))<=0) {
             // get all combinations with and without the next item:
-            res = combinations(s,k-1,at+1,res,append(deep_copy(part),$subse(s,at)));
-            res = combinations(s,k,at+1,res,part);
+            res = $combos(s,res,append(deep_copy(part),$subse(s,at)),k-1,at+1);
+            res = $combos(s,res,part,k,at+1);
         }
     }
     return res;
-} combinations.$sig="FPIIPP,3";
+} $combos.$sig="FPPPII";
 
-/*global*/ function combinations_with_repetitions(/*sequence*/ s, /*integer*/ k=length(s), at=1, /*sequence*/ res=["sequence"], part="") {
+/*global*/ function combinations(/*sequence*/ s, /*integer*/ k) {
     //
-    // eg join(combinations_with_repetitions("123",2),',') ==> "11,12,13,22,23,33"
+    // eg combinations("123",2) ==> {"12","13","23"}
     //
-    if (equal(length(part),k)) {
+    s = unique(s,"STABLE");
+    if (k===-1) { k = length(s); }
+    return $combos(s,["sequence"],"",k,1);
+} combinations.$sig="FPI";
+/*
+DEV: this is apparently 3* faster than combinations()... (4.9s vs 15.1s)
+sequence combis = {}  
+  
+procedure recurse(sequence remaining,               /@ digits remaining to compute ... @/  
+                  integer needed,                   /@ number of digits expected for a valid combination @/  
+                  integer done=0,                   /@ ... but do not use remaining[1..done] @/  
+                  sequence selected = {})           /@ digits already selected for a potential combination @/  
+  if done=0 then combis = {} end if /@ you can and probably will thank me later for that! @/ 
+  integer nr = length(remaining)-done   -- number of digits remaining to compute  
+  integer ns = length(selected)    -- number of digits already selected for a potential combination  
+  if ns+nr = needed then  
+    combis = append(combis, selected & remaining[done+1..$]) 
+  elsif ns = needed then 
+    combis = append(combis, selected)  
+  else 
+--  elsif ns+nr>needed then 
+    done += 1 
+    -- select next  
+    recurse(remaining, needed, done, selected & remaining[done])  
+    -- skip next  
+    recurse(remaining, needed, done, selected)  
+  end if 
+end procedure
+*/
+
+/*local*/ function $rep_combos(/*sequence*/ s, res, part, /*integer*/ k, at) {
+    if (k===0) {
         res = append(res,part);
     } else {
-        if (equal(res,["sequence"])) { s = unique(s); }
         { let sat$lim = length(s); for (at = at; at <= sat$lim; at += 1) { let sat = $subse(s,at);
-            res = combinations_with_repetitions(s,k,at,res,append(deep_copy(part),sat));
+            res = $rep_combos(s,res,append(deep_copy(part),sat),k-1,at);
         }}
     }
     return res;
-} combinations_with_repetitions.$sig="FPIIPP,1";
+} $rep_combos.$sig="FPPPII";
+
+/*global*/ function combinations_with_repetitions(/*sequence*/ s, /*integer*/ k=-1) {
+    //
+    // eg combinations_with_repetitions("123",2) ==> {"11","12","13","22","23","33"}
+    //
+    s = unique(s,"STABLE");
+    if (k===-1) { k = length(s); }
+    return $rep_combos(s,["sequence"],"",k,1);
+} combinations_with_repetitions.$sig="FPI,1";
 /*
 From rc:Permutations with repetitions:
 The task is equivalent to simply counting in base=length(set), from 1 to power(base,n).
@@ -272,6 +307,7 @@ global function combination(integer k, n, sequence set)
 -- return the kth combination of length n items from the given set.
 -- k should be an integer in the range 1 to power(length(set),n)
 --                                              ^^ shd that just be length(set)*n?
+--                                              -- duh, more likely choose(n,l)...
 --
     integer l = length(set)
     if k<1 or k>power(l,n) then ?9/0 end if

@@ -125,21 +125,47 @@
         notes below (multiple assignment is designed for comfort and convenience not speed).
        <br>
        <br>
-        As well as the syntax previously shown in <a href="variables.htm">Variables</a> and <a href="constants.htm">Constants</a>,
-        you can also declare variables and assign them immediately:
+        You can also declare variables of a single or mixed types and assign them immediately:
 <!--eucode>
-    {string name, integer id} = lookup()
+    integer {x, y} = gGetGlobal(`MOUSEPOS`)
+    -- or --
+    {string name, integer id, ilk} = lookup()
 </eucode-->
 <pre>
-<font color="#0000FF">    {</font><font color="#004080">string</font><font color="#000000"> name</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">} =</font><font color="#000000"> lookup</font><font color="#0000FF">()</font>
+<font color="#004080">    integer</font><font color="#0000FF"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">} =</font><font color="#7060A8"> gGetGlobal</font><font color="#0000FF">(</font><font color="#008000">`MOUSEPOS`</font><font color="#0000FF">)</font>
+<font color="#000080"><i>    -- or --</i></font>
+<font color="#0000FF">    {</font><font color="#004080">string</font><font color="#000000"> name</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#000000"> ilk</font><font color="#0000FF">} =</font><font color="#000000"> lookup</font><font color="#0000FF">()</font>
 </pre>
+        where the integer type propagates to ilk as usual <small>(since 19/4/26, 1.0.6)</small>.<br>
+        However mixing such "outer" and "inner" types at different levels is generally not <small>(as yet)</small> permitted, for instance:
+<!--eucode>
+    string {s, integer {x,y}} = {"s",{1,2}} -- illegal (as it should be)
+    {string s, integer {x,y}} = {"s",{1,2}} -- ok
+    {string s, {integer x,y}} = {"s",{1,2}}   -- illegal (uh, see below)
+    {{string s}, {integer x,y}} = {{"s"},{1,2}} -- ok
+</eucode-->
+<pre>
+<font color="#004080">    string</font><font color="#0000FF"> {</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#800000"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} = {</font><font color="#008000">"s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">}</font><font color="#000080"><i> -- illegal (as it should be)</i></font>
+<font color="#0000FF">    {</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#800000"> {</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} = {</font><font color="#008000">"s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">}</font><font color="#000080"><i> -- ok</i></font>
+<font color="#0000FF">    {</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} = {</font><font color="#008000">"s"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">}  </font><font color="#000080"><i> -- illegal (uh, see below)</i></font>
+<font color="#0000FF">    {</font><font color="#800000">{</font><font color="#004080">string</font><font color="#000000"> s</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000"> {</font><font color="#004080">integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} = {</font><font color="#800000">{</font><font color="#008000">"s"</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">}</font><font color="#000080"><i> -- ok</i></font>
+</pre>
+<!--
+        UPDATE: (19/4/26, 1.0.6) removed the "type declaration reset" (for want of a better name) in pmain.e/GetMultiAssignSet()
+        such that eg
+-->
+<!--
+        <i>is</i> now allowed, with kind defaulting to integer type as you might expect. Said change may have introduced some
+        issues, but I didn&apos;t notice any when testing...
+-->
+<!--
         however sub-types do /NOT/ propagate/carry-over-commas as you might expect, eg:
-<!--eucode>
+[!--eucode>
     {a, string b, c} = lookup()
-</eucode-->
-<pre>
+</eucode--]
+[pre]
 <font color="#0000FF">    {</font><font color="#000000">a</font><font color="#0000FF">,</font><font color="#004080"> string</font><font color="#000000"> b</font><font color="#0000FF">,</font><font color="#000000"> c</font><font color="#0000FF">} =</font><font color="#000000"> lookup</font><font color="#0000FF">()</font>
-</pre>
+[/pre]
         will terminate in error if b already exists, or if a <i>/<b>or c</b>/</i> does not already exist. 
         Use "string b, string c" instead, along with whatever you might need to do for a.
         While string {a, b, c} propagates the type, and declares three new variables of type string, 
@@ -151,15 +177,30 @@
         and trigger an error, but obviously you can simply move the "string" inside the {}, in that 
         particular case twice.
         <br>
+-->
+        An "outer" <i>type</i> {<i>xxx</i>} both <i>shouldn&apos;t</i> and <i>doesn&apos;t</i> permit any further types at all in <i>xxx</i>
+         <small>(no gain letting case 1==2 above, only downsides/ambiguity)</small>.<br>
+        An "inner" {<i>type</i> <i>xxx</i>} allows other same-level types in <i>xxx</i>, like routine parmeters, but currently 
+        <i>doesn&apos;t</i> allow nested {<i>type</i> ...} when it probably really <i>should</i> - however the required changes to 
+        pmain.e/GetMultiAssignSet() are eluding me, to let more cases such as that 3<small><sup>rd</sup></small> be valid, probably 
+        as a modified copy of it to avoid breaking the other three use cases of that routine - let me know should you figure it out.<br>
+        Note that in all cases, the first of any "inner" types at a given level <i>must</i> be tight against the opening '{', just like routine params.<br>
+        Also any permitted "inner" <i>type</i> {<i>xxx</i>} must act as an "outer" on its <i>xxx</i>, as above prohibiting any further types therein
+         <small>(as per case 2)</small>.<br>
+        <small>Full disclosure: It is just a minor parsing snag I&apos;ve not yet solved, or ever truly needed.
+               No "knock-on" changes beyond successful parsing should be needed.</small>
         <br>
-        Also note that "mid-lhs" declarations are not supported by <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>,
-        in other words you cannot mix new declarations and pre-existing variables on the left hand side,
-        instead they have to be all new or all pre-existing. It is of course trivial to change (say)
+        <br>
+        Also note that for <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a> compatibility reasons, you cannot mix 
+        new declarations and pre-existing variables on the left hand side, instead they have to be all new or all pre-existing.
+<!--
+         It is of course trivial to change (say)
         <code>{a, string b, c} = <i>expr</i></code> by splitting it into two statements: <code>string b; {a,b,c} = <i>expr</i></code>,
         which will make it p2js-compatible. Since JavaScript is a <i><a href="glossary.htm#typeless">typeless</a></i> language it 
         really couldn&apos;t care much less about (the types in) say <code>{integer i, string b} = <i>expr</i></code>, but (unlike 
         Phix) it does <i>not</i> allow say <code>[a, let b]</code> syntax or anything similar (that I could find), although 
         <code>let [a, b]</code> is fine.
+-->
        <br>
        <br>
         Use '{}' (or '?') to omit elements

@@ -1,0 +1,273 @@
+﻿--
+-- demo/rosetta/Sturm_sequence.exw
+--
+--  Real-only polynomial root finder (Sturm + bisection)
+--  ----------------------------------------------------
+--  Works for any polynomial with real coefficients.
+--  Returns a sequence of real roots (each as a plain atom).
+--  Disclaimer: use this code with extreme caution!
+--
+with javascript_semantics
+
+function evalPoly(sequence coeffs, atom x) -- (Horner, real only)
+    -- coeffs[1] is the leading coefficient, coeffs[$] the constant term
+    atom r = coeffs[1]
+    for i = 2 to length(coeffs) do
+        r = r * x + coeffs[i]
+    end for
+    return r
+end function
+
+--======================================================================
+--  Build the Sturm sequence:  p0 = p, p1 = p', then
+--        p_{k-1} = q_k * p_k + p_{k+1}   with  deg(p_{k+1}) < deg(p_k)
+--  The sequence ends when we reach a constant (non-zero) polynomial.
+--======================================================================
+
+--======================================================================
+--  Helper: trim leading zeroes (return {0} for the zero polynomial)
+--======================================================================
+function trimPoly(sequence p)
+    -- remove leading zeros
+    while length(p) > 0 and p[1] = 0 do
+        p = p[2..$]
+    end while
+    if length(p) = 0 then p = {0} end if
+    return p
+end function
+
+--======================================================================
+--  Helper: true iff a polynomial is the zero polynomial (after trimming)
+--======================================================================
+function isZeroPoly(sequence p)
+    return length(p) = 1 and p[1] = 0
+end function
+
+--======================================================================
+--  Build the Sturm sequence (robust version)
+--======================================================================
+function sturmSeq(sequence p)
+    sequence s = { trimPoly(p) }               -- p0  (trimmed)
+
+    -- derivative (p1)
+    sequence pd = {}
+    for i = 1 to length(p)-1 do
+        pd &= p[i] * (length(p)-i)             -- coefficient of x^{n-i}
+    end for
+    if length(pd) = 0 then pd = {0} end if
+    s = append(s,trimPoly(pd))                  -- p1  (trimmed)
+
+    while true do
+        sequence a = trimPoly(s[$-1])          -- dividend  = p{k-1}
+        sequence b = trimPoly(s[$])            -- divisor   = p{k}
+        if isZeroPoly(b) then exit end if      // safety check
+
+        -- synthetic division: a = q*b + r   (deg(r) < deg(b))
+        sequence q = repeat(0, length(a)-length(b)+1)
+        sequence r = deep_copy(a)              -- will be overwritten
+        for i = 1 to length(q) do
+            q[i] = r[1] / b[1]                 -- leading coeff of current remainder
+            for j = 1 to length(b) do
+                r[j] = r[j] - q[i] * b[j]
+            end for
+            r = r[2..$]                        -- drop the term we just processed
+        end for
+        r = trimPoly(r)
+
+        if isZeroPoly(r) then exit end if      // remainder zero -> chain finished
+
+        -- Sturm chain uses -r
+        for i = 1 to length(r) do r[i] = -r[i] end for
+        s = append(s,r)                         -- p{k+1} = -r  (sign change handled later)
+
+        -- stop when we have reached a constant (degree 0)
+        if length(r) = 1 then exit end if
+    end while
+    return s
+end function
+
+--======================================================================
+--  Sign of a polynomial at a point (taking into account the alternating
+--  signs stored in the Sturm sequence)
+--======================================================================
+
+function signAt(sequence s, atom x)
+    integer sgn = 0
+    for e in s do
+        sgn += sign(evalPoly(e,x))
+    end for
+    return sgn
+end function
+
+--======================================================================
+--  Number of distinct real roots in (a,b) using Sturm's theorem
+--======================================================================
+
+function variations(sequence s, atom pt)
+    integer changes = 0, last = 0
+    for si in s do
+        atom v = evalPoly(si, pt)
+        if v!=0 then    -- zeros are ignored
+            integer cur = iff(v>0,1,-1)
+            if last!=0 and cur!=last then changes += 1 end if
+            last = cur
+        end if
+    end for
+    return changes
+end function
+
+function sturmCount(sequence s, atom a, b)
+    -- we need the signs at a and b; the theorem says:
+    --      real roots in (a,b) = V(a) - V(b)
+    -- where V(x) = number of sign changes in the sequence (ignoring zeros)
+    return variations(s,a) - variations(s,b)
+end function
+
+--======================================================================
+--  Isolate all real roots: recursively subdivide until each interval
+--  contains exactly one root (or is empty).  We start with a big bound
+--  that surely contains all roots:  Cauchy's bound.
+--======================================================================
+
+-- -----------------------------------------------------------------
+--  Safe bisection that uses a relative tolerance and a step limit
+-- -----------------------------------------------------------------
+function bisect(sequence sturm, monic, atom lo, hi, tol, integer maxbisect)
+    -- recursive subdivision
+    integer cnt = sturmCount(sturm, lo, hi)
+    if cnt=0 then return {} end if
+    if cnt=1 then
+        -- isolate to tolerance by bisection
+        atom mid
+        for step = 1 to maxbisect do
+            if (hi-lo) <= tol * max(1.0, abs(lo)+abs(hi)) then exit end if
+            mid = (lo+hi)/2
+            if sturmCount(sturm, lo, mid) >= 1 then
+                hi = mid
+            else
+                lo = mid
+            end if
+        end for
+        -- one final Newton polish (optional but cheap)
+        -- f(x) = evalPoly(monic, x), f'(x) = evalPoly(derivative, x)
+        sequence der = {}
+        for i = 1 to length(monic)-1 do
+            der &= monic[i] * (length(monic)-i)
+        end for
+        if length(der)=0 then der = {0} end if
+        atom f  = evalPoly(monic, mid)
+        atom df = evalPoly(der,  mid)
+        if df!=0 then mid = mid - f/df end if
+        return {mid}
+    end if
+    -- more than one root: split and recurse
+    atom mid = (lo+hi)/2
+    return bisect(sturm,monic,lo,mid,tol,maxbisect) & 
+           bisect(sturm,monic,mid,hi,tol,maxbisect)
+end function
+
+--======================================================================
+--  Real-only polynomial root finder (Sturm + safe bisection)
+--======================================================================
+
+function realRoots(sequence coeffs, atom tol=1e-12, integer maxbisect=80)
+    if length(coeffs)=0 then return {} end if
+
+    -- make the polynomial monic (leading coeff = 1) – simplifies the bound
+    atom lead = coeffs[1]
+    if lead=0 then
+        while length(coeffs)>0 and coeffs[1]=0 do coeffs = coeffs[2..$] end while
+        if length(coeffs)=0 then return {} end if
+        lead = coeffs[1]
+    end if
+    sequence monic = {}
+    for c in coeffs do monic &= c/lead end for
+
+    -- Cauchy bound: all roots satisfy |x| <= 1 + max|a_i| (i>=1)
+    atom bound = 1.0
+    for i = 2 to length(monic) do
+        bound = max(bound, 1+abs(monic[i]))
+    end for
+
+    sequence sturm = sturmSeq(monic)
+
+    return bisect(sturm, monic, -bound, bound, tol, maxbisect)
+end function
+
+--======================================================================
+--  Pretty-print a polynomial (real coefficients only)
+--======================================================================
+
+function polyStrR(sequence coeffs)
+    string res = ""
+    integer first = 1
+    for i,c in coeffs do
+        if c!=0 then
+            string sgn
+            if first then
+                sgn = iff(c<0, "-", "")
+            else
+                sgn = iff(c>=0, " + ", " - ")
+            end if
+            atom ac = abs(c)
+            integer pwr = length(coeffs)-i
+            if ac<>1 or pwr=0 then
+                res &= sgn & sprintf("%g", ac)
+            else
+                res &= sgn
+            end if
+            if pwr>0 then
+                res &= "x"
+                if pwr>1 then
+                    res &= "^" & sprintf("%d", pwr)
+                end if
+            end if
+            first = 0
+        end if
+    end for
+    if res="" then res = "0" end if
+    return res
+end function
+
+constant polys = {
+     -- linear
+     {1, 0}, {1, -1}, {1, 3.14159265},
+     -- Quadratic
+--   {1, -14, 25},
+     {1, -1E9, 1}, {1, 0, 1}, {1, 2, 1}, {2, -1, -6}, {1, 2, -2}, {1, 3, 2},
+     {3, 4, 5}, {2, -1.00000001, 1E9}, {1E9, 1.23456789, -1E9},
+     -- Cubic
+     {1, -3, 3, -1}, {1, -4, -27, 90}, {1, 0, -3, -2}, {1, -14, 35, -22},
+     {1, -2.41421356, 2.41421356, -1},
+     -- Quartic
+     {3, 6 -123, -126, 1080}, {-20, 5, 17, -29, 87}, {2, 4, 6, 8, 10}, {1, 0, 0, 0, 0},
+     {1, 0, 0, 0, -1}, {1, 0, 0, 0, 1}, {1, 0, 5, 0, 4}, {1, -10, 35, -50, 24},
+     {1, -8, 24, -32, 16}, {1, -2, 2, -2, 1}, {3, -7, 2, 5, -1}, {1, -6, 15, -18, 10},
+     {1.2345, 12.345, 123.45, 1234.5, 12345}, {1, -3E8, 2E16, -6E7, 4E-2},
+     -- order 5 and up
+     {3, -6, -8, 5, -8, 7}, 
+     {-8, -4, 0, 8, -7, -7, 9},
+     {-8, 8, 5, 8, 5, -1, -3, 1},
+     {-5, 1, 4, 7, 0, -5, 1, 3, 3},
+     {3, 5, -1, 2, -9 -1, 4, 5, -7, -1},
+     {1,  55, 1320, 18150, 157773, 902055, 3416930, 8409500, 12753576, 10628640, 3628800},
+     -- Conway's constant
+     {1, 0, -1, -2, -1, 2, 2, 1, -1, -1, -1, -1, -1, 2, 5, 3, -2, -10, -3, -2, 6, 6, 1, 9, -3, 
+     -7, -8, -8, 10, 6, 8, -5, -12, 7, -7, 7, 1, -3, 10, 1, -6, -2, -10, -3, 2, 9, -3, 14, -8,
+      0, -7, 9, 3, -4, -10, -7, 12, 7, 2, -12, -4, -2, 5, 0, 1, -7, 7, -4, 12, -6, 3, -6},
+}
+for coeffs in polys do
+    puts(1, polyStrR(coeffs) & '\n')
+    sequence rr = realRoots(coeffs)
+    if length(rr)=0 then
+        puts(1,"  No real roots\n\n")
+    else
+        for i,r in rr do
+            printf(1, "  Root %d: %.12g (Evaluates to %g)\n", {i, r, evalPoly(coeffs,r)})
+        end for
+        puts(1, '\n')
+    end if
+end for
+?"done"
+wait_key()
+

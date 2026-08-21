@@ -13,9 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-          include pGUI.e
-          <br>
-          include opengl.e
+          include theGUI.e <small>-- (or pGUI.e and opengl.e)</small>
           <br>
           <br>
           glBufferData(<a href>integer</a> target, size, <a href>atom</a> pData, integer usage)
@@ -83,11 +81,16 @@
           <b>Utilities:</b>
          </td>
          <td>
-            {<a href>integer</a> size, <a href>atom</a> pData} = <b>glFloat32Array</b>(<a href>sequence</a> data)<br>
+<!--            {<a href>integer</a> size, <a href>atom</a> pData} = <b>glFloat32Array</b>(<a href>sequence</a> data)<br>-->
+            <a href>atom</a> pData = <b>glFloat32Array</b>(<a href>sequence</a> data)<br>
             While in the C api it is natural to use the (address of) an array, opengl.e must explicitly allocate, poke, and eventually
             free memory, whereas WebGL specifies that "new Float32Array" should be used, so that&apos;s what opengl.js does. <br>
-            This Phix-specific routine abstracts away any such differences. <br>
-            A need for further variations for non-float32 arrays may yet arise. <br>
+            This Phix-specific routine abstracts away any such differences, except on desktop/Phix you may (rarely) want to explicitly
+            <a href>free</a>(pData), whereas in a browser you should just trust that the JavaScript garbage collector will cope. <br>
+            The data parameter can be a flat column-major order sequence, or a 2D array, which may well feel more natural.<br>
+            The size of the result in bytes (which you will need) is length(data)*4 for a flat array and length(data)*length(data[1])*4 
+            for a 2D array.
+            A need for further variations for non-float32 arrays may yet arise. 
             The possibility of a <a href>NULL</a> pData mentioned above does not extend to this routine (and in any case has not been 
             needed or tested).
             <br><a name=glSimpleA7texcoords></a>
@@ -104,17 +107,19 @@
             <img src="images/A7format.png"/>
             <br>
             <br>
-            Drawing the first triangle is a bit like writing a capital A, in reverse italic and without the cross bar, and the second
-            triangle is a bit like drawing a 7. Obviously 2 and 4 are really the same point, as are 3 and 6. As long as you have defined 
-            all your (rectangular) faces consistently, then you can appply the same texture mapping to all of them, and at the same time 
-            iron out any discrepancies between desktop/Phix and pwa/p2js, which is precisely what glSimpleA7texcoords does. One critical
-            thing is that both triangles are clockwise, so the face culling code of OpenGL knows those need to be shown, until they get
-            rotated to become anti-clockwise, at which point they don&apos;t.
+            Drawing the first triangle is a bit like writing a capital A in reverse italic, and the second more like a 7. Obviously 2 and 
+            4 are really the same point, as are 3 and 6. As long as you have defined all your (rectangular) faces consistently, then you 
+            can apply the same texture mapping to all of them. One critical thing is that both triangles are clockwise when face-on, with
+            the face culling code of OpenGL dropping any rotated to become anti-clockwise.
             <br>
             <br>
-            In practice, demo\pGUI\opengl.e as is used for desktop/Phix repeats {1,0, 1,1, 0,0, 1,1, 0,1, 0,0} <br>
-            &nbsp;&nbsp;&nbsp;whereas pwa\builtins\opengl.js as is used via pwa/p2js.exw repeats {1,1, 1,0, 0,1, 1,0, 0,0, 0,1}, <br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;which immediately illustrates the problem glSimpleA7texcoords() solves.<br>
+            In practice, desktop/Phix repeats {1,0, 1,1, 0,0, 1,1, 0,1, 0,0} <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;whereas JavaScript repeats {1,1, 1,0, 0,1, 1,0, 0,0, 0,1}, <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;which immediately 
+            illustrates the problem glSimpleA7texcoords() solves.<br>
+            <small>[ie desktop/OpenGL draws textures using the triangles {5,6,4}\{3,1,2}, whereas WebGL went with {6,1,5}/{5,2,1}, the
+            opposite diagonal and flipping the meaning of [anti-]clockwise, presumably all with the honorable intention of helping to keep 
+            more programmers gainfully employed.]</small><br>
             The texture coordinates that OpenGL needs must be a one-to-one mapping between all the 3D points in the model and the
             corresponding 2D points on the texture, specifying the x and y coordinates as a floating point number 0..1.<br>
             Incidentally, this routine specifically requests a <a href="html/glossary.htm#dwordseq">dword-sequence</a> result from 

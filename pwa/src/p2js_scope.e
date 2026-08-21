@@ -8,7 +8,7 @@
 --  [3] will be a routine [3+] for nested blocks
 -- dang, what about includes... [DONE, kinda]
 -- key ttidx, data is type - int/atom/string/sequence/object, func/proc (or just int?!)
---? key of {"type",ttidx}, data is ... (Ihandle,complex[n],keyword?(-1?),dictionary...)
+--? key of {`type`,ttidx}, data is ... (Ihandle,complex[n],keyword?(-1?),dictionary...)
 -- add_scope(), drop_scope(), add_local(), add_global(), get_type(), Xget_udt()X
 -- TOKVTYPE? <- no, TOKALTYPE
 
@@ -43,7 +43,7 @@ sequence {auto_names, auto_procfunc, auto_sigs, auto_files} = columnize(p2js_aut
 integer named_args,     -- key is {arg_rtn,ttidx}, 
                         -- data is {arg_idx,vartype}
         arg_defs        -- key is {arg_rtn,arg_idx},
-                        -- data is "{}/ident/string/number" (always string)
+                        -- data is `{}/ident/string/number` (always string)
                         -- nb no support for eg length(),platform() etc yet.    [ length now done ]
 
 function unfudge(sequence s)
@@ -64,19 +64,19 @@ sequence {autoincludes,dependencies,globals,arg_names} = columnize(unfudge(p2js_
 
 --?autoincludes
 --traverse_dict(integer rid, object user_data=0, integer tid=1, bool rev=false)
--->{{"traverse_dict",{"integer","rid","?"},
---                   {"object","user_data","0"},
---                   {"integer","tid","1"},
---                   {"bool","rev","false"}}}
---  "traverse_dict" must exist in auto_names: {`traverse_dict`, `Proc`, `PIOII`, `dict.e`},
+-->{{`traverse_dict`,{`integer`,`rid`,`?`},
+--                   {`object`,`user_data`,`0`},
+--                   {`integer`,`tid`,`1`},
+--                   {`bool`,`rev`,`false`}}}
+--  `traverse_dict` must exist in auto_names: {`traverse_dict`, `Proc`, `PIOII`, `dict.e`},
 --  raise an error if length(auto_sigs[k]) does not match [that is, assuming auto_sigs is
 --              fresh outa psym.e and args is from a fresh transpilation, so, yes, crash.]
---  TYPI..TYPO might be easier/all round better than "integer".."object".
+--  TYPI..TYPO might be easier/all round better than `integer`..`object`.
 
 --sequence sna, sad -- DEV/temp
 
 global procedure init_scope()
---?{"init_scope",T_high}
+--?{`init_scope`,T_high}
     if length(scopes)=0 then
         integer builtins = new_dict(),
                 globals = new_dict()
@@ -87,8 +87,8 @@ global procedure init_scope()
 --better: we should build a repeat(false,length(T_keywords)) and []=true anything < T_reserved[$] [DONE]
 --?auto_names
         for i=1 to length(T_reserved) do
-if not match("complex",T_keywords[i])
-and not find(T_keywords[i],{"from_polar","with_theta","with_rho"}) then
+if not match(`complex`,T_keywords[i])
+and not find(T_keywords[i],{`from_polar`,`with_theta`,`with_rho`}) then
             setd(T_reserved[i],T_toktypes[i],builtins)
 --          setd({'[',T_reserved[i]},i,builtins)
             integer k = find(T_keywords[i],auto_names)
@@ -96,7 +96,7 @@ and not find(T_keywords[i],{"from_polar","with_theta","with_rho"}) then
 --?{{'[',T_reserved[i]},k,T_keywords[i]}
                 setd({'[',T_reserved[i]},k,builtins)
 --elsif i<50 then
---  ?{"?",T_keywords[i]}
+--  ?{`?`,T_keywords[i]}
             end if
 end if
         end for
@@ -111,7 +111,7 @@ end if
         destroy_dict(arg_defs, justclear:=true)
     end if
     referenced = repeat(false,length(p2js_auto))
---?T_keywords -- {"string","nullable_string",...
+--?T_keywords -- {`string`,`nullable_string`,...
 --?T_toktypes -- {8,9,11,3,1,1,1,3,1,12,1,3,3,1,1,... (TYPI..BADT)
 --?T_reserved -- {24,88'X',136,140,160,176,192,228,244,... (ttidx)
 --  T_keywords = vslice(defs,1)
@@ -127,7 +127,7 @@ integer arg_rtn = 0,
         def_idx
 
 global procedure add_scope(integer rtnttidx=0)
---?"add_scope"
+--?`add_scope`
     scopes &= new_dict()    
     arg_rtn = rtnttidx  -- (0 for file scope)
     arg_idx = 0
@@ -139,7 +139,7 @@ global procedure clear_arg_rtn()
 end procedure
 
 global procedure drop_scope()
---?"drop_scope"
+--?`drop_scope`
     if length(scopes)<=GLOBALS then ?9/0 end if
     integer d = scopes[$]
     destroy_dict(d)
@@ -149,6 +149,7 @@ end procedure
 --/!*
 sequence scope_dumps
 --scope_dumps = {0,{{39408,19},{39468,19},{39472,19}},{{39024,8},{39032,1},{39416,12},{39488,1},{39500,1}}}
+without warning
 global procedure dump_scopes()
     scope_dumps = repeat(0,length(scopes))
     for i,d in scopes from 1 do
@@ -163,6 +164,7 @@ end if
         scope_dumps[i] = columnize({k,v,n})
     end for
 end procedure
+with warning
 --*!/
 
 global procedure final_scope_check()
@@ -172,11 +174,11 @@ end procedure
 function add_id(integer ttidx, vartype, scope)
 --if ttidx=27056 then
 --  if find(scope,scopes)=2 then ?9/0 end if
---  ?{"add_id",ttidx,vartype,scope,find(scope,scopes)}
+--  ?{`add_id`,ttidx,vartype,scope,find(scope,scopes)}
 --end if
     if getd(ttidx,scopes[BUILTINS])!=NULL then
 --/*
-{"?find",                       TYPF,   T_find                          := 3284},
+{`?find`,                       TYPF,   T_find                          := 3284},
 current_file = `C:\Program Files (x86)\Phix\builtins\find.e`
 auto_files[28..29] = {`find.e`,`find.e`}
 auto_names[28..29] = {`find`,`rfind`}
@@ -197,7 +199,7 @@ tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x
 --*/
             return 1
         elsif path=pwadir then
-            if find(file,{"p2js.js","pGUI.js","theGUI.js"}) then
+            if find(file,{`p2js.js`,`pGUI.js`,`theGUI.js`}) then
                 return 1 -- assume legal
             end if
         end if
@@ -206,7 +208,7 @@ tokstack[1..2] = {{`C:\Program Files (x86)\Phix\builtins`},{`C:\Program Files (x
     if getd(ttidx,scope)!=NULL then
 --DEV we need to save source file and line numbers... [for a proper error message]
         if not find(vartype,{TYPF,TYPR}) then
-            ?{"Already defined (p2js_scope.e line 186)",ttidx,get_ttname(ttidx)}
+            ?{`Already defined (p2js_scope.e line 211)`,ttidx,get_ttname(ttidx)}
 --          ?9/0
         end if
         return 0 -- already defined
@@ -222,7 +224,7 @@ global function add_global(integer ttidx, vartype)
 end function
 
 global function add_local(integer ttidx, vartype)
---?{"add_local",ttidx,vartype}
+--?{`add_local`,ttidx,vartype}
     -- catch/warn this before the call, eg see p2js_parse.e/vardef()
 --  if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TYPM,TYPP,TYPO}) then ?9/0 end if
 --  if not find(vartype,{TYPI,TYP2,TYPN,TYPQ,TYPS,TYP9,TY11,TYPP,TYPO}) then ?9/0 end if
@@ -285,7 +287,7 @@ Global & Local Variables
 --          args = args[rdx][2]
             integer pdx = find(var_name,vslice(args,1))
 --                  sp = sig[pdx+1],
---                  pt = {TYPI}[find(sp,"I")]
+--                  pt = {TYPI}[find(sp,`I`)]
 --we might want to set args[pdx][2] as a default??? or all of them???
 --          return {pdx,pt}
 --          return {pdx,TYPO}
@@ -299,7 +301,7 @@ Global & Local Variables
 end function
 
 function arg_rec(sequence node)
-    string res = "?"
+    string res = `?`
     if length(node) then    
         object toktype = node[TOKTYPE]
 --10/4/22... (Strip control chars from a string)
@@ -320,33 +322,33 @@ function arg_rec(sequence node)
                         ch = "\r\n\\\0\eE"[find(ch,"rn\\0eE")]
                     end if
                 end if
-                res = sprintf("0X%x",ch)
+                res = sprintf(`0X%x`,ch)
 --          end if
 --?{2,res}
         elsif toktype='-' then
-            res = "-" & arg_rec(node[2][1])
+            res = `-` & arg_rec(node[2][1])
         elsif toktype=`PROC` then
-            res = tok_string(node[2][1]) & "("
+            res = tok_string(node[2][1]) & `(`
             for i=2 to length(node[2]) do
-                if i>2 then res &= "," end if
+                if i>2 then res &= `,` end if
                 res &= arg_rec(node[2][i])
             end for
-            res &= ")"
+            res &= `)`
         elsif toktype='{' then
-            res = "{"
+            res = `{`
             for i=1 to length(node[2]) do
-                if i>1 then res &= "," end if
+                if i>1 then res &= `,` end if
                 res &= arg_rec(node[2][i])
             end for
-            res &= "}"
+            res &= `}`
         elsif toktype='+'
           and length(node[2])=1
           and find(node[2][1][TOKTYPE],{DIGIT,LETTER}) then
-            res = "+" & tok_string(node[2][1])
+            res = `+` & tok_string(node[2][1])
         elsif toktype='#' then
             res = tok_string(node)
             assert(res[1]='#')
-            res = "0x"&res[2..$]
+            res = `0x`&res[2..$]
         else
             ?9/0    -- placeholder for more code...
         end if
@@ -355,11 +357,11 @@ function arg_rec(sequence node)
 end function
 
 global procedure set_arg_default(sequence vardef)
---?{"set_arg_default",vardef}
+--?{`set_arg_default`,vardef}
     if vardef[1]!=`vardef` then ?9/0 end if
 --  sequence v23 = vardef[2][3]
---  string def = "0"
---  string def = "?"
+--  string def = `0`
+--  string def = `?`
 --  vardef = {`vardef`,{{4,139,144,7,15,464},{4,146,151,7,15,17764},{}}}
     integer was_def_idx = def_idx,
             k = 2,
@@ -376,6 +378,10 @@ global procedure set_arg_default(sequence vardef)
             ?9/0 -- placeholder for more code??
         end if
         k += 1
+        if k>length(vardef[2]) then
+            sequence tok = tokens[tdx]
+            {} = parse_error(tok,`set_arg_default panic!`)
+        end if
         string def = arg_rec(vardef[2][k])
 --/*
     if v23!={} then
@@ -385,11 +391,11 @@ global procedure set_arg_default(sequence vardef)
         and v23[2][1][TOKTYPE]=LETTER
         and v23[2][1][TOKTTIDX]=T_length
         and v23[2][2][TOKTYPE]=LETTER then
-            def = "length(" & tok_string(v23[2][2]) & ")"
+            def = `length(` & tok_string(v23[2][2]) & `)`
         elsif find(toktype,{DIGIT,LETTER,'"'}) then
             def = tok_string(v23)
         elsif toktype='{' and length(v23[2])=0 then
-            def = "{}"
+            def = `{}`
 --  v23 = {123'{',{{3,1729,1729,63'?',58':'},{45'-',{{3,1732,1732,63'?',61'='}}}}}
         elsif toktype='{' and length(v23[2])=2
 --       then
@@ -399,29 +405,29 @@ global procedure set_arg_default(sequence vardef)
           and v23[2][1][TOKTYPE]=DIGIT
           and v23[2][2][TOKTYPE]='-'
           and v23[2][2][2][1][TOKTYPE]=DIGIT then
-            def = "{" & tok_string(v23[2][1]) & ",-" & tok_string(v23[2][2][2][1]) & "}"
+            def = `{` & tok_string(v23[2][1]) & `,-` & tok_string(v23[2][2][2][1]) & `}`
         elsif toktype='-' and length(v23)=2 and v23[2][1][1]=DIGIT then
 --  v23 = {45'-',{{3,471,471,18,71'G'}}}
-            def = "-" & tok_string(v23[2][1])
+            def = `-` & tok_string(v23[2][1])
         else
             ?9/0    -- placeholder for more code...
         end if
     end if
 --*/
         def_idx += 1
---?{"sad",{arg_rtn,def_idx},def}
+--?{`sad`,{arg_rtn,def_idx},def}
         setd({arg_rtn,def_idx},def,arg_defs)
---?{"for k=",k,"def_idx=",def_idx,"def=",def}
+--?{`for k=`,k,`def_idx=`,def_idx,`def=`,def}
 --  end for
         k += 1
     end while
 --/*
 `C:\Program Files (x86)\Phix\pwa\src\test.exw`
-{"9/0: def_idx!=arg_idx",1,0}
-{"vardef",{{4,578,584,21,3,388},{6,586,598,21,43'+',21},"",{}}}
+{`9/0: def_idx!=arg_idx`,1,0}
+{`vardef`,{{4,578,584,21,3,388},{6,586,598,21,43'+',21},"",{}}}
 --function multitext_valuechanged_cb(Ihandle /*multitext*/)
 --*/
-    if def_idx!=arg_idx then ?{"9/0: def_idx!=arg_idx",def_idx,{was_def_idx},arg_idx} ?vardef end if
+    if def_idx!=arg_idx then ?{`9/0: def_idx!=arg_idx`,def_idx,{was_def_idx},arg_idx} ?vardef end if
 --  sad = append(sad,{{arg_rtn,arg_idx},def})
 end procedure
 
@@ -437,7 +443,7 @@ global function get_arg_default(integer fttidx,idx)
 end function
 
 function get_type(integer ttidx, scope, downto=1)
---?{"get_type",ttidx,get_ttname(ttidx),scope,downto}
+--?{`get_type`,ttidx,get_ttname(ttidx),scope,downto}
     integer res
     for s=scope to downto by -1 do
         res = getd(ttidx,scopes[s])
@@ -454,7 +460,7 @@ function get_type(integer ttidx, scope, downto=1)
 --temp:
 --if res=0 and downto=1 and not find(ttidx,zeroes) then
 --zeroes &= ttidx
---?{"get_type",ttidx,scope,"==>",res}
+--?{`get_type`,ttidx,scope,`==>`,res}
 --end if
     return res -- (NULL/0 == not found)
 --  return TYPO
@@ -489,134 +495,134 @@ function not_an(sequence needles, haystack)
     return 0
 end function
 
-constant unsupported = {"pcfunc.e","pTask.e","pThreadN.e","structs.e","syswait.ew",
-"get_interpreter.e","ptls.ew","pscreen.e","pAlloc.e","peekns.e","pmach.e","file.e",
-"panykey.e","database.e","pbreak.e","ppoke2.e","image.e","mouse.e","pgettext.e",
-"hll_stubs.e","pfile.e","pchdir.e","pincpathN.e","isatty.e","hasdel.e","msgbox.e",
-"pFloatN.e","dll.e","hash.e","pokestr.e","pcurrdir.e","pgetpath.e","peekstr.e",
-"pcmdlnN.e","get_routine_info.e","pdir.e","pdelete.e","ldap.e","pScrollN.e","penv.e",
-"graphics.e","get.e","machine.e","progress.e","procedure initialAutoEntry(",
+constant unsupported = {`pcfunc.e`,`pTask.e`,`pThreadN.e`,`structs.e`,`syswait.ew`,
+`get_interpreter.e`,`ptls.ew`,`pscreen.e`,`pAlloc.e`,`peekns.e`,`pmach.e`,`file.e`,
+`panykey.e`,`database.e`,`pbreak.e`,`ppoke2.e`,`image.e`,`mouse.e`,`pgettext.e`,
+`hll_stubs.e`,`pfile.e`,`pchdir.e`,`pincpathN.e`,`isatty.e`,`hasdel.e`,`msgbox.e`,
+`pFloatN.e`,`dll.e`,`hash.e`,`pokestr.e`,`pcurrdir.e`,`pgetpath.e`,`peekstr.e`,
+`pcmdlnN.e`,`get_routine_info.e`,`pdir.e`,`pdelete.e`,`ldap.e`,`pScrollN.e`,`penv.e`,
+`graphics.e`,`get.e`,`machine.e`,`progress.e`,`procedure initialAutoEntry(`,
 -- supported differently (see/directly in p2js.js)
 --5/8/21:
---"printf","pprntfN.e","pdate.e","pApply.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
+--`printf`,`pprntfN.e`,`pdate.e`,`pApply.e`,`pFilter.e`,`pCrashN.e`,`prnd.e`,`prtnidN.e`,
 --10/11/22:
---"printf","pprntfN.e","pdate.e","pFilter.e","pCrashN.e","prnd.e","prtnidN.e",
-"printf","pprntfN.e","pdate.e","pCrashN.e","prnd.e","prtnidN.e",
-"repeat.e","ubits.e",`serialize.e`,`utfconv.e`,`assert.e`}
---??"procedure",
+--`printf`,`pprntfN.e`,`pdate.e`,`pFilter.e`,`pCrashN.e`,`prnd.e`,`prtnidN.e`,
+`printf`,`pprntfN.e`,`pdate.e`,`pCrashN.e`,`prnd.e`,`prtnidN.e`,
+`repeat.e`,`ubits.e`,`serialize.e`,`utfconv.e`,`assert.e`}
+--??`procedure`,
 
 function initialAutoEntries(string line)
-    integer k = match("--",line)
+    integer k = match(`--`,line)
     if k then line = line[1..k-1] end if
-    return match("initialAutoEntry",line)
+    return match(`initialAutoEntry`,line)
        and not not_an(unsupported,line)
---     and not match("pcfunc.e",line)
---     and not match("pTask.e",line)
---     and not match("pThreadN.e",line)
---     and not match("structs.e",line)
---     and not match("syswait.ew",line)
---     and not match("get_interpreter.e",line)
---     and not match("ptls.ew",line)
---     and not match("pscreen.e",line)
---     and not match("pAlloc.e",line)
---X    and not match("pApply.e",line)
---     and not match("peekns.e",line)
---     and not match("pmach.e",line)
---     and not match("pCrashN.e",line)
---     and not match("file.e",line)
---     and not match("panykey.e",line)
---     and not match("database.e",line)
---     and not match("pbreak.e",line)
---     and not match("progress.e",line)
---     and not match("ppoke2.e",line)
---     and not match("image.e",line)
---     and not match("mouse.e",line)
---     and not match("prnd.e",line)
---     and not match("pgettext.e",line)
---     and not match("hll_stubs.e",line)
---     and not match("pfile.e",line)
---     and not match("procedure",line)
---     and not match("printf",line)
---     and not match("pchdir.e",line)
---     and not match("pincpathN.e",line)
---     and not match("prtnidN.e",line)
---     and not match("isatty.e",line)
---     and not match("hasdel.e",line)
---     and not match("msgbox.e",line)
---     and not match("pFloatN.e",line)
---     and not match("pprntfN.e",line)
---     and not match("dll.e",line)
---     and not match("hash.e",line)
---     and not match("pokestr.e",line)
---     and not match("pcurrdir.e",line)
---     and not match("pgetpath.e",line)
---     and not match("peekstr.e",line)
---     and not match("pcmdlnN.e",line)
+--     and not match(`pcfunc.e`,line)
+--     and not match(`pTask.e`,line)
+--     and not match(`pThreadN.e`,line)
+--     and not match(`structs.e`,line)
+--     and not match(`syswait.ew`,line)
+--     and not match(`get_interpreter.e`,line)
+--     and not match(`ptls.ew`,line)
+--     and not match(`pscreen.e`,line)
+--     and not match(`pAlloc.e`,line)
+--X    and not match(`pApply.e`,line)
+--     and not match(`peekns.e`,line)
+--     and not match(`pmach.e`,line)
+--     and not match(`pCrashN.e`,line)
+--     and not match(`file.e`,line)
+--     and not match(`panykey.e`,line)
+--     and not match(`database.e`,line)
+--     and not match(`pbreak.e`,line)
+--     and not match(`progress.e`,line)
+--     and not match(`ppoke2.e`,line)
+--     and not match(`image.e`,line)
+--     and not match(`mouse.e`,line)
+--     and not match(`prnd.e`,line)
+--     and not match(`pgettext.e`,line)
+--     and not match(`hll_stubs.e`,line)
+--     and not match(`pfile.e`,line)
+--     and not match(`procedure`,line)
+--     and not match(`printf`,line)
+--     and not match(`pchdir.e`,line)
+--     and not match(`pincpathN.e`,line)
+--     and not match(`prtnidN.e`,line)
+--     and not match(`isatty.e`,line)
+--     and not match(`hasdel.e`,line)
+--     and not match(`msgbox.e`,line)
+--     and not match(`pFloatN.e`,line)
+--     and not match(`pprntfN.e`,line)
+--     and not match(`dll.e`,line)
+--     and not match(`hash.e`,line)
+--     and not match(`pokestr.e`,line)
+--     and not match(`pcurrdir.e`,line)
+--     and not match(`pgetpath.e`,line)
+--     and not match(`peekstr.e`,line)
+--     and not match(`pcmdlnN.e`,line)
 -- we might as well eliminate these, but not a lot of point...
---     and not match("pUnassigned.e",line)
---     and not match("optable.e",line)
---     and not match("pType.e",line)
---     and not match("pTrace.e",line)
---     and not match("pSubssN.e",line)
---     and not match("pSubseN.e",line)
---     and not match("pStack.e",line)
---     and not match("pRepeN.e",line)
---     and not match("pRepsN.e",line)
---     and not match("pRepeatN.e",line)
---     and not match("pProfile.e",line)
---     and not match("pMemChk.e",line)
---     and not match("pMem.e",line)
---     and not match("pMath.e",line)
---     and not match("pJnotx.e",line)
---     and not match("pJcc.e",line)
---     and not match("pHeap.e",line)
---     and not match("pfileioN.e",line)
---     and not match("pfileio.e",line)
---     and not match("pFEH.e",line)
---     and not match("pDiagN.e",line)
---     and not match("pDeleteN.e",line)
---     and not match("pcallfunc.e",line)
---     and not match("pApnd.e",line)
---     and not match("WINCONST.EW",line)
---     and not match("unicode_console.e",line)
---     and not match("tok.e",line)
---     and not match("sockets.e",line)
---     and not match("sha256.e",line)
---     and not match("safe.e",line)
---     and not match("reflections.e",line)
---     and not match("prtnid.e",line)
---     and not match("pprntf.e",line)
---     and not match("pmt.e",line)
---     and not match("pipeio.e",line)
---     and not match("phash.e",line)
---     and not match("pcopyfile.e",line)
---     and not match("pComN.e",line)
---     and not match("pcase8.e",line)
---     and not match("nopoll.e",line)
---     and not match("mpfr.e",line)
---     and not match("LiteZip.e",line)
---     and not match("librsvg.e",line)
---     and not match("libcurl.e",line)
---     and not match("bigatom.e",line)
+--     and not match(`pUnassigned.e`,line)
+--     and not match(`optable.e`,line)
+--     and not match(`pType.e`,line)
+--     and not match(`pTrace.e`,line)
+--     and not match(`pSubssN.e`,line)
+--     and not match(`pSubseN.e`,line)
+--     and not match(`pStack.e`,line)
+--     and not match(`pRepeN.e`,line)
+--     and not match(`pRepsN.e`,line)
+--     and not match(`pRepeatN.e`,line)
+--     and not match(`pProfile.e`,line)
+--     and not match(`pMemChk.e`,line)
+--     and not match(`pMem.e`,line)
+--     and not match(`pMath.e`,line)
+--     and not match(`pJnotx.e`,line)
+--     and not match(`pJcc.e`,line)
+--     and not match(`pHeap.e`,line)
+--     and not match(`pfileioN.e`,line)
+--     and not match(`pfileio.e`,line)
+--     and not match(`pFEH.e`,line)
+--     and not match(`pDiagN.e`,line)
+--     and not match(`pDeleteN.e`,line)
+--     and not match(`pcallfunc.e`,line)
+--     and not match(`pApnd.e`,line)
+--     and not match(`WINCONST.EW`,line)
+--     and not match(`unicode_console.e`,line)
+--     and not match(`tok.e`,line)
+--     and not match(`sockets.e`,line)
+--     and not match(`sha256.e`,line)
+--     and not match(`safe.e`,line)
+--     and not match(`reflections.e`,line)
+--     and not match(`prtnid.e`,line)
+--     and not match(`pprntf.e`,line)
+--     and not match(`pmt.e`,line)
+--     and not match(`pipeio.e`,line)
+--     and not match(`phash.e`,line)
+--     and not match(`pcopyfile.e`,line)
+--     and not match(`pComN.e`,line)
+--     and not match(`pcase8.e`,line)
+--     and not match(`nopoll.e`,line)
+--     and not match(`mpfr.e`,line)
+--     and not match(`LiteZip.e`,line)
+--     and not match(`librsvg.e`,line)
+--     and not match(`libcurl.e`,line)
+--     and not match(`bigatom.e`,line)
 
---     and not match("get_routine_info.e",line)
---     and not match("pdir.e",line)
---     and not match("pdelete.e",line)
---     and not match("ldap.e",line)
---     and not match("pScrollN.e",line)
---     and not match("pdate.e",line)
---     and not match("penv.e",line)
---     and not match("graphics.e",line)
---     and not match("get.e",line)
---     and not match("machine.e",line)
---X    and not match("pFilter.e",line)
---     and not match("ubits.e",line)
+--     and not match(`get_routine_info.e`,line)
+--     and not match(`pdir.e`,line)
+--     and not match(`pdelete.e`,line)
+--     and not match(`ldap.e`,line)
+--     and not match(`pScrollN.e`,line)
+--     and not match(`pdate.e`,line)
+--     and not match(`penv.e`,line)
+--     and not match(`graphics.e`,line)
+--     and not match(`get.e`,line)
+--     and not match(`machine.e`,line)
+--X    and not match(`pFilter.e`,line)
+--     and not match(`ubits.e`,line)
 --temp:
---     and not match("ppp.e",line)
---     and not match("unit_test.e",line)
---     and not match("psqop.e",line)
---     and not match("pmaths.e",line)
---?    and not match("timedate.e",line)
+--     and not match(`ppp.e`,line)
+--     and not match(`unit_test.e`,line)
+--     and not match(`psqop.e`,line)
+--     and not match(`pmaths.e`,line)
+--?    and not match(`timedate.e`,line)
 end function
 
 function clean(string line)
@@ -632,16 +638,16 @@ function clean(string line)
 --  return extract(r[1],{1,3,6}) -- {name,(Func|Proc),file}
 --  sequence res = extract(r[1],{1,1,3,6})  -- {name,name,(Func|Proc),file}
 --  res[1] = get_ttidx(r[1])                --  ^ttidx
---? res[3] = find(res[3],{"Func","Proc"})
+--? res[3] = find(res[3],{`Func`,`Proc`})
 --  return res
 end function
 
 function Aliases(string line)
-    integer k = match("--",line)
+    integer k = match(`--`,line)
     if k then line = line[1..k-1] end if
-    return match("Alias",line)
-       and not match("procedure Alias(",line)
-       and length(find_all(',',line))=2 -- Alias("name",symlimit,"aname") cases only
+    return match(`Alias`,line)
+       and not match(`procedure Alias(`,line)
+       and length(find_all(',',line))=2 -- Alias(`name`,symlimit,`aname`) cases only
 end function
 
 function clean_aliases(string line)
@@ -656,23 +662,23 @@ end function
 
 include builtins\timedate.e
 
-constant auto = """
+constant auto = `
 --
 -- p2js_auto.e (nb automatically over-written, all comments get trashed)
 --
 global constant last_built = "%s"
 
-global constant p2js_auto = """,
+global constant p2js_auto = `,
 --234567890123456789012345678 -- (hence indent of 28)
-         dfmt = "Mmmm d yyyy h:mm:sspm",
+         dfmt = `Mmmm d yyyy h:mm:sspm`,
          alia = "\nglobal constant p2js_alia = "
 
 --DEV not sure when bet to put this...
 global sequence rebuild_required = {}
 
 procedure check_builtins()
-    string psymname = get_proper_path(join_path({"..","psym.e"}))
-    if not file_exists(psymname) then crash("Cannot open "&psymname) end if
+    string psymname = get_proper_path(join_path({`..`,`psym.e`}))
+    if not file_exists(psymname) then crash(`Cannot open `&psymname) end if
     sequence last_mod = get_file_date(psymname)
     atom delta = timedate_diff(last_mod,parse_date_string(last_built,{dfmt}))
     if delta<0 then
@@ -688,7 +694,7 @@ procedure check_builtins()
 -- Note that zip/upload/download/unzip has a nasty habit of messing with daylight saving times,
 --  so you may get this message on a fresh install because you're in a different dstz to me.
 --  The (details) part is an attempt to show something I could use to bypass some such cases.
---puts(1,"psym.e modified - recreate p2js_auto.e?")
+--puts(1,`psym.e modified - recreate p2js_auto.e?`)
 --constant psym_last_mod = {2021,0,0}
 -- aside: above includes file size, so windows "\r\n" <==> linux "\n" (unzip) may also trigger it.
 --A fresh install may also want to rebuild p2js_auto.e (since date/size may not exactly agree)
@@ -698,13 +704,13 @@ procedure check_builtins()
         integer fdx = include_file()
         if f[fdx][2]!=`p2js_scope.e` then ?9/0 end if -- (sanity check)
         string path = p[f[fdx][1]],
-               filename = join_path({path,"p2js_auto.e"})
+               filename = join_path({path,`p2js_auto.e`})
         printf(1,"psym.e modified (psym.e:%s, p2js_auto.e:%s)\n",{lm,last_built})
         printf(1,"\nOverwrite %s and restart?",{filename})
         if not find(upper(wait_key()),{'Q','N',#1B}) then
             puts(1,"\n")
             string content = sprintf(auto,{format_timedate(date(),dfmt)})
-            sequence lines = get_text("../psym.e",GT_LF_STRIPPED),
+            sequence lines = get_text(`../psym.e`,GT_LF_STRIPPED),
                      s = apply(filter(lines,initialAutoEntries),clean),
                      a = sort(apply(filter(lines,Aliases),clean_aliases))
             lines = {}
@@ -712,8 +718,8 @@ procedure check_builtins()
             s = sort_columns(s,{4,1})
             content &= ppf(s,{pp_Nest,1,pp_Indent,28,pp_Maxlen,120})
             content &= alia & ppf(a,{pp_Nest,1,pp_Indent,28})
-            integer fn = open(filename,"w")
-            if fn=-1 then crash("cannot open "&filename) end if
+            integer fn = open(filename,`w`)
+            if fn=-1 then crash(`cannot open `&filename) end if
             puts(fn,content)
             close(fn)
             requires(-machine_bits(),false) -- restart
@@ -726,23 +732,28 @@ procedure check_builtins()
 --12/5/21:
     for i=1 to length(autoincludes) do
         string ai = strip_builtin(autoincludes[i])
-        if ai!="pGUI.e"
-        and ai!="theGUI.e"
-        and ai!="hGUI.e"
-        and ai!="mpfr.e"
-        and ai!="sha256.e"
-        and ai!="speak.e"
-        and ai!="beep.e"
-        and ai!="pComN.ew" then
-            string aj = substitute(ai,".e",".js"),
-                   pb = get_proper_path(join_path({"..","builtins",ai})),
-                   jb = get_proper_path(join_path({"builtins",aj}))
-            if not file_exists(pb) then crash("Cannot open "&pb) end if
+        if ai!=`pGUI.e`
+--DEV comment out, and apply clip_beeq()...
+--      and ai!=`theGUI.e`
+        and ai!=`hGUI.e`
+        and ai!=`mpfr.e`
+        and ai!=`sha256.e`
+        and ai!=`speak.e`
+        and ai!=`beep.e`
+        and ai!=`pComN.ew` then
+            string aj = substitute(ai,`.e`,`.js`),
+                   pb = get_proper_path(join_path({`..`,`builtins`,ai})),
+                   jb = get_proper_path(join_path({`builtins`,aj}))
+            if ai=`theGUI.e` then
+                pb = get_proper_path(join_path({`..`,`demo`,`theGUI`,ai}))
+                jb = get_proper_path(join_path({aj}))
+            end if
+            if not file_exists(pb) then crash(`Cannot open `&pb) end if
             if not file_exists(jb) then
 --          if true then
                 printf(1,"%s is missing/will be created\n",{aj})
 --erm... (a log file would be good...) [DEV]
---          IupSetStrAttribute(lbl_statusbar,"TITLE","overwriting %s\n",{pwabpath})
+--          IupSetStrAttribute(lbl_statusbar,`TITLE`,"overwriting %s\n",{pwabpath})
                 rebuild_required = append(rebuild_required,ai)
             else
                 sequence pd = get_file_date(pb),
@@ -771,56 +782,56 @@ if platform()!=JS then check_builtins() end if
 --DEV currently manually maintained... [FIXED]
 --p2js_depend.e similar to p2js_auto.e, but quietly rewritten (since we update our copy anyway)
 --/*
-constant ad = {{"assert.e",{}},
-               {"base64.e",{`??`}},
-               {"bsearch.e",{}},
-               {"dict.e",{"pmarths.e"}},
-               {"factorial.e",{}},
-               {"find.e",{}},
-               {"findrepl.e",{`??`}},
+constant ad = {{`assert.e`,{}},
+               {`base64.e`,{`??`}},
+               {`bsearch.e`,{}},
+               {`dict.e`,{`pmarths.e`}},
+               {`factorial.e`,{}},
+               {`find.e`,{}},
+               {`findrepl.e`,{`??`}},
                {`gcd.e`,{`pmaths.e`}},
                {`log10.e`,{}},
-               {"match.e",{"find.e","pcase.e","pfindall.e"}},
-               {"matchrepl.e",{`??`}},
+               {`match.e`,{`find.e`,`pcase.e`,`pfindall.e`}},
+               {`matchrepl.e`,{`??`}},
                {`misc.e`,{}},
                {`ordinal.e`,{`??`}},
                {`pmaths.e`,{}},
-               {"pcase.e",{"find.e"}},
-               {"pcolumn.e",{}},
-               {"pdates.e",{}},
-               {"pdecodeflags.e",{`??`}},
-               {"pelapsed.e",{"match.e","pmaths.e"}},
-               {"permute.e",{}},
-               {"pextract.e",{}},
-               {"pfactors.e",{"bsearch.e","pmaths.e","primes.e"}},
-               {"pfindall.e",{"find.e"}},
-               {"pfindany.e",{"find.e"}},
-               {"pflatten.e",{"find.e"}},
-               {"porall.e",{"??"}},
-               {"ppp.e",{"find.e"}},
-               {"pqueue.e",{"??"}},
-               {"premoveall.e",{"??"}},
-               {"primes.e",{"bsearch.e","pmaths.e"}},
-               {"pseqc.e",{"pmaths.e"}},
-               {"pseries.e",{"??"}},
-               {"psmall.e",{"??"}},
-               {"psplit.e",{"find.e","match.e","pfindany.e"}},
-               {"psqop.e",{"pmaths.e","log10.e","misc.e"}},
-               {"psum.e",{}},
-               {"ptagset.e",{"pmaths.e"}},
-               {"ptrim.e",{"find.e","psqop.e","psum.e"}},
-               {"punique.e",{"dict.e","sort.e"}},
-               {"pvlookup.e",{"??"}},
-               {"scanf.e",{"find.e","match.e","pcase.e"}},
-               {"shift_bits.e",{`??`}},
-               {"shuffle.e",{`??`}},
-               {"sort.e",{}},
-               {"substitute.e",{"match.e"}},
-               {"to_int.e",{`??`}},
-               {"to_str.e",{`??`}},
-               {"unit_test.e",{`??`}},
+               {`pcase.e`,{`find.e`}},
+               {`pcolumn.e`,{}},
+               {`pdates.e`,{}},
+               {`pdecodeflags.e`,{`??`}},
+               {`pelapsed.e`,{`match.e`,`pmaths.e`}},
+               {`permute.e`,{}},
+               {`pextract.e`,{}},
+               {`pfactors.e`,{`bsearch.e`,`pmaths.e`,`primes.e`}},
+               {`pfindall.e`,{`find.e`}},
+               {`pfindany.e`,{`find.e`}},
+               {`pflatten.e`,{`find.e`}},
+               {`porall.e`,{`??`}},
+               {`ppp.e`,{`find.e`}},
+               {`pqueue.e`,{`??`}},
+               {`premoveall.e`,{`??`}},
+               {`primes.e`,{`bsearch.e`,`pmaths.e`}},
+               {`pseqc.e`,{`pmaths.e`}},
+               {`pseries.e`,{`??`}},
+               {`psmall.e`,{`??`}},
+               {`psplit.e`,{`find.e`,`match.e`,`pfindany.e`}},
+               {`psqop.e`,{`pmaths.e`,`log10.e`,`misc.e`}},
+               {`psum.e`,{}},
+               {`ptagset.e`,{`pmaths.e`}},
+               {`ptrim.e`,{`find.e`,`psqop.e`,`psum.e`}},
+               {`punique.e`,{`dict.e`,`sort.e`}},
+               {`pvlookup.e`,{`??`}},
+               {`scanf.e`,{`find.e`,`match.e`,`pcase.e`}},
+               {`shift_bits.e`,{`??`}},
+               {`shuffle.e`,{`??`}},
+               {`sort.e`,{}},
+               {`substitute.e`,{`match.e`}},
+               {`to_int.e`,{`??`}},
+               {`to_str.e`,{`??`}},
+               {`unit_test.e`,{`??`}},
 --DEV:
-               {"utfconv.e",{}},
+               {`utfconv.e`,{}},
                              {`utf16_to_utf32`, `Func`, `FP`, `utfconv.e`},
                              {`utf16_to_utf8`, `Func`, `FP`, `utfconv.e`},
                              {`utf32_to_utf16`, `Func`, `FP`, `utfconv.e`},
@@ -836,14 +847,14 @@ constant ad = {{"assert.e",{}},
    {`utf16_to_utf32`, {{`utf16`, `?`}}},
    {`utf32_to_utf8`, {{`utf32`, `?`}, {`fail_flag`, `0`}}},
    {`utf32_to_utf16`, {{`utf32`, `?`}}}}},
-               {"vslice.e",{`??`}},
-               {"wildcard.e",{"find.e","match.e","pcase.e"}}}
+               {`vslice.e`,{`??`}},
+               {`wildcard.e`,{`find.e`,`match.e`,`pcase.e`}}}
 --*/
 --sequence {autoincludes,dependencies} = columnize(ad)
 --,globals  = repeat({},length(autoincludes))
---globals[find("dict.e",autoincludes)] = {"KEY","DATA","LEFT","HEIGHT","RIGHT","trees","treenames","roots","sizes","defaults","freelists","free_trees",
--- "initd","dinit","dictionary","check","newNode","height","setHeight","rotate","getBalance","insertNode",
--- "getNode","getKey","minValueNode","deleteNode","traverse","traverse_key","traverser","peekpop"}
+--globals[find(`dict.e`,autoincludes)] = {`KEY`,`DATA`,`LEFT`,`HEIGHT`,`RIGHT`,`trees`,`treenames`,`roots`,`sizes`,`defaults`,`freelists`,`free_trees`,
+-- `initd`,`dinit`,`dictionary`,`check`,`newNode`,`height`,`setHeight`,`rotate`,`getBalance`,`insertNode`,
+-- `getNode`,`getKey`,`minValueNode`,`deleteNode`,`traverse`,`traverse_key`,`traverser`,`peekpop`}
 --,arg_names = repeat({},length(autoincludes))
 
 constant depend = """
@@ -863,14 +874,14 @@ function get_named_args()
 --integer named_args,   -- key is {arg_rtn,ttidx}, 
 --                      -- data is {arg_idx,vartype}
 --      arg_defs        -- key is {arg_rtn,arg_idx},
---                      -- data is "{}/ident/string/number" (always string)
+--                      -- data is `{}/ident/string/number` (always string)
 --                      -- nb no support for eg length(),platform() etc yet.    [ length now done ]
---"dump_named_args"
+--`dump_named_args`
 --{{{3584,17748},{1,15}},{{3584,17752},{2,3}},{{6820,17764},{1,15}},{{6820,17768},{2,3}}}
---"defaults"
---{{{3584,1},"?"},{{3584,2},"0"},{{6820,1},"?"},{{6820,2},"0"}}
+--`defaults`
+--{{{3584,1},`?`},{{3584,2},`0`},{{6820,1},`?`},{{6820,2},`0`}}
 --T_gcd = 3584, T_lcm = 6820
---"dump_named_args"
+--`dump_named_args`
 --{{`gcd`, {{`u`, `?`}, {{`v`, `0`}}}}, {`lcm`, {{`m`, `?`}, {{`n`, `0`}}}}}
     sequence s = getd_all_keys(named_args),
              res = {}
@@ -916,7 +927,7 @@ end function
 
 procedure clash(sequence gi, gj)
     for i=1 to length(gj) do
-        if find(gj[i],gi) then ?{"clash",gj[i]} end if
+        if find(gj[i],gi) then ?{`clash`,gj[i]} end if
     end for
 end procedure
 
@@ -968,10 +979,10 @@ global function get_autoincludes()
             printf(1,"Overwriting p2js_depend.e (for %s)...\n",{autoincludes[k]})
             sequence s = columnize({autoincludes,fudge(dependencies),fudge(globals),arg_names})
             string content = depend & ppf(s,{pp_Nest,3,pp_Indent,0,pp_Maxlen,132}) & "\n\n",
-                   filename = join_path({p[f[fdx][1]],"p2js_depend.e"})
+                   filename = join_path({p[f[fdx][1]],`p2js_depend.e`})
 --if k=1 then ?9/0 end if
-            integer fn = open(filename,"w")
-            if fn=-1 then crash("cannot open "&filename) end if
+            integer fn = open(filename,`w`)
+            if fn=-1 then crash(`cannot open `&filename) end if
             puts(fn,content)
             close(fn)
         end if
@@ -991,16 +1002,16 @@ global function get_autoincludes()
         end for
     end if
 --?9/0
-    res = append(res,"==")  -- (debug aid)
+    res = append(res,`==`)  -- (debug aid)
     integer rdx = 1
     while rdx<=length(res) do  -- (process all indirects as well)
         string rr = res[rdx]
-        if rr!="==" then
+        if rr!=`==` then
             k = find(rr,autoincludes)
 --DEV
 --          printf(1,"transpiling %s...\n",{rr})
--- or maybe return {"!!",rr}
-            if k=0 then crash("dependencies not defined for "&rr) end if
+-- or maybe return {`!!`,rr}
+            if k=0 then crash(`dependencies not defined for `&rr) end if
             sequence d = dependencies[k]
             for j=1 to length(d) do
                 string dj = d[j]
@@ -1067,10 +1078,10 @@ global function tokstack_push(string filename, integer line)
     if find(filename[1],{'`','"'}) then
         filename = filename[2..$-1]
     end if
---?{"tokstack_push",filename}
+--?{`tokstack_push`,filename}
     if not file_exists(filename) then
 --?tokseen
---?{"tokstack",tokstack}
+--?{`tokstack`,tokstack}
 --?filename
         string found = ""
         for t=length(tokstack) to 1 by -1 do
@@ -1081,7 +1092,7 @@ global function tokstack_push(string filename, integer line)
             end if
 --?fntest
         end for
-        if length(found)=0 then return "NOT FOUND" end if
+        if length(found)=0 then return `NOT FOUND` end if
         filename = found
     end if
     filename = get_proper_path(filename)
@@ -1091,9 +1102,9 @@ global function tokstack_push(string filename, integer line)
         (find(nameonly,autoincludes) or
          find(nameonly,{`pdate.e`,`pcurrdir.e`,`peekstr.e`,`pgetpath.e`,`pfile.e`,
                         `get_routine_info.e`,`pdir.e`,`penv.e`,`get_interpreter.e`,
-                        `speak.e`,`beep.e`,`syswait.ew`,`utfconv.e`})))
+                        `speak.e`,`beep.e`,`syswait.ew`,`ubits.e`,`utfconv.e`})))
     or filepath=builtinVM then
-        return "ALREADY DONE"
+        return `ALREADY DONE`
     end if
 --  tokseen = append(tokseen,{filename})
     tokseen = append(tokseen,filename)
@@ -1115,7 +1126,7 @@ global function tokstack_push(string filename, integer line)
     current_file = filename
     tokenise()
     tdx = 1
---crash("ok")
+--crash(`ok`)
 --load_text(string txt, ext)--integer edx)
 --      return false
     return {T_include,{filename,srcdx,line}}
@@ -1131,7 +1142,7 @@ global function tokstack_pop()
         src = sources[srcdx]
         return {T_include,{"",srcdx}}
     end if
-    return "NO MORE"
+    return `NO MORE`
 end function
 
 global function tokstack_length()
@@ -1149,7 +1160,7 @@ end procedure
 global procedure restore_source(integer srcidx)
     srcdx = srcidx
     src = sources[srcdx]
---?{"restore_source",current_file,tokseen,srcdx}
+--?{`restore_source`,current_file,tokseen,srcdx}
     current_file = tokseen[srcdx]
 end procedure
 
@@ -1160,20 +1171,20 @@ global function get_builtin_aliases(string name)
         for i,s in anames do
             if name=s then
                 if length(res) then res &= "\n" end if
-                res &= sprintf("let %s = %s;",{aliases[i],s})
+                res &= sprintf(`let %s = %s;`,{aliases[i],s})
             end if
         end for
---?{"get_builtin_aliases",name,res}
+--?{`get_builtin_aliases`,name,res}
 --?aliases
 --?anames
     end if
     return res
 end function
 --/*
-{"autoincludes:",{"dict.e","pmaths.e","=="}}
-{"KEY","DATA","LEFT","HEIGHT","RIGHT","trees","treenames","roots","sizes","defaults","freelists","free_trees",
- "initd","dinit","dictionary","check","newNode","height","setHeight","rotate","getBalance","insertNode",
- "getNode","getKey","minValueNode","deleteNode","traverse","traverse_key","traverser","peekpop"}
+{`autoincludes:`,{`dict.e`,`pmaths.e`,`==`}}
+{`KEY`,`DATA`,`LEFT`,`HEIGHT`,`RIGHT`,`trees`,`treenames`,`roots`,`sizes`,`defaults`,`freelists`,`free_trees`,
+ `initd`,`dinit`,`dictionary`,`check`,`newNode`,`height`,`setHeight`,`rotate`,`getBalance`,`insertNode`,
+ `getNode`,`getKey`,`minValueNode`,`deleteNode`,`traverse`,`traverse_key`,`traverser`,`peekpop`}
 --*/
 --global procedure dump_globals()
 ----    return add_id(ttidx,vartype,scopes[GLOBALS])
@@ -1182,14 +1193,13 @@ end function
 --end procedure
 
 --global procedure dump_named_args()
---  ?"dump_named_args"
+--  ?`dump_named_args`
 --  pp(get_named_args())
 --end procedure
 --?length(s) -- 413
 --pp(s)
 
 --pp(sort_columns(s,{4,1}),{pp_Nest,1})
---papply(true,printf,{1,{`{"%s",%d,"%s"
 --papply(true,printf,{1,{"%v,\n"},sort_columns(s,{4,1}))
 
 --/*
@@ -1420,7 +1430,7 @@ end function
  {`wildcard_match`, `Func`, `FPP`, `wildcard.e`}}
 */
 
---?"done"
+--?`done`
 --{} = wait_key()
 
 --/*

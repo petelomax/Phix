@@ -7,6 +7,7 @@
 --      :%pSubss            -- res := ref[idx1]~[idxN..sliceend]
 --      :%pSubsss           -- res := string[slicestart..sliceend]
 --
+without debug
 
 include builtins\VM\pHeap.e     -- :%pDealloc, :%pAllocStr, :%pAllocSeq
 

@@ -1,0 +1,132 @@
+--
+-- demo\rosetta\Lorenz_attractor.exw
+-- =================================
+--
+--requires(64,true)
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant title = "Lorenz Attractor",
+         Sigma = 10,
+         Rho = 28,
+         Beta = 8 / 3
+
+integer speed = 2 -- 0..4 for 1..10,000 points per frame
+
+atom x = 0.01,
+     y = 0,
+     z = 0,
+     dt = 0.01,
+     px = -1,
+     py
+,clr = 0
+
+gdn image = NULL
+
+procedure redraw(gdx canvas, integer w, h)
+    if image=NULL or gGetAttribute(image,"SIZE")!={w,h} then
+        if image then image = gImageDestroy(image) end if
+        image = gImage(w,h,TG_BLACK)
+        {x,y,z,dt,px} = {0.01,0,0,0.01,-1}
+    end if
+    for i=1 to power(10,speed) do
+        {x,y,z} = {x+Sigma*(y-x)*dt,
+                   y+(x*(Rho-z)-y)*dt,
+                   z+(x*y-Beta*z)*dt}
+        // Scale point to screen.
+        atom scale = min(w/50,h/60),
+             sx = x*scale+w/2,
+             sy = y*scale+h/2
+        if px!=-1 then
+--          gDrawLine(image,px,py,sx,sy,#C8FFFF)
+            clr = rmdr(clr+1,#FFFFFF)
+            gDrawLine(image,px,py,sx,sy,clr)
+        end if
+        {px,py} = {sx,sy}
+    end for
+    gDrawImage(image,canvas)
+end procedure
+
+procedure action(gdx timer)
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(canvas)
+end procedure
+
+procedure key_handler(gdx dlg, integer c)
+    integer new_speed = iff(c='-'?max(0,speed-1):
+                        iff(c='+'?min(4,speed+1):speed))
+    if new_speed!=speed then
+        speed = new_speed
+        if image then image = gImageDestroy(image) end if
+        gSetAttribute(dlg,`TITLE`,"%s (%d points per frame)",{title,power(10,speed)})
+    end if
+end procedure
+    
+gdx canvas = gCanvas(redraw),
+--  dialog = gDialog(canvas,title,"SIZE=800x600"),
+    dialog = gDialog(canvas,title,"SIZE=450x610"),
+    timer = gTimer(action,user_data:=canvas)
+gSetHandler(dialog,`KEY`,key_handler)
+gMainLoop(dialog)
+--/*
+--class LorenzAttractor {
+--  construct new(width, height) {
+--      Window.title = 
+--      Window.resize(width, height)
+--      Canvas.resize(width, height)
+--      Canvas.cls(Color.black)
+--TG_BLACK
+        _clr = Color.rgb(0, #C8, #FF, #FF)
+--  }
+
+--  init() {
+--      // Starting position and time step.
+--      _x = 0.01
+--      _y = 0
+--      _z = 0
+--      _dt = 0.01
+--
+--      // Screen and zoom settings.
+--      _scale = 7
+--      _offsetX = 400
+--      _offsetY = 300
+--
+--      // List of points to draw
+--      _points = []
+--  }
+
+    update() {
+        var dx = Sigma * (_y - _x) * _dt
+        var dy = (_x * (Rho - _z) - _y) * _dt
+        var dz = (_x * _y - Beta * _z) * _dt
+
+        _x = _x + dx
+        _y = _y + dy
+        _z = _z + dz
+
+        // Scale point to screen.
+        var screenX = _x * _scale + _offsetX
+        var screenY = _y * _scale + _offsetY
+        _points.add([screenX, screenY])
+
+        // Limit points to a maximum of 2000 to avoid stuttering.
+        if (_points.count > 2000) { _points.removeAt(0) }
+    }
+
+    draw(dt) {
+        // Draw lines between all the coordinates stored so far.
+        if (_points.count > 1) {
+            for (i in 0..._points.count - 1) {
+                var x1 = _points[i][0]
+                var y1 = _points[i][1]
+                var x2 = _points[i + 1][0]
+                var y2 = _points[i + 1][1]
+                Canvas.line(x1, y1, x2, y2, _clr)
+            }
+        }
+    }
+}
+
+var Game = LorenzAttractor.new(800, 600)
+--*/

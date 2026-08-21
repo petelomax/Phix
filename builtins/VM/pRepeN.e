@@ -13,6 +13,7 @@
 --  If porting, you could just (temporarily) implement :%pRepe and use it for everything, but 
 --  that would require matching (temp) changes to psym.e, pmain.e, and pilx86.e.
 --
+without debug
 
 include builtins\VM\pHeap.e     -- :%pDealloc, :%pAllocStr, :%pAllocSeq
 

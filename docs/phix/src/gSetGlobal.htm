@@ -52,6 +52,21 @@
         </tr>
         <tr>
          <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          Supported, note however that a browser requires both user interaction (eg click) <i>and</i> permission 
+          (for read, in the form of an Allow/Block popup, every time) to access the clipboard.
+<!--
+//       However since pGUI.js is a manually hand-crafted replacement and does not use any form of IUP dll/so/code at all, 
+//        IupVersion[Date|Number|Show]() are not relevant and not supported, use a plain <a href>version</a>() instead
+//        (if <a href>platform</a>()=JS, that is).
+//        Likewise many global attributes may be unsupported or just completely inappropriate under pwa/p2js.
+-->
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Notes:</b>
          </td>
          <td>
@@ -85,7 +100,38 @@
           <b>Writeable</b>
          </td>
          <td>
-          See <a href>gGetGlobal</a> for the read-only ones.
+          See <a href>gGetGlobal</a> for the read-only ones (<a href>COPYRIGHT</a>, <a href>MOUSEPOS</a>, <a href>SCREENSIZE</a>,
+          <a href>SHIFTKEY</a>, <a href>CTRLKEY</a>, and <a href>ALTKEY</a>).
+          <br><a name=CLIPIMG></a><a name=CLIPTXT><a name=CLIPTEXT></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          CLIPIMG,
+          CLIPTXT,
+          CLIPTEXT
+         </td>
+         <td>
+          Get/Set an image or text from/to the clipboard, NULL returned when unavailable. CLIPTXT/TEXT are just aliases.<br>
+          <a href>gGetGlobal</a>() also accepts a trailing '?', ie "CLIPIMG?" and "CLIPT[E]XT?" to return bool bAvailable.<br>
+          Images are always provided|returned as a <a href>gImage</a>, even though the clipboard itself contains OS-specific data.<br>
+          <small>[see also demo\theGUI\win_clip.exw and gtk_clip.exw for pre-theGUI.e implementation of images.]</small>
+          <br>
+          <br>
+<!--
+          p2js: Supported. Note the browser may prohibit access to the clipboard when it is not the direct consequence of user interaction.
+          Historically such restrictions have been rudely toggled on and off between releases in an alarmingly disturbing fashion,
+          or perhaps the formal rules are often just badly implemented / easily broken.
+          <br>
+            [IMAGE] Note GTK uses a strange lazy shared ownership model that I have no intention of <i>ever</i> trying to fully understand,
+            and in particular on GTK3 you are likely to get a flurry of "cannot transmute" and similar warnings at program shutdown,
+            which is something for <i>someone else</i> to fix, not me.<br>
+-->
+          Note: I fought GTK tooth and nail over clearing the clipboard on program shutdown, and lost. If you can do any better let me know.
+          You may have to use a clipboard manager to defeat the whole "Linux has no clipboard" thing. 
+          My gtk_clip.exw resorts to saving|restoring /tmp/clip.png as a partial workaround, should that help, and under <a href>gUseGTK</a> 
+          I resorted to using WinAPI instead of (eg) gtk_clipboard_set_image, hence these are largely untested on GTK/Linux.<br>
+          See also: the ctrl-specific <a href="gSetAttribute.htm#CLIPIMG">CLIPIMG</a>.
           <br><a name=DIAGNOSTICS></a>
          </td>
         </tr>
@@ -96,8 +142,14 @@
          <td>
           (write only, desktop/Phix only and/or quite different for JS) Enable selected diagnostic messages from theGUI, see the source code 
           of gSetGlobal() for more details. The main idea is you don&apos;t have to run around switching things off to run or debug something
-          else, and it is far easier to uncomment some gSetGlobal("DIAGNOSTICS",?) statements when you thought you were done but were not.<br>
-          Obviously if you&apos;re not actively debugging theGUI.s/js itself, you quite simply never have to bother with this at all.
+          else, and it is far easier to uncomment some gSetGlobal("DIAGNOSTICS",?) statements when you thought you were done but were not,
+          and actually perfectly possible to debug two or more things in parallel.<br>
+          Obviously if you&apos;re not actively debugging theGUI.e/js itself, you should simply never have to bother with this at all.
+          <br>
+          <br>
+          Both gSetGlobal and <a href>gGetGlobal</a> are also used in a similar fashion for various nefarious "internal" purposes, all 
+          undocumented: should you spot any use of a lower-case name you can safely assume it is not intended for day-to-day operations 
+          and you&apos;ll have to search through theGUI&apos;s source code to figure out precisely what it does, likely trivial.
           <br><a name=IDLE_ACTION></a>
          </td>
         </tr>
@@ -110,21 +162,20 @@
             <br>
             <br>
             function idle_action([params])<br>
-            params: (optional) as set via gSetGlobal("IDLE_ACTION",{rtn,args[,low_priority]}), with gSetGlobal("IDLE_ACTION",rtn) being equivalent 
-            to gSetGlobal("IDLE_ACTION",{rtn,{}[,<a href>false</a>]}), and where rtn is a normal function identifier (aka 
-            <a href>routine_id</a>), <i>not</i> a <a href>call_back</a>, args must be a sequence suitable for 
-            passing to <a href>call_func</a>(), and low_priority defaults to <a href>false</a>.
+            params: (optional) as set via gSetGlobal("IDLE_ACTION",{idle_rtn,args[,low_priority]}), 
+            with gSetGlobal("IDLE_ACTION",idle_rtn) being equivalent 
+              to gSetGlobal("IDLE_ACTION",{idle_rtn,{}[,<a href>false</a>]}), 
+            and where idle_rtn is a normal function identifier (aka <a href>routine_id</a>), <i>not</i> a <a href>call_back</a>, 
+            args must be a sequence suitable for passing to <a href>call_func</a>(), 
+            and low_priority defaults to <a href>false</a>.
             <br>
             <br>
             Returns: <!--if <a href>TG_CLOSE</a> is returned the current loop is closed and the handler removed. <br>-->
             If <a href>TG_IGNORE</a> is returned the handler is removed and normal processing/idling continues.<br>
             If <a href>TG_CONTINUE</a> is returned, as it should be every 50ms (1/20<small><sup>th</sup></small>s) or so,
             the main processing loop checks for any messages to process (keeping the system responsive) and automatically re-invokes this routine as soon 
-            as they have been dealt with. <br>
-            No other values should be returned, specifically <a href>TG_CLOSE</a> is <i>not</i> handled
-            <small>(instead of, I suppose, closing some random window)</small>, and <a href>TG_DEFAULT</a> is 
-            now treated as meaningless and hence triggers a fatal error <small>(treating it the same as TG_IGNORE, as it used to in the past,
-            just muddifies things)</small>.
+            as they have been dealt with. 
+            <small>All other returns (esp <a href>TG_CLOSE</a> and <a href>TG_DEFAULT</a>) are deemed meaningless and trigger a fatal error.</small>.
             <br>
             <br>
             Normally, the main processing loop goes properly idle when there are no events or messages to be processed, consuming little or no CPU cycles. 

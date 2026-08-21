@@ -19,6 +19,7 @@
          <li> when searching a result of 0 means "item not found" <small>(and certainly not -1 == "last")</small> </li>
          <li> false=0, true=1 work well with index calculations, were 0 a valid idx, you&apos;d want false == -1</li>
          <li> a slice is inclusive from the first index to the last index <small>(and not half-in-half-out)</small></li>
+         <li> it is in fact <i>not possible</i> to define the opening zero-length slice using pure 0-based indices</li>
          <li> there are no<small>(well, fewer)</small> off-by-one complications as found with 0-based indexing </li>
          <li> there is no need to explain 1-based indexing to anyone and you certainly don&apos;t need a diagram </li>
          <li> avoiding fencepost errors via the clumsy math of half-open intervals is just plain stupid </li>
@@ -40,16 +41,18 @@
         no such "unexpected cropping")</small>. 
 -->
         Both a phix <code>"i=1 to 5"</code> and a C <code>"i=0; i<5;"</code> iterate 5 times, the stupid in the last point 
-        refers to claims that <code>"5-0"</code> is easy but <code>"(5-1)+1"</code> is hard. 
+        refers to claims that <code>"5-0"</code> is easy but <code>"(5-1)+1"</code> is hard. Presumably whenever they hold
+        one, these people think "I&apos;ll just drop off those barbecue invites to numbers 5 to 9", and take 4 of them.
         I have read <a href="javascript:ExternalLink('ext175');" id="ext175" style="color:#9B5565" 
                        title='https://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD831.html'>EWD831</a> several times
         and my main objection is that for the empty subsequence s[1..0], he brazenly decrees that the 0 is "unnatural" and
         "ugly" without <i><b>any</b></i> further justification or discussion at all, before picking 0 for the start index.
         It is worth pointing out that note is a response to "an emotional outburst" over the status quo, and probably an
         angry defence rather than, as many seem to interpret it, the result of a carefully thought through design process.
-        It cannot help either that I just cannot swallow the line that 0&lt;=i&lt;N is somehow "nicer" than 1&lt;=i&lt;N+1.
-        Ultimately I suppose in a language like C that heavily depends and relies on pointer maths, 0-based is useful, but 
-        in one that doesn&apos;t, it isn&apos;t.<br>
+        It cannot help either that I just cannot swallow the line that 0&lt;=i&lt;N is somehow "nicer" than 1&lt;=i&lt;N+1,
+        and sadly/somehow 1&lt;=i&lt;=N isn&apos;t even considered in that note.
+        Ultimately I suppose in a language like C that heavily depends and relies on pointer maths, 0-based makes sense 
+        and is useful, but in one that doesn&apos;t, it isn&apos;t.<br>
 <!--
          The fencepost errors mentioned 
         are usually caused by performing <i>mental</i> arithmetic when none is needed at all... or worse, without thinking...<br>
@@ -234,6 +237,10 @@
 </pre>
         Attempts to reference s[0] or s[6] (and above) cause an index out of 
         bounds error.
+        <br>
+        <br>
+        For performing multiple subscript operations simultaneously, see <a href>extract</a>() and <a href>reinstate</a>(), one other 
+        particularly pertinent routine is <a href>vslice</a>(), and I&apos;m sure you&apos;ll spot several others should you follow that link.
 
        <h3>Negative subscripts</h3>
        <!------------------------->
@@ -299,6 +306,53 @@
         example you may not immediately follow a slice (see next) with a subscript. <small>(You could use parenthesis as a work-round, eg (s[2..4])[2] 
         is equivalent to s[3], however the latter would be significantly faster, as well as being much easier to read and write in the first place.
         I also often write things like that {5+2,..}[3] example when it improves/does not hurt clarity and performance does not matter.)</small>
+
+       <h3>Performance and style considerations</h3>
+        It is entirely your choice as to which of these delivers the best clarity and/or fits your personal style:
+<!--eucode>
+    enum NAME, PHONE
+    sequence table = {{"Pete","555-123456"}}
+    table = append(table,{"Mary","555-123457"})
+    table[i][NAME] = "Paul"
+    table[i][PHONE] = "555-123458"
+--  printf(1,"Phone %s now on %s\n",table[i]) -- (a rare win case)
+    printf(1,"Phone %s now on %s\n",{table[i][NAME],table[i][PHONE])
+</eucode-->
+<pre>
+<font color="#008080">    enum</font><font color="#000000"> NAME</font><font color="#0000FF">,</font><font color="#000000"> PHONE</font>
+<font color="#004080">    sequence</font><font color="#000000"> table</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"Pete"</font><font color="#0000FF">,</font><font color="#008000">"555-123456"</font><font color="#800000">}</font><font color="#0000FF">}</font>
+<font color="#000000">    table</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">table</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"Mary"</font><font color="#0000FF">,</font><font color="#008000">"555-123457"</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#000000">    table</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">][</font><font color="#000000">NAME</font><font color="#0000FF">] =</font><font color="#008000"> "Paul"</font>
+<font color="#000000">    table</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">][</font><font color="#000000">PHONE</font><font color="#0000FF">] =</font><font color="#008000"> "555-123458"</font>
+<font color="#000080"><i>--  printf(1,"Phone %s now on %s\n",table[i]) -- (a rare win case)</i></font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Phone %s now on %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">table</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">][</font><font color="#000000">NAME</font><font color="#008080">]</font><font color="#0000FF">,</font><font color="#000000">table</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">][</font><font color="#000000">PHONE</font><font color="#008080">]</font><font color="#800000">)</font>
+</pre>
+        or:
+<!--eucode>
+    sequence names = {"Pete"},
+             phone = {"555-123456"}
+    names = append(names,"Mary")
+    phone = append(phone,"555-123457")
+    names[i] = "Paul"
+    phone[i] = "555-123458"
+    printf(1,"Phone %s now on %s\n",{name[i],phone[i]})
+</eucode-->
+<pre>
+<font color="#004080">    sequence</font><font color="#000000"> names</font><font color="#0000FF"> = {</font><font color="#008000">"Pete"</font><font color="#0000FF">},</font>
+<font color="#000000">             phone</font><font color="#0000FF"> = {</font><font color="#008000">"555-123456"</font><font color="#0000FF">}</font>
+<font color="#000000">    names</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">names</font><font color="#0000FF">,</font><font color="#008000">"Mary"</font><font color="#0000FF">)</font>
+<font color="#000000">    phone</font><font color="#0000FF"> =</font><font color="#7060A8"> append</font><font color="#0000FF">(</font><font color="#000000">phone</font><font color="#0000FF">,</font><font color="#008000">"555-123457"</font><font color="#0000FF">)</font>
+<font color="#000000">    names</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#008000"> "Paul"</font>
+<font color="#000000">    phone</font><font color="#0000FF">[</font><font color="#000000">i</font><font color="#0000FF">] =</font><font color="#008000"> "555-123458"</font>
+<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"Phone %s now on %s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">name</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">]</font><font color="#0000FF">,</font><font color="#000000">phone</font><font color="#008080">[</font><font color="#000000">i</font><font color="#008080">]</font><font color="#800000">}</font><font color="#0000FF">)</font>
+</pre>
+        Obviously performance differences are utterly insignificant for anything less than 10,000 accesses per second, however the latter approach often
+        fares much better under stress: every element of table needs a separate allocation and additional indexing, whereas despite the need for multiple
+        appends in the multi-table approach, they are almost always achieved in-situ, and less subscripts mean faster access. As always it is not worth
+        doing anything until you notice a bit of tardiness somewhere, and you need to test and time any changes carefully, and as shown some single-table
+        designs may benefit greatly from passing whole entries about as one thing, plus the initial assignment of table does not suffer the potential
+        mismatch issues that long names and phone lists sometimes can - in fact several of the internal tables of <a href>theGUI</a> are hybrid, ie
+        defined signle-table style then immediately <a href>vslice</a>()&apos;d to simplify subsequent access.
        <br>
        <br>
        <br>

@@ -79,17 +79,24 @@ gMainLoop(dlg)
 </pre>
             </small>
           </div>
-          <img alt="gText" style="float:right;" src="images/gText.png" width="240" height="80"/>
+          <img src="images/gText.png" alt="gText" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
          </td>
         </tr>
-<!--
         <tr>
          <td>
           <b>Notes:</b>
          </td>
          <td>
-<X!--
+            A gText is currently used as the basis for a <a href>gDatePick</a>, <a href>gDropDown</a>, and <a href>gSpin</a>, however
+            that is probably the wrong architecture. Instead each should draw their own outer decorations and gText be refactored into
+            several routines they can invoke to process all the inner text display/edit handling. That way, a border-less version of
+            the latter could be added anywhere at will on a canvas, and more importantly a <a href>gList</a>, <a href>gTable</a>, and
+            <a href>gTree</a>. Likewise the pop-up handling for the first two derivatives is currently locked into a gText, but should
+            be refactored out, which would allow a drop-down style popup to be created pretty much anywhere on demand, and I already 
+            have a use case for that in theEditor/intellisense, which I&apos;d clearly forgotten about when deciding which controls 
+            to implement. Ah well, the plan never was for things to be complete and final on day one, anyway.
+<!--
             When MULTILINE=YES the Enter key will add a new line, and the Tab key will insert a Tab. 
 //          So the "DEFAULTENTER" button will not be processed when the element has the keyboard focus, also to change focus to the next element press 
             &lt;Ctrl&gt;+&lt;Tab&gt;.
@@ -133,9 +140,9 @@ gMainLoop(dlg)
 --X>
             <br>
             Some examples can be seen in demo\theGUI\sample.exw
+-->
          </td>
         </tr>
--->
 <!--
 //          <br><a name=aux></a>
         <tr>
@@ -159,32 +166,20 @@ gMainLoop(dlg)
           <b>Attributes:</b>
          </td>
          <td>
-<!--
-          <br><a name=OPTIONS></a>
--->
+          <br><a name=CUEBANNER></a>
          </td>
         </tr>
-<!--
         <tr>
          <td>
-          OPTIONS
+          CUEBANNER
          </td>
          <td>
-            (non inheritable) Makes the control a <a href>gDropDown</a>. 
-            Default: <a href>false</a> (not a dropdown).
--->
-<!--
-             (the default),
-            <a href>true</a> (and editable dropdown), or {false} (an non-editable dropdown, as per EDITABLE).
--->
-<!--
-            Setting before the first display defaults the control size from lo/hi. Changing the <a href>FONT</a>
-            changes the up/down image sizes to match.
+            (optional, non inheritable) Text to display when otherwise empty, such as "Enter your name here". Default: "".<br>
+            Similar to a <a href>gList</a> line, may be plain text (greyed out) or 
+            eg {"Email required",<a href>TG_RED</a><i>[,<a href>TG_ITALIC</a>]</i>}.
           <br><a name=VALUE></a>
          </td>
         </tr>
--->
-
 <!--
         <tr>
          <td>
@@ -543,6 +538,7 @@ gMainLoop(dlg)
          </td>
         </tr>
 -->
+<!--
         <tr>
          <td>
           <a href>SIZE</a>
@@ -554,11 +550,11 @@ gMainLoop(dlg)
             The (natural) size defaults to sufficient for about 20 characters under the default font, or (not guaranteed) about 158x22 pixels
             under GTK2, 168x34 under GTK3, and 151x20 under WinAPI. While the natural width does not change, the natural height <i>does</i>
             respect <a href>FONT</a> changes, with said height preserved by (say) gSetAttribute(id,"SIZE",250).
-<!--            Use VISIBLECOLUMNS and VISIBLELINES to control the Natural Size. -->
+[!--            Use VISIBLECOLUMNS and VISIBLELINES to control the Natural Size. --]
           <br><a name=VALUE></a>
          </td>
         </tr>
-
+-->
 <!--
         <tr>
          <td>
@@ -601,14 +597,13 @@ gMainLoop(dlg)
             <a href>ACTIVE</a>, 
             <a href>BGCLR</a>,
             <a href>CANFOCUS</a>, 
-            <a href>EDITABLE</a>, 
             <a href>EXPAND</a>, 
             <a href>FONT</a>, 
 <!--?           <a href>PADDING</a>, -->
             <a href>MARGIN</a>, 
             <a href>MINSIZE</a>, 
             <a href>MAXSIZE</a>,
-            <a href="gDropDown.htm#OPTIONS">OPTIONS</a>,
+<!--            <a href="gDropDown.htm#OPTIONS">OPTIONS</a>,--->
             <a href>SIZE</a>,
             <a href="gSpin.htm#SPIN">SPIN</a>, 
             <a href>TIP</a>, 
@@ -906,7 +901,7 @@ gMainLoop(dlg)
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(text,"VALUE_CHANGED",value_changed), or specify value_changed at creation time
+            Specified at creation time or set using <a href>gSetHandler</a>(text,"VALUE_CHANGED",value_changed).
           <br><a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -915,10 +910,11 @@ gMainLoop(dlg)
           <a href>VALUE_CHANGED</a>
          </td>
          <td>
-            Called after the value was interactively changed by the user <small>(and on initial setup, and sometimes on focus/for no obvious reason)</small>.
+            Called after the value was interactively changed by the user (but not when gSetAttribute-altered).
+            <!-- <small>(and on initial setup, and sometimes on focus/for no obvious reason)</small>.-->
             <br>
             <br>
-            function value_changed([<a href>gdx</a> id,]<a href>string</a> v)<br>
+            procedure value_changed([<a href>gdx</a> id,]<a href>string</a> v)<br>
             id: (optional) identifier of the element that activated the event.<br>
             v: same as <a href="#VALUE">VALUE</a>, which can o/c be used on-demand instead of a handler.
             <br>
@@ -1048,10 +1044,16 @@ gMainLoop(dlg)
             Note that in practice rid is actually defined as <a href>object</a>, and attributes as
             a <a href>sequence</a> rather than a string, but verified to be of the documented types, 
             after being repositioned via theGUI/paranormalise_raa().
+            <br>
+            <br>
+            I consider it nothing short of stark raving lunacy to bundle single- and multi- line input into the same control type.<br>
+            The closest thing theGUI has to the latter is a gList, currently at least, with some vague plans to back-port a simple
+            editable version of that if/when I ever get it to work in theEditor. Alternatively you might fancy having a play around
+            (a renamed copy of) demo\theGUI\hText.exw and see what if anything <i>you</i> can manage.
             <br><a name=hImages></a>
             <br>
-            See demo\theGUI\hText.exw for progress on a canvas-based drop-in replacement - completed but I want to try Spin/Dropdown/DatePick
-            first, by tweaking rather than replicating all that code.
+            See demo\theGUI\hText.exw for the now-completed canvas-based implementation, including spin, dropdown, and datepick
+            (latter two with dummy canvas popups).
             <br>
             <br>
             Some images used/taken when implementing demo\theGUI\hText.exw:
@@ -1059,29 +1061,29 @@ gMainLoop(dlg)
             <br>
             <div style="display:flex; align-items:center;">
             Windows 11:
-            <img alt="gText on Windows 11" style="padding-left:10px;" src="images/gTextWinAPI.png" width="216" height="26"/>
+            <img src="images/gTextWinAPI.png" alt="gText on Windows 11" style="padding-left:10px;" width="216" height="26"/>
             </div>
             <br>
             <br>
             <div style="display:flex; align-items:center;">
             GTK2:
-            <img alt="gText on GTK2" style="padding-left:10px;" src="images/gTextGTK2.png" width="216" height="26"/>
+            <img src="images/gTextGTK2.png" alt="gText on GTK2" style="padding-left:10px;" width="216" height="26"/>
             </div>
             <br>
             <br>
             <div style="display:flex; align-items:center;">
             GTK3 with focus:
-            <img alt="gText on GTK3 with focus" style="padding-left:10px;" src="images/gTextGTK3f.png" width="216" height="38"/>
+            <img src="images/gTextGTK3f.png" alt="gText on GTK3 with focus" style="padding-left:10px;" width="216" height="38"/>
             </div>
             <br>
             <br>
             <div style="display:flex; align-items:center;">
             GTK3 without focus:
-            <img alt="gText on GTK3 without focus" style="padding-left:10px;" src="images/gTextGTK3uf.png" width="216" height="38"/>
+            <img src="images/gTextGTK3uf.png" alt="gText on GTK3 without focus" style="padding-left:10px;" width="216" height="38"/>
             </div>
             <br>
             Note that native GTK only shows the cursor when no text is selected, which I think is plain awful.<br>
-            I also kept the silly size of the GTK3 control, but decided to centre the text a little bit better.
+            I also kept the oafishly silly size of the GTK3 control, but decided to centre the text a little bit better.
          </td>
         </tr>
        </table>

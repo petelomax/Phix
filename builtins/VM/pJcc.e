@@ -12,6 +12,7 @@
 --  routines, compareSeq and equalSeq, deal with nested sequences, and strings, but 
 --  are also quite happy when given two floats.
 --
+without debug
 
 --26/8/22 (spotted in passing)
 --#ilASM{ jmp :%opRetf

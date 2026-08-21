@@ -5,7 +5,7 @@
 --  A simple mini-helper intended to alleviate most of the tedious editing 
 --  otherwise needed when porting code from pGUI to theGUI
 --  Written with simplicitly in mind, rather than outright performance.
---  This program is expected/hoped to die a natural death mid/late 2025.
+--  This program is expected/hoped to die a natural death mid/late 2026.
 --
 local function substiqute(string res, dqname, name)
     res = substitute(res,dqname,name)
@@ -88,7 +88,7 @@ function id_char(integer ch)
 end function
 
 global function theGUI_from_pGUI(string src)
-    string res = substitute(src,"include pGUI.e","requires(\"1.0.5\")\ninclude theGUI.e")
+    string res = substitute(src,"include pGUI.e","requires(`1.0.6`)\ninclude theGUI.e")
     res = substitute(res,"include IupGraph.e","")
     res = substitute(res,`IupOpen()`,``)
     res = substitute(res,`IupClose()`,``)
@@ -120,7 +120,7 @@ global function theGUI_from_pGUI(string src)
 //let cdDecodeColor = to_rgba;
 //let cdDecodeColorAlpha = to_rgba;
     -- (probably wisest to keep these in alphabetic order:) -- `Menu`,`Submenu` deemed not worth it
-    for s in {`Button`,`Canvas`,`Clipboard`,`DatePick`,`Dialog`,`Frame`,`Graph`,`Hbox`,`Hide`,`Label`,`MainLoop`,
+    for s in {`Button`,`Canvas`,/*`Clipboard`,*/`DatePick`,`Dialog`,`Frame`,`Graph`,`Hbox`,`Hide`,`Label`,`MainLoop`,
               /*`Map`,*/`ProgressBar`,/*`Separator`,*/`Table`,`Tabs`,`Text`,`TreeView`,`Vbox`} do
         res = substitute(res,`Iup`&s,`g`&s)
     end for
@@ -180,16 +180,17 @@ global function theGUI_from_pGUI(string src)
               {`cdCanvasActivate`,`--cdCanvasActivate`},
               {`cdCanvasClear`,`--cdCanvasClear`},
               {`cdCanvasFlush`,`--cdCanvasFlush`},
-              {`cdCanvasFont(`,`gSetAttribute(canvas?,"FONT",`},
-              {`cdCanvasGetBackground(`,`gGetAttribute(canvas?,"BGCLR",`},
-              {`cdCanvasGetForeground(`,`gGetAttribute(canvas?,"FGCLR",`},
-              {`cdCanvasSetBackground(`,`gSetAttribute(canvas?,"BGCLR",`},
-              {`cdCanvasSetForeground(`,`gSetAttribute(canvas?,"FGCLR",`},
+              {`cdCanvasFont(`,"gSetAttribute(canvas?,`FONT`,"},
+              {`cdCanvasGetBackground(`,"gGetAttribute(canvas?,`BGCLR`,"},
+              {`cdCanvasGetForeground(`,"gGetAttribute(canvas?,`FGCLR`,"},
+              {`cdCanvasSetBackground(`,"gSetAttribute(canvas?,`BGCLR`,"},
+              {`cdCanvasSetForeground(`,"gSetAttribute(canvas?,`FGCLR`,"},
               {`cdCanvasSetTextAlignment`,`gCanvasSetTextAlignment?[use gDrawText(align:=x) instead]`},
               {`cdCanvasSetTextOrientation`,`gCanvasSetTextOrientation?[use gDrawText(angle:=x) instead]`},
+              {`cdCanvasGetTextSize`,`gGetTextExtent?`},
               {`cdCanvasLine`,`gDrawLine`},
               {`cdCanvasSetLineWidth(`,"gSetAttribute(canvas?,`LINEWIDTH`,"},
-              {`cdCanvasPixel`,`gCanvasPixel`},
+              {`cdCanvasPixel`,`gDrawPixel`},
               {`cdCanvasRect`,`gDrawRect`},
               {`cdCanvasRect`,`gDrawRect`},
               {`cdCanvasText`,`gDrawText`},
@@ -208,12 +209,16 @@ global function theGUI_from_pGUI(string src)
               {`CD_WEST`,`TG_WEST`},
               {`CD_RAD2DEG`,`TG_RAD2DEG`},
               {`CD_DEG2RAD`,`TG_DEG2RAD`},
+--            {`CD_BOLD`,`TG_BOLD`},
               {`RIGHTBUTTON`,`!RIGHTBUTTON:NOT SUPPORTED!`},
               {`VALUE_HANDLE`,`VALUE_HANDLE==>VALUE[POS] on gTabs(), or gRadioItem(any)...`},
-              {`IupGetClassName(`,`gGetAttribute(?,"CLASSNAME",`},
+              {`IupClipboard(`,"gGet/SetGlobal(`CLIPTXT/IMG`,"},
+              {`IupGetClassName(`,"gGetAttribute(?,`CLASSNAME`,"},
+              {`IupGetGlobalInt`,`gGetGlobalInt`},
               {`IupGetInt`,`gGetInt`},
 --            {`IupGetIntInt`,`gGetAttribute`},
               {`IupGetIntInt`,`gGetIntInt`},
+              {`IupGetParent`,`gGetParent`},
               {`IupGLCanvas`,`gCanvas`},
 --            {`IupMenu`,`gMenu`},  -- not worth it...
               {`IupMessage(`,`gMsgBox(?parent?,`},
@@ -222,11 +227,12 @@ global function theGUI_from_pGUI(string src)
               {`IupSetFocus`,`gSetFocus`},
               {`IupSetInt`,`gSetInt`},
               {`IupTimer`,`gTimer[cb->proc]`},
+              {`IupToggleInt`,`gToggleInt`}, -- nb before next!
               {`IupToggle`,`gCheckbox`},
               {`IupVersion`,`gVersion`},
-              {`TG_BUTTON1`,`"CLICK"status[1]='L'`},
-              {`TG_BUTTON2`,`"CLICK"status[1]='M'`},
-              {`TG_BUTTON3`,`"CLICK"status[1]='R'`},
+              {`IUP_BUTTON1`,`"CLICK"status[1]='L'`},
+              {`IUP_BUTTON2`,`"CLICK"status[1]='M'`},
+              {`IUP_BUTTON3`,`"CLICK"status[1]='R'`},
               {`XCROSSORIGIN`,`XACROSS`},
               {`YCROSSORIGIN`,`YACROSS`},
               {`LEGENDPOSXY`,`LEGENDXY`},
@@ -256,7 +262,7 @@ global function theGUI_from_pGUI(string src)
 --  end for
     sequence idii = match_all(`K_`,res),
              -- extend as needed... (after checking they are also valid as VK_XXX)
-             ok_keys = {`K_CR`,`K_DEL`,`K_DOWN`,`K_ESC`,`K_F1`,`K_F2`,`K_F5`,`K_LEFT`,`K_RIGHT`,`K_UP`} 
+             ok_keys = {`K_CR`,`K_DEL`,`K_DOWN`,`K_ESC`,`K_F1`,`K_F2`,`K_F5`,`K_LEFT`,`K_RIGHT`,`K_UP`,`K_BS`,`K_SP`} 
 --?{"idii",idii}
 --/*
 C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e:674 global constant VK_SP   = #20   -- aka ' '

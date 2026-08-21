@@ -68,7 +68,7 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
       if (action) {
         btn.onclick = action;
       } else {
-        btn.style.display === "none"; // mnz
+        btn.style.display = "none"; // mnz
       }
       return btn;
     }
@@ -142,26 +142,26 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
     win.appendChild(titlebar);
 
     let offsetX, offsetY, dragging = false; // (captured closure variables)
-    function mousemove(e) {
+    function doc_mousemove(e) {
       if (dragging) {
         win.style.left = (e.clientX - offsetX) + "px";
         win.style.top = (e.clientY - offsetY) + "px";
       }
     }
-    function mouseup() {
+    function doc_mouseup() {
       dragging = false;
       document.onmousemove = null;
     }
-    function mousedown(e) {
+    function titlebar_mousedown(e) {
       if (!e.target.classList.contains("gbtn")) {
         dragging = true;
         offsetX = e.clientX - win.offsetLeft;
         offsetY = e.clientY - win.offsetTop;
-        document.onmousemove = mousemove;
-        document.onmouseup = mouseup;
+        document.onmousemove = doc_mousemove;
+        document.onmouseup = doc_mouseup;
       }
     }
-    titlebar.addEventListener("mousedown", mousedown);
+    titlebar.addEventListener("mousedown", titlebar_mousedown);
     titlebar.ondblclick = toggle_rst;
 //  } else {
   if (currentPlatform === "headerless") {
@@ -169,6 +169,7 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
     titlebar.style.display = "none";
   }
 
+//DEV REDRAW(?)
   function drawCross(canvas) {
     let ctx = canvas.getContext("2d"),
           r = canvas.getBoundingClientRect(),
@@ -198,6 +199,7 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
 //content.style.width = "calc(100% - 2px)";
   content.style.height = "calc(100% - 32px)";
   content.appendChild(canvas);
+//DEV REDRAW?
   if (draw_cross) {
     let observer = new ResizeObserver(resize_observer);
     observer.observe(content);
@@ -207,6 +209,7 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
   document.body.appendChild(win);
   $windows.push(win);
 
+//DEV SetAttribute(ish):
   function switchPlatform(newPlatform) {
     currentPlatform = newPlatform; // (not sure whether that helps at all, btw)
     // Update all open windows
@@ -234,7 +237,8 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
   }
 
   // Listen for key presses
-  function keydown(e) {
+//DEV KEY handler
+  function doc_keydown(e) {
     let key = e.key.toUpperCase();
     if (key === "L") { switchPlatform("linux"); }
     if (key === "W") { switchPlatform("windows"); }
@@ -271,9 +275,9 @@ function gDialog(parent, title, x, y, w, h, draw_cross=true) {
     }
   }
   if ($windows.length === 1) { // (we may as well only do this the once)
-    document.addEventListener("keydown", keydown);
+    document.addEventListener("keydown", doc_keydown);
   }
-//  win.addEventListener("keydown", keydown);
+//  win.addEventListener("keydown", doc_keydown);
   return win;
 }
 

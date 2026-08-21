@@ -1,0 +1,199 @@
+﻿--
+-- demo/rosetta/Roots_of_a_quartic_polynomial.exw
+--
+--  Quartic solver with adaptive scaling
+--  Disclaimer: use this code with extreme caution!
+--
+constant EPS = 1e-12
+requires("1.0.6") -- (not yet shipped)
+include complex.e -- nb enhanced/tweaked in 1.0.6 for/by this task.
+                  -- (complex_sprint++fmt, better complex_sqrt)
+
+function quadratic(complex a0, b0, c0)
+    atom {a1r,a1i} = complex_div(b0,a0)
+    complex b = complex_div(c0,a0),
+           a2 = {-a1r*0.5, -a1i*0.5},
+            d = complex_sub(complex_mul(a2,a2),b),
+          sqd = complex_sqrt(d)
+    return {complex_sub(a2,sqd),
+            complex_add(a2,sqd)}
+end function
+
+function biquadratic(atom a0, c0, e0)
+    complex {q1,q2} = quadratic({a0,0},{c0,0},{e0,0}),
+             r1 = complex_sqrt(q1),
+             r2 = complex_sqrt(q2)
+    return {complex_neg(r1),r1,complex_neg(r2),r2}
+end function
+
+function cubicOne(atom a0, b0, c0, d0) --> atom
+    atom a = b0/a0,
+         b = c0/a0,
+         c = d0/a0,
+         third = 1/3,
+         a13 = a*third,
+         a2 = a13*a13,
+         f = third*b - a2,
+         g = a13*(2*a2-b) + c,
+         h = 0.25*g*g + f*f*f
+    if f=0 and g=0 and h=0 then
+        return -sign(c) * power(abs(c),1/3)
+    elsif h<=0 then
+        atom j = sqrt(-f),
+             x = max(min(-0.5*g/(j*j*j),1),-1)
+        return 2*j*cos(arccos(x)/3) - a13
+    end if
+    atom sqh = sqrt(h),
+         A = -0.5*g + sqh,
+         B = -0.5*g - sqh,
+         s = sign(A) * power(abs(A),1/3),
+         u = sign(B) * power(abs(B),1/3)
+    return s + u - a13
+end function
+
+--======================================================================
+--  Original Ferrari quartic (for the well-conditioned case)
+--======================================================================
+function quartic(sequence coeffs)
+    atom {a0,b0,c0,d0,e0} = coeffs
+    if b0 = 0 and d0 = 0 then return biquadratic(a0,c0,e0) end if
+    atom a = b0/a0,
+         b = c0/a0,
+         c = d0/a0,
+         d = e0/a0,
+         shift = 0.25*a,
+         shift2 = shift*shift,
+         p = 3*shift2 - 0.5*b,
+         q = a*shift2 - b*shift + 0.5*c,
+         r = 3*shift2*shift2 - b*shift2 + c*shift - d,
+         z0 = cubicOne(1,p,r, p*r - 0.5*q*q)
+    complex s = complex_sqrt({2*p+2*z0,0}),
+            t = iff(complex_norm(s)<EPS?{z0*z0+r,0}:complex_div({-q,0},s))
+    complex {qr,qi} = quadratic({1,0}, s, complex_add(t,{z0,0})),
+            {rr,ri} = quadratic({1,0}, {-s[1],-s[2]}, complex_add({-t[1],-t[2]},{z0,0}))
+    return {complex_sub(qr,{shift,0}),
+            complex_sub(qi,{shift,0}),
+            complex_sub(rr,{shift,0}),
+            complex_sub(ri,{shift,0})}
+end function
+
+function quartic_scaled(sequence coeffs)
+    --  Adaptive-scaling wrapper
+    sequence abs_coeffs = sq_abs(coeffs)
+    atom maxabs = max(abs_coeffs),
+         minabs = min(abs_coeffs)
+    bool bScalingNeeded = false
+    if maxabs>0 then
+        if minabs = 0 then
+            bScalingNeeded = true                   -- at least one zero coeff & a huge one
+        else
+            atom spread = log10(maxabs/minabs)
+            if spread > 6 then                      -- > 6 decimal digits -> scale
+                bScalingNeeded = true
+            end if
+        end if
+    end if
+
+    if not bScalingNeeded then
+        -- well-conditioned: just use the original Ferrari solver
+        return quartic(coeffs)
+    end if
+
+    -- --------------------------------------------------------------
+    --  1.  Scale the variable:  x = λ·y   with λ = (max|coeff|)¹⁄��
+    -- --------------------------------------------------------------
+    atom {a0,b0,c0,d0,e0} = coeffs,
+         llambda = power(maxabs,1/4),      -- λ > 0
+         A = a0 * power(llambda,4),
+         B = b0 * power(llambda,3),
+         C = c0 * power(llambda,2),
+         D = d0 * llambda,
+         E = e0
+
+    -- --------------------------------------------------------------
+    --  2.  Solve the scaled polynomial (coefficients are now O(1))
+    -- --------------------------------------------------------------
+    sequence y = quartic({A,B,C,D,E})
+
+    -- --------------------------------------------------------------
+    --  3.  Transform back:  x = λ·y
+    -- --------------------------------------------------------------
+    sequence x = repeat(0,4)
+    for i=1 to 4 do
+        x[i] = {y[i][1]*llambda, y[i][2]*llambda}
+    end for
+
+    -- --------------------------------------------------------------
+    --  4.  Optional Newton polish (one or two steps are enough)
+    -- --------------------------------------------------------------
+    for i=1 to 4 do
+        complex r = x[i]
+        for iter = 1 to 2 do          -- two Newton steps give machine-epsilon accuracy
+            -- eval poly:
+            complex fv  = {a0,0}
+            fv = complex_add(complex_mul(fv,r),{b0,0})
+            fv = complex_add(complex_mul(fv,r),{c0,0})
+            fv = complex_add(complex_mul(fv,r),{d0,0})
+            fv = complex_add(complex_mul(fv,r),{e0,0})
+            -- eval deriv:
+            complex df = {4*a0,0}
+            df = complex_add(complex_mul(df,r),{3*b0,0})
+            df = complex_add(complex_mul(df,r),{2*c0,0})
+            df = complex_add(complex_mul(df,r),{d0,0})
+            if df={0,0} then exit end if
+            complex delta = complex_div(fv,df)
+            r = complex_sub(r,delta)
+        end for
+        x[i] = r
+    end for
+
+    return x
+end function
+
+function poly_str(sequence coeffs)
+    --  Pretty-print a polynomial (coefficients highest-degree first)
+    string result = ""
+    bool bFirst = true
+    integer degree = length(coeffs)
+    for i,c in coeffs do
+        if c!=0 then
+            atom abs_coeff = abs(c)
+            result &= iff(bFirst?iff(c<0?"-":""):" "&"-++"[sign(c)+2]&" ")
+            if abs_coeff<>1 or degree-i=0 then result &= sprintf("%g",abs_coeff) end if
+            if degree-i>0 then
+                result &= "x"
+                if degree-i>1 then result &= sprintf("^%d",{degree-i}) end if
+            end if
+            bFirst = false
+        end if
+    end for
+    if result = "" then result = "0" end if
+    return result
+end function
+
+printf(1,"Roots of a quartic polynomial\n")
+constant polys = {
+        {3, 6, -123, -126, 1080},
+        {-20, 5, 17, -29, 87},
+        {2, 4, 6, 8, 10},
+        {1, -10, 35, -50, 24},
+        {1, 0, 0, 0, -1},
+        {1, 0, 0, 0, 1},
+        {1, 0, 5, 0, 4},
+        {1, -8, 24, -32, 16},
+        {1, -2, 2, -2, 1},
+        {3, -7, 2, 5, -1},
+        {1.2345,12.345,123.45,1234.5,12345},
+        {1, -6, 15, -18, 10},
+        {1, -3e8, 2e16, -6e7, 4e-2}
+    }
+for p in polys do
+    printf(1,"Equation %s = 0\n",{poly_str(p)})
+    for k,r in quartic_scaled(p) do
+        printf(1,"  Root %d: %s\n",{k,complex_sprint(r,fmt:="%.14g")})
+    end for
+    printf(1,"\n")
+end for
+?"done"
+wait_key()
+

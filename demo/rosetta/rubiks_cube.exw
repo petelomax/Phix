@@ -1,0 +1,465 @@
+﻿--
+-- demo\rosetta\rubiks_cube.exw
+-- ============================
+--
+-- {{trans|Red}}
+--
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+--with javascript_semantics
+
+include theGUI.e
+
+constant NODE = sq_mul(35,{{-1,-1,-1}, {-1,-1, 1}, {-1, 1,-1}, {-1, 1, 1},  
+                           { 1,-1,-1}, { 1,-1, 1}, { 1, 1,-1}, { 1, 1, 1} }),
+    CORE_NODE = sq_mul(NODE,34.5/35),
+                -- each sub-list is the order of the four corners of a face:
+        FACES = {{1,2,4,3},  -- Left   (Orange)  
+                 {6,5,7,8},  -- Right  (Red)  
+                 {1,5,6,2},  -- Top    (Yellow)  
+                 {4,8,7,3},  -- Bottom (White)  
+                 {5,1,3,7},  -- Back   (Blue)  
+                 {2,6,8,4} },  -- Front  (Green)    
+      COLORS = {TG_ORANGE,TG_RED,TG_YELLOW,TG_WHITE,TG_BLUE,TG_GREEN},
+      -- solved state - each face has 9 stickers, all the same colour index  
+      INIT_STICKERS = { {1,1,1,1,1,1,1,1,1},   -- Left  
+                        {2,2,2,2,2,2,2,2,2},   -- Right  
+                        {3,3,3,3,3,3,3,3,3},   -- Top  
+                        {4,4,4,4,4,4,4,4,4},   -- Bottom  
+                        {5,5,5,5,5,5,5,5,5},   -- Back  
+                        {6,6,6,6,6,6,6,6,6} }  -- Front  
+
+sequence stickers = deep_copy(INIT_STICKERS)
+
+procedure rotate_self(integer fdx)  
+    -- rotate the stickers of a single face clockwise (90 degrees)  
+    stickers[fdx] = extract(stickers[fdx],{7,4,1,8,5,2,9,6,3})
+end procedure  
+
+-- generic 4-way swap used by the face turns  
+procedure swap4(integer f1, sequence p1,  
+                integer f2, sequence p2,  
+                integer f3, sequence p3,  
+                integer f4, sequence p4)  
+    sequence tmp = extract(stickers[f4],p4)
+    stickers[f4] = reinstate(stickers[f4],p4,extract(stickers[f3],p3))
+    stickers[f3] = reinstate(stickers[f3],p3,extract(stickers[f2],p2))
+    stickers[f2] = reinstate(stickers[f2],p2,extract(stickers[f1],p1))
+    stickers[f1] = reinstate(stickers[f1],p1,tmp)
+end procedure  
+
+-- turn a face clockwise (90 degrees) - also updates the side-sticker rings  
+procedure turn_face(integer f)  
+    rotate_self(f)  
+    switch f do  
+        case 1 then swap4(3,{1,4,7},6,{1,4,7},4,{1,4,7},5,{9,6,3})   -- L  
+        case 2 then swap4(3,{9,6,3},5,{1,4,7},4,{9,6,3},6,{9,6,3})   -- R  
+        case 3 then swap4(5,{1,2,3},2,{1,2,3},6,{1,2,3},1,{1,2,3})   -- U  
+        case 4 then swap4(6,{7,8,9},2,{7,8,9},5,{7,8,9},1,{7,8,9})   -- D  
+        case 5 then swap4(3,{1,2,3},1,{1,4,7},4,{9,8,7},2,{9,6,3})   -- B  
+        case 6 then swap4(3,{7,8,9},2,{7,4,1},4,{3,2,1},1,{9,6,3})   -- F  
+    end switch  
+end procedure  
+
+-- counter-clockwise turn = three clockwise turns  
+procedure turn_face_ccw(integer f)  
+    for i=1 to 3 do turn_face(f) end for  
+end procedure  
+
+/*------------------------------------------------------------------  
+  Animation-queue state  
+------------------------------------------------------------------*/
+bool bAnimActive = false,
+     bAnimCCW    = false
+integer anim_face = 1  
+atom anim_angle = 0.0  
+sequence anim_queue = {},
+       move_history = {}
+
+procedure enqueue_move(integer f, boolean ccw)  
+    anim_queue &= {{f, ccw}}  
+end procedure  
+
+procedure do_manual_move(gdx btn)
+    integer f = find(gGetAttribute(btn,`TITLE`)[1],"LRUDBF")
+    enqueue_move(f, false)  
+    move_history &= f  
+end procedure  
+
+procedure scramble_cube()
+    if not bAnimActive and length(anim_queue)=0 then
+        for i=1 to 20 do  
+            integer m = rand(6)  
+            enqueue_move(m, false)  
+            move_history &= m  
+        end for  
+    end if  
+end procedure  
+
+procedure prepare_solver()  
+    if not bAnimActive and length(anim_queue)=0 then
+        while length(move_history) do  
+            enqueue_move(move_history[$],true)
+            move_history = move_history[1..$-1]  
+        end while  
+    end if  
+end procedure  
+
+procedure reset_cube()  
+    move_history = {}  
+    anim_queue   = {}  
+    bAnimActive  = false  
+    anim_angle   = 0.0  
+    stickers     = deep_copy(INIT_STICKERS)  
+end procedure  
+
+atom angle_x = -150,
+     angle_y =   25,
+     angle_z =    0,
+     scale   = 3.0,
+     perspective = 200.0,
+     camera_distance = 4.0  
+
+function p3d(sequence v1, v2, v3, v4, atom u, atom v)  
+    atom up = 1.0 - u,
+         vp = 1.0 - v  
+    return {up*vp*v1[1] + u*vp*v2[1] + u*v*v3[1] + up*v*v4[1],  
+            up*vp*v1[2] + u*vp*v2[2] + u*v*v3[2] + up*v*v4[2],  
+            up*vp*v1[3] + u*vp*v2[3] + u*v*v3[3] + up*v*v4[3] }  
+end function  
+
+function rotate_3d_slice(sequence pt, integer face, atom degrees)
+    atom radians = degrees * TG_DEG2RAD,
+         ca = cos(radians),
+         sa = sin(radians),
+         {x,y,z} = pt
+    switch face do  -- face is 1..6, XXYYZZ-Axis
+        case 1,2 then return {           x,  y*ca - z*sa,  y*sa + z*ca }    
+        case 3,4 then return { x*ca + z*sa,            y,  z*ca - x*sa }    
+        case 5,6 then return { x*ca - y*sa,  x*sa + y*ca,            z }  
+    end switch  
+end function  
+
+function project_point(sequence xyz, sequence centre)  
+    atom radx = angle_x * TG_DEG2RAD,
+         rady = angle_y * TG_DEG2RAD,
+         radz = angle_z * TG_DEG2RAD,
+         -- X rotation  
+         y1 = (xyz[2]*cos(radx)) - (xyz[3]*sin(radx)),
+         z1 = (xyz[2]*sin(radx)) + (xyz[3]*cos(radx)),
+         -- Y rotation  
+         x2 = (xyz[1]*cos(rady)) - (z1*sin(rady)),
+         z2 = (xyz[1]*sin(rady)) + (z1*cos(rady)),
+         -- Z rotation  
+         x3 = (x2*cos(radz)) - (y1*sin(radz)),
+         y3 = (x2*sin(radz)) + (y1*cos(radz)),
+         xf, yf  
+    if perspective=0 then  
+        xf = x3 * scale  
+        yf = y3 * scale  
+    else  
+        atom zo = z2 + camera_distance,
+             pf = perspective/(perspective+zo)  
+        xf = x3 * pf * scale  
+        yf = y3 * pf * scale  
+    end if  
+    return { xf + centre[1], yf + centre[2] }  
+end function  
+
+function shade_color(atom c, atom f)  
+    integer {r,g,b} = to_rgb(c)
+    return rgba(min(255,floor(r*f)),  
+                min(255,floor(g*f)),  
+                min(255,floor(b*f)))
+end function  
+
+function calc_shade(sequence vp1, vp2, vp4)  
+    atom {ux,uy,uz} = sq_sub(vp2,vp1),
+         {vx,vy,vz} = sq_sub(vp4,vp1),
+         nx = uy*vz - uz*vy,
+         ny = uz*vx - ux*vz,
+         nz = ux*vy - uy*vx,
+        len = sqrt(nx*nx + ny*ny + nz*nz)   
+    if len>0 then  
+        nx /= len; ny /= len; nz /= len  
+    else  
+        nx = 0; ny = 0; nz = 1  
+    end if  
+
+    -- directional light (upper-right-front w.r.t. camera)  
+    atom lx =  0.408,
+         ly = -0.408,
+         lz = -0.816,
+        dot = max(nx*lx + ny*ly + nz*lz,0),
+        ambient = 0.35,
+        diffuse = 0.99, 
+        contrast = power(dot, 1.8)
+    return ambient + diffuse*contrast  
+end function  
+
+bool bSolidCore = true  
+
+atom cx, sx, cy, sy, cz, sz
+
+-- ----- rotation helper (used many times) -----
+function rotate_3d(sequence pt)  
+    atom {x,y,z} = pt,
+         y1 = y*cx - z*sx,
+         z1 = y*sx + z*cx,
+         x2 = x*cy - z1*sy,
+         z2 = x*sy + z1*cy,
+         x3 = x2*cz - y1*sz,
+         y3 = x2*sz + y1*cz  
+    return { x3, y3, z2 }  
+end function  
+
+-- ----- projection helper (2-D) -----
+function project_3d(sequence vp, sequence centre)  
+    atom zo = vp[3] + camera_distance,
+         pf = iff(perspective=0 ? 1 : perspective/(perspective+zo)),
+         xf = vp[1] * pf * scale,
+         yf = vp[2] * pf * scale
+    return { xf + centre[1], yf + centre[2] }  
+end function  
+
+procedure render_frame(gdx canvas, sequence half)  
+    -- ----- pre-calcs for the rotation helpers -----
+    atom radx = angle_x * TG_DEG2RAD,
+         rady = angle_y * TG_DEG2RAD,
+         radz = angle_z * TG_DEG2RAD
+    cx = cos(radx); sx = sin(radx)  
+    cy = cos(rady); sy = sin(rady)  
+    cz = cos(radz); sz = sin(radz)  
+
+    sequence tile_items = {}  
+    atom gap = 0.02  
+
+    for f,face in FACES do
+        sequence {sv1,sv2,sv3,sv4} = extract(NODE,face),
+                 {cv1,cv2,cv3,cv4} = extract(CORE_NODE,face)
+
+        for r=1 to 3 do                 -- rows of stickers on the face
+            for c=1 to 3 do             -- columns of stickers on the face
+                atom c0 = c-1, r0 = r-1,
+                    u0c = c0/3.0, u1c = c/3.0,
+                    v0c = r0/3.0, v1c = r/3.0,
+                     u0 = u0c + gap, u1 = u1c - gap,
+                     v0 = v0c + gap, v1 = v1c - gap
+
+                -- ----- corner-point (core) quads -----
+                sequence cp1_3d = p3d(cv1,cv2,cv3,cv4, u0c, v0c),
+                         cp2_3d = p3d(cv1,cv2,cv3,cv4, u1c, v0c),
+                         cp3_3d = p3d(cv1,cv2,cv3,cv4, u1c, v1c),
+                         cp4_3d = p3d(cv1,cv2,cv3,cv4, u0c, v1c),
+
+                -- ----- outer-shell quads (the visible stickers) -----
+                         p1_3d = p3d(sv1,sv2,sv3,sv4, u0, v0),
+                         p2_3d = p3d(sv1,sv2,sv3,sv4, u1, v0),
+                         p3_3d = p3d(sv1,sv2,sv3,sv4, u1, v1),
+                         p4_3d = p3d(sv1,sv2,sv3,sv4, u0, v1),
+                     centre_3d = p3d(sv1,sv2,sv3,sv4, (u0+u1)/2, (v0+v1)/2)  
+
+                -- ----- apply animation if we are in the middle of a turn -----
+                if bAnimActive then  
+                    integer in_slice = 0  
+                    switch anim_face do  
+                        case 1 then in_slice = (centre_3d[1] < -10.0)   -- Left  
+                        case 2 then in_slice = (centre_3d[1] >  10.0)   -- Right  
+                        case 3 then in_slice = (centre_3d[2] < -10.0)   -- Top  
+                        case 4 then in_slice = (centre_3d[2] >  10.0)   -- Bottom  
+                        case 5 then in_slice = (centre_3d[3] < -10.0)   -- Back  
+                        case 6 then in_slice = (centre_3d[3] >  10.0)   -- Front  
+                    end switch  
+                    if in_slice then  
+                        atom eff_ang = anim_angle * iff(bAnimCCW, -1.0, 1.0) * 
+                                       {-1.0,1.0,-1.0,1.0,-1.0,1.0}[anim_face]
+
+                        cp1_3d = rotate_3d_slice(cp1_3d,anim_face,eff_ang)  
+                        cp2_3d = rotate_3d_slice(cp2_3d,anim_face,eff_ang)  
+                        cp3_3d = rotate_3d_slice(cp3_3d,anim_face,eff_ang)  
+                        cp4_3d = rotate_3d_slice(cp4_3d,anim_face,eff_ang)  
+
+                        p1_3d  = rotate_3d_slice(p1_3d,anim_face,eff_ang)  
+                        p2_3d  = rotate_3d_slice(p2_3d,anim_face,eff_ang)  
+                        p3_3d  = rotate_3d_slice(p3_3d,anim_face,eff_ang)  
+                        p4_3d  = rotate_3d_slice(p4_3d,anim_face,eff_ang)  
+                        centre_3d = rotate_3d_slice(centre_3d,anim_face,eff_ang)  
+                    end if  
+                end if  
+
+                -- ----- final world-to-view rotation -----
+                sequence vcp1 = rotate_3d(cp1_3d),
+                         vcp2 = rotate_3d(cp2_3d),
+                         vcp3 = rotate_3d(cp3_3d),
+                         vcp4 = rotate_3d(cp4_3d),
+                         vp1  = rotate_3d(p1_3d),
+                         vp2  = rotate_3d(p2_3d),
+                         vp3  = rotate_3d(p3_3d),
+                         vp4  = rotate_3d(p4_3d),
+                         p1 = project_3d(vp1,half),
+                         p2 = project_3d(vp2,half),
+                         p3 = project_3d(vp3,half),
+                         p4 = project_3d(vp4,half),
+                     v_centre = rotate_3d(centre_3d)  
+
+                atom area = (p1[1]*p2[2] + p2[1]*p3[2] + p3[1]*p4[2] + p4[1]*p1[2])
+                          - (p1[2]*p2[1] + p2[2]*p3[1] + p3[2]*p4[1] + p4[2]*p1[1])
+
+                if bSolidCore=false or area < 0 then
+
+                    -- ----- sticker colour lookup -----
+                    integer st_idx = (r-1)*3 + c,         -- 1-based index into the face's sticker list  
+                         colour_id = stickers[f][st_idx]  
+                    atom rot_z = v_centre[3],   -- depth value used for sorting 
+                         sf = calc_shade(vp1, vp2, vp4),  -- flat-shading factor
+                         tile_colour = shade_color(COLORS[colour_id],sf)
+
+                    -- ----- 2-D projection of the four corners, -----
+                    -- --- stored with depth key for later sorting ---
+                    tile_items &= { {rot_z, 
+                                     tile_colour,
+                                     {p1,p2,p3,p4},
+                                     {project_3d(vcp1,half),
+                                      project_3d(vcp2,half),
+                                      project_3d(vcp3,half),
+                                      project_3d(vcp4,half)}} }
+                end if
+            end for  
+        end for  
+    end for  
+
+    tile_items = reverse(sort(tile_items))  -- depth sort (back-to-front)
+
+    for it in tile_items do  
+        if bSolidCore then  
+            gDrawPolygon(canvas,it[4],true,TG_BLACK)    -- fill core quad  
+        end if  
+        gDrawPolygon(canvas,it[3],true,it[2])       -- fill sticker  
+    end for  
+
+end procedure
+
+atom rot_x = 0, rot_y = 0  
+
+procedure timer_action(gdx timer)  
+    -- ---- move animation -------------------------------------------------
+    if not bAnimActive and length(anim_queue)>0 then  
+        {anim_face,bAnimCCW} = anim_queue[1]  
+        anim_queue = anim_queue[2..$]  
+        anim_angle = 0.0  
+        bAnimActive = true  
+    end if  
+
+    if bAnimActive then  
+        anim_angle += 15.0  
+        if anim_angle >= 90.0 then  
+            bAnimActive = false  
+            if bAnimCCW then turn_face_ccw(anim_face) else turn_face(anim_face) end if  
+            anim_angle = 0.0  
+        end if  
+    end if  
+
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(canvas)  
+
+    -- ---- simple FPS-style view-angle drift (same as Red) ------------------
+    angle_x = mod(angle_x + rot_x, 360)  
+    angle_y = mod(angle_y + rot_y, 360)  
+    if rot_x>0 then rot_x = max(0, rot_x-0.01) end if  
+    if rot_x<0 then rot_x = min(0, rot_x+0.01) end if  
+    if rot_y>0 then rot_y = max(0, rot_y-0.01) end if  
+    if rot_y<0 then rot_y = min(0, rot_y+0.01) end if  
+end procedure
+
+procedure info_overlay(gdx canvas)  
+    gSetAttribute(canvas,`FGCLR`,TG_OLIVE)
+    gDrawText(canvas,10,15,"angle-x: %f",{angle_x})
+    gDrawText(canvas,10,30,"angle-y: %f",{angle_y})
+    gDrawText(canvas,10,45,"angle-z: %f",{angle_z})
+    gDrawText(canvas,10,60,"perspective: %.1f",{perspective})
+    gDrawText(canvas,10,75,"scale: %.1f",{scale})
+end procedure
+
+procedure tiny_axis(gdx canvas, sequence pos, atom size)  
+    atom s = size*0.025,
+         {ox,oy} = project_point({0,0,0}, pos),
+         {xx,xy} = project_point({s,0,0}, pos),
+         {yx,yy} = project_point({0,s,0}, pos),
+         {zx,zy} = project_point({0,0,s}, pos)  
+    gDrawLine(canvas,ox,oy,xx,xy,TG_RED)
+    gDrawLine(canvas,ox,oy,yx,yy,TG_WHITE)
+    gDrawLine(canvas,ox,oy,zx,zy,TG_LIGHT_BLUE)
+end procedure  
+
+-- main draw callback - combines everything --------------------------------
+procedure render_frame_with_overlay(gdx canvas, integer w,h)
+    render_frame(canvas,{w/2,h/2})
+    tiny_axis(canvas,{w-70,h-50},h)  
+    info_overlay(canvas)    
+end procedure
+
+-- mouse handling ---------------------------------------------------------
+bool bDragging = false  
+integer last_mouse_x,
+        last_mouse_y
+
+procedure canvas_click(gdx canvas, sequence status, integer x, y) 
+    bDragging = status[2]!='R'
+    last_mouse_x = x
+    last_mouse_y = y
+end procedure
+
+procedure canvas_mousemove(gdx canvas, integer x, y)
+    if bDragging then
+        atom dx = x-last_mouse_x,
+             dy = y-last_mouse_y
+        last_mouse_x = x
+        last_mouse_y = y
+        angle_y = mod(angle_y + (dx*0.4), 360)  
+        angle_x = mod(angle_x + (dy*0.4), 360)  
+        rot_y = -dx*0.12  
+        rot_x = dy*0.12 
+    end if  
+end procedure
+
+procedure set_solid_core(bool bChecked)
+    bSolidCore = bChecked
+end procedure
+
+procedure set_perspective(atom v)  
+    perspective = iff(v>0.95?0.0:v*475.0+25.0)  
+end procedure
+
+procedure set_scale(atom v)  
+    scale = v*10
+end procedure
+
+constant TITLE = "3D Rubik's Cube (Flat Shaded with Dynamic Lighting)"  
+
+gdx canvas = gCanvas(render_frame_with_overlay,"BGCLR=#202020"),
+    buttons = gHbox({gButton("Scramble",scramble_cube),
+                     gButton("Solve",prepare_solver),
+                     gButton("Reset",reset_cube),
+                     gCheckbox("Solid Core",set_solid_core,"VALUE=true")},
+                    "GAP=5,MARGIN=3x0"),
+    turn_faces = gHbox({gLabel("Turn Face:","MARGIN=4x"),
+                        gButton("L",do_manual_move),  
+                        gButton("R",do_manual_move),  
+                        gButton("U",do_manual_move),  
+                        gButton("D",do_manual_move),  
+                        gButton("B",do_manual_move),  
+                        gButton("F",do_manual_move)},"GAP=5"),
+    perspect = gHbox({gLabel("perspective:"),
+                      gSlider(set_perspective,"VALUE=0.4")}),
+    scale_ctrl = gHbox({gLabel("scale:"),
+                   gSlider(set_scale,"VALUE=0.3")}),  
+    panel = gVbox({buttons,turn_faces,perspect,scale_ctrl},
+                  "EXPAND=H,MARGIN=0x5"),
+    root = gVbox({canvas,panel}),
+    dlg = gDialog(root,TITLE,"SIZE=700x540"),
+    timer = gTimer(timer_action,1000/60, true, canvas)  
+gSetHandler(canvas,`CLICK`,canvas_click)
+gSetHandler(canvas,`MOUSEMOVE`,canvas_mousemove)
+gMainLoop(dlg)  
+
+

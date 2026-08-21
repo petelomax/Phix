@@ -14,10 +14,6 @@
         xpGUI is the Phix Cross Platform Graphical User Interface.
 -->
         theGUI is <i>The</i> Hyper Easy Graphical User Interface.
-<br>
-<br>
-<b>WARNING</b>: Incomplete, very much still in progress (15/3/2026), p2js support badly broken - theGUI.js needs a complete rewrite.
-<br>
         <div id="accordion">
          <ul>
           <li>
@@ -27,17 +23,25 @@
             </div>
             <div class="body">
              <small>
-                At the time of writing theGUI (but not including OpenGL) has just <a href="tgtypes.htm#All">140</a> global constants and 
-                <a href="tgtypes.htm#Alle">105</a> entry points, plus<br>
-                to be fair (but still not including OpenGL) <a href="gSetAttribute.htm#All">114</a> named attributes and 
-                <a href="gSetHandler.htm#All">20</a> named handlers, a combined total of 379,<br>
-                or just 356 if not counting aliases, <!--<i>not</i> expected to grow much],--> which must make it one of the smallest and easiest ever. In comparison:<br>
+                At the time of writing theGUI (but not including OpenGL) has just 
+                <a href="tgtypes.htm#AllEP">101</a> entry points, 
+                <a href="gSetAttribute.htm#All">110</a> named attributes, and <br>
+                <a href="gSetHandler.htm#All">18</a> named handlers, a combined total of 229, plus to be fair 
+                <a href="tgtypes.htm#All">156</a> global constants, taking it to 385. In comparison:<br>
+<!--
+                At the time of writing theGUI (but not including OpenGL) has just <a href="tgtypes.htm#All">153</a> global constants and 
+                <a href="tgtypes.htm#AllEP">103</a> entry points, plus<br>
+                to be fair (but still w/o OpenGL) <a href="gSetAttribute.htm#All">104</a> named attributes and 
+                <a href="gSetHandler.htm#All">17</a> named handlers, a combined total of 377. In comparison:<br>
+-->
+                                                    <!--<i>not</i> expected to grow much],-->
+<!--                or just 384 if not counting aliases, which must make it one of the smallest and easiest ever. In comparison:<br>-->
                 pGUI (which it is intended to replace) has ~450 entry points, 640 global constants, over 70 named handlers <br>
-                and well over 500 named attributes, which makes it about 1,660 in all (w/o OpenGL).<br>
+                and well over 500 named attributes, which makes it about 1,660 in all (which may include some OpenGL).<br>
 <!--
                 The only bits I consider missing are <a href="dragndrop.htm">DRAG/DROP</a>, 
                 <a href="IupButton.htm#FLAT">FLAT</a>, <a href="IupText.htm#IupMultiLine">MULTILINE</a>, 
-                <a href="IupText.htm#PASSWORD">PASSWORD</a>, <a href="common.htm#THEME">THEME</a>, and
+                <a href="IupText.htm#PASSWORD">PASSWORD</a>, <a href="pgui_common.htm#THEME">THEME</a>, and
                 <a href="IupCanvas.htm#TOUCH">TOUCH</a>, <br>
                 which apart from themes can probably be added reasonably easily. I should admit there are no equivalents, as <br>
                 yet, for <a href>IupDial</a>, <a href>IupCalendar</a>, 
@@ -62,18 +66,32 @@
                 The JavaScript DOM might actually boil down to something more reasonable, all I can say is that my time in <br>
                 the browser development tools is generally utterly dominated by paging through seemingly <i>endless</i> <br>
                 screenfuls of functions and attributes and nested prototypes on each and every element node.<br>
+<!--
                 Of course (other search engines/sites exist) googling things and searching StackOverflow is pretty easy, but <br>
                 generally speaking for the most part only <i>after</i> you already know the names of things to look for.<br>
+-->
 <!--
                 Not that theGUI has anything like all the bells and whistles of those, you understand, but should [eventually] <br>
                 contain most things you actually need, 
 -->
-                The whole point of theGUI is not so much to be complete, but instead easy to fix and extend. While anything static<br>
+                Pretty much the whole point of theGUI is not so much to be complete, but instead easy to fix and extend. <br>
+                Plus of course fix things properly, rather than accumulate yet more workarounds to use until the end of time.<br>
+                All that said, simplifications to the API surface area have <i>not</i> imposed <i>any</i> known constraints on capability.
+                <br>
+                <br>
+                Any implication or claim of "best there is" assumes a distinction between this kind of "GUI lib" which contains the<br>
+                <a href="tgelements.htm">full set of standard controls</a>, and what I would term a "Graphics lib" which is all and
+                <i>only</i> about fancy effects on a <br>
+                <i>single canvas</i>, such as <a href>OpenGL</a>, which this can in fact integrate with.
+                
+                <!--While anything static<br>
+                Using a GUI should ideally be perhaps 5% of the effort required to write a (real) program, not over 50%.
                 should be fine, some moving things (esp rotating polygons) may be a tad sluggish, but should improve over time. <br>
                 It may not have all the bells and whistles, however I reject the apparently common premise that a "proper" API <i>must</i> <br>
                 be tortuously complicated and difficult and confusing to make it flexible and powerful. Other libs will no doubt be <br>
                 better at blitzing billions of bits but for boring business basics I am pretty confident this lib and these docs will <br>
                 knock spots off anything similar you have ever seen.
+-->
 <!--
                 <br>
                 <br>
@@ -104,30 +122,37 @@
           <li>
            <div class="panel">
             <div class="header">
-            No reliance on native controls, except for menus, or resorting to the lowest common denominator <small>(WIP)</small>.
+            No reliance on native controls <small>(except for menus/popups)</small>, or resorting to the lowest common denominator.
             </div>
             <div class="body">
              <small>
                 It seems a slam-dunk decision to use platform-native controls, and in fact the first verion of theGUI did precisely that, 
-                however it turns out to be completely wrong. Of course I fully agree that the user should hardly notice the use of emulated 
-                rather than real controls, but near-perfect emulation is actually much easier than first feared. With native controls you end 
-                up fighting to make them behave consistently and find the lowest common denominator, which all goes away with emulated controls. 
+                however it turns out to be completely wrong. Of course I fully agree the user should barely notice the use of fake rather 
+                than real controls, but near-perfect emulation is actually much easier than first feared. With native controls you end up
+                fighting to make them behave consistently and find the lowest common denominator, and dealing with <i>so many</i> annoying 
+                little quirks and gotchas, which all goes away with emulated controls. 
                 Resizing and layout management becomes trivial, in comparison with sending messages to individual controls and watching it 
-                propagate knock-on changes in a completely unwanted fashion. One of the most difficult problems with using native controls was
-                figuring out their exact size and what secret margins they might have, which suddenly ceased to be any kind of issue at all. 
+                propagate knock-on changes in a completely unwanted fashion. One of the most difficult problems with using native controls 
+                was figuring out their exact size and what secret margins they have, which suddenly ceased to be any kind of issue at all. 
                 Dealing with mouse and keyboard input on emulated controls is surprisingly trivial, at least that is after the one-off cost
-                of making the basic <a href>CLICK</a>, <a href>KEY</a>,
-                <a href>MOUSEMOVE</a>, <a href>MOUSEWHEEL</a>, and (perhaps)
-                <a href>MOUSELEAVE</a> handlers as cross-platform consistent as possible, as opposed to dealing
+                of making <a href>CLICK</a>, <a href>KEY</a>, <a href>MOUSEMOVE</a>, <a href>MOUSEWHEEL</a>, and <a href>MOUSELEAVE</a> 
+                handlers as cross-platform consistent as possible <small>(which itself just got ten times easier)</small>.
+                As mentioned, menus and popups have some rather convoluted and finely-tuned-over-the-decades focus and alt-tab behaviour, 
+                which theGUI carefully and deliberately directly hijacks or imitates, and ultimately hides from the programmer.
+                Alas, as-is theGUI is unlikely to work well with assistive technologies such as screen readers, which is a bridge we&apos;ll 
+                just have to cross later, which may very well and tbh most likely mean building our own.
+<!--
+                , as opposed to dealing
                 with a plethora of control-specific messages, especially those with poorly documented but critical "high-bits" flags.
+-->
 <!--
                 Emulating mouse and keyboard input on an emulated control is also trivial (apart from actually moving the mouse pointer), 
                 as opposed to the complete nightmare it is on native controls, especially when you don&apos;t know the precise {x,y} 
                 to send a mouse message to. 
--->
+--]
                 Still very much a work-in-progress, and admittedly I haven&apos;t yet finished anything with a pop-up, or written my own 
                 versions of <del>hit-tests</del> and focus handling (and perhaps MOUSELEAVE). 
-<!--
+[!--
                 however there was nothing appropriate for a <a href>gGraph</a> which turned out much easier than first feared, and along with <br>
                 mounting difficulties trying to get the various backends to behave consistently lead me to try a similar approach on <br>
                 <a href>gList</a>, <a href>gTable</a>, <a href>gTree</a>, and then <a href>gTabs</a>,
@@ -143,8 +168,8 @@
                 of a start on anything else, and nothing with a pop-up. 
 -->
 <!--
-                I could probably do <a href>gMenu</a> as well, but that&apos;s one thing I got <br>
-                working well enough not to bother messing with. 
+//              I could probably do <a href>gMenu</a> as well, but that&apos;s one thing I got <br>
+//              working well enough not to bother messing with. 
 -->
 <!--
                 There is another (as yet still potential) benefit: complete control <br>
@@ -161,6 +186,7 @@
                 which will almost certainly be needed at some point, along with my own <br>
                 versions of hit-tests and focus handling <small>(already got the latter to defeat the GTK garbage, just needs using on WinAPI)</small>.
 --->
+<!--
                 <br>
                 <br>
                 I don&apos;t normally like advertising vaporware, but it&apos;s clearly the way things are almost inevitably going.
@@ -170,7 +196,7 @@
                 <a href="gButton.htm#hImages">gButton</a>,
                 <a href="gCalendar.htm#hImages">gCalendar</a>,
                 <a href="gCheckBox.htm#hImages">gCheckBox</a>,
-<!--                <a href="gDatePick.htm#hImages">gDatePick</a>,-->
+[!--                <a href="gDatePick.htm#hImages">gDatePick</a>,--]
                 <a href="gDialog.htm#hImages">gDialog</a> (for js only),
                 <a href="gDropDown.htm#hImages">gDropDown</a>,
                 <a href="gMenu.htm#hImages">gMenu</a>,
@@ -196,10 +222,12 @@
                 that, in contrast to reading documentation which is quite often more convoluted for a single control than these 
                 entire [theGUI] docs!
                 <br>
+-->
              </small>
             </div>
            </div>
           </li>
+<!--
           <li>
            <div class="panel">
             <div class="header">
@@ -225,6 +253,7 @@
             </div>
            </div>
           </li>
+-->
           <li>
            <div class="panel">
             <div class="header">
@@ -276,9 +305,8 @@
                 A <a href>gCanvas</a> already has completely <a href="gCanvas.htm#fakescroll">fake scrollbars</a> 
                 and is already used to implement <a href>gGraph</a>, <a href>gList</a>, 
                 <a href>gTable</a>, and <a href>gTabs</a>, <br>
-                and similar is planned for gButton, gLabel, gMsgBox, and maybe gCheckbox, gProgressBar, gSlider, gSpin, and 
-                gTree, <br>
-                <del>but gDatePick, gDropDown, gText unlikely,</del> and probably not ever gDialog<del>, gMenu, gFrame, and gSplit</del>.<br>
+//              and similar is planned for gButton, gLabel, and maybe gCheckbox, gProgressBar, gSlider, gSpin, and gTree, <br> [DONE]
+//              <del>but gDatePick, gDropDown, gText unlikely,</del> and probably not ever gDialog<del>, gMenu, gFrame, and gSplit</del>.<br>
                 The technicalia dropdown in <a href="gTabs.htm#hImages">gTabs</a> depicts some issues native controls inflict.
              </small>
             </div>
@@ -293,10 +321,10 @@
             <div class="body">
              <small>
                 Of course some bugs may be difficult to find/remedy, but if you can edit theGUI source code, you&apos;re done, <br>
-                unless you need the same fix in both theGUI.e and theGUI.js, which is (hopefully) also a pretty trivial step.
+                except of course some things may need different GTK/WinAPI/JS implementations and plenty of thorough testing.
                 <br>
                 <br>
-                Note however targetting Java/Android will likely be quite the faff, should that ever become an actual thing.
+                Note however the effort to re-package a PWA/APK remains an unknown quantity, should that ever become an actual thing.
              </small>
             </div>
            </div>
@@ -367,6 +395,7 @@
            </div>
           </li>
 -->
+<!--
           <li>
            <div class="panel">
             <div class="header">
@@ -379,6 +408,7 @@
             </div>
            </div>
           </li>
+-->
          </ul>
          <script>
             initAccordion();
@@ -444,7 +474,7 @@
         Layout and positioning use a <a href="tglayout.htm#BoxModel">box model</a>, primarily for compatibility with JavaScript.<br>
         Elements can be resized or hidden/shown at will, however there really is very little benefit to letting a programmer transmogrify <br>
         a possibly quite complex nested hierarchy in sudden and unexpected ways, hence theGUI simply foregoes all of that kind of thing.<br>
-        That may mean, for example, you need to define a layout with both a top and side menu, but only one showing at any given time.<br>
+//      That may mean, for example, you need to define a layout with both a top and side menu, but only one showing at any given time.<br>
         Uses an attribute system (as per/nicked from IUP) to further keep the API nice and simple.
         <br>
         <br>
@@ -476,7 +506,7 @@ gMainLoop(dlg)
             </small>
           </div>
           <div style="float:right; padding: 02px 80px 0 0;">
-            <img alt="gLabel" src="images/gLabel.png" width="240" height="80"/>
+            <img src="images/gLabel.png" alt="gLabel" width="240" height="80"/>
           </div>
           <div class="clear"></div>
 
@@ -507,8 +537,8 @@ gMainLoop(dlg)
         <li>gDialog(gCanvas("SIZE=100x100,EXPAND=NO")) - fixed size canvas, dialog initially large enough (within reason).</li>
         <li>gDialog(gCanvas("SIZE=400x400,EXPAND=NO"),"SIZE=100x100") - fixed size canvas, initially with scrollbars.</li>
         </ul>   
-        Similar behaviour should occur when the canvas is a <a href="tglayout.htm#SoleChild">sole child</a>, especially of gTabs 
-        and gFrame, or its siblings are fixed size.<br>
+//      Similar behaviour should occur when the canvas is a <a href="tglayout.htm#SoleChild">sole child</a>, especially of gTabs 
+//      and gFrame, or its siblings are fixed size.<br>
 //      The REDRAW handler needs to know/honour when top left is {0,0} or something else (or maybe paint all would be ok).<br> [VIEWPORT!!]
         The file demo\theGUI\scrolla.exw contains a win32-only version of the sort of thing I&apos;m after [similar for GTK/JS rqd].<br>
 -->
@@ -527,19 +557,19 @@ gMainLoop(dlg)
 <!--
         <li><a href>gTable</a>: mouse/keyboard handling, and probably needs to be made more like the gList API</li>
 -->
-        <li>Current focus is on replacing all the "native" controls with canvas-based ones <small>(as per second point above)</small>.</li>
+        <li>desktop/Phix is pretty much complete - fair amount of testing, bugfix, cleanup, then start getting theGUI.js up to speed.</li>
         <!--, and that way finally put an end to the ridiculous resize shouting matches and the like with the underlying API.-->
 <!-- (may still be some niggles, but at least I've cleaned up the docs...)
         <li>Sort out the mess I made of gGetTextExtent(/GTK3)...</li>
 -->
-        <li><a href>gTabs</a>: insert/delete/swap tabs (might now be trivial, needed for theEditor)</li>
+<!--        <li><a href>gTabs</a>: insert/delete/swap tabs (might now be trivial, needed for theEditor)</li>-->
 <!--        <li><a href="gTree.htm">gTree<del>View</del></a>: allow "no icons", and/or app-provided ones (wip)</li>-->
 <!--        <li>"" (et al) almost certainly also needs some further fixes to the layout manager.</li>-->
         <li>get <a href>SCROLLSIZE</a> (etc) working in a browser <small>(hTable/h_scrollbars.e seems the way forward)</small>.</li>
         <li>port every existing pGUI example to theGUI, and of course get all that can working in a browser.</li>
-        <li>Work on integrating with OpenGL not started at all, but hopefully that should prove reasonably superficial.</li>
-        <li>Speaking of integrating, pdemo should probably also allow open in p2js, or via that in browser <small>(as well as desktop/Phix)</small>.</li>
-        <li>theGUI.js is always likely to lag behind theGUI.e: in my experience desktop-&gt;browser is <i>far</i> easier than browser-first.</li>
+<!--        <li>Work on integrating with OpenGL not started at all, but hopefully that should prove reasonably superficial.</li>-->
+<!--        <li>Speaking of integrating, pdemo should probably also allow open in p2js, or via that in browser <small>(as well as desktop/Phix)</small>.</li>-->
+<!--        <li>theGUI.js is always likely to lag behind theGUI.e: in my experience desktop-&gt;browser is <i>far</i> easier than browser-first.</li>-->
         <li>Ultimately, this paves the way for Phix on ARM, since with no viable GUI that would be pretty pointless.</li>
 <!--    <li>xpLaura: ha ha</li> -->
 <!--    <li>pHelp.. </li> -->

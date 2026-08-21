@@ -13,6 +13,28 @@
 --
 -- TODO (prioritised):
 --  About -> Written in [[http://phix.x10.mx|Phix]]
+-- theGUI.e -> theGUI.hs:
+--      no html wrapper
+--      exclude cffi.e  -- (see next)
+--      ilASM -> crash(`ilASM`);
+--
+--      if backend=TG_GTK then          \           if backend=TG_GTK then
+--          ...                          \              /*snip*/
+--      elsif backend=TG_WINAPI then      \         elsif backend=TG_WINAPI then   
+--          ...                            \            /*snip*/
+--      elsif backend=TG_JS then            \       elsif backend=TG_JS then
+--          #ilJS{                           } ==>  
+--          <javascript>                    /           <javascript>
+--          #}ilJS                         /        
+--      else                              /         else
+--          ?9/0                         /              ?9/0
+--      end if                          /           end if
+--
+--                           or better yet, } ==>       <javascript>
+--
+--      (it may be much easier to do that via a fairly unforgiving custom pre-processing step...[when input==`theGUI.e`])
+--      (you could also have --<notJS> ... --</notJS> guards, why not...)
+--
 --bugger: iff needs to short-circuit... [NAH, DONE]
 --                      let /*string*/ t4 = iff(i+3<=lt,text[i..i+3],"");
 -- ah:                  let /*string*/ t4 = (i+3<=lt) ? text[i..i+3] : "";
@@ -315,13 +337,13 @@ procedure untouchable(integer n, cols=0, tens=0)
     if tell then
         printf(1,"The list of all untouchable numbers <= %d:\n",{n})
     end if
-    string line = "       2       5"
+    string line = `       2       5`
     integer cnt = 2
     for t=6 to n by 2 do
         if sums[t]=0 then
             cnt += 1
             if tell then
-                line &= sprintf("%,8d",t)
+                line &= sprintf(`%,8d`,t)
                 if remainder(cnt,cols)=0 then
                     printf(1,"%s\n",line)
                     line = ""
@@ -336,9 +358,9 @@ procedure untouchable(integer n, cols=0, tens=0)
         printf(1,"\n")
     end if
     t0 = time()-t0
---  string t = iff(t0>1?elapsed(t0,fmt:=" (%s)"),"")
-    string t = iff(t0>1?elapsed(t0,0," (%s)"),"")
-    printf(1,"%,20d untouchable numbers were found <= %,d%s\n",{cnt,n,t})
+--  string t = iff(t0>1?elapsed(t0,fmt:=` (%s)`),"")
+    string t = iff(t0>1?elapsed(t0,0,` (%s)`),``)
+    printf(1,`%,20d untouchable numbers were found <= %,d%s\n`,{cnt,n,t})
     for p=1 to tens do
         untouchable(-power(10,p))
     end for
@@ -362,25 +384,25 @@ untouchable(2000, 10, 6-(platform()==JS))
     -- opRepe is n (noofsubscripts), ref, rep, idx1..idxn           -- ref[idx1][idx2]~[idxn] := rep
 --erm...
     -- opRepe is n (noofsubscripts), rep, idxn..idx1, ref
---  jdesc[opRepe] = "opRepe,N,rep,idxN..idx1,ref\n"
+--  jdesc[opRepe] = `opRepe,N,rep,idxN..idx1,ref\n`
     --
     -- opReps is n (noofsubscripts), ref, idx1..n, sliceend, rep    -- ref[idx1]~[idxn..sliceend] := rep
     --
---  jdesc[opReps] = "opReps,N,ref,sliceend,idxN..idx1,dest\n"
+--  jdesc[opReps] = `opReps,N,ref,sliceend,idxN..idx1,dest\n`
     --
     -- opSubse is N, ref, idx1..idxN, res                           -- res := ref[idx1][idx2]~[idxN]
     --
---  jdesc[opSubse] = "opSubse,N,dest,idxN..idx1,ref\n"
+--  jdesc[opSubse] = `opSubse,N,dest,idxN..idx1,ref\n`
     --
     -- opSubss is N, ref, idx1..idxN, sliceend, res                 -- res := ref[idx1]~[idxN..sliceend]
     --
---  jdesc[opSubss] = "opSubss,N,dest,sliceend,idxN..idx1,ref\n"
+--  jdesc[opSubss] = `opSubss,N,dest,sliceend,idxN..idx1,ref\n`
     --
     -- opConcatN is N, res, ref1..refN                              -- res := ref1&ref2..&refN
     --
 --  opConcatN = 26,
---  jdesc[opConcat] = "opConcat,dest,a,b\n"
---  jdesc[opConcatN] = "opConcatN,N,ref1..refN,res\n"
+--  jdesc[opConcat] = `opConcat,dest,a,b\n`
+--  jdesc[opConcatN] = `opConcatN,N,ref1..refN,res\n`
 --
 without debug               -- (keep ex.err clean)
 include builtins\timedate.e
@@ -400,7 +422,7 @@ function shortast(object s)
             s[i] = shortast(s[i])
         end for
         if l>16 then
-            s[16..$] = {"..."}
+            s[16..$] = {`...`}
         end if
     end if
     return s
@@ -410,7 +432,7 @@ with trace
 --trace(1)
 --
 --DEV?? - NO, use the shortest paths we can [DONE]
--- Aside: "include pwa\..." assumes pwa\ is a sister directory of builtins\ and 
+-- Aside: `include pwa\...` assumes pwa\ is a sister directory of builtins\ and 
 --         works exactly the same way that eg include builtins\timedate.e does.
 --         I have intentionally used that throughout, even though shorter paths
 --         would probably work just as well, and maybe even a tiny bit better.
@@ -435,10 +457,10 @@ procedure transpile(string filename)
         else
             tokenise()
             if not tok_error() then
---?shorten(src,"chars")
+--?shorten(src,`chars`)
 printf(1,"Tokenised successfully (%,d chars, %,d tokens)\n",{lt,length(tokens)}) 
 --?tokens
---pp(shorten(tokens,"tokens",3),{pp_Nest,1,pp_IntCh,false})
+--pp(shorten(tokens,`tokens`,3),{pp_Nest,1,pp_IntCh,false})
                 sequence ast = parse()
                 if not parse_error() then
 --                  pp(ast)
@@ -471,10 +493,10 @@ end procedure
 --transpile(`C:\Program Files (x86)\Phix\pwa\src\p2js_parse.e`)                 -- [ 41,702 chars, 3,659 tokens ]   [OK!!] -- ish: T_forward, jstypes needs \n[DONE], (ditto ttval), static.
 --transpile(`C:\Program Files (x86)\Phix\pwa\phix\IupTreeView.exw`)             -- [ 2,019 chars, 164 tokens ]      [OK!!] -- good (indent slightly askew)
 --transpile(`C:\Program Files (x86)\Phix\builtins\xml.e`)                       -- [ 35,992 chars, 5,011 tokens ]   [OK!!] -- good (and_bits, or_bits, text[col], constant a, b?, utf32_to_utf8)
---transpile(`C:\Program Files (x86)\Phix\builtins\utfconv.e`)                   -- [ 19,232 chars, 1,227 tokens ]   [OK!!] -- and_bits, "\#EF\#BF\#BD", string subscripts
+--transpile(`C:\Program Files (x86)\Phix\builtins\utfconv.e`)                   -- [ 19,232 chars, 1,227 tokens ]   [OK!!] -- and_bits, `\#EF\#BF\#BD`, string subscripts
 --transpile(`C:\Program Files (x86)\Phix\builtins\timedate.e`)                  -- [ 86,569 chars, 7,521 tokens]    [OK!!] -- good
 --transpile(`C:\Program Files (x86)\Phix\builtins\serialize.e`)                 -- [ 9,266 chars, 1,065 tokens ]    [OK!!] -- peek, getc, int_to_bytes, atom<=>float,...
---transpile(`C:\Program Files (x86)\Phix\builtins\regex.e`)                     -- [ 35,038 chars, 5,945 tokens ]   [OK!!] -- erm, constant -> const, not let!, ?9/0 -> crash("9/0")?
+--transpile(`C:\Program Files (x86)\Phix\builtins\regex.e`)                     -- [ 35,038 chars, 5,945 tokens ]   [OK!!] -- erm, constant -> const, not let!, ?9/0 -> crash(`9/0`)?
                                                                                                                             -- for/switch/exit problem(see pikevm_execute/MATCH), 
                                                                                                                             -- ready = ready[1..$-1] ==> ready = ready[1..-1-1]; ??
 --transpile(`C:\Program Files (x86)\Phix\builtins\pqueue.e`)                    -- [ 8,656 chars, 809 tokens ]      [OK!!] -- good
@@ -583,7 +605,7 @@ end procedure
 --Xtranspile(`C:\Program Files (x86)\Phix\test\inc5\incD.e`)    -- namespace
 --transpile(`C:\Program Files (x86)\Phix\test\t17incV.exw`)     -- OK                                                       -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\inc7\once.e`)     -- OK
---transpile(`C:\Program Files (x86)\Phix\test\t18equal.exw`)                                                                -- good!!! (less "a"=={'a'})
+--transpile(`C:\Program Files (x86)\Phix\test\t18equal.exw`)                                                                -- good!!! (less `a`=={'a'})
 --transpile(`C:\Program Files (x86)\Phix\test\t19find.exw`)                                                                 -- good!!!
 --transpile(`C:\Program Files (x86)\Phix\test\t20cast.exw`)                                                                 -- good!!! (not really a test for p2js)
 --transpile(`C:\Program Files (x86)\Phix\test\t21ret1.exw`)                                                                 -- good!!!
@@ -671,15 +693,15 @@ function platform_is_js()   -- (for testing purposes, on desktop)
 --  return true
 end function
 
---DEV fixme: [DONE, or was it("string") just skipped?]
+--DEV fixme: [DONE, or was it(`string`) just skipped?]
 global constant string initialcurrentdir = get_proper_dir(command_line()[2]),
-                       inifile = join_path({initialcurrentdir,"p2js.ini"}),
-                       testexw = join_path({initialcurrentdir,"test.exw"}),
-                       testhtm = join_path({initialcurrentdir,"test.htm"})
+                       inifile = join_path({initialcurrentdir,`p2js.ini`}),
+                       testexw = join_path({initialcurrentdir,`test.exw`}),
+                       testhtm = join_path({initialcurrentdir,`test.htm`})
 --global constant string initialcurrentdir = get_proper_dir(command_line()[2])
 --constant cl = command_line()
 --global constant string initialcurrentdir = get_proper_dir(cl[2]),
---global constant string inifile = join_path({initialcurrentdir,"p2js.ini"})
+--global constant string inifile = join_path({initialcurrentdir,`p2js.ini`})
 string lastfile = ""
 
 --sequence files = {}
@@ -723,7 +745,7 @@ function set_extensions(Ihandle ih, integer bar=0)
     for i=1 to length(ext_names)-bar do
         IupSetAttributeId(ih,"",i,ext_names[i])
     end for
-    IupSetInt(ih,"VISIBLEITEMS",length(ext_names)+1) -- (no idea why +1 helps)
+    IupSetInt(ih,`VISIBLEITEMS`,length(ext_names)+1) -- (no idea why +1 helps)
     return ih
 end function
 
@@ -760,6 +782,150 @@ res = deep_copy(res)    --DEV (not particularly happy with that...)
     return res
 end function
 
+-- global sequence jscode = {} -- (no real need for one per input file...)
+
+function beeq_line(string input, integer k)
+    return length(find_all('\n',input[1..k]))+1
+end function
+
+function fix_source_lines(string input)
+    -- replace any source_line() with source_line(literal):
+    string new_src = ""
+    integer lno = 1, lmax = length(input)-12, skip = 0
+    for i,ch in input do
+        if skip then
+            skip -= 1
+        else
+            new_src &= ch
+            if ch='\n' then
+                lno += 1
+            elsif ch='s'
+              and i<=lmax
+              and input[i+1]='o'
+              and input[i..i+12]=`source_line()` then
+                new_src &= sprintf(`ource_line(%d)`,lno)
+                skip = 12
+            end if
+        end if
+    end for
+    return new_src  
+end function
+
+--?fix_source_lines(`source_line()`)
+--?fix_source_lines(`source_line()X`)
+--?fix_source_lines("source_line()\nsource_line()\nX")
+--"source_line(1)"
+--"source_line(1)X"
+--"source_line(1)\nsource_line(2)\nX"
+
+function clip_beeq(string input)
+    -- optional: removing this may lessen time in the browser 
+    --  development tools, but harder to make the actual edit.
+    -- [maybe I could alleviate that pain by making theEditor
+    --  jump to the line in theGUI.e instead of theGUI.js...
+    --  but I may be imagining an ex.err that don't exist...]
+    input = fix_source_lines(input)
+    sequence beeqsets = {}
+    integer start = 1
+--  jscode = {}
+    do
+        -- note: not `if backend==TG_`... and
+        --      not `if backend = TG_`... and
+        --     not `if backend == TG_`... and...
+        -- (feel free to fix, but I can't be ****ed)
+        integer beeq = match(`if backend=TG_`,input,start)
+        if beeq then
+--string glub = input[beeq..$]
+            bool bElsOK = true
+            for mfrom=beeq-1 to 0 by -1 do
+                integer ch = input[mfrom]
+                if mfrom=1 or not find(ch," \t") then
+                    sequence oneset = {mfrom,beeq}
+                    string spacee = input[max(mfrom,1)..beeq-1]&`e`
+                    integer nxte = beeq
+                    do
+                        nxte = match(spacee,input,nxte+1)
+                        if nxte then
+--string glun = input[nxte..$]
+                            oneset &= nxte
+--?oneset
+                            start = nxte
+                            integer k = nxte+length(spacee)-1
+                            if input[k..k+2]=`end` then
+                                nxte = 0
+                            elsif not bElsOK then
+                                crash(`bad beeq construct? - line %d`,{beeq_line(input,k)})
+                            elsif input[k..k+3]=`else` then
+                                bElsOK = false
+                            elsif input[k..k+4]!=`elsif` then
+                                crash(`not elsif? - line %d`,{beeq_line(input,k)})
+                            end if
+                        end if
+                    until nxte=0
+--integer beel = oneset[$]
+--?{shorten(input[beeq..beel],""),beeq_line(input,beeq),beeq_line(input,beel)}
+--wait_key()
+                    beeqsets &= {oneset}            
+                    exit
+                end if
+            end for
+        end if
+    until beeq=0
+--?beeqsets
+
+    for bs in reverse(beeqsets) do
+--for bs in {} do
+        integer b1 = bs[1], b2 = bs[2], l = b2-b1, n = length(bs), 
+                es = bs[n], vlf = find('\n',input,es+1)
+--  ?extract(input,prepend(sq_add(bs[3..$],l),b2)) -- `ieeee`
+        if b1=1 or input[b1]=='\n' then
+            bool js_found = false
+--?{`processing`,shorten(input[b1+20..es],"",35),beeq_line(input,b1),beeq_line(input,es)}
+            for i=n-1 to 2 by -1 do
+                integer t = bs[i]
+                if input[t+l+3]!='e' then -- skip 'else'
+                    integer k = match(`TG_`,input,t)
+--?input[k..k+3] -- `TG_J`, `TG_W`, `TG_G`
+                    if input[k+3]='J' then -- TG_JS
+--                      --/*(\n)                         } ==>      //-](\n)
+--                      <javascript>                    /           <javascript>
+--                      --*/(\n)                       /            //[-(\n)
+--                      integer obc = match(`--/*`,input,k),
+--                              cbc = rmatch(`--*/`,input,es)
+--                      assert(obc!=0 and obc<es and 
+--                             cbc!=0 and cbc>obc,`js block comment? - line %d`,{beeq_line(input,k)})
+--                      input[cbc..cbc+3] = `//[-`
+--                      input[obc..obc+3] = `//-]`
+-- or:
+--                      string js = trim(input[obc+4..cbc-1]),
+--                      string js = input[obc+4..cbc-1],
+                        k = find('\n',input,k)
+                        string js = input[k..es-1],
+                               sp = repeat(' ',l-(b1!=1))
+--                      jscode = append(jscode,js)
+--                      string rep = sprintf(`%n%s#js%d;`,{b1!=1,sp,length(jscode)})
+--                      input[b1..vlf-1] = rep
+                        input[b1..vlf-1] = js
+                        js_found = true
+                        exit
+                    else
+                        integer flf = find('\n',input,k),
+                                llf = rfind('\n',input,es)
+                        assert(flf!=0 and flf<es and
+                               llf!=0 and llf>flf,`\n wierdness - line %d`,{beeq_line(input,k)})
+--                      input[flf+1..llf-1] = repeat(' ',l)&`    /*snip*/`
+                    end if
+                end if
+                es = t
+            end for
+            if not js_found then
+                crash(`missing elsif backend=TG_JS for line %d`,{beeq_line(input,b1)})
+            end if
+        end if
+    end for
+    return input
+end function
+
 --global string src -- now in p2js_basics...
 --integer src_offset    -- (for js embeddded in html) [ now in p2js_basics]
 bool pGUI, theGUI, pMPFR, pSHA256, pTIMEDATE
@@ -769,11 +935,43 @@ bool pGUI, theGUI, pMPFR, pSHA256, pTIMEDATE
 --function load(string what)
 --DEV:
 --function load_tokens(Ihandle mle=multitext)
-function load_tokens(Ihandle mle=multitext, mtype=ctype)
+function load_tokens(Ihandle mle=multitext, mtype=ctype, string what="")
 --  if src="" then
 --clear_screen()
---?"load_tokens"
-    src = IupGetAttribute(mle, "VALUE")
+--?`load_tokens`
+    src = IupGetAttribute(mle, `VALUE`)
+--if find(what,{`TOKENS`,`PARSETREE`,`OUTPUT`}) 
+--and begins("--\n-- demo\\theGUI\\theGUI.e\n-- ====================\n",src) then
+if begins("--\n-- demo\\theGUI\\theGUI.e\n-- ====================\n",src) then
+    src = clip_beeq(src)
+--?src
+--  sequence incs = {}
+    integer ink = match("\ninclude ",src), inke
+    while ink!=0 do
+        for inke=ink+9 to length(src) do
+--          if src[inke]='\n' then exit end if
+            if src[inke]<=' ' then exit end if
+        end for
+        string inkling = src[ink+1..inke-1]
+--      incs = append(incs,src[ink+1..inke-1])
+        if match(`cffi.e`,inkling)
+        or match(`pcfunc.e`,inkling)
+--      or match(`get_interpreter.e`,inkling)
+        or match(`thegui_xpm.e`,inkling)
+        or match(`fileopenN.ew`,inkling) then
+            src[ink+1..ink+2] = `--`
+        end if
+--  incs[1..4] = {`include builtins\VM\pprntfN.e`,`include builtins\VM\prtnidN.e`,`include builtins\cffi.e`,`include builtins\VM\pcfunc.e`}
+--  incs[5..8] = {`include builtins\scanf.e`,`include builtins\ubits.e`,`include builtins\VM\pTime.e`,`include builtins\dict.e`}
+--  incs[9..11] = {`include builtins\get_interpreter.e`,`include builtins\timedate.e`,`include ptagset.e`}
+--  incs[12..13] = {`include builtins\ptypes.e   -- (types atom_string, rid_string, nullable_string, and boolean)`,`include builtins\cffi.e`}
+--  incs[14] = "include thegui_xpm.e    -- factored out for neatness, avoids defining any globals via gSetGlobal(`xpm_init`)"
+--  incs[15] = `include builtins\fileopenN.ew -- (for WinAPI only)`
+
+        ink = match("\ninclude ",src,inke-1)
+    end while
+--  ?9/0
+end if
     src_offset = 0
     pGUI = false
     theGUI = false
@@ -781,10 +979,10 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
     pMPFR = false
     pSHA256 = false
     pTIMEDATE = false
---  integer ext = IupGetInt(ctype,"VALUE")
---?{"load_tokens",ext}
-    integer ext = IupGetInt(mtype,"VALUE")
---?{"load_tokens",ext}
+--  integer ext = IupGetInt(ctype,`VALUE`)
+--?{`load_tokens`,ext}
+    integer ext = IupGetInt(mtype,`VALUE`)
+--?{`load_tokens`,ext}
 
 --  elsif ext=0 then
 --      ?9/0 -- (sanity check)
@@ -821,15 +1019,15 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
             string pre = src[1..match(js[1][1],src)]
             src_offset = length(split(pre,'\n'))-1
 --aside: js->phix will not resurrect an "include [`..\pGUI\`]opengl.e .. (yet) [or can we do it from comment??]
-            pGUI = match("pGUI.js",pre)!=0
-            theGUI = match("theGUI.js",pre)!=0
+            pGUI = match(`pGUI.js`,pre)!=0
+            theGUI = match(`theGUI.js`,pre)!=0
             if theGUI then pGUI = false end if
 --          pOpenGL = match(`..\pGUI\opengl.e`,pre)!=0 -- ???!
-            pMPFR = match("mpfr.js",pre)!=0
-            pSHA256 = match("sha256.js",pre)!=0
-            pTIMEDATE = match("timedate.js",pre)!=0
+            pMPFR = match(`mpfr.js`,pre)!=0
+            pSHA256 = match(`sha256.js`,pre)!=0
+            pTIMEDATE = match(`timedate.js`,pre)!=0
             src = js[1][1]
-            ext = find_extension("js")
+            ext = find_extension(`js`)
             if not load_text(src,ext) then
 --          if not load_text(js[1][1],ext) then
                 return false
@@ -840,7 +1038,7 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
         end if
         tokenise()
         if not tok_error() then
---?{"<load_tokens",ext}
+--?{`<load_tokens`,ext}
             return true
         end if
     end if
@@ -848,12 +1046,12 @@ function load_tokens(Ihandle mle=multitext, mtype=ctype)
 end function
 
 function multitext_caret_cb(Ihandle /*ih*/, integer line, integer col)
-    IupSetStrAttribute(lbl_statusbar, "TITLE", "Line %d, Col %d", {line, col})
+    IupSetStrAttribute(lbl_statusbar, `TITLE`, `Line %d, Col %d`, {line, col})
     return IUP_DEFAULT
 end function
 
 function showtext_caret_cb(Ihandle /*ih*/, integer line, integer col)
-    IupSetStrAttribute(lbl_show, "TITLE", "Line %d, Col %d", {line, col})
+    IupSetStrAttribute(lbl_show, `TITLE`, `Line %d, Col %d`, {line, col})
     return IUP_DEFAULT
 end function
 
@@ -868,9 +1066,9 @@ function idle_action()
     --
     -- note: the ADDFORMATTAG_HANDLE call itself is the bit that is horrendously slow!
     --
-    Ihandln formattags = IupUser("BULK=YES")
+    Ihandln formattags = IupUser(`BULK=YES`)
     if fdx=1 then
-        IupSetAttribute(formattags,"CLEANOUT","YES")
+        IupSetAttribute(formattags,`CLEANOUT`,`YES`)
     end if
     integer count = 0
     while fdx<=length(fokens) do
@@ -900,8 +1098,8 @@ function idle_action()
                 {?,tokstart,tokfinish,l2,c2} = fokens[fdx]
                 c2 += tokfinish-tokstart
             end if
-            IupSetAttribute(formattag, "ITALIC", "YES")
---?"italic"
+            IupSetAttribute(formattag, `ITALIC`, `YES`)
+--?`italic`
             colour = IUP_NAVY
         else
             if toktype=LETTER then
@@ -933,7 +1131,7 @@ function idle_action()
                     fsrc[tokfinish] = '"'
 --                  tokstart -= 2
 --                  tokfinish += 2
---?"2!"
+--?`2!`
                     c1 -= 2
                     c2 += 2
                 end if
@@ -945,7 +1143,7 @@ function idle_action()
               and remainder(toktype,2)=1 then   -- multisym
                 colour = IUP_BLUE
             elsif toktype<=T_object then        -- types
-                colour = "#004080"
+                colour = `#004080`
 --          elsif toktype<=T_volatile then      -- dodgy keywords
 -- [reverted (T_try -> t_trace) 28/4/22]
             elsif toktype<=T_trace then         -- dodgy keywords
@@ -956,7 +1154,7 @@ function idle_action()
 --          elsif toktype<=T_yield then         -- buitlins
 --          elsif toktype<=T_xor_bitsu then         -- buitlins
             elsif toktype<=T_zIndex then        -- buitlins
-                colour = "#7060A8"
+                colour = `#7060A8`
 --          elsif toktype<=T_wait_key then      -- not pwa/p2js
             elsif toktype<=T_yield then         -- not pwa/p2js
 --DEV oh shit: if platform()!=WEB then ... end if - not violation...
@@ -981,7 +1179,7 @@ if toktype=T_IupMainLoop then
     and fokens[fdx-6][TOKTTIDX]=T_platform
     and fokens[fdx-7][TOKTYPE]=LETTER
     and fokens[fdx-7][TOKTTIDX]=T_if then
-        colour = "#7060A8"
+        colour = `#7060A8`
     elsif fdx>=10
 --else
 --trace(1)
@@ -999,19 +1197,19 @@ if toktype=T_IupMainLoop then
     and fokens[fdx-8][TOKTYPE]='('
     and fokens[fdx-9][TOKTYPE]=LETTER
     and fokens[fdx-9][TOKTTIDX]=T_if then
-        colour = "#7060A8"
+        colour = `#7060A8`
 --  else
---      pp({"IupMainLoop",fokens[fdx-10..fdx]})
+--      pp({`IupMainLoop`,fokens[fdx-10..fdx]})
     end if
 --end if
 --/*
 --js:
-{"get_type",14888,2,"==>",0}
-{"LETTER",721,731,18,16,14888,"yellowstone"}
+{`get_type`,14888,2,`==>`,0}
+{`LETTER`,721,731,18,16,14888,`yellowstone`}
 Error in C:\Program Files (x86)\Phix\builtins\ppp.e line 18, column 17
 sequence y500 = yellowstone(500)
                 ^ warning: unrecognised
-{"autoincludes:",{}}
+{`autoincludes:`,{}}
 {`IupMainLoop`,
  {{59';',978,978,37'%',12},
   {4,980,981,38'&',0,1648},         T_if                            := 1648},
@@ -1040,34 +1238,34 @@ sequence y500 = yellowstone(500)
 --*/
 end if
             elsif toktype<=T_YELLOW then        -- constants
-                colour = "#004600"
+                colour = `#004600`
             else                                -- everything else
                 colour = IUP_BLACK
             end if
         end if
 --?{l1,c1+1,l2,c2+2,colour,fokens[fdx]}
-        IupSetStrAttribute(formattag,"SELECTION","%d,%d:%d,%d",{l1,c1+1,l2,c2+2})
-        IupSetAttribute(formattag, "FGCOLOR", colour)
+        IupSetStrAttribute(formattag,`SELECTION`,`%d,%d:%d,%d`,{l1,c1+1,l2,c2+2})
+        IupSetAttribute(formattag, `FGCOLOR`, colour)
         IupAppend(formattags, formattag)
         fdx += 1
         if count>1000 then exit end if
     end while
 --?fdx
-    IupSetAttribute(fmle,"ADDFORMATTAG_HANDLE",formattags)
+    IupSetAttribute(fmle,`ADDFORMATTAG_HANDLE`,formattags)
     -- erm, this enforces a behaviour I'd rather not have in the first place...
---  IupSetAttribute(fmle,"CARET","1,1")
---  IupSetAttribute(fmle,"SCROLLTO","1,1")
+--  IupSetAttribute(fmle,`CARET`,`1,1`)
+--  IupSetAttribute(fmle,`SCROLLTO`,`1,1`)
     Ihandle lbl = iff(fmle=multitext?lbl_statusbar:lbl_show)
     if fdx>length(fokens) then
         if fmle!=multitext and length(show_caret) then
---?{"CARET/SCROLLTO",show_caret}
-            IupSetAttribute(show_text,"SCROLLTO",show_caret)
-            IupSetAttribute(show_text,"CARET",show_caret)
+--?{`CARET/SCROLLTO`,show_caret}
+            IupSetAttribute(show_text,`SCROLLTO`,show_caret)
+            IupSetAttribute(show_text,`CARET`,show_caret)
             show_caret = ""
-            integer {l,c} = IupGetIntInt(show_text,"CARET")
+            integer {l,c} = IupGetIntInt(show_text,`CARET`)
             {} = showtext_caret_cb(show_text,l,c)
         else
-            IupSetStrAttribute(lbl, "TITLE", "Line 1, Col 1")
+            IupSetStrAttribute(lbl, `TITLE`, `Line 1, Col 1`)
         end if
         if length(fstacked) then
             {fdx,fokens,fmle,fsrc} = fstacked
@@ -1078,15 +1276,15 @@ end if
             return IUP_IGNORE -- (disables idle)
         end if
     end if
-    IupSetStrAttribute(lbl, "TITLE", "(syntax colouring %d%%)", {fdx/length(fokens)*100})
+    IupSetStrAttribute(lbl, `TITLE`, `(syntax colouring %d%%)`, {fdx/length(fokens)*100})
     return IUP_DEFAULT
 end function
-constant idle_action_cb = Icallback("idle_action")
+constant idle_action_cb = Icallback(`idle_action`)
 
 function syntax_colour(Ihandle mle=multitext, mtype=ctype)
 --if mle!=multitext then trace(1) end if
     if load_tokens(mle,mtype) then
---?{"sc",src_offset,fdx,length(tokens)}
+--?{`sc`,src_offset,fdx,length(tokens)}
         if src_offset then
             for i=1 to length(tokens) do
                 tokens[i][TOKLINE] += src_offset
@@ -1109,13 +1307,13 @@ function syntax_colour(Ihandle mle=multitext, mtype=ctype)
         fdx = 1
         fmle = mle
         fsrc = src
-        IupSetGlobalFunction("IDLE_ACTION",idle_action_cb)
+        IupSetGlobalFunction(`IDLE_ACTION`,idle_action_cb)
     end if
     return IUP_IGNORE -- (for key_cb)
 end function
 
 procedure set_otype(integer ext)
-    IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
+    IupSetInt(otype,`VALUE`,iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
 end procedure       
 
 include builtins/read_file.e
@@ -1125,11 +1323,11 @@ procedure open_file(string filename)
     if sequence(str) then
 if not string(str) then ?9/0 end if -- 16/6/22 -- ???
         save_filename(filename)
---      IupSetStrAttribute(main_dlg, "TITLE", `pwa\p2js - %s`, {get_file_name(filename)})
+--      IupSetStrAttribute(main_dlg, `TITLE`, `pwa\p2js - %s`, {get_file_name(filename)})
         lastfile = filename
---?{"lastfile",lastfile}
+--?{`lastfile`,lastfile}
         if platform_is_js() then
-            IupSetStrAttribute(chosen, "TITLE", filename)
+            IupSetStrAttribute(chosen, `TITLE`, filename)
         else
             integer pdx = find(filename,dropfiles)
             if pdx=0 then
@@ -1151,7 +1349,7 @@ if not string(str) then ?9/0 end if -- 16/6/22 -- ???
 --/*
             for j=pdx to 2 by -1 do
                 files[j] = files[j-1]
-                if j<=IupGetInt(chosen,"VISIBLEITEMS") then
+                if j<=IupGetInt(chosen,`VISIBLEITEMS`) then
                     IupSetAttributeId(chosen,"",j,files[j])
                 end if
             end for
@@ -1161,29 +1359,29 @@ if not string(str) then ?9/0 end if -- 16/6/22 -- ???
 --*/
 --17/5/21 removed 30/9/21
 --/*
-            integer vis = IupGetInt(chosen,"VISIBLEITEMS")-1
+            integer vis = IupGetInt(chosen,`VISIBLEITEMS`)-1
             if pdx>vis then
 --?{pdx,vis,filename}
 --vis -= 1
                 dropfiles[pdx] = dropfiles[vis]
                 dropfiles[vis] = filename
                 pdx = vis
---              IupSetAttribute(chosen,"VISIBLEITEMS",pdx+1)
+--              IupSetAttribute(chosen,`VISIBLEITEMS`,pdx+1)
             end if
 --*/
             IupSetAttributeId(chosen,"",pdx,filename)
-            IupSetInt(chosen,"VALUE",pdx)
-            IupSetInt(chosen,"VISIBLEITEMS",length(dropfiles)+1) -- (no idea why +1 helps)
+            IupSetInt(chosen,`VALUE`,pdx)
+            IupSetInt(chosen,`VISIBLEITEMS`,length(dropfiles)+1) -- (no idea why +1 helps)
         end if
         integer ext = find_extension(get_file_extension(filename))
-        IupSetInt(ctype,"VALUE",ext)
---      IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
---      IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
+        IupSetInt(ctype,`VALUE`,ext)
+--      IupSetInt(otype,`VALUE`,iff(ext==PHIX?HTML:PHIX))
+--      IupSetInt(otype,`VALUE`,iff(ext==PHIX?HTML:iff(ext==JSS?JSS:PHIX)))
         set_otype(ext)
-        IupSetInt(run_btn,"ACTIVE",true)
---      IupSetStrAttribute(multitext, "FILENAME", filename)
-        IupSetAttribute(multitext,"CARET","1,1")
-        IupSetStrAttribute(multitext, "VALUE", str)
+        IupSetInt(run_btn,`ACTIVE`,true)
+--      IupSetStrAttribute(multitext, `FILENAME`, filename)
+        IupSetAttribute(multitext,`CARET`,`1,1`)
+        IupSetStrAttribute(multitext, `VALUE`, str)
 if not string(str) then ?9/0 end if -- 16/6/22 -- ???
         {} = syntax_colour()
         {} = multitext_caret_cb(multitext, 1, 1)
@@ -1193,15 +1391,15 @@ if not string(str) then ?9/0 end if -- 16/6/22 -- ???
             --        *not* for the show/hide/edit/show cycle,
             --        which in fact manually saves/restores it.
             --
---?{"show_text,1,1"}
-            IupSetAttribute(show_text,"CARET","1,1")
+--?{`show_text,1,1`}
+            IupSetAttribute(show_text,`CARET`,`1,1`)
         end if
     end if
 end procedure
 
 --/*
 function demoset()
-    sequence res = {"p2js.exw",...}
+    sequence res = {`p2js.exw`,...}
     for i=1 to length(res) do
         res[i] = join_path({initialcurrentdir,res[i]})
     end for
@@ -1218,15 +1416,15 @@ procedure load_ini()
         integer vi = 1
         for i=1 to length(lines) do
             if lines[i]!="" then
-                string {lt,li} = apply(split(lines[i],":",true,2),trim)
-                if lt="file" then
+                string {lt,li} = apply(split(lines[i],`:`,true,2),trim)
+                if lt=`file` then
                     if find(li,dropfiles) then
-                        crash("duplicate project")
+                        crash(`duplicate project`)
                     end if
                     dropfiles = append(dropfiles,li)
 --                  string fp = get_file_path(li)
 --                  integer k = find(fp,d)
---  integer pdx = IupGetInt(chosen,"VALUE")
+--  integer pdx = IupGetInt(chosen,`VALUE`)
 --                  if length(dropfiles)<=10 or k=0 then
 --                      if k=0 then
 --                          d = append(d,fp)
@@ -1237,17 +1435,17 @@ procedure load_ini()
                         IupSetAttributeId(chosen,"",vi,li)
                         vi += 1
 --                  end if
---      IupSetInt(chosen,"VALUE",pdx)
+--      IupSetInt(chosen,`VALUE`,pdx)
 --      dropfiles = append(dropfiles,{})
---      IupSetInt(chosen,"VALUE",1)
---              elsif lt="output" then
+--      IupSetInt(chosen,`VALUE`,1)
+--              elsif lt=`output` then
 --                  outputs[pdx] = li
                 else
                     ?9/0
                 end if
             end if
         end for
-        IupSetInt(chosen,"VISIBLEITEMS",vi) -- (no idea why +1 helps)
+        IupSetInt(chosen,`VISIBLEITEMS`,vi) -- (no idea why +1 helps)
         droptags = tagset(length(dropfiles))
     end if
 --DEV on reflection, we might/probably want to do this without a gui... [laters]
@@ -1263,19 +1461,19 @@ procedure load_ini()
 --          dropfiles = demoset()
 --      end if
     elsif length(dropfiles) then
-        IupSetInt(chosen,"VALUE",1)
+        IupSetInt(chosen,`VALUE`,1)
         open_file(dropfiles[1])
     end if
 end procedure
 
 procedure save_ini()
     if platform()=JS then ?9/0 end if
-    integer pdx = IupGetInt(chosen,"VALUE")
+    integer pdx = IupGetInt(chosen,`VALUE`)
 --  if pdx>1 then {tags[1],tags[pdx]} = {pdx,1} end if
 --  if pdx>1 then tags[1..pdx] = tags[pdx]&tags[1..pdx-1] end if
 --  if pdx then
     if bSaveIni and pdx then    --DEV: and platform()!=JS, probably...
---?"save_ini"
+--?`save_ini`
 --?dropfiles
 --?droptags
 --      sequence tags = tagset(length(dropfiles))
@@ -1319,8 +1517,8 @@ procedure save_ini()
 --      tags[1] = tp
 --      tags[1] = pdx
 --      for i=2 to pdx do tags[i] = i-1 end for
-        integer fn = open(inifile,"w")
-        if fn=-1 then crash("cannot open "&inifile) end if
+        integer fn = open(inifile,`w`)
+        if fn=-1 then crash(`cannot open `&inifile) end if
 --1/5/21: keep the lot, for Ctrl T, and instead limit what we load into chosen
 --      sequence d10 = {}
         for i=1 to l do
@@ -1349,8 +1547,8 @@ end function
 function multitext_valuechanged_cb(Ihandle /*multitext*/)
 --DEV update syntax colouring... (on a timer?)
     if not platform_is_js() then
---      IupSetAttribute(chosen,"TITLE","")
-        IupSetInt(chosen,"VALUE",NULL)
+--      IupSetAttribute(chosen,`TITLE`,"")
+        IupSetInt(chosen,`VALUE`,NULL)
         current_file = ""
 /*
         if length(lastfile) and not find(lastfile[$],`/\`) then
@@ -1365,12 +1563,12 @@ end function
 Ihandln filedlg = NULL
 
 ----function closefiledlg_cb(Ihandle /*filedlg*/)
-----?"closefiledlg_cb"
+----?`closefiledlg_cb`
 --function file_cb(Ihandle /*filedlg*/, atom /*pFileName*/, pStatus)    
 --  string status = peek_string(pStatus)
---  if status="FINISH" then
---?"file_cb"
---      IupConfigDialogClosed(config, filedlg, "FileDlg")
+--  if status=`FINISH` then
+--?`file_cb`
+--      IupConfigDialogClosed(config, filedlg, `FileDlg`)
 --  end if
 --  return IUP_CLOSE
 --end function
@@ -1378,23 +1576,23 @@ Ihandln filedlg = NULL
 function choose_cb(Ihandln /*choose_file/NULL*/)
     if filedlg=NULL then
         filedlg = IupFileDlg()
-        IupSetAttribute(filedlg, "DIALOGTYPE", "OPEN");
-        IupSetAttributePtr(filedlg, "PARENTDIALOG", main_dlg);
-        IupSetAttribute(filedlg, "EXTFILTER", "All files|*.*|");
-        IupSetAttribute(filedlg, "TITLE", "Select File");
---      IupSetAttribute(filedlg,"DIRECTORY",initialcurrentdir)
---      IupSetCallback(filedlg,"CLOSE_CB",Icallback("closefiledlg_cb")) -- NO!
---      IupSetCallback(filedlg,"FILE_CB",Icallback("file_cb"))          -- UGH! (not needed anyway, it seems)
-        IupSetInt(filedlg,"MULTIPLEFILES ",false)
+        IupSetAttribute(filedlg, `DIALOGTYPE`, `OPEN`);
+        IupSetAttributePtr(filedlg, `PARENTDIALOG`, main_dlg);
+        IupSetAttribute(filedlg, `EXTFILTER`, `All files|*.*|`);
+        IupSetAttribute(filedlg, `TITLE`, `Select File`);
+--      IupSetAttribute(filedlg,`DIRECTORY`,initialcurrentdir)
+--      IupSetCallback(filedlg,`CLOSE_CB`,Icallback(`closefiledlg_cb`)) -- NO!
+--      IupSetCallback(filedlg,`FILE_CB`,Icallback(`file_cb`))          -- UGH! (not needed anyway, it seems)
+        IupSetInt(filedlg,`MULTIPLEFILES`,false)
     end if
     string d = lastfile
---?{"choose_cb","lastfile",lastfile}
+--?{`choose_cb`,`lastfile`,lastfile}
 --/*
     string d = ""
     if platform_is_js() then
-        d = IupGetAttribute(chosen,"TITLE")
+        d = IupGetAttribute(chosen,`TITLE`)
     elsif length(dropfiles) then
-        integer fdx = IupGetInt(chosen,"VALUE")
+        integer fdx = IupGetInt(chosen,`VALUE`)
         if fdx then
             d = dropfiles[fdx]
         else
@@ -1402,17 +1600,17 @@ function choose_cb(Ihandln /*choose_file/NULL*/)
         end if
     end if
 --*/
---  string d = iff(platform_is_js()?IupGetAttribute(chosen,"TITLE")
---               :iff(length(dropfiles)?dropfiles[IupGetInt(chosen,"VALUE")]
+--  string d = iff(platform_is_js()?IupGetAttribute(chosen,`TITLE`)
+--               :iff(length(dropfiles)?dropfiles[IupGetInt(chosen,`VALUE`)]
 --                                 :""))
---  IupSetStrAttribute(filedlg,"DIRECTORY",iff(d!=""?get_file_path(d,true):initialcurrentdir))
-    IupSetStrAttribute(filedlg,"DIRECTORY",iff(d!=""?get_file_path(d,true):initialcurrentdir))
---  IupSetStrAttribute(filedlg,"FILE",iff(d!=""?get_file_path(d,true):initialcurrentdir))
---  IupConfigDialogShow(config, filedlg, "FileDlg")
+--  IupSetStrAttribute(filedlg,`DIRECTORY`,iff(d!=""?get_file_path(d,true):initialcurrentdir))
+    IupSetStrAttribute(filedlg,`DIRECTORY`,iff(d!=""?get_file_path(d,true):initialcurrentdir))
+--  IupSetStrAttribute(filedlg,`FILE`,iff(d!=""?get_file_path(d,true):initialcurrentdir))
+--  IupConfigDialogShow(config, filedlg, `FileDlg`)
 --  IupPopup(filedlg, IUP_CURRENT, IUP_CURRENT)
     IupPopup(filedlg)
-    if IupGetInt(filedlg, "STATUS")!=-1 then
-        string file = IupGetAttribute(filedlg, "VALUE")
+    if IupGetInt(filedlg, `STATUS`)!=-1 then
+        string file = IupGetAttribute(filedlg, `VALUE`)
 --      if not find(file,dropfiles) then
 --          dropfiles = append(dropfiles,file)
 --          APPENDITEM 
@@ -1423,30 +1621,30 @@ function choose_cb(Ihandln /*choose_file/NULL*/)
 end function
 
 function chosen_cb(Ihandle /*chosen*/, atom /*pText*/, integer /*item*/, /*state*/)
-    integer pdx = IupGetInt(chosen,"VALUE")
+    integer pdx = IupGetInt(chosen,`VALUE`)
     open_file(dropfiles[pdx])
     return IUP_DEFAULT
 end function
 
 function ctype_cb(Ihandle /*ctype*/, atom /*pText*/, integer /*item*/, /*state*/)
-    ext = IupGetInt(ctype,"VALUE")
---  IupSetInt(otype,"VALUE",iff(ext==PHIX?HTML:PHIX))
+    ext = IupGetInt(ctype,`VALUE`)
+--  IupSetInt(otype,`VALUE`,iff(ext==PHIX?HTML:PHIX))
     set_otype(ext)
-    IupSetInt(run_btn,"ACTIVE",true)
+    IupSetInt(run_btn,`ACTIVE`,true)
     return syntax_colour()
 end function
 
 -- we don't care/too late if Show window already open...
 function otype_cb(Ihandle /*otype*/, atom /*pText*/, integer /*item*/, /*state*/)
-    integer ext = IupGetInt(otype,"VALUE")
+    integer ext = IupGetInt(otype,`VALUE`)
     bool bRunnable = (ext=PHIX or ext=HTML)
-    IupSetInt(run_btn,"ACTIVE",bRunnable)
+    IupSetInt(run_btn,`ACTIVE`,bRunnable)
     return IUP_DEFAULT
 end function
 
 function selection_cb(Ihandle ih, integer id, status) 
     if status then
-        ?{"selection_cb",id}
+        ?{`selection_cb`,id}
     end if
 -- can we use TOTALCHILDCOUNTid to (quickly) navigate to the required node?
 -- (and CHILDCOUNTid to ensure we're on-track)
@@ -1462,19 +1660,19 @@ end function
 --        Likewise although as expected, tokno is actually sorted on start.
 --        Lastly toktype or ttidx then line ends up disturbingly subtly askew.
 --
-constant columns = {{"Toktype",  40,"ACENTER"},
-                    {"#",        15,"ARIGHT"},
-                    {"Text",    200,"ALEFT"},
-                    {"Line",     15,"ARIGHT"},
-                    {"Col",      15,"ARIGHT"},
-                    {"ttidx",    15,"ARIGHT"}}
+constant columns = {{`Toktype`,  40,`ACENTER`},
+                    {`#`,        15,`ARIGHT`},
+                    {`Text`,    200,`ALEFT`},
+                    {`Line`,     15,`ARIGHT`},
+                    {`Col`,      15,`ARIGHT`},
+                    {`ttidx`,    15,`ARIGHT`}}
 
 function toktype_fmt(sequence data, integer row, col)
     return tok_name(data[row][col])
 end function
 
 function tokno_fmt(sequence /*data*/, integer row, /*col*/)
-    return sprintf("%d",row)
+    return sprintf(`%d`,row)
 end function
 
 function text_fmt(sequence data, integer row, col)
@@ -1491,16 +1689,16 @@ function text_fmt(sequence data, integer row, col)
 end function
 
 function commentify(sequence comment)
---  return {"commentify??",comment}
+--  return {`commentify??`,comment}
 --if not integer(comment[2]) then ?9/0 end if
     integer {toktype,start,finish,?,tokaltype} = comment
     finish = min(finish,start+80)
     string txt = src[start..finish]
     if toktype=LETTER then
         if tokaltype>=1 and tokaltype<=length(TYPES) then
-            txt &= " (" & TYPES[tokaltype][2] & ")"
+            txt &= ` (` & TYPES[tokaltype][2] & `)`
         else
-            txt &= sprintf(" (0b%04b)",tokaltype)
+            txt &= sprintf(` (0b%04b)`,tokaltype)
         end if
     end if
     txt = substitute(txt,"\n","\\n")
@@ -1508,7 +1706,7 @@ function commentify(sequence comment)
     return txt
 end function
 
---constant SC = {"STATE","COLLAPSED"}
+--constant SC = {`STATE`,`COLLAPSED`}
 constant SC = {}
 
 function treeify(sequence ast, bool bRoot=true)
@@ -1527,7 +1725,7 @@ function treeify(sequence ast, bool bRoot=true)
     if length(ast)=3
     and ast[1]=T_switch then
         -- handle {T_switch,aste,with_fallthrough}
-        ast[1] = iff(ast[3]?"switch (fallthrough)":"switch")
+        ast[1] = iff(ast[3]?`switch (fallthrough)`:`switch`)
         ast = ast[1..2]
     elsif length(ast)!=2 then
         if length(ast)!=3 
@@ -1538,7 +1736,7 @@ function treeify(sequence ast, bool bRoot=true)
         or ast[2][1][TOKTTIDX]!=T_in then
             ?9/0
 --/*
-    -- "for k,q in roughs to mxri+1 do"
+    -- `for k,q in roughs to mxri+1 do`
     ast[1] = `vardef`
     ast[2][1..5] = {{4,2542,2543,47'/',20,1288}, (T_in)
                     {4,2538,2538,47'/',1,38884},
@@ -1549,21 +1747,21 @@ function treeify(sequence ast, bool bRoot=true)
 --*/
         end if
         -- ctrl in {T_for,{ctrl,{T_block,block}}} where 
---<     -- ctrl is {"vardef",{{LETTER,...T_in},i,e,predefined},expr}, where
-        -- ctrl is {"vardef",{{LETTER,...T_in},i,e,predefined[,from][,to]},expr}, where
+--<     -- ctrl is {`vardef`,{{LETTER,...T_in},i,e,predefined},expr}, where
+        -- ctrl is {`vardef`,{{LETTER,...T_in},i,e,predefined[,from][,to]},expr}, where
         --  e is {LETTER,...<e>}, i is similar or 0, and predefined is 0..3, 
         --  ie e:0b01 + i:0b10, with the latter only set in the i,e form. 
---<     -- simply tweak -> {"vardef",{T_in,i|"0",e,"predefined:%02b",expr}}
-        -- simply tweak -> {"vardef",{T_in,i|"0",e,"predefined:%02b"[,from][,to],expr}}
+--<     -- simply tweak -> {`vardef`,{T_in,i|`0`,e,`predefined:%02b`,expr}}
+        -- simply tweak -> {`vardef`,{T_in,i|`0`,e,`predefined:%02b`[,from][,to],expr}}
         -- ie back into a length-2 along with a coupla stringified items.
         ast[2] = append(deep_copy(ast[2]),ast[3])
-        if ast[2][2]=0 then ast[2][2] = "0" end if
-        ast[2][4] = sprintf("predefined:%02b",ast[2][4])
+        if ast[2][2]=0 then ast[2][2] = `0` end if
+        ast[2][4] = sprintf(`predefined:%02b`,ast[2][4])
 --DEV 13/11/22... (can't remember how to deal with this, parse tree may need altering...)
         if length(ast[2])>5 then
-            ast[2][5] = "????[DEV]"
+            ast[2][5] = `????[DEV]`
             if length(ast[2])>6 then
-                ast[2][6] = "????[DEV]"
+                ast[2][6] = `????[DEV]`
             end if
         end if
         ast = ast[1..2]
@@ -1578,36 +1776,37 @@ function treeify(sequence ast, bool bRoot=true)
             children = children[1..1]
         elsif nodetype=T_include then
 --?children
---if not find(strip_builtin(children[1]),{"pGUI.e",`..\pGUI\opengl.e`,"mpfr.e","sha256.e","timedate.e"}) then
-            if not find(strip_builtin(children[1]),{"pGUI.e","theGUI.e","hGUI.e","opengl.e",
-                             "mpfr.e","sha256.e","timedate.e","pComN.ew"}) then
+--if not find(strip_builtin(children[1]),{`pGUI.e`,`..\pGUI\opengl.e`,`mpfr.e`,`sha256.e`,`timedate.e`}) then
+            if not find(strip_builtin(children[1]),{`pGUI.e`,`theGUI.e`,`hGUI.e`,`opengl.e`,
+                             `mpfr.e`,`sha256.e`,`timedate.e`,`pComN.ew`}) then
                 restore_source(children[2])
             end if
             children[2] = sprint(children[2])
             children = children[1..2]
         end if
 --      nodetype = tok_name(nodetype)
-        nodetype = substitute(tok_name(nodetype),"&","&&")
+        nodetype = substitute(tok_name(nodetype),`&`,`&&`)
     end if
     sequence res = {nodetype,iff(bRoot?{}:SC),{}}
-    if nodetype="new" and not is_phix() then
-        if length(children)!=2 or children[1]!="PROC" then ?9/0 end if
+    if nodetype=`new` and not is_phix() then
+        if length(children)!=2 or children[1]!=`PROC` then ?9/0 end if
 --      children = {`PROC`,{{4,2859,2864,73'I',24,16200},{34'"',2866,2868,73'I',26},{34'"',2870,2872,73'I',30}}}
         children = children[2]
     end if
     if string(children) then
-?{"can this happen anymore?? (treeify)",ast}
+?{`can this happen anymore?? (treeify)`,ast}
         res[$] = {children}
 --DEV...
-    elsif nodetype="format"
-       or nodetype="ilASM" then
+    elsif nodetype=`format`
+       or nodetype=`ilASM`
+       or nodetype=`ilJS` then
         for fchild in children do
 --          res[$] = append(res[$],commentify(child))
             fchild = commentify(fchild)
             res[$] = append(res[$],fchild)
         end for
-    elsif nodetype!="global"
-      and nodetype!="use strict" then
+    elsif nodetype!=`global`
+      and nodetype!=`use strict` then
         integer cdx=1
         while cdx<=length(children) do
             object child = children[cdx]
@@ -1616,36 +1815,36 @@ function treeify(sequence ast, bool bRoot=true)
 #istype{child,0b1111}
             if child={} then
 #istype{child,0b1100}
-                child = "{}"
+                child = `{}`
             elsif child="" then
 #istype{child,0b1100}
                 child = `""`
             elsif integer(child) then
 #istype{child,0b1111}
 --DEVviolation? (or can this no longer happen now parse() is finished?)
---?"uhoh"
+--?`uhoh`
 --{} = wait_key()
                 ?9/0
---crash("oops")
+--crash(`oops`)
             elsif not string(child) then
 #istype{child,0b1111}
 --*/
             if atom(child) then
                 -- 3/8/21 it is now {T_for,{ctrl,bPreDef,lim,step,body}}
                 if nodetype = `for` and cdx=3 and find(child,{true,false}) then
-                    child = sprintf("predef:%f",child)
+                    child = sprintf(`predef:%f`,child)
 --8/7/23: (gMenu.exw)
 --              elsif nodetype=`function` and cdx=5 and find(child,{true,false}) then
                 elsif find(nodetype,{`function`,`procedure`}) and cdx=5 and find(child,{true,false}) then
-                    child = sprintf("bNested:%t",child)
+                    child = sprintf(`bNested:%t`,child)
                 else
                     ?9/0
 --/*
-    textlines[47] = `            for k,q in roughs to mxri+1 do` ["fixed" by "????[DEV]" above]
+    textlines[47] = `            for k,q in roughs to mxri+1 do` ["fixed" by `????[DEV]` above]
 --*/
                 end if
             elsif length(child)=0 then
-                child = iff(string(child)?`""`:"{}")
+                child = iff(string(child)?`""`:`{}`)
             elsif not string(child) then
                 object ctype = child[1]
                 if find(ctype,{COMMENT,BLK_CMT}) then
@@ -1656,9 +1855,9 @@ function treeify(sequence ast, bool bRoot=true)
                         cdx += 1
                     end while
                     if cdx=first then
-                        child = {"comment",SC,{commentify(child)}}
+                        child = {`comment`,SC,{commentify(child)}}
                     else    
-                        child = {"comments",SC,{commentify(child)}}
+                        child = {`comments`,SC,{commentify(child)}}
                         for i=first to cdx-1 do
                             child[3] = append(child[3],commentify(children[i]))
                         end for
@@ -1683,8 +1882,8 @@ function close_sub_cb(Ihandle dlg)
     -- close (hide) a sub-window
     if opt_dlg!=null and dlg=close_opts then dlg = opt_dlg end if
     if not platform_is_js() then
---      string dlg_name = IupGetAttribute(dlg,"DLG_NAME")
-        string dlg_name = substitute(IupGetAttribute(dlg,"TITLE")," ","")
+--      string dlg_name = IupGetAttribute(dlg,`DLG_NAME`)
+        string dlg_name = substitute(IupGetAttribute(dlg,`TITLE`)," ","")
         if dlg_name="" then ?9/0 end if
         IupConfigDialogClosed(config, dlg, dlg_name)
     end if
@@ -1696,8 +1895,8 @@ include src\p2js_emit.e
 
 procedure copy(string s)
     Ihandln ih = IupClipboard() 
-    IupSetAttribute(ih,"TEXT",NULL) -- 6/5/21 (otherwise Edita [etc] stubbornly copies the old Unicode text)
-    IupSetAttribute(ih,"TEXT",s)
+    IupSetAttribute(ih,`TEXT`,NULL) -- 6/5/21 (otherwise Edita [etc] stubbornly copies the old Unicode text)
+    IupSetAttribute(ih,`TEXT`,s)
     ih = IupDestroy(ih)
 end procedure
 
@@ -1709,7 +1908,7 @@ function openFile(integer /*opening*/, string filepath, integer /*encoding*/)
 end function
 
 procedure test(string filename, src, cmd)
-    integer fn = open(filename,"w")
+    integer fn = open(filename,`w`)
     puts(fn,src)
     close(fn)
 --  if find(' ',cmd) then
@@ -1719,11 +1918,11 @@ procedure test(string filename, src, cmd)
         if find(' ',filename) then
             filename = '"' & filename & '"'
         end if
---      integer mode = iff(match(".exe",cmd)?2:4)
-        integer mode = iff(match(".exe",cmd)?8:4)
+--      integer mode = iff(match(`.exe`,cmd)?2:4)
+        integer mode = iff(match(`.exe`,cmd)?8:4)
         cmd = sprintf(`%s %s`,{cmd,filename})
         if length(cmd)>5 
-        and cmd[1..5]="open " then  -- (note the space)
+        and cmd[1..5]=`open ` then  -- (note the space)
             cmd = cmd[6..$]
         end if
 --?{cmd,mode}
@@ -1734,7 +1933,7 @@ procedure test(string filename, src, cmd)
 --      atom res = system_exec(cmd,8)
 --?res
 --      system(cmd)
---?"done"
+--?`done`
     end if
 end procedure
 
@@ -1744,12 +1943,12 @@ end procedure
 
 procedure run(string src, Ihandle mtype)
 --DEV write test.exw/html, get_interpreter()/"open"
---  integer e = IupGetInt(mtype,"VALUE")
+--  integer e = IupGetInt(mtype,`VALUE`)
 /*
-?IupGetAttribute(chosen,"TITLE")
+?IupGetAttribute(chosen,`TITLE`)
 >>>
         if platform_is_js() then
-            IupSetStrAttribute(chosen, "TITLE", filename)
+            IupSetStrAttribute(chosen, `TITLE`, filename)
         else
             integer pdx = find(filename,dropfiles)
             if pdx=0 then
@@ -1757,19 +1956,19 @@ procedure run(string src, Ihandle mtype)
                 pdx  = length(dropfiles)
             end if
             IupSetAttributeId(chosen,"",pdx,filename)
-            IupSetInt(chosen,"VALUE",pdx)
+            IupSetInt(chosen,`VALUE`,pdx)
         end if
-        IupSetInt(chosen,"VALUE",1)
+        IupSetInt(chosen,`VALUE`,1)
         open_file(dropfiles[1])
-    integer pdx = IupGetInt(chosen,"VALUE")
+    integer pdx = IupGetInt(chosen,`VALUE`)
 --*/
     string d = lastfile
 --/*
     string d = ""
     if platform_is_js() then
-        d = IupGetAttribute(chosen,"TITLE")
+        d = IupGetAttribute(chosen,`TITLE`)
     elsif length(dropfiles) then
-        integer fdx = IupGetInt(chosen,"VALUE")
+        integer fdx = IupGetInt(chosen,`VALUE`)
         if fdx then
             d = dropfiles[fdx]
         end if
@@ -1779,22 +1978,22 @@ procedure run(string src, Ihandle mtype)
 --?ext
     if length(ext)=0 or mtype=otype then
 --?ext
-        ext = extensions[IupGetInt(mtype,"VALUE")][2][1]
+        ext = extensions[IupGetInt(mtype,`VALUE`)][2][1]
     end if
     if platform_is_js() then
-        if ext="js" then
-            puts(1,"run() not implemented")
+        if ext=`js` then
+            puts(1,`run() not implemented`)
         else
             cannot_run(ext)
         end if
     else
-        if ext="exw" then
+        if ext=`exw` then
 --          test(testexw,src,get_interpreter(bQuote:=false,bPrefW:=true))
             test(testexw,src,get_interpreter(true,machine_bits(),platform(),true))
 --get_interpreter(bool bQuote=false, object mb=machine_bits(), integer plat=platform(), bool bPrefW=false)
---      elsif ext="html" then
-        elsif find(ext,{"html","htm"}) then
-            test(testhtm,src,"open")
+--      elsif ext=`html` then
+        elsif find(ext,{`html`,`htm`}) then
+            test(testhtm,src,`open`)
         else
             cannot_run(ext)
         end if
@@ -1807,37 +2006,37 @@ function single_src_cb(Ihandle /*single_src*/, integer state)
 --  if state then
 --  else
 --  end if
-    IupConfigSetVariableInt(config,"Options","single_src",state)
-    IupSetInt(minimise,"VALUE",iff(state?IupConfigGetVariableInt(config,"Options","minimise",false):false))
-    IupSetInt(minimise,"ACTIVE",state)
+    IupConfigSetVariableInt(config,`Options`,`single_src`,state)
+    IupSetInt(minimise,`VALUE`,iff(state?IupConfigGetVariableInt(config,`Options`,`minimise`,false):false))
+    IupSetInt(minimise,`ACTIVE`,state)
     return IUP_DEFAULT
 end function
 
 function minimise_cb(Ihandle /*minimise*/, integer state)
-    IupConfigSetVariableInt(config,"Options","minimise",state)
+    IupConfigSetVariableInt(config,`Options`,`minimise`,state)
 --SUG (untested)
---  IupSetInt(preserve_comments,"VALUE",iff(state?IupConfigGetVariableInt(config,"Options","preserve_comments",true):false))
-    IupSetInt(preserve_comments,"ACTIVE",not state)
+--  IupSetInt(preserve_comments,`VALUE`,iff(state?IupConfigGetVariableInt(config,`Options`,`preserve_comments`,true):false))
+    IupSetInt(preserve_comments,`ACTIVE`,not state)
     return IUP_DEFAULT
 end function
 
 function show_tokens_button_cb(Ihandle /*show_tokens_button*/, integer state)
-    IupConfigSetVariableInt(config,"Options","show_tokens_button",state)
+    IupConfigSetVariableInt(config,`Options`,`show_tokens_button`,state)
     return IUP_DEFAULT
 end function
 
 function show_parse_button_cb(Ihandle /*show_parse_button*/, integer state)
-    IupConfigSetVariableInt(config,"Options","show_parse_button",state)
+    IupConfigSetVariableInt(config,`Options`,`show_parse_button`,state)
     return IUP_DEFAULT
 end function
 
 function show_collapsed_cb(Ihandle /*show_collapsed*/, integer state)
-    IupConfigSetVariableInt(config,"Options","show_collapsed",state)
+    IupConfigSetVariableInt(config,`Options`,`show_collapsed`,state)
     return IUP_DEFAULT
 end function
 
 function preserve_comments_cb(Ihandle /*preserve_comments*/, integer state)
-    IupConfigSetVariableInt(config,"Options","preserve_comments",state)
+    IupConfigSetVariableInt(config,`Options`,`preserve_comments`,state)
     return IUP_DEFAULT
 end function
 
@@ -1848,13 +2047,13 @@ function insert_dollars(string text, sequence gk)
     --
     -- prefix private identifiers in pwa/builtins/.js files with a $,
     -- to ensure that they clash not with anything in user-code-land.
-    -- eg (local constant) "PDATA" in builtins/pqueue.js ==> "$PDATA".
+    -- eg (local constant) `PDATA` in builtins/pqueue.js ==> `$PDATA`.
     -- text is the generated js, gk is the list of local identifiers.
-    -- note that a gk of eg {"pq","pq_compare"} must not dbl-whammy,
-    --      nor must that "pq" mangle "pq_size", "init_pq", etc.
-    -- one missed was "hundred" -> "$hundred" in builtins\ordinal.e,
+    -- note that a gk of eg {`pq`,`pq_compare`} must not dbl-whammy,
+    --      nor must that `pq` mangle `pq_size`, `init_pq`, etc.
+    -- one missed was `hundred` -> `$hundred` in builtins\ordinal.e,
     -- so it now also checks for lead/trail '"'/'`', but of course
-    -- (say) the string " hundred and " might still get mangled....
+    -- (say) the string ` hundred and ` might still get mangled....
     --
     integer lg = length(gk)
     if lg=0 then ?9/0 end if
@@ -1917,8 +2116,8 @@ function verify(string generated, against)
         end for
     end if
     if bActual then
-        string actual = substitute_all(against,{"test.","exw.","js."},{"actual.","",""})
-        integer fn = open(actual,"w")
+        string actual = substitute_all(against,{`test.`,`exw.`,`js.`},{`actual.`,"",""})
+        integer fn = open(actual,`w`)
         printf(fn,"Expected/generated output of %s\n",{against})
         puts(fn,generated)
         close(fn)
@@ -1928,27 +2127,27 @@ function verify(string generated, against)
 end function
 
 function validate(string testname, integer itype)
-    string test     = join_path({pwadir,"src",testname}),
-           test_js  = join_path({pwadir,"src",testname & ".js"}),
-           test_exw = join_path({pwadir,"src",testname & ".exw"})
+    string test     = join_path({pwadir,`src`,testname}),
+           test_js  = join_path({pwadir,`src`,testname & `.js`}),
+           test_exw = join_path({pwadir,`src`,testname & `.exw`})
     init_scope()
 --?test
     open_file(test)
-    IupSetStrAttribute(lbl_statusbar,"TITLE","testing %s\n",{test})
+    IupSetStrAttribute(lbl_statusbar,`TITLE`,"testing %s\n",{test})
     IupFlush()
-    IupSetInt(ctype,"VALUE",itype)
-    IupSetInt(otype,"VALUE",JSS)
+    IupSetInt(ctype,`VALUE`,itype)
+    IupSetInt(otype,`VALUE`,JSS)
     if not load_tokens() then ?9/0 end if
     sequence ast = parse()
     if parse_error() then ?9/0 end if
     if not verify(generate_source(ast,JSS,0,false,false,false,false,false),test_js) then
         return false
     end if
-    IupSetInt(otype,"VALUE",PHIX)
+    IupSetInt(otype,`VALUE`,PHIX)
     return verify(generate_source(ast,PHIX,0,false,false,false,false,false),test_exw)
 end function
 
-constant unix_text_dot_js = """
+constant unix_text_dot_js = `
 // auto-generated by pwa/p2js, see routine rebuild_builtins_and_run_tests().
 function $min_len(/*string*/ word, /*integer*/ len) {
     return compare(length(word),len)>=0;
@@ -1962,7 +2161,7 @@ function unix_dict(/*integer*/ minlen=0) {
     }
     return res;
 }
-"""
+`
 
 --function enquote(string word)
 --  word = '"' & word & '"'
@@ -1970,34 +2169,37 @@ function unix_dict(/*integer*/ minlen=0) {
 --end function
 
 procedure rebuild_builtins_and_run_tests()
-    integer waschosen = IupGetInt(chosen,"VALUE"),
-            wasotype = IupGetInt(otype,"VALUE"),
-            wasctype = IupGetInt(ctype,"VALUE")
+    integer waschosen = IupGetInt(chosen,`VALUE`),
+            wasotype = IupGetInt(otype,`VALUE`),
+            wasctype = IupGetInt(ctype,`VALUE`)
 --DEV set a flag to prevent reordering... [if we're still doing that in open_file() etc]
-    string builtindir = join_path({get_file_path(get_interpreter()),"builtins"}),
-           pwabuiltins = join_path({pwadir,"builtins"})
+    string builtindir = join_path({get_file_path(get_interpreter()),`builtins`}),
+           theguidir = join_path({get_file_path(get_interpreter()),`demo`,`theGUI`}),
+           pwabuiltins = join_path({pwadir,`builtins`})
     bBuiltinAliases = true
     for i=1 to length(rebuild_required) do
         string ri = strip_builtin(rebuild_required[i]), output
-        if find(ri,{"pGUI.e","theGUI.e","hGUI.e","mpfr.e","sha256.e"}) then
+--      if find(ri,{`pGUI.e`,`theGUI.e`,`hGUI.e`,`mpfr.e`,`sha256.e`}) then
+        if find(ri,{`pGUI.e`,`hGUI.e`,`mpfr.e`,`sha256.e`}) then
             -- [see p2js_scope.e/check_builtins()]
---          ?"rebuild_required includes "&ri&"..."
-            crash("rebuild_required includes "&ri&"...")
+--          ?`rebuild_required includes `&ri&`...`
+            crash(`rebuild_required includes `&ri&`...`)
         else
-            string filepath = join_path({builtindir,ri}),
-                   pwabpath = join_path({pwabuiltins,substitute(ri,".e",".js")})
+            bAuto_theGUI = (ri==`theGUI.e`)
+            string filepath = join_path({iff(bAuto_theGUI?theguidir:builtindir),ri}),
+                   pwabpath = join_path({iff(bAuto_theGUI?pwadir:pwabuiltins),substitute(ri,`.e`,`.js`)})
             init_scope()
             open_file(filepath)
 --          open_file(filepath,bQuiet:=true)
-            IupSetStrAttribute(lbl_statusbar,"TITLE","overwriting %s\n",{pwabpath})
+            IupSetStrAttribute(lbl_statusbar,`TITLE`,"overwriting %s\n",{pwabpath})
             IupFlush()
-            if ri="unix_dict.e" then
---              output = sprintf(unix_text_dot_js,{join_by(apply(unix_dict(),enquote),1,10,",")})
-                output = sprintf(unix_text_dot_js,{ppf(unix_dict(),{pp_Brkt," ]"})})
+            if ri=`unix_dict.e` then
+--              output = sprintf(unix_text_dot_js,{join_by(apply(unix_dict(),enquote),1,10,`,`)})
+                output = sprintf(unix_text_dot_js,{ppf(unix_dict(),{pp_Brkt,` ]`})})
             else
 --5/5 (spotted in passing...)
---              IupSetInt(otype,"VALUE",JS)
-                IupSetInt(otype,"VALUE",JSS)
+--              IupSetInt(otype,`VALUE`,JS)
+                IupSetInt(otype,`VALUE`,JSS)
                 if not load_tokens() then ?9/0 end if
                 sequence ast = parse()
                 if parse_error() then ?9/0 end if
@@ -2011,40 +2213,41 @@ procedure rebuild_builtins_and_run_tests()
                     output = insert_dollars(output,gk)
                 end if
             end if
-            integer fn = open(pwabpath,"w")
+            integer fn = open(pwabpath,`w`)
             puts(fn,output)
             close(fn)
+            bAuto_theGUI = false
         end if
     end for
     bBuiltinAliases = false
---  ?"run_tests"
+--  ?`run_tests`
 --/*
 On startup (desktop only) pwa/src/test.exw is transpiled to js and compared line-by-line to test.exw.js
 and the same file is also "transpiled" to phix (iyswim) and compared line-by-line to test.exw.exw.
 Likewise pwa/src/test.js is transpiled to phix/js and compared line-by-line to test.js.exw and test.js.js. 
 --*/
     testing = true  -- let p2js_emit.e know...
-    if validate("test.exw",PHIX) then
-        {} = validate("test.js",JSS)
+    if validate(`test.exw`,PHIX) then
+        {} = validate(`test.js`,JSS)
     end if
     testing = false -- let p2js_emit.e know...
     init_scope()
 
-    IupSetInt(otype,"VALUE",wasotype)
-    IupSetInt(ctype,"VALUE",wasctype)
+    IupSetInt(otype,`VALUE`,wasotype)
+    IupSetInt(ctype,`VALUE`,wasctype)
     if waschosen then
-        IupSetInt(chosen,"VALUE",waschosen)
+        IupSetInt(chosen,`VALUE`,waschosen)
         open_file(dropfiles[waschosen])
     end if
 end procedure
 
 function show_stuff(string what)
---?{"show_stuff",what,ext}
+--?{`show_stuff`,what,ext}
 
 --30/9/21: (before we crash!)
     if bSaveIni then save_ini() end if
-    if what="MEDIAWIKI" then
-        bool bOut = show_dlg!=NULL and IupGetInt(show_dlg,"VISIBLE")
+    if what=`MEDIAWIKI` then
+        bool bOut = show_dlg!=NULL and IupGetInt(show_dlg,`VISIBLE`)
         Ihandle {mle,mtype} = iff(bOut?{show_text,otype}:{multitext,ctype})
         if load_tokens(mle,mtype) then
             if src_offset then
@@ -2058,22 +2261,22 @@ function show_stuff(string what)
             copy(htmlise(src,tokens))
         end if
 
-    elsif what="FILELIST" then
+    elsif what=`FILELIST` then
 
         -- [hint: get_file_name_and_path(string filepath, bool dropslash=true), but we want the slash]
         sequence {filepaths, filenames} = columnize(apply(true,get_file_path_and_name,{dropfiles,false}))
-        IupFileList(filenames, filepaths, openFile, main_dlg, config, "Recent Files")
+        IupFileList(filenames, filepaths, openFile, main_dlg, config, `Recent Files`)
 
-    elsif what="CTRLF5"
-      or (what="RUN" and IupGetInt(ctype,"VALUE")=HTML) then
+    elsif what=`CTRLF5`
+      or (what=`RUN` and IupGetInt(ctype,`VALUE`)=HTML) then
 
-        run(IupGetAttribute(multitext,"VALUE"),ctype)
+        run(IupGetAttribute(multitext,`VALUE`),ctype)
 
-    elsif what="OPTIONS" then
+    elsif what=`OPTIONS` then
 
 --                   [options] Minimise: X off, X css, X css+js, X all. Split lines : 0+/- (max 132 or 512?)
 -- show tokens and tree buttons (default no)
--- "show tree collapsed?"
+-- `show tree collapsed?`
 -- preserve comments
 --  preserve comments in builtins (or are we going to manually copy the lot into p2js.js?)
 -- minify
@@ -2082,17 +2285,17 @@ function show_stuff(string what)
 -- copy pop-up
 --+++
 --  return IUP_DEFAULT
---?"options"
+--?`options`
         if opt_dlg=NULL then
-            single_src = IupToggle("Single source",Icallback("single_src_cb"))
-            minimise = IupToggle("Minimise",Icallback("minimise_cb"))
-            preserve_comments = IupToggle("Preserve comments",Icallback("preserve_comments_cb"))
-            show_tokens_button = IupToggle("Show tokens button",Icallback("show_tokens_button_cb"))
-            show_parse_button = IupToggle("Show parse tree button",Icallback("show_parse_button_cb"))
-            show_collapsed = IupToggle("Show tree collapsed",Icallback("show_collapsed_cb"))
-            integer ss = IupConfigGetVariableInt(config,"Options","single_src",false),
+            single_src = IupToggle(`Single source`,Icallback(`single_src_cb`))
+            minimise = IupToggle(`Minimise`,Icallback(`minimise_cb`))
+            preserve_comments = IupToggle(`Preserve comments`,Icallback(`preserve_comments_cb`))
+            show_tokens_button = IupToggle(`Show tokens button`,Icallback(`show_tokens_button_cb`))
+            show_parse_button = IupToggle(`Show parse tree button`,Icallback(`show_parse_button_cb`))
+            show_collapsed = IupToggle(`Show tree collapsed`,Icallback(`show_collapsed_cb`))
+            integer ss = IupConfigGetVariableInt(config,`Options`,`single_src`,false),
 --minify
-                    mm = IupConfigGetVariableInt(config,"Options","minimise",false),
+                    mm = IupConfigGetVariableInt(config,`Options`,`minimise`,false),
 --minify_libs? full? custom?
 --(for each builtins, allocate a letter, eg
 --/*
@@ -2108,7 +2311,7 @@ function show_stuff(string what)
 abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ012356789
 == ===      = = =======   AB          =  P   ==           
 --p2js.js           {} -- (always)
---pGUI.js           {"pmaths.e","ptagset.e"}
+--pGUI.js           {`pmaths.e`,`ptagset.e`}
 a assert.js         {}
 B base64.js         {`pflatten.e`, `substitute.e`}
 b bsearch.js        {}
@@ -2122,7 +2325,7 @@ f find.js           {}  --**DEV should just be part of p2js.js, really...
 < matchrepl.js      {`match.e`}     -- **move there**
 m misc.js           {}
 M mpfr.js           {`primes.e`} [not really?]
-                    {"primes.e","pmaths.e","ptagset.e","mpfr.e"}
+                    {`primes.e`,`pmaths.e`,`ptagset.e`,`mpfr.e`}
 o ordinal.js        {`find.e`, `ptagset.e`, `pcolumn.e`, `pmaths.e`}
 A pApply.js         {}
 < pcase.js          {`find.e`}
@@ -2159,7 +2362,7 @@ u punique.js        {`dict.e`, `punique.e`, `sort.e`}
 s sort.js           {}
 < substitute.js     {`match.e`, `substitute.e`}
 t timedate.js       {`find.e`, `pcase.e`, `pcolumn.e`, `pdates.e`, `pmaths.e`}
-                    {"pcase.e","pdates.e","pmaths.e","ptagset.e","pcolumn.e","timedate.e"}
+                    {`pcase.e`,`pdates.e`,`pmaths.e`,`ptagset.e`,`pcolumn.e`,`timedate.e`}
   to_int.js         {}
 < to_str.js         {`matchrepl.e`, `pseqc.e`, `ptrim.e`, `to_str.e`} -- move to psqop
 T unit_test.js      {`pflatten.e`, `pmaths.e`, `porall.e`, `psqop.e`, `unit_test.e`}
@@ -2207,7 +2410,7 @@ t ptagset.js        {`pmaths.e`}
 P ppp.js            {`find.e`}
 r primes.js         {`bsearch.e`, `pmaths.e`}
 < pflatten.js       {`find.e`, `pflatten.e`}
---pGUI.js           {"pmaths.e","ptagset.e"}
+--pGUI.js           {`pmaths.e`,`ptagset.e`}
 M mpfr.js           {`primes.e`} [not really?]
                     {`find.e`,`pmaths.e`,`primes.e`,`ptagset.e`}
 < match.js          {`find.e`, `pcase.e`, `pfindall.e`}
@@ -2225,74 +2428,74 @@ u punique.js        {`dict.e`, `punique.e`, `sort.e`}
 < substitute.js     {`match.e`, `substitute.e`}
 < to_str.js         {`matchrepl.e`, `pseqc.e`, `ptrim.e`, `to_str.e`} -- move to psqop
 t timedate.js       {`find.e`, `pcase.e`, `pcolumn.e`, `pdates.e`, `pmaths.e`}
-                    {"pcase.e","pdates.e","pmaths.e","ptagset.e","pcolumn.e","timedate.e"}
+                    {`pcase.e`,`pdates.e`,`pmaths.e`,`ptagset.e`,`pcolumn.e`,`timedate.e`}
 B base64.js         {`pflatten.e`, `substitute.e`}
 o ordinal.js        {`find.e`, `ptagset.e`, `pcolumn.e`, `pmaths.e`}
 T unit_test.js      {`pflatten.e`, `pmaths.e`, `porall.e`, `psqop.e`, `unit_test.e`}
 w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
 
 --*/
-                    pc = IupConfigGetVariableInt(config,"Options","preserve_comments",true),
-                    kb = IupConfigGetVariableInt(config,"Options","show_tokens_button",false),
-                    pb = IupConfigGetVariableInt(config,"Options","show_parse_tree_button",false),
-                    tc = IupConfigGetVariableInt(config,"Options","show_parse_tree_collapsed",true)
-            IupSetInt(single_src,"VALUE",ss)
-            IupSetInt(minimise,"VALUE",iff(ss?mm:false))
-            IupSetInt(minimise,"ACTIVE",ss)
-            IupSetInt(preserve_comments,"VALUE",pc)
-            IupSetInt(preserve_comments,"ACTIVE",not ss or not mm)
-            IupSetInt(show_tokens_button,"VALUE",kb)
-            IupSetInt(show_parse_button,"VALUE",pb)
-            IupSetInt(show_collapsed,"VALUE",tc)
-            close_opts = IupButton("Close",Icallback("close_sub_cb"))
+                    pc = IupConfigGetVariableInt(config,`Options`,`preserve_comments`,true),
+                    kb = IupConfigGetVariableInt(config,`Options`,`show_tokens_button`,false),
+                    pb = IupConfigGetVariableInt(config,`Options`,`show_parse_tree_button`,false),
+                    tc = IupConfigGetVariableInt(config,`Options`,`show_parse_tree_collapsed`,true)
+            IupSetInt(single_src,`VALUE`,ss)
+            IupSetInt(minimise,`VALUE`,iff(ss?mm:false))
+            IupSetInt(minimise,`ACTIVE`,ss)
+            IupSetInt(preserve_comments,`VALUE`,pc)
+            IupSetInt(preserve_comments,`ACTIVE`,not ss or not mm)
+            IupSetInt(show_tokens_button,`VALUE`,kb)
+            IupSetInt(show_parse_button,`VALUE`,pb)
+            IupSetInt(show_collapsed,`VALUE`,tc)
+            close_opts = IupButton(`Close`,Icallback(`close_sub_cb`))
             Ihandle opt_vbox = IupVbox({IupHbox({single_src,minimise,preserve_comments}),
                                         IupHbox({show_tokens_button,show_parse_button}),
                                         IupHbox({show_collapsed}),
                                         IupHbox({IupFill(),close_opts})},
 --                                      IupHbox({IupFill(),close_opts,IupFill()})},
 --                                      IupHbox({close_opts})},
-                                       "GAP=5, MARGIN=5x5")
+                                       `GAP=5, MARGIN=5x5`)
             opt_dlg = IupDialog(opt_vbox) 
---          IupSetAttribute(opt_dlg,"RASTERSIZE","800x534") -- (see note)
-            IupSetAttribute(opt_dlg,"TITLE","Options")
-            IupSetAttributeHandle(opt_dlg,"PARENTDIALOG",main_dlg)
-            IupSetCallback(opt_dlg, "CLOSE_CB", Icallback("close_sub_cb"))
+--          IupSetAttribute(opt_dlg,`RASTERSIZE`,`800x534`) -- (see note)
+            IupSetAttribute(opt_dlg,`TITLE`,`Options`)
+            IupSetAttributeHandle(opt_dlg,`PARENTDIALOG`,main_dlg)
+            IupSetCallback(opt_dlg, `CLOSE_CB`, Icallback(`close_sub_cb`))
         end if
-        IupConfigDialogShow(config, opt_dlg, "Options")
+        IupConfigDialogShow(config, opt_dlg, `Options`)
         IupPopup(opt_dlg)
 
-    elsif load_tokens() then
+    elsif load_tokens(what:=what) then
 
-        if what="TOKENS" then
+        if what=`TOKENS` then
 
             sequence data = {tokens,{toktype_fmt,tokno_fmt,text_fmt}}
             if tok_dlg=NULL then
                 tok_table = IupTable(columns,data)
                 tok_dlg = IupDialog(tok_table) 
-                IupSetAttribute(tok_dlg,"RASTERSIZE","800x534") -- (see note)
-                IupSetAttribute(tok_dlg,"TITLE","Tokens")
-                IupSetAttributeHandle(tok_dlg,"PARENTDIALOG",main_dlg)
---              IupSetAttribute(tok_dlg,"DLG_NAME","TokenWindow")
-                IupSetCallback(tok_dlg, "CLOSE_CB", Icallback("close_sub_cb"))
+                IupSetAttribute(tok_dlg,`RASTERSIZE`,`800x534`) -- (see note)
+                IupSetAttribute(tok_dlg,`TITLE`,`Tokens`)
+                IupSetAttributeHandle(tok_dlg,`PARENTDIALOG`,main_dlg)
+--              IupSetAttribute(tok_dlg,`DLG_NAME`,`TokenWindow`)
+                IupSetCallback(tok_dlg, `CLOSE_CB`, Icallback(`close_sub_cb`))
             else
                 IupTableSetData(tok_table, data, bReset:=true)
             end if
---          IupConfigDialogShow(config, tok_dlg, "TokenWindow")
-            IupConfigDialogShow(config, tok_dlg, "Tokens")
-            integer {width} = IupGetIntInt(tok_dlg,"CLIENTSIZE")
+--          IupConfigDialogShow(config, tok_dlg, `TokenWindow`)
+            IupConfigDialogShow(config, tok_dlg, `Tokens`)
+            integer {width} = IupGetIntInt(tok_dlg,`CLIENTSIZE`)
             {} = IupTableResize_cb(tok_dlg,width,0)
 
         else
 
---if what="OUTPUT" then ?{"show_scope",what} end if
---if what="RUN" then ?{"RUN",ext} end if
+--if what=`OUTPUT` then ?{`show_scope`,what} end if
+--if what=`RUN` then ?{`RUN`,ext} end if
 --trace(1)
             sequence ast = parse()
             if parse_error() then
 --DEV...
-                ?"parse error"
+                ?`parse error`
 
-            elsif what="PARSETREE" then
+            elsif what=`PARSETREE` then
 
 --              pp(ast)
 --              pp(shortast(ast))
@@ -2302,85 +2505,85 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
 --              pp(shortast(tree_nodes))
                 if tree_dlg=NULL then
                     tree = IupTreeView(tree_nodes)
-                    IupSetCallback(tree, "SELECTION_CB", Icallback("selection_cb"))
+                    IupSetCallback(tree, `SELECTION_CB`, Icallback(`selection_cb`))
                     tree_dlg = IupDialog(tree)
-                    IupSetAttributeHandle(tree_dlg,"PARENTDIALOG",main_dlg)
-                    IupSetAttribute(tree_dlg,"TITLE","Parse Tree")
-                    IupSetAttribute(tree_dlg,"RASTERSIZE","660x830")
---                  IupSetAttribute(tree_dlg,"DLG_NAME","ParseWindow")
-                    IupSetCallback(tree_dlg, "CLOSE_CB", Icallback("close_sub_cb"))
+                    IupSetAttributeHandle(tree_dlg,`PARENTDIALOG`,main_dlg)
+                    IupSetAttribute(tree_dlg,`TITLE`,`Parse Tree`)
+                    IupSetAttribute(tree_dlg,`RASTERSIZE`,`660x830`)
+--                  IupSetAttribute(tree_dlg,`DLG_NAME`,`ParseWindow`)
+                    IupSetCallback(tree_dlg, `CLOSE_CB`, Icallback(`close_sub_cb`))
                 else
 --erm, why did I ever do this???
---                  string size = IupGetAttribute(tree_dlg,"RASTERSIZE")
---                  IupSetAttribute(tree,"DELNODE","ALL")
+--                  string size = IupGetAttribute(tree_dlg,`RASTERSIZE`)
+--                  IupSetAttribute(tree,`DELNODE`,`ALL`)
                     IupTreeAddNodes(tree,tree_nodes)
---                  IupSetAttribute(tree_dlg,"RASTERSIZE",size)
+--                  IupSetAttribute(tree_dlg,`RASTERSIZE`,size)
                 end if
---              IupConfigDialogShow(config, tree_dlg, "ParseWindow")
-                IupConfigDialogShow(config, tree_dlg, "ParseTree")
+--              IupConfigDialogShow(config, tree_dlg, `ParseWindow`)
+                IupConfigDialogShow(config, tree_dlg, `ParseTree`)
 
             else
 
-                integer oval = IupGetInt(otype,"VALUE")
+                integer oval = IupGetInt(otype,`VALUE`)
                 string output = generate_source(ast,oval,src_offset,pGUI,theGUI,pMPFR,pSHA256,pTIMEDATE)
 --              string output = generate_source(ast,oval,src_offset,pGUI,pOpenGL,pMPFR,pSHA256,pTIMEDATE)
 
-                if what="OUTPUT" then
+                if what=`OUTPUT` then
 
 --DEV (spotted in passing... use the thingy)
                     if platform()!=JS then
                         -- quietly save...
 --                      string ext = extensions[oval][2][1]
---                      if ext="exw" then
+--                      if ext=`exw` then
                         if oval=PHIX then
                             test(testexw,output,"")
---                      elsif ext="html" then
+--                      elsif ext=`html` then
                         elsif oval=HTML then
                             test(testhtm,output,"")
                         end if
                     end if
 
                     if show_dlg=NULL then
-                        show_text = IupText("MULTILINE=YES, EXPAND=YES, FORMATTING=YES")
-                        IupSetAttribute(show_text, "READONLY", "YES")
-                        IupSetAttribute(show_text, "FONT", "Consolas, 12")
-                        IupSetStrAttribute(show_text,"BGCOLOR",IUP_SILVER)
-                        IupSetCallback(show_text, "CARET_CB", Icallback("showtext_caret_cb"))
+                        show_text = IupText(`MULTILINE=YES, EXPAND=YES, FORMATTING=YES`)
+                        IupSetAttribute(show_text, `READONLY`, `YES`)
+                        IupSetAttribute(show_text, `FONT`, `Consolas, 12`)
+                        IupSetStrAttribute(show_text,`BGCOLOR`,IUP_SILVER)
+                        IupSetCallback(show_text, `CARET_CB`, Icallback(`showtext_caret_cb`))
 -->>>
-                        lbl_show = IupLabel("Lin 1, Col 1")
-                        IupSetAttributes(lbl_show, "EXPAND=HORIZONTAL,PADDING=10x5")
-                        Ihandle vbox = IupVbox({show_text,lbl_show},"MARGIN=5x0")
+                        lbl_show = IupLabel(`Lin 1, Col 1`)
+                        IupSetAttributes(lbl_show, `EXPAND=HORIZONTAL,PADDING=10x5`)
+                        Ihandle vbox = IupVbox({show_text,lbl_show},`MARGIN=5x0`)
                         show_dlg = IupDialog(vbox)
 -->>>
 --                      show_dlg = IupDialog(show_text) 
-                        IupSetAttribute(show_dlg,"RASTERSIZE","700x700")
-                        IupSetAttribute(show_dlg,"TITLE","Show")
-                        IupSetAttributeHandle(show_dlg,"PARENTDIALOG",main_dlg)
---                      IupSetAttribute(show_dlg,"DLG_NAME","ShowWindow")
-                        IupSetCallback(show_dlg, "CLOSE_CB", Icallback("close_sub_cb"))
+                        IupSetAttribute(show_dlg,`RASTERSIZE`,`700x700`)
+                        IupSetAttribute(show_dlg,`TITLE`,`Show`)
+                        IupSetAttributeHandle(show_dlg,`PARENTDIALOG`,main_dlg)
+--                      IupSetAttribute(show_dlg,`DLG_NAME`,`ShowWindow`)
+                        IupSetCallback(show_dlg, `CLOSE_CB`, Icallback(`close_sub_cb`))
                     end if
---                  string caret = IupGetAttribute(show_text,"CARET")
-                    show_caret = IupGetAttribute(show_text,"CARET")
---?{"show_caret",show_caret}
-                    IupSetAttribute(show_text,"VALUE",output)
+--                  string caret = IupGetAttribute(show_text,`CARET`)
+                    show_caret = IupGetAttribute(show_text,`CARET`)
+--?{`show_caret`,show_caret}
+                    IupSetAttribute(show_text,`VALUE`,output)
                     {} = syntax_colour(show_text,otype)
---                  IupConfigDialogShow(config, show_dlg, "ShowWindow")
-                    IupConfigDialogShow(config, show_dlg, "Show")
+--                  IupConfigDialogShow(config, show_dlg, `ShowWindow`)
+                    IupConfigDialogShow(config, show_dlg, `Show`)
 --                  if length(caret) then
---                      IupSetAttribute(show_text,"CARET",caret)
---                      IupSetAttribute(show_text,"SCROLLTO",caret)
+--                      IupSetAttribute(show_text,`CARET`,caret)
+--                      IupSetAttribute(show_text,`SCROLLTO`,caret)
 --                  end if
 
-                elsif what="COPY" then
+                elsif what=`COPY` then
 
                     copy(output)
 
-                elsif what="RUN" then
+                elsif what=`RUN` then
 
                     run(output,otype)
 
                 else
-                    ?{"unknown:",what}
+                    ?{`unknown:`,what}
                 end if
             end if
         end if
@@ -2390,20 +2593,20 @@ w wildcard.js       {`find.e`, `match.e`, `pcase.e`, `wildcard.e`}
 end function
 
 function show_tokens_cb(Ihandle /*show_tokens*/)
-    return show_stuff("TOKENS")
+    return show_stuff(`TOKENS`)
 end function
 
 function parse_tree_cb(Ihandle /*parse_tree*/)
-    return show_stuff("PARSETREE")
+    return show_stuff(`PARSETREE`)
 end function
 
 function violations_cb(Ihandle /*parse_tree*/)
-?"violations_cb"
+?`violations_cb`
     return IUP_DEFAULT
 end function
 
 function show_cb(Ihandle /*show_btn*/)
-    return show_stuff("OUTPUT")
+    return show_stuff(`OUTPUT`)
 end function
 
 function copy_cb(Ihandle /*copy_btn*/)
@@ -2411,27 +2614,27 @@ function copy_cb(Ihandle /*copy_btn*/)
 --      -- show copy pop-up
 --      return IUP_DEFAULT
 --  end if
-    return show_stuff("COPY")
+    return show_stuff(`COPY`)
 end function
 
 --function mw_cb(Ihandle /*copy_btn*/)
---  return show_stuff("MW")
+--  return show_stuff(`MW`)
 --end function
 
 function run_cb(Ihandle /*run_btn*/)
---?{"run_cb",ext}
-    return show_stuff("RUN")
+--?{`run_cb`,ext}
+    return show_stuff(`RUN`)
 end function
 
 function options_cb(Ihandle /*opt_btn*/)
-    return show_stuff("OPTIONS")
+    return show_stuff(`OPTIONS`)
 end function
 
 --The aim of the transpiler is to get new stuff working in the browser,
 --not every crappy 20-year-old bit of obsolete code you can dredge up...
 
 constant TITLE = `pwa\p2js - Phix to JavaScript transpiler`,
-         help_text = """
+         help_text = `
 Choose File or Ctrl O opens a standard file dialog.
 Alternatively select a recent file or demo from the drop-down next to it.
 Or press Ctrl T to open a filterable recent files popup. Note that the 
@@ -2480,7 +2683,7 @@ using the -o command line option (obviously latter is desktop-only).
 Command-line options allow this to be run without showing a gui, eg
         p pwa\p2js -[no]run demo.exw -o demo.html
         p pwa\p2js -? // show commandline options in detail
-"""
+`
 
 function help_cb(Ihandle /*help_btn, or main_dlg*/)
 --  if not platform_is_js() then
@@ -2494,7 +2697,7 @@ end function
 procedure close_sub_windows(sequence swh)
     for i=1 to length(swh) do
         Ihandln ih = swh[i]
-        if ih!=NULL and IupGetInt(ih,"VISIBLE") then
+        if ih!=NULL and IupGetInt(ih,`VISIBLE`) then
             {} = close_sub_cb(ih)
         end if
     end for
@@ -2503,9 +2706,12 @@ end procedure
 function close_main_cb(Ihandle /*main_dlg or exit_btn*/)
     if not platform_is_js() then
         close_sub_windows({tok_dlg,tree_dlg,show_dlg})
-        IupConfigDialogClosed(config, main_dlg, "MainWindow")
+-- 1/7/26...
+if config then
+        IupConfigDialogClosed(config, main_dlg, `MainWindow`)
         {} = IupConfigSave(config)
         config = IupDestroy(config)
+end if
         save_ini()
     end if
     return IUP_CLOSE -- (for key_cb)
@@ -2516,7 +2722,7 @@ end function
 include ..\demo\edix\src\withjs.e
 
 procedure set_js_line(integer line, bool bInsert, string s)
---?{"set_js_line", line, bInsert, s}
+--?{`set_js_line`, line, bInsert, s}
     if bInsert then
         assert(length(s)!=0)
         textlines[line..line-1] = {s}
@@ -2526,12 +2732,12 @@ procedure set_js_line(integer line, bool bInsert, string s)
         textlines[line] = s
     end if
     src = join(textlines,"\n")
-    IupSetAttribute(multitext, "VALUE", src)
+    IupSetAttribute(multitext, `VALUE`, src)
     {} = syntax_colour()
 end procedure
 
 function set_js_option()
-    src = IupGetAttribute(multitext, "VALUE")
+    src = IupGetAttribute(multitext, `VALUE`)
     textlines = split(substitute(src,"\r\n","\n"),'\n',false)
     set_js(set_js_line,main_dlg,textlines)
     return IUP_DEFAULT
@@ -2552,137 +2758,137 @@ function key_cb(Ihandle main_dlg, atom c)
         case K_F1:  return help_cb(main_dlg)
         case K_cO:  return choose_cb(NULL)
         case K_cS:  return syntax_colour() -- (nb not save)
-        case K_cM:  return show_stuff("MEDIAWIKI") -- (copy)
-        case K_cN:  return show_stuff("OPTIONS")
-        case K_cT:  return show_stuff("FILELIST")
-        case K_cK:  return show_stuff("TOKENS")
-        case K_cP:  return show_stuff("PARSETREE")
-        case K_cW:  return show_stuff("OUTPUT")
+        case K_cM:  return show_stuff(`MEDIAWIKI`) -- (copy)
+        case K_cN:  return show_stuff(`OPTIONS`)
+        case K_cT:  return show_stuff(`FILELIST`)
+        case K_cK:  return show_stuff(`TOKENS`)
+        case K_cP:  return show_stuff(`PARSETREE`)
+        case K_cW:  return show_stuff(`OUTPUT`)
 --      case K_cJ:  return set_js(set_js_line,filetext[currfile])
         case K_cJ:  return set_js_option()
---      case K_cC:  return show_stuff("COPY") -- NO! (cW/cA/cC is just fine)
-        case K_F5:  return show_stuff("RUN")
-        case K_cF5: return show_stuff("CTRLF5") -- (run original input)
+--      case K_cC:  return show_stuff(`COPY`) -- NO! (cW/cA/cC is just fine)
+        case K_F5:  return show_stuff(`RUN`)
+        case K_cF5: return show_stuff(`CTRLF5`) -- (run original input)
         case K_ESC: return close_main_cb(main_dlg)
     end switch
     return IUP_CONTINUE
 end function
 
 function unnul(sequence s)
-    s = filter(s,"out",{null})
+    s = filter(s,`out`,{null})
     return s
 end function
     
 procedure create_main_dialog()
 
-    Ihandle choose_file = IupButton("Choose File",Icallback("choose_cb"))--,"PADDING=5x0, CANFOCUS=NO")
+    Ihandle choose_file = IupButton(`Choose File`,Icallback(`choose_cb`))--,`PADDING=5x0, CANFOCUS=NO`)
     if platform_is_js() then
-        chosen = IupFlatLabel("","EXPAND=HORIZONTAL")
+        chosen = IupFlatLabel("",`EXPAND=HORIZONTAL`)
     else
         config = IupConfig()
-        IupSetAttribute(config, "APP_CONFIG", "YES")
-        IupSetAttribute(config, "APP_PATH", initialcurrentdir)
-        IupSetAttribute(config, "APP_NAME", "p2js.exw")
---      IupSetAttribute(config, "APP_NAME", "p2js")
---      IupSetAttribute(config, "APP_NAME", "crap2js")
+        IupSetAttribute(config, `APP_CONFIG`, `YES`)
+        IupSetAttribute(config, `APP_PATH`, initialcurrentdir)
+        IupSetAttribute(config, `APP_NAME`, `p2js.exw`)
+--      IupSetAttribute(config, `APP_NAME`, `p2js`)
+--      IupSetAttribute(config, `APP_NAME`, `crap2js`)
         {} = IupConfigLoad(config)
-        chosen = IupList(Icallback("chosen_cb"),"DROPDOWN=YES,EXPAND=HORIZONTAL")
+        chosen = IupList(Icallback(`chosen_cb`),`DROPDOWN=YES,EXPAND=HORIZONTAL`)
     end if
---  ctype = set_extensions(IupList(Icallback("ctype_cb"),`DROPDOWN=YES`),1)
-    ctype = set_extensions(IupList(Icallback("ctype_cb"),`DROPDOWN=YES`),0)
-    Ihandle ch_box = IupHbox({choose_file,chosen,ctype},"MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL")
-    multitext = IupText("MULTILINE=YES, EXPAND=YES, FORMATTING=YES")
---  multitext = IupText("MULTILINE=YES, EXPAND=YES")
-    IupSetAttribute(multitext, "FONT", "Consolas, 12")
---  IupSetAttribute(multitext, "FONT", "Lucida Console, 11")
-    IupSetCallback(multitext, "CARET_CB", Icallback("multitext_caret_cb"))
-    IupSetCallback(multitext, "VALUECHANGED_CB", Icallback("multitext_valuechanged_cb"))
-    IupSetCallback(multitext, "DROPFILES_CB", Icallback("dropfiles_cb"))
-    IupSetStrAttribute(multitext,"BGCOLOR",IUP_SILVER)
+--  ctype = set_extensions(IupList(Icallback(`ctype_cb`),`DROPDOWN=YES`),1)
+    ctype = set_extensions(IupList(Icallback(`ctype_cb`),`DROPDOWN=YES`),0)
+    Ihandle ch_box = IupHbox({choose_file,chosen,ctype},`MARGIN=5x5,GAP=10,NORMALIZESIZE=VERTICAL`)
+    multitext = IupText(`MULTILINE=YES, EXPAND=YES, FORMATTING=YES`)
+--  multitext = IupText(`MULTILINE=YES, EXPAND=YES`)
+    IupSetAttribute(multitext, `FONT`, `Consolas, 12`)
+--  IupSetAttribute(multitext, `FONT`, `Lucida Console, 11`)
+    IupSetCallback(multitext, `CARET_CB`, Icallback(`multitext_caret_cb`))
+    IupSetCallback(multitext, `VALUECHANGED_CB`, Icallback(`multitext_valuechanged_cb`))
+    IupSetCallback(multitext, `DROPFILES_CB`, Icallback(`dropfiles_cb`))
+    IupSetStrAttribute(multitext,`BGCOLOR`,IUP_SILVER)
 
-    lbl_statusbar = IupLabel("Lin 1, Col 1")
-    IupSetAttribute(lbl_statusbar, "EXPAND", "HORIZONTAL")
-    IupSetAttribute(lbl_statusbar, "PADDING", "10x5")
+    lbl_statusbar = IupLabel(`Lin 1, Col 1`)
+    IupSetAttribute(lbl_statusbar, `EXPAND`, `HORIZONTAL`)
+    IupSetAttribute(lbl_statusbar, `PADDING`, `10x5`)
 
-    Ihandle show_tokens = IupButton("Tokens",Icallback("show_tokens_cb"))
-    Ihandle parse_tree = IupButton("Parse tree",Icallback("parse_tree_cb"))
-    Ihandle violations = IupButton("0 Violations",Icallback("violations_cb"))
---  IupSetStrAttribute(violations,"FGCOLOR",IUP_RED) -- DEV when non-zero, else IUP_BLACK
+    Ihandle show_tokens = IupButton(`Tokens`,Icallback(`show_tokens_cb`))
+    Ihandle parse_tree = IupButton(`Parse tree`,Icallback(`parse_tree_cb`))
+    Ihandle violations = IupButton(`0 Violations`,Icallback(`violations_cb`))
+--  IupSetStrAttribute(violations,`FGCOLOR`,IUP_RED) -- DEV when non-zero, else IUP_BLACK
 --DEV only active for 0 Violations (*3)
 --DEV callback??? [NAH, erm YES!]
-    otype = set_extensions(IupList(Icallback("otype_cb"),`DROPDOWN=YES`))
+    otype = set_extensions(IupList(Icallback(`otype_cb`),`DROPDOWN=YES`))
 --  otype = set_extensions(IupList(`DROPDOWN=YES`))
 --temp??
---  IupSetInt(otype,"VALUE",find("html",ext_names))
-    IupSetInt(otype,"VALUE",find("phix",ext_names))
+--  IupSetInt(otype,`VALUE`,find(`html`,ext_names))
+    IupSetInt(otype,`VALUE`,find(`phix`,ext_names))
 --SUG: if possible, show same top line on re-open...
-    Ihandle show_btn = IupButton("Show",Icallback("show_cb"))
+    Ihandle show_btn = IupButton(`Show`,Icallback(`show_cb`))
 --SUG: make copy/run green if otype=ctype and text matches
-    Ihandle copy_btn = IupButton("Copy",Icallback("copy_cb"))
---  Ihandle mw_btn = IupButton("MediaWiki",Icallback("mw_cb"))
+    Ihandle copy_btn = IupButton(`Copy`,Icallback(`copy_cb`))
+--  Ihandle mw_btn = IupButton(`MediaWiki`,Icallback(`mw_cb`))
 --DEV only active for otype of phix or html (and 0 Violations)
-    run_btn = IupButton("Run",Icallback("run_cb"))
+    run_btn = IupButton(`Run`,Icallback(`run_cb`))
 --DEV desktop only??
-    Ihandle opt_btn = IupButton("Options",Icallback("options_cb"))
-    Ihandle help_btn = IupButton("Help",Icallback("help_cb"))
-    Ihandle exit_btn = IupButton("Exit",Icallback("close_main_cb"))
+    Ihandle opt_btn = IupButton(`Options`,Icallback(`options_cb`))
+    Ihandle help_btn = IupButton(`Help`,Icallback(`help_cb`))
+    Ihandle exit_btn = IupButton(`Exit`,Icallback(`close_main_cb`))
     IupSetAttributes(unnul({choose_file,show_tokens,parse_tree,violations,
                       show_btn,copy_btn,run_btn,opt_btn,help_btn,exit_btn}),
-                     "PADDING=5x0, CANFOCUS=NO")
---  IupSetAttributes({violations,copy_btn,run_btn},"ACTIVE=NO")
-    IupSetAttributes({violations,run_btn},"ACTIVE=NO")
+                     `PADDING=5x0, CANFOCUS=NO`)
+--  IupSetAttributes({violations,copy_btn,run_btn},`ACTIVE=NO`)
+    IupSetAttributes({violations,run_btn},`ACTIVE=NO`)
     Ihandle show_box = IupHbox({show_tokens,parse_tree,violations,IupFill(),
                                 otype, show_btn,copy_btn,run_btn, IupFill(),
-                                opt_btn,help_btn,exit_btn},"MARGIN=5x5,GAP=10")
+                                opt_btn,help_btn,exit_btn},`MARGIN=5x5,GAP=10`)
 
-    Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar,show_box},"MARGIN=5x0")
-    main_dlg = IupDialog(vbox,"RASTERSIZE=700x700")
+    Ihandle vbox = IupVbox({ch_box,multitext,lbl_statusbar,show_box},`MARGIN=5x0`)
+    main_dlg = IupDialog(vbox,`RASTERSIZE=700x700`)
 --DEV temp: (for withjs.e)
 --dlg = main_dlg
 --  IupCloseOnEscape(main_dlg,false)
-    IupSetCallback(main_dlg, "DROPFILES_CB", Icallback("dropfiles_cb"))
-    IupSetCallback(main_dlg, "CLOSE_CB", Icallback("close_main_cb"))
---  IupSetCallback(main_dlg, "K_ANY", Icallback("key_cb"));
-    IupSetCallback(main_dlg, "KEY_CB", Icallback("key_cb"));
+    IupSetCallback(main_dlg, `DROPFILES_CB`, Icallback(`dropfiles_cb`))
+    IupSetCallback(main_dlg, `CLOSE_CB`, Icallback(`close_main_cb`))
+--  IupSetCallback(main_dlg, `K_ANY`, Icallback(`key_cb`));
+    IupSetCallback(main_dlg, `KEY_CB`, Icallback(`key_cb`));
 
     -- parent for pre-defined dialogs in closed functions (IupMessage and IupAlarm)
-    IupSetAttributeHandle(NULL, "PARENTDIALOG", main_dlg)
+    IupSetAttributeHandle(NULL, `PARENTDIALOG`, main_dlg)
 
     -- initialize the current file
-    IupSetAttribute(main_dlg, "TITLE", TITLE)
---  IupSetAttribute(multitext, "FILENAME", NULL)
-    IupSetAttribute(multitext, "VALUE", "// Type, paste, drag and drop a file here, or click the button above...")
+    IupSetAttribute(main_dlg, `TITLE`, TITLE)
+--  IupSetAttribute(multitext, `FILENAME`, NULL)
+    IupSetAttribute(multitext, `VALUE`, `// Type, paste, drag and drop a file here, or click the button above...`)
 
     /* show the dialog at the last position, with the last size */
     if platform_is_js() then
         IupShow(main_dlg)
     else
         load_ini()
-        IupConfigDialogShow(config, main_dlg, "MainWindow")
---?{"rebuild_builtins_and_run_tests() disabled p2js.exw line",source_line()}
+        IupConfigDialogShow(config, main_dlg, `MainWindow`)
+--?{`rebuild_builtins_and_run_tests() disabled p2js.exw line`,source_line()}
         rebuild_builtins_and_run_tests()
     end if
 
-    IupSetAttribute(multitext,"RASTERSIZE",NULL)
+    IupSetAttribute(multitext,`RASTERSIZE`,NULL)
 
 end procedure
 
 sequence cl = command_line()
 if length(cl)>2 then
-    ?{"erm/DEV",cl}
+    ?{`erm/DEV`,cl}
     -- -test: compare src/test001.exw and src/test001.htm outputs.
     -- p pwa\p2js -norun -src test.exw -out test.html
 end if
 
 IupOpen()
-IupSetGlobal("UTF8MODE","YES")
+IupSetGlobal(`UTF8MODE`,`YES`)
 create_main_dialog()
 if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
 
---?"done"
+--?`done`
 --{} = wait_key()
 without warning
 abort(0)
@@ -2712,7 +2918,7 @@ function selectLink(e) {
   let el = e.target;
 
   if (e.altKey) {
-    window.open(el.getAttribute("alternative"), '_blank');
+    window.open(el.getAttribute(`alternative`), '_blank');
     e.preventDefault();
   }
 }
@@ -2721,7 +2927,7 @@ function selectLink(e) {
 -- minification
 -- ============
 constant alphabet = tagset('z','a')&tagset('Z','A')&tagset('9','0')
-constant alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+constant alphabet = `abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789`
 function short_id(integer n)
 --
 -- 52 one character ids, 
@@ -2754,7 +2960,7 @@ function short_id(integer n)
     end while
     return res
 end function
-puts(1,join_by(apply(tagset(3276),short_id),1,26,"."))
+puts(1,join_by(apply(tagset(3276),short_id),1,26,`.`))
 --?52*62
 --?52*62*62
 --?52*62*62*62
@@ -2881,7 +3087,7 @@ css-only-drop-menu                                                      hover on
 pure-css-animated-navigation-menu                       _BC_MN__ST_WZ   hover only, ul/li-based, multilevel, no resize. [*** good, as far as we can go without js ***]
 simple-window-menu-bar                                  aBCDmN__sT_WZ   sticky drop, ul/li-based, no nesting, but still a maybe
 fixed-header-with-responsive-drop-down-sliding-menu     ABCDMNpRSTXWZ   sticky drop, ul/li-based, +resize [which got kinda broken..]
-"done"
+`done`
 
 listviews/tables...
 IupTable() <==
@@ -3152,11 +3358,11 @@ maybe, from https://developer.mozilla.org/en-US/docs/Web/API/HTMLScriptElement
 (sandfox/phixsty/phixplaypen/phixlenook/phideout/phlair/phixtum/phixicle/phix snug/
  phaven/phixtuary/phixster/phixude/phixroom/phixabode/phixloft/phixlab/phix snuggery)
 function loadError(oError) {
-  throw new URIError("The script " + oError.target.src + " didn't load correctly.");
+  throw new URIError(`The script ` + oError.target.src + ` didn't load correctly.`);
 }
 
 function affixScriptToHead(url, onloadFunction) {
-  let newScript = document.createElement("script");
+  let newScript = document.createElement(`script`);
   newScript.onerror = loadError;
   if (onloadFunction) { newScript.onload = onloadFunction; }
   document.head.appendChild(newScript);
@@ -3220,11 +3426,11 @@ It only works if the element is a direct child of an element with the display: f
 --   nan = -(inf/inf)
 --?inf
 --?nan
---?iff(nan?"nan is true":"nan is false")    -- true (phix)
+--?iff(nan?`nan is true`:`nan is false`)    -- true (phix)
 
 --/* these?
 for i=1 to 50 do
-    printf(1,"%,12d",{product(factors(i,1))})
+    printf(1,`%,12d`,{product(factors(i,1))})
     if remainder(i,5)=0 then puts(1,"\n") end if
 end for
 Output:
@@ -3242,7 +3448,7 @@ functional
 same output
 
 sequence r = apply(apply(true,factors,{tagset(50),{1}}),product)
-puts(1,join_by(apply(true,sprintf,{{"%,12d"},r}),1,5,""))
+puts(1,join_by(apply(true,sprintf,{{`%,12d`},r}),1,5,""))
 --*/
 --/* from https://rosettacode.org/mw/index.php?title=Almost_prime#JavaScript
 function almostPrime (n, k) {
@@ -3281,7 +3487,7 @@ while found<50 do
     end if
     n += 1
 end while
-string fmt = "k = %d: "&join(repeat("%4d",10))&"\n"
+string fmt = `k = %d: `&join(repeat(`%4d`,10))&"\n"
 for i=1 to 5 do
     printf(1,fmt,res[i])
 end for
@@ -3291,8 +3497,8 @@ end for
 -- Simple: Ihandle ih <==> let /* Ihandle */ ih
 --    and: integer /*x*/ <==> let /* integer **/ x [ parameters only ]
 -- Simple: ?x <==> print(1,x+"\n") [or just don't support it...]
--- AH: s[i] <==> s[i-1], and drop all that ["sequence",...] stuff... (strings would be fine that way too).
---      note: s[e], where e does not end in "-1", would be illegal in any js-->phix xpilation.
+-- AH: s[i] <==> s[i-1], and drop all that [`sequence`,...] stuff... (strings would be fine that way too).
+--      note: s[e], where e does not end in `-1`, would be illegal in any js-->phix xpilation.
 --      ditto s[i..j] <==> s[i-1..j-1], erm I mean s.slice(i-1?,j-1?).
 -- NB: javascript does not permit negative substripts, but:
 --  function at(n) {
@@ -3360,7 +3566,7 @@ let x  = new X();
 x['method2']();
 --*/
 --Challenge: https://www.codeproject.com/Articles/5284262/WPF-Drag-and-Drop-using-Behavior
---SUG: IupCustomAttribute(string name): if name="ANY" then go quiet, else add name to list of permitted attributes.
+--SUG: IupCustomAttribute(string name): if name=`ANY` then go quiet, else add name to list of permitted attributes.
 --  By default, the desktop will quietly set custom attributes and otherwise completely ignore them. Personally,
 --  I've always rather disliked that because it means a simple typo can fail silently and therefore prove hard
 --  to track down and/or get shipped unnoticed. Being allowed to set custom attributes is certainly a boon, and
@@ -3772,29 +3978,29 @@ include pGUI.e
 Ihandle txt, increment, random, hbx, vbx, dlg
  
 function action_cb(Ihandle /!*ih*!/, integer ch)
-    if not find(ch,"0123456789-") then return IUP_IGNORE end if
+    if not find(ch,`0123456789-`) then return IUP_IGNORE end if
     return IUP_CONTINUE
 end function
  
 function increment_cb(Ihandle /!*ih*!/)
-    integer v = IupGetInt(txt,"VALUE")+1
-    IupSetInt(txt,"VALUE",v)
+    integer v = IupGetInt(txt,`VALUE`)+1
+    IupSetInt(txt,`VALUE`,v)
     return IUP_CONTINUE
 end function
  
 function random_cb(Ihandle /!*ih*!/)
-    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
-        IupSetInt(txt,"VALUE",rand(1000))
+    if IupAlarm(`Confirm`,`Replace wth random value?`,`Yes`,`No`)=1 then
+        IupSetInt(txt,`VALUE`,rand(1000))
     end if
     return IUP_CONTINUE
 end function
  
 IupOpen()
-txt = IupText(Icallback("action_cb"),"EXPAND=YES")
-increment = IupButton("increment",Icallback("increment_cb"))
-random = IupButton("random",Icallback("random_cb"))
-hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
-vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+txt = IupText(Icallback(`action_cb`),`EXPAND=YES`)
+increment = IupButton(`increment`,Icallback(`increment_cb`))
+random = IupButton(`random`,Icallback(`random_cb`))
+hbx = IupHbox({increment,random},`MARGIN=0x10, GAP=20`)
+vbx = IupVbox({txt,hbx},`MARGIN=40x20`)
 dlg = IupDialog(vbx)
 IupCloseOnEscape(dlg)
 IupShow(dlg)
@@ -3989,23 +4195,23 @@ procedure add_token(string token, integer flags)
     tflags = append(tflags,flags)
 end procedure
 
-add_token("function",LANG_ANY)
-add_token("if",LANG_ANY)
-add_token("then",LANG_PHIX)
-add_token("{",LANG_ANY)     -- (LANG_JSC in some contexts)
-add_token("}",LANG_ANY)
-add_token("(",LANG_ANY)
-add_token(")",LANG_ANY)
-add_token("[",LANG_ANY)
-add_token("]",LANG_ANY)
-add_token("--",LANG_PHIX)
-add_token("--/"&"*",LANG_PHIX)
-add_token("//",LANG_ANY)
-add_token("/"&"*",LANG_ANY)
-add_token("=",LANG_ANY)
-add_token("==",LANG_ANY)
-add_token(":=",LANG_PHIX)
-add_token("..",LANG_PHIX)
+add_token(`function`,LANG_ANY)
+add_token(`if`,LANG_ANY)
+add_token(`then`,LANG_PHIX)
+add_token(`{`,LANG_ANY)     -- (LANG_JSC in some contexts)
+add_token(`}`,LANG_ANY)
+add_token(`(`,LANG_ANY)
+add_token(`)`,LANG_ANY)
+add_token(`[`,LANG_ANY)
+add_token(`]`,LANG_ANY)
+add_token(`--`,LANG_PHIX)
+add_token(`--/`&`*`,LANG_PHIX)
+add_token(`//`,LANG_ANY)
+add_token(`/`&`*`,LANG_ANY)
+add_token(`=`,LANG_ANY)
+add_token(`==`,LANG_ANY)
+add_token(`:=`,LANG_PHIX)
+add_token(`..`,LANG_PHIX)
 
 step 1: get **ONE** program tht is //believably// translatable! [DONE, in fact I got 2]
 step 2: tokeniser -> just list and show counts...
@@ -4015,7 +4221,7 @@ step 2: tokeniser -> just list and show counts...
 -- [erm, as noted in pwa.exw: my plans to simplify comment handling go awol if this is the new reindenter, plus we
 --  absolutely *MUST* support things like "xxx_cb(Ihande /!*ih*!/, ...)"]
 -- Note that IUP.js is written to imitate the Phix/pGUI.e/C api and therefore may not contain all the usual js niceities,
--- for instance IupDialog(ih,"SIZE=200x200") is fine, but (as yet) IupDialog(ih,{SIZE:"200x200"}) is not.
+-- for instance IupDialog(ih,`SIZE=200x200`) is fine, but (as yet) IupDialog(ih,{SIZE:"200x200"}) is not.
 -- (it may be better off named phix-web.js rather than IUP.js)
 
 Big list of unsupported things: open, seek, where, [puts], getc, gets, get_text, get_key, [wait_key], dir, current_dir,
@@ -4082,7 +4288,7 @@ function iAttribToken(integer asdx, lim)
         if asdx>lim then return {TK_END,lim+1,lim+1} end if
         integer c = text[asdx]
         asdx += 1
---      if find(c,"#") then
+--      if find(c,`#`) then
 --?9/0
 --          start = iAttribSkipComment(start, lim)
 --      els
@@ -4150,8 +4356,8 @@ procedure show(sequence r)
 end procedure
 
 text = """
-IupSetAttributes(dlg,"EXPAND=YES, ALIGNMENT=ACENTER")
-IupSetAttributes(dlg,`TITLE="Hello", MINSIZE=225x75`)
+IupSetAttributes(dlg,`EXPAND=YES, ALIGNMENT=ACENTER`)
+IupSetAttributes(dlg,`TITLE=`Hello`, MINSIZE=225x75`)
 """
 constant s1 = find('"',text)+1,
          e1 = find('"',text,s1)-1,
@@ -4159,11 +4365,11 @@ constant s1 = find('"',text)+1,
          e2 = find('`',text,s2)-1
 show(parse_attributes(s1,e1))
 show(parse_attributes(s2,e2))
---?parse_attributes("EXPAND=YES, ALIGNMENT=ACENTER")
+--?parse_attributes(`EXPAND=YES, ALIGNMENT=ACENTER`)
 --?parse_attributes(`TITLE="Hello", MINSIZE=225x75`)
---{{"EXPAND","ALIGNMENT"},{"YES","ACENTER"}}
---{{"TITLE","MINSIZE"},{"Hello","225x75"}}
---"done"
+--{{`EXPAND`,`ALIGNMENT`},{`YES`,`ACENTER`}}
+--{{`TITLE`,`MINSIZE`},{`Hello`,`225x75`}}
+--`done`
 
 from https://www.rosettacode.org/wiki/Tokenize_a_string_with_escaping#JavaScript
 function tokenize(s, esc, sep) {
@@ -4193,29 +4399,29 @@ include pGUI.e
 Ihandle txt, increment, random, hbx, vbx, dlg
  
 function action_cb(Ihandle /!*ih*!/, integer ch)
-    if not find(ch,"0123456789-") then return IUP_IGNORE end if
+    if not find(ch,`0123456789-`) then return IUP_IGNORE end if
     return IUP_CONTINUE
 end function
  
 function increment_cb(Ihandle /!*ih*!/)
-    integer v = IupGetInt(txt,"VALUE")+1
-    IupSetInt(txt,"VALUE",v)
+    integer v = IupGetInt(txt,`VALUE`)+1
+    IupSetInt(txt,`VALUE`,v)
     return IUP_CONTINUE
 end function
  
 function random_cb(Ihandle /!*ih*!/)
-    if IupAlarm("Confirm","Replace wth random value?","Yes","No")=1 then
-        IupSetInt(txt,"VALUE",rand(1000))
+    if IupAlarm(`Confirm`,`Replace wth random value?`,`Yes`,`No`)=1 then
+        IupSetInt(txt,`VALUE`,rand(1000))
     end if
     return IUP_CONTINUE
 end function
  
 IupOpen()
-txt = IupText(Icallback("action_cb"),"EXPAND=YES")
-increment = IupButton("increment",Icallback("increment_cb"))
-random = IupButton("random",Icallback("random_cb"))
-hbx = IupHbox({increment,random},"MARGIN=0x10, GAP=20")
-vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+txt = IupText(Icallback(`action_cb`),`EXPAND=YES`)
+increment = IupButton(`increment`,Icallback(`increment_cb`))
+random = IupButton(`random`,Icallback(`random_cb`))
+hbx = IupHbox({increment,random},`MARGIN=0x10, GAP=20`)
+vbx = IupVbox({txt,hbx},`MARGIN=40x20`)
 dlg = IupDialog(vbx)
 IupCloseOnEscape(dlg)
 IupShow(dlg)
@@ -4230,23 +4436,23 @@ include pGUI.e
 Ihandle txt, inc, dec, hbx, vbx, dlg
  
 function activate(integer v)
-    IupSetInt(txt,"VALUE",v)
-    IupSetAttribute(inc,"ACTIVE",iff(v<10,"YES":"NO"))
-    IupSetAttribute(dec,"ACTIVE",iff(v>0,"YES":"NO"))
-    IupSetAttribute(txt,"ACTIVE",iff(v=0,"YES":"NO"))
+    IupSetInt(txt,`VALUE`,v)
+    IupSetAttribute(inc,`ACTIVE`,iff(v<10,`YES`:`NO`))
+    IupSetAttribute(dec,`ACTIVE`,iff(v>0,`YES`:`NO`))
+    IupSetAttribute(txt,`ACTIVE`,iff(v=0,`YES`:`NO`))
     return IUP_CONTINUE
 end function
  
 function valuechanged_cb(Ihandle /!*ih*!/)
-    return activate(IupGetInt(txt,"VALUE"))
+    return activate(IupGetInt(txt,`VALUE`))
 end function
  
 function inc_cb(Ihandle /!*ih*!/)
-    return activate(IupGetInt(txt,"VALUE")+1)
+    return activate(IupGetInt(txt,`VALUE`)+1)
 end function
  
 function dec_cb(Ihandle /!*ih*!/)
-    return activate(IupGetInt(txt,"VALUE")-1)
+    return activate(IupGetInt(txt,`VALUE`)-1)
 end function
  
 function esc_close(Ihandle /!*ih*!/, atom c)
@@ -4254,25 +4460,25 @@ function esc_close(Ihandle /!*ih*!/, atom c)
 end function
  
 IupOpen()
-txt = IupText("VALUECHANGED_CB",Icallback("valuechanged_cb"),"FILTER=NUMBER, EXPAND=YES")
-inc = IupButton("increment",Icallback("inc_cb"))
-dec = IupButton("decrement",Icallback("dec_cb"),"ACTIVE=NO")
-hbx = IupHbox({inc,dec},"MARGIN=0x10, GAP=20")
-vbx = IupVbox({txt,hbx},"MARGIN=40x20")
+txt = IupText(`VALUECHANGED_CB`,Icallback(`valuechanged_cb`),`FILTER=NUMBER, EXPAND=YES`)
+inc = IupButton(`increment`,Icallback(`inc_cb`))
+dec = IupButton(`decrement`,Icallback(`dec_cb`),`ACTIVE=NO`)
+hbx = IupHbox({inc,dec},`MARGIN=0x10, GAP=20`)
+vbx = IupVbox({txt,hbx},`MARGIN=40x20`)
 dlg = IupDialog(vbx)
-IupSetCallback(dlg, "K_ANY", Icallback("esc_close"))
+IupSetCallback(dlg, `K_ANY`, Icallback(`esc_close`))
 IupShow(dlg)
 IupMainLoop()
 */
 --https://rosettacode.org/wiki/Hello_world/Graphical#Phix
 --js:
 --/*
- alert("Goodbye, World!"); // no title, better off using our own??
+ alert(`Goodbye, World!`); // no title, better off using our own??
 --*/
 /*
 include pGUI.e
 IupOpen()
-IupMessage("Bye","Goodbye, World!")
+IupMessage(`Bye`,`Goodbye, World!`)
 IupClose()
 */
 --https://rosettacode.org/wiki/Simple_windowed_application#Phix (no js entry)
@@ -4284,16 +4490,16 @@ integer clicks = 0
  
 function click_cb(Ihandle /!*btn*!/)
     clicks += 1
-    IupSetStrAttribute(lbl,"TITLE","clicked %d times",{clicks})
+    IupSetStrAttribute(lbl,`TITLE`,`clicked %d times`,{clicks})
     return IUP_DEFAULT;
 end function
  
 IupOpen()
-lbl = IupLabel("There have been no clicks yet")
-btn = IupButton("Click me", Icallback("click_cb"))
+lbl = IupLabel(`There have been no clicks yet`)
+btn = IupButton(`Click me`, Icallback(`click_cb`))
 vbox = IupVbox({lbl, IupHbox({IupFill(),btn,IupFill()})})
-dlg = IupDialog(vbox,"MARGIN=10x10, GAP=10, RASTERSIZE=400x0")
-IupSetAttribute(dlg, "TITLE", "Simple windowed application")
+dlg = IupDialog(vbox,`MARGIN=10x10, GAP=10, RASTERSIZE=400x0`)
+IupSetAttribute(dlg, `TITLE`, `Simple windowed application`)
 IupCloseOnEscape(dlg)
 IupShow(dlg)
 IupMainLoop()
@@ -4302,10 +4508,10 @@ IupClose()
 --https://rosettacode.org/wiki/User_input/Graphical#Phix
 --js:
 --/*
-let str = prompt("Enter a string");
+let str = prompt(`Enter a string`);
 let value = 0;
 while (value != 75000) {
-    value = parseInt( prompt("Enter the number 75000") );
+    value = parseInt( prompt(`Enter the number 75000`) );
 }
 --*/
 --/*
@@ -4316,30 +4522,30 @@ Ihandle dlg, label1, input1, label2, input2, OK, Cancel
  
 function ok_cb(Ihandle self)
     if self=OK then
-        string in1 = IupGetAttribute(input1,"VALUE")
-        integer in2 = IupGetInt(input2,"VALUE")
-        string msg = sprintf("\"%s\" and %d",{in1,in2})
-        IupMessage("You entered",msg)
+        string in1 = IupGetAttribute(input1,`VALUE`)
+        integer in2 = IupGetInt(input2,`VALUE`)
+        string msg = sprintf(`"%s" and %d`,{in1,in2})
+        IupMessage(`You entered`,msg)
         -- (return IUP_CONTINUE if unhappy with input)
     end if
     return IUP_CLOSE
 end function
  
 IupOpen()
-label1 = IupLabel("Please enter a string")
-input1 = IupText("VALUE=\"a string\", EXPAND=HORIZONTAL")
-label2 = IupLabel("and the number 75000")
-input2 = IupText("VALUE=75000, EXPAND=HORIZONTAL")
-IupSetAttribute(input2,"MASK",IUP_MASK_INT)
-OK     = IupButton("OK", "ACTION", Icallback("ok_cb"))
-Cancel = IupButton("Cancel", "ACTION", Icallback("ok_cb"))
-dlg = IupDialog(IupVbox({IupHbox({label1,input1},"ALIGNMENT=ACENTER, PADDING=5"),
-                         IupHbox({label2,input2},"ALIGNMENT=ACENTER, PADDING=5"),
-                         IupHbox({IupFill(),OK,Cancel,IupFill()},"PADDING=15")},
-                        "GAP=5,MARGIN=5x5"))
-IupSetAttribute(dlg,"TITLE","User Input/Graphical")
+label1 = IupLabel(`Please enter a string`)
+input1 = IupText(`VALUE="a string", EXPAND=HORIZONTAL`)
+label2 = IupLabel(`and the number 75000`)
+input2 = IupText(`VALUE=75000, EXPAND=HORIZONTAL`)
+IupSetAttribute(input2,`MASK`,IUP_MASK_INT)
+OK     = IupButton(`OK`, `ACTION`, Icallback(`ok_cb`))
+Cancel = IupButton(`Cancel`, `ACTION`, Icallback(`ok_cb`))
+dlg = IupDialog(IupVbox({IupHbox({label1,input1},`ALIGNMENT=ACENTER, PADDING=5`),
+                         IupHbox({label2,input2},`ALIGNMENT=ACENTER, PADDING=5`),
+                         IupHbox({IupFill(),OK,Cancel,IupFill()},`PADDING=15`)},
+                        `GAP=5,MARGIN=5x5`))
+IupSetAttribute(dlg,`TITLE`,`User Input/Graphical`)
 IupCloseOnEscape(dlg)
-IupDestroy(IupNormalizer({OK,Cancel},"NORMALIZE=BOTH"))
+IupDestroy(IupNormalizer({OK,Cancel},`NORMALIZE=BOTH`))
 IupShow(dlg)
 IupMainLoop()
 IupClose()
@@ -4350,8 +4556,8 @@ IupClose()
 include pGUI.e
  
 IupOpen()
-Ihandle dlg = IupDialog(IupVbox({IupLabel("hello")},"MARGIN=200x200"))
-IupSetAttribute(dlg,"TITLE","Hello")
+Ihandle dlg = IupDialog(IupVbox({IupLabel(`hello`)},`MARGIN=200x200`))
+IupSetAttribute(dlg,`TITLE`,`Hello`)
 IupCloseOnEscape(dlg)
 IupShow(dlg)
 IupMainLoop()
@@ -4366,45 +4572,45 @@ include pGUI.e
 Ihandle dlg
  
 function doFull(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"FULLSCREEN","YES")
+    IupSetAttribute(dlg,`FULLSCREEN`,`YES`)
     return IUP_DEFAULT
 end function
  
 function doMax(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"PLACEMENT","MAXIMIZED")
+    IupSetAttribute(dlg,`PLACEMENT`,`MAXIMIZED`)
     -- this is a work-around to get the dialog minimised (on win platform)
-    IupSetAttribute(dlg,"VISIBLE","YES")
+    IupSetAttribute(dlg,`VISIBLE`,`YES`)
     return IUP_DEFAULT
 end function
  
 function doMin(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"PLACEMENT","MINIMIZED")
+    IupSetAttribute(dlg,`PLACEMENT`,`MINIMIZED`)
     -- this is a work-around to get the dialog minimised (on win platform)
-    IupSetAttribute(dlg,"VISIBLE","YES")
+    IupSetAttribute(dlg,`VISIBLE`,`YES`)
     return IUP_DEFAULT
 end function
  
 function doRestore(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"OPACITY","255")
-    IupSetAttribute(dlg,"FULLSCREEN","NO")
-    IupSetAttribute(dlg,"PLACEMENT","NORMAL")
-    IupSetAttribute(dlg,"VISIBLE","YES")
+    IupSetAttribute(dlg,`OPACITY`,`255`)
+    IupSetAttribute(dlg,`FULLSCREEN`,`NO`)
+    IupSetAttribute(dlg,`PLACEMENT`,`NORMAL`)
+    IupSetAttribute(dlg,`VISIBLE`,`YES`)
     return IUP_DEFAULT
 end function
  
 function doDim(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"OPACITY","60")
+    IupSetAttribute(dlg,`OPACITY`,`60`)
     return IUP_DEFAULT
 end function
  
 function doShow(Ihandle /!*ih*!/)
-    IupSetAttribute(dlg,"OPACITY","255")
+    IupSetAttribute(dlg,`OPACITY`,`255`)
     return IUP_DEFAULT
 end function
  
 function doMove(Ihandle /!*ih*!/)
-    integer {x,y} = IupGetIntInt(dlg,"SCREENPOSITION")
-    integer shift = iff(IupGetInt(NULL,"SHIFTKEY")?-10,+10)
+    integer {x,y} = IupGetIntInt(dlg,`SCREENPOSITION`)
+    integer shift = iff(IupGetInt(NULL,`SHIFTKEY`)?-10,+10)
     IupShowXY(dlg,x+shift,y+shift)
     return IUP_DEFAULT
 end function
@@ -4412,18 +4618,18 @@ end function
 procedure main()
     IupOpen()
  
-    Ihandle hbox = IupHbox({IupButton("restore",    Icallback("doRestore")),
-                            IupButton("full screen",Icallback("doFull")),
-                            IupButton("maximize",   Icallback("doMax")),
-                            IupButton("minimize",   Icallback("doMin")),
-                            IupButton("dim",        Icallback("doDim")),
-                            IupButton("show",       Icallback("doShow")),
-                            IupButton("move",       Icallback("doMove"))})
-    IupSetAttribute(hbox,"MARGIN", "10x10")
-    IupSetAttribute(hbox,"PADDING", "5x5")
+    Ihandle hbox = IupHbox({IupButton(`restore`,    Icallback(`doRestore`)),
+                            IupButton(`full screen`,Icallback(`doFull`)),
+                            IupButton(`maximize`,   Icallback(`doMax`)),
+                            IupButton(`minimize`,   Icallback(`doMin`)),
+                            IupButton(`dim`,        Icallback(`doDim`)),
+                            IupButton(`show`,       Icallback(`doShow`)),
+                            IupButton(`move`,       Icallback(`doMove`))})
+    IupSetAttribute(hbox,`MARGIN`, `10x10`)
+    IupSetAttribute(hbox,`PADDING`, `5x5`)
  
     dlg = IupDialog(hbox)
-    IupSetAttribute(dlg,"OPACITY","255")
+    IupSetAttribute(dlg,`OPACITY`,`255`)
     IupCloseOnEscape(dlg)
  
     IupShowXY(dlg,IUP_CENTER,IUP_CENTER)
@@ -4450,14 +4656,14 @@ main()
 --  end function
 --
 --  IupOpen()
---  Ihandle quit_bt = IupButton("Quit", "ACTION", Icallback("quit_cb")),
---          label = IupLabel("Hello World","EXPAND=YES, ALIGNMENT=ACENTER:ACENTER"),
---          vbox = IupVbox({label, quit_bt},"ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15"),
+--  Ihandle quit_bt = IupButton(`Quit`, `ACTION`, Icallback(`quit_cb`)),
+--          label = IupLabel(`Hello World`,`EXPAND=YES, ALIGNMENT=ACENTER:ACENTER`),
+--          vbox = IupVbox({label, quit_bt},`ALIGNMENT=ACENTER,MARGIN=10x10,GAP=15`),
 --          dlg = IupDialog(vbox,`TITLE="Dialog Title", SIZE=180x`)
---  IupSetAttributeHandle(dlg, "DEFAULTESC", quit_bt)
+--  IupSetAttributeHandle(dlg, `DEFAULTESC`, quit_bt)
 --*/
---?IupGetAttribute(dlg,"RASTERSIZE")
---IupSetAttribute(dlg,"RASTERSIZE",NULL)
+--?IupGetAttribute(dlg,`RASTERSIZE`)
+--IupSetAttribute(dlg,`RASTERSIZE`,NULL)
 
 /*
 Searching for: GUI
@@ -4745,3 +4951,67 @@ C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Strong_and_weak_primes.htm:391
 C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Thiele%27s_interpolation_formula.htm:1472 <pre class="text highlighted_source">constant N = 32,<br />         N2 = (N * (N - 1) / 2),<br />         STEP = 0.05<br />&#160;<br
 C:\Program Files (x86)\Phix\demo\rosetta\rc_cache\Tic-tac-toe.htm:1759 <pre class="text highlighted_source">sequence board = repeat(' ',9)  -- {' '/'X'/'O'}<br />&#160;<br />constant wins = {{1,2,3},{4,5
 */
+
+--/*
+--      if backend=TG_GTK then          \           if backend=TG_GTK then
+--          ...                          \              /*snip*/
+--      elsif backend=TG_WINAPI then      \         elsif backend=TG_WINAPI then   
+--          ...                            \            /*snip*/
+--      elsif backend=TG_JS then            \       elsif backend=TG_JS then
+--          --/*                             } ==>  
+--          <javascript>                    /           <javascript>
+--          --*/                           /        
+--      else                              /         else
+--          ?9/0                         /              ?9/0
+--      end if                          /           end if
+
+-- #JS{ ... } (using bracket-counting)
+--/*<javascript>
+--</javascript>*/
+
+-- (nb first if cannot be on first line) [FIXED]
+string input = `
+--
+-- demo\theGUI\theGUI.e
+-- ====================
+
+        if backend=TG_GTK then
+            ...
+        elsif backend=TG_WINAPI then
+            ...
+        elsif backend=TG_JS then
+            --/*
+            <javascript>
+            --*/
+        else
+            ?9/0
+        end if
+
+--      if backend=TG_GTK then(\n)      \           if backend=TG_GTK then(\n)
+--          ...(\n)                      \              /*snip*/(\n)
+--      elsif backend=TG_WINAPI then(\n)  \         elsif backend=TG_WINAPI then(\n)
+--          ...(\n)                        \            /*snip*/(\n)
+--      elsif backend=TG_JS then            \       elsif backend=TG_JS then(\n)
+--          --/*(\n)                         } ==>      //-](\n)
+--          <javascript>                    /           <javascript>
+--          --*/(\n)                       /            //[-(\n)
+--      else                              /         else
+--          ?9/0                         /              ?9/0
+--      end if                          /           end if
+
+`
+--input = `stuff`
+--/!*
+--input = get_text(`C:\Program Files (x86)\Phix\demo\theGUI\theGUI.e`)
+
+--integer tmp = match("\nlocal procedure tg_unit_tests()",input)
+--input = input[1..tmp-1]
+--*!/
+?length(input)
+
+input = clip_beeq(input)
+?jscode
+puts(1,input)
+?{`==>`,length(input)}
+
+--*/

@@ -188,6 +188,7 @@ local function getNode(integer node, object key, dflt, integer tid, bool nullify
 end function
 
 global function getd(object key, integer tid=1, bool nullify=false)
+    if nullify!=false and nullify!=true then ?9/0 end if
     check_tid(tid)
     return getNode(roots[tid], key, defaults[tid], tid, nullify)
 end function

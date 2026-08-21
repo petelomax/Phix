@@ -372,12 +372,7 @@ global integer no_oops          -- (should only be set for fatal calls)
                no_oops = 0      -- (currently only used when backpatching fwd calls,
                                 --  we should really be saving line numbers for that)
 
-with trace
-global procedure Abort(sequence msg)
--- error with source line
-sequence errline, txtline, fni
-integer lt, k, fn, sli, sfi
---trace(1)
+local procedure expandf()
     if equal(expandedYet[fileno],0) then
         text = allfiles[fileno]
         exptext[fileno] = expandIntoLines()
@@ -386,6 +381,15 @@ integer lt, k, fn, sli, sfi
     else
         linestarts = expandedYet[fileno]
     end if
+end procedure
+
+with trace
+global procedure Abort(sequence msg)
+-- error with source line
+sequence errline, txtline, fni
+integer lt, k, fn, sli, sfi
+--trace(1)
+    expandf()
 --?linestarts
 --?tokline
 --DEV bug:
@@ -558,8 +562,57 @@ sequence dbg = repeat(0,length(abort_set))
     Abort(msg)
 end procedure
 
-global procedure Duplicate()
-    Abort("Duplicate identifier: "&getname(ttidx,-2))
+global procedure Duplicate(integer N)
+    string see
+    if N then
+--/*
+global constant S_Name  = 1,    -- const/var/rtn name (now a ttidx number or -1)
+                S_NTyp  = 2,    -- Const/GVar/TVar/Nspc/Type/Func/Proc
+                S_FPno  = 3,    -- File and Path number
+                S_State = 4,    -- state flag. S_fwd/S_used/S_set etc
+                S_Nlink = 5,    -- name chain (see below)
+                S_Slink = 6,    -- scope/secondary chain (see below)
+                -- constants and variables [S_NTyp<=S_TVar]
+                S_vtype = 7,    -- variable type [see notes below]
+                S_value = 8,    -- value [see note below]
+                S_Clink = 9,    -- constant chain (S_NTyp=S_Const only, see below)
+                S_Tidx  = 9,    -- thread idx (S_NTyp=S_Tvar only) [BLUFF/DEV]
+                S_ErrV  = 10,   -- {'v', file, line, col}; see pmain.e[-35]
+--DEV not newEmit?:
+                S_ConstChain = 10,  -- see notes below (constant ref/count optimisations)
+                S_Init  = 11,   -- Initialised chain (known init if non-0/see S_Const note below)
+                S_ltype = 12,   -- local type (see pltype.e)
+                S_maxlv = 13,   -- last entry for var (see pltype.e)
+                S_gInfo = 14,   -- (see note below)
+                S_gNew  = 15,
+                -- namespaces
+                S_nFno  = 7,    -- namespace fileno [see note below]
+                -- routines [S_NTyp>=S_Type]
+                S_sig   = 7,    -- routine signature, eg {'F',T_integer} (nb S_sig must be = S_vtype)
+                S_Parm1 = 8,    -- first parameter. (idx to symtab, follow S_Slink)
+                S_ParmN = 9,    -- minimum no of parameters (max is length(S_sig)-1)
+                S_Ltot  = 10,   -- total no of parameters, locals, and temporary vars
+                                -- (needed to allocate the stack frame space)
+                S_il    = 11,   -- intermediate code (also backpatch list)
+                S_ltab  = 12,   -- line table
+                S_1stl  = 13,   -- first line (of "procedure"/"function"/"type" keyword)
+                S_Efct  = 14,   -- side effects
+                S_ErrR  = 15    -- {'R', file, line, col}; see pmain.e[-60]
+C:\Program Files (x86)\Phix\p2.exw:510
+sequence AST = {"Program",
+         ^ Duplicate identifier, see C:\Program Files (x86)\Phix\p2.exw: {48652,2,1,259,0,2736,12,0,0,10357,2573,12,0,0,0}
+
+--*/
+        integer edx = iff(symtab[N][S_NTyp]<=S_TVar?S_ErrV:S_ErrR)
+        integer s_err = symtab[N][edx]
+        expandf()
+        convertToLineColumn(s_err)
+--      see = sprintf(", see %s: %d",{currFile(),symtab[N][edx][3]})
+        see = sprintf(", see %s: %v",{currFile(),eLine})
+    else
+        see = ": "&getname(ttidx,-2)
+    end if
+    Abort("Duplicate identifier"&see)
 end procedure
 
 global procedure Expected(sequence str)

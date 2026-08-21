@@ -255,9 +255,10 @@ constant vm_names = {
                      {"pMem.e",     {"%opPeeki",
                                      "%opPeekNx",
 --                                  (:%opPokeNS)    (additional safety checks)
-                                     "%opPokeN",
-                                     "%opMemCopy",
-                                     "%opMemSet"}},
+                                     "%opPokeN"}},
+--                                   "%opPokeN",
+--                                   "%opMemCopy",
+--                                   "%opMemSet"}},
                      {"pMkSqN.e",   {"%pMkSq"}},
                      {"pTrig.e",    {"%opCos",
                                      "%opSin",

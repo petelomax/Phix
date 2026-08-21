@@ -1,0 +1,126 @@
+﻿--
+-- demo/rosetta/Roots_of_any_polynomial.exw
+-- ========================================
+--
+--  Disclaimer: use this code with extreme caution!
+--
+--{{trans|FreeBasic}}
+--requires(64,true)
+with javascript_semantics
+
+include complex.e
+
+function eval_poly(sequence coeffs, complex x) -- (Horner)
+    atom r = coeffs[1], i = 0, {xr,xi} = x
+    for c in coeffs from 2 do
+        {r,i} = {r*xr - i*xi + c, r*xi + i*xr}
+    end for
+    complex result = {r,i}
+    return result
+end function
+
+function find_roots(sequence coeffs)
+    --  Find all roots by Durand-Kerner (Weierstrass) iteration
+    integer degree = length(coeffs)-1, i, j, n = degree
+    if n<=0 then return {} end if
+    sequence roots = repeat(0,n)
+    atom lead = coeffs[1]
+    if n=1 then
+        if lead<>0 then
+            lead = -coeffs[2]/lead
+        end if
+        roots[1] = {lead,0}
+    else
+        -- normalized polynomial (leading coeff = 1)
+        sequence norm = sq_div(coeffs,lead)
+        for i=1 to n do
+            -- initial approximations on the unit circle
+            atom angle = 2*PI*(i-1+0.1)/n
+            roots[i] = {cos(angle),sin(angle)}
+        end for
+        integer iteration = 0
+        do
+            iteration += 1
+            atom change = 0 -- (max abs of)
+            for i,ori in deep_copy(roots) do
+                complex p_val = eval_poly(norm,ori), denom = {1,0}
+                for j=1 to n do
+                    if i <> j then
+                        complex diff = complex_sub(ori,roots[j])
+                        denom = complex_mul(denom, diff)
+                    end if
+                end for
+                atom denom_mag = complex_abs(denom)
+                if denom_mag>1e-200 then
+                    complex correction = complex_div(p_val,denom),
+                            new_root = complex_sub(ori,correction)
+                    correction = complex_sub(new_root,ori)
+                    change = max(change,complex_abs(correction))
+                    roots[i] = new_root
+                end if
+            end for
+        until change<1e-12 or iteration>1000
+    end if
+    return roots
+end function
+
+function poly_str(sequence coeffs)
+    --  Pretty-print a polynomial (coefficients highest-degree first)
+    string result = ""
+    bool bFirst = true
+    integer degree = length(coeffs)
+    for i,c in coeffs do
+        if c!=0 then
+            atom abs_coeff = abs(c)
+            result &= iff(bFirst?iff(c<0?"-":""):" "&"-++"[sign(c)+2]&" ")
+            if abs_coeff<>1 or degree-i=0 then result &= sprintf("%g",abs_coeff) end if
+            if degree-i>0 then
+                result &= "x"
+                if degree-i>1 then result &= sprintf("^%d",{degree-i}) end if
+            end if
+            bFirst = false
+        end if
+    end for
+    if result = "" then result = "0" end if
+    return result
+end function
+
+constant polys = {
+     -- linear
+     {1, 0}, {1, -1}, {1, 3.14159265},
+     -- Quadratic
+     {1, -1E9, 1}, {1, 0, 1}, {1, 2, 1}, {2, -1, -6}, {1, 2, -2}, {1, 3, 2},
+     {3, 4, 5}, {2, -1.00000001, 1E9}, {1E9, 1.23456789, -1E9},
+     -- Cubic
+     {1, -3, 3, -1}, {1, -4, -27, 90}, {1, 0, -3, -2}, {1, -14, 35, -22},
+     {1, -2.41421356, 2.41421356, -1},
+     -- Quartic
+     {3, 6 -123, -126, 1080}, {-20, 5, 17, -29, 87}, {2, 4, 6, 8, 10}, {1, 0, 0, 0, 0},
+     {1, 0, 0, 0, -1}, {1, 0, 0, 0, 1}, {1, 0, 5, 0, 4}, {1, -10, 35, -50, 24},
+     {1, -8, 24, -32, 16}, {1, -2, 2, -2, 1}, {3, -7, 2, 5, -1}, {1, -6, 15, -18, 10},
+     {1.2345, 12.345, 123.45, 1234.5, 12345}, {1, -3E8, 2E16, -6E7, 4E-2},
+     -- order 5 and up
+     {3, -6, -8, 5, -8, 7}, 
+     {-8, -4, 0, 8, -7, -7, 9},
+     {-8, 8, 5, 8, 5, -1, -3, 1},
+     {-5, 1, 4, 7, 0, -5, 1, 3, 3},
+     {3, 5, -1, 2, -9 -1, 4, 5, -7, -1},
+     {1,  55, 1320, 18150, 157773, 902055, 3416930, 8409500, 12753576, 10628640, 3628800},
+     -- Conway's constant
+     {1, 0, -1, -2, -1, 2, 2, 1, -1, -1, -1, -1, -1, 2, 5, 3, -2, -10, -3, -2, 6, 6, 1, 9, -3, 
+     -7, -8, -8, 10, 6, 8, -5, -12, 7, -7, 7, 1, -3, 10, 1, -6, -2, -10, -3, 2, 9, -3, 14, -8,
+      0, -7, 9, 3, -4, -10, -7, 12, 7, 2, -12, -4, -2, 5, 0, 1, -7, 7, -4, 12, -6, 3, -6},
+}
+for coeffs in polys do
+    printf(1,"%s\n",{poly_str(coeffs)})
+    for i,r in find_roots(coeffs) do
+        string rs = complex_sprint(r),      
+               es = complex_sprint(eval_poly(coeffs,r))
+        printf(1,"  Root %d: %s (Evaluates to %s)\n",{i,rs,es})
+    end for
+    printf(1,"\n")
+end for
+
+?"done"
+wait_key()
+

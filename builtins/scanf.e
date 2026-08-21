@@ -101,7 +101,7 @@ sequence res = {}
                 case 'd':               ftyp = DECIMAL
                 case 'b':               ftyp = BINARY
                 case 'o':               ftyp = OCTAL
-                case 't':               ftyp = OCTAL
+--              case 't':               ftyp = OCTAL -- not Phix!
                 case 'x':               ftyp = HEXADEC
                 case 'f','g','e':       ftyp = ATOM
                 case 'r':               ftyp = iff(scan_ch='R'?ROMAN:ROMAL)
@@ -163,7 +163,7 @@ integer scan_ch
 
 --NB code from ptok.e relies on there being a \n at the end.
 
-function completeFloat(string s, integer sidx, atom N, integer msign)
+function completeFloat(string s, integer sidx, atom N, integer msign, inbase=10)
 integer tokvalid
 atom dec
 integer exponent
@@ -180,11 +180,20 @@ atom fraction
             if sidx>length(s) then exit end if
             scan_ch = s[sidx]
             if scan_ch!='_' then
-                if scan_ch<'0' or scan_ch>'9' then exit end if
+-- Erm:
+--/*
+                if base<=36 and scan_ch>'Z' then scan_ch = upper(scan_ch) end if
+                scan_ch2 = baseset[scan_ch]
+                if scan_ch2>=base then exit end if  
+--*/
+--              if scan_ch<'0' or scan_ch>'9' then exit end if
+                if scan_ch<'0' or scan_ch>'0'+inbase-1 then exit end if
 --27/10/15
 --              N += (scan_ch-'0') / dec
-                fraction = fraction*10 + (scan_ch-'0')
-                dec *= 10
+--              fraction = fraction*10 + (scan_ch-'0')
+                fraction = fraction*inbase + (scan_ch-'0')
+--              dec *= 10
+                dec *= inbase
                 tokvalid = 1
             end if
             sidx += 1
@@ -202,6 +211,8 @@ atom fraction
             sidx += 1
             if sidx>length(s) then exit end if
             scan_ch = s[sidx]
+-- as above.. plus: in base 2, is "e10" 10^10 (as it stands) or 10^2 or 2^10 or 2^2?...
+--                      - methinks the latter, but let's wait for an actual use case...
             if scan_ch<'0' or scan_ch>'9' then
                 if scan_ch!='_' then
                     if tokvalid=1 then exit end if -- ie first time round only
@@ -390,7 +401,8 @@ integer msign, base = 0, tokvalid = 1
             end if
             if scan_ch2!='.'                            -- fraction but not ellipse
             or (scan_ch='e' or scan_ch='E') then                -- exponent ahead
-                return completeFloat(s,sidx,N,msign)
+--              return completeFloat(s,sidx,N,msign)
+                return completeFloat(s,sidx,N,msign,base)
             end if
             sidx -= 1
         elsif tokvalid=0 then   -- eg "0b" or "0(16)", ie no actual digits
@@ -404,7 +416,8 @@ integer msign, base = 0, tokvalid = 1
         if scan_ch>='0' and scan_ch<='9' then -- ".4" is a number
 --          sidx -= 1
             scan_ch = '.'
-            return completeFloat(s,sidx,0,msign)
+--          return completeFloat(s,sidx,0,msign)
+            return completeFloat(s,sidx,0,msign,base)
         end if
         return {}
     elsif scan_ch='#' then

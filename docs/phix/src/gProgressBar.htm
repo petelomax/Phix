@@ -17,7 +17,7 @@
             <br>
             <br>
             <a href>gdx</a> id = gProgressBar(<a href>string</a> attributes="", 
-                                                        <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+                                              <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
          </td>
         </tr>
         <tr>
@@ -25,7 +25,8 @@
           <b>Description:</b>
          </td>
          <td>
-            Creates a progress bar control. Shows a percent value that can be updated to simulate a progression.
+            Creates a progress bar control, with a drifting stripe pattern which grows from nothing to full width, at
+            which point it becomes a solid green bar, and at all times displaying a completion percentage (to 2dp).
             <br>
             <br>
             For more information on the attributes and args parameters see <a href>gSetAttributes</a>().
@@ -42,17 +43,6 @@
           Supported.
          </td>
         </tr>
-<!--
-        <tr>
-         <td>
-          <b>See Also:</b>
-         </td>
-         <td>
-          <a href>IupGLProgressBar</a>,
-          <a href>IupGauge</a>
-         </td>
-        </tr>
--->
         <tr>
          <td>
           <b>Example:</b>
@@ -63,46 +53,46 @@
 <!--eucode>
 -- demo\theGUI\gProgress.exw
 include theGUI.e
-gdx pbar
-atom f = 0
 
-procedure action(gdx timer)
-    f += 0.1
-    gSetAttribute(pbar,"VALUE",f)
-    if f>=1 then
-        gSetAttribute(timer,"RUN",false)
+procedure tick(gdx timer)
+    gdx pbar = gGetAttribute(timer,`USER_DATA`)
+    atom v = gGetAttribute(pbar,`VALUE`)
+    v += 1.23
+    hSetAttribute(pbar,`VALUE`,v)
+    if v>=100 then
+        gSetAttribute(timer,`RUN`,false)
     end if
 end procedure
 
-pbar = gProgressBar()
-gdx hbox = gHbox({pbar},"MARGIN=9x9"),
-    dlg = gDialog(hbox,"gProgressBar",`SIZE=240x80`),
-    timer = gTimer(action,1000,true)
+gdx pbar = hProgressBar(),
+    hbox = gHbox({pbar},`MARGIN=10,SPACE=AROUND`),
+    dlg = gDialog(hbox,`gProgress`,`SIZE=240x80`),
+    timer = gTimer(tick,100,true,pbar)
 gMainLoop(dlg)
 </eucode-->
 <pre>
 <font color="#000080"><i>-- demo\theGUI\gProgress.exw</i></font>
-<font color="#008080">include</font><font color="#000000"> theGUI.e</font>
-<font color="#7060A8">gdx</font><font color="#000000"> pbar</font>
-<font color="#004080">atom</font><font color="#000000"> f</font><font color="#0000FF"> =</font><font color="#000000"> 0
+<font color="#008080">include</font><font color="#000000"> theGUI.e
 </font>
-<font color="#008080">procedure</font><font color="#000000"> action</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> timer</font><font color="#0000FF">)</font>
-<font color="#000000">    f</font><font color="#0000FF"> +=</font><font color="#000000"> 0.1</font>
-<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">pbar</font><font color="#0000FF">,</font><font color="#008000">"VALUE"</font><font color="#0000FF">,</font><font color="#000000">f</font><font color="#0000FF">)</font>
-<font color="#008080">    if</font><font color="#000000"> f</font><font color="#0000FF">&gt;=</font><font color="#000000">1</font><font color="#008080"> then</font>
-<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">timer</font><font color="#0000FF">,</font><font color="#008000">"RUN"</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font>
+<font color="#008080">procedure</font><font color="#000000"> tick</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> timer</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gdx</font><font color="#000000"> pbar</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">timer</font><font color="#0000FF">,</font><font color="#008000">`USER_DATA`</font><font color="#0000FF">)</font>
+<font color="#004080">    atom</font><font color="#000000"> v</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">pbar</font><font color="#0000FF">,</font><font color="#008000">`VALUE`</font><font color="#0000FF">)</font>
+<font color="#000000">    v</font><font color="#0000FF"> +=</font><font color="#000000"> 1.23
+    hSetAttribute</font><font color="#0000FF">(</font><font color="#000000">pbar</font><font color="#0000FF">,</font><font color="#008000">`VALUE`</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> v</font><font color="#0000FF">&gt;=</font><font color="#000000">100</font><font color="#008080"> then</font>
+<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">timer</font><font color="#0000FF">,</font><font color="#008000">`RUN`</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font>
 <font color="#008080">    end if
 end procedure
 </font>
-<font color="#000000">pbar</font><font color="#0000FF"> =</font><font color="#7060A8"> gProgressBar</font><font color="#0000FF">()</font>
-<font color="#7060A8">gdx</font><font color="#000000"> hbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">pbar</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=9x9"</font><font color="#0000FF">),</font>
-<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">hbox</font><font color="#0000FF">,</font><font color="#008000">"gProgressBar"</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">),</font>
-<font color="#000000">    timer</font><font color="#0000FF"> =</font><font color="#7060A8"> gTimer</font><font color="#0000FF">(</font><font color="#000000">action</font><font color="#0000FF">,</font><font color="#000000">1000</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> pbar</font><font color="#0000FF"> =</font><font color="#000000"> hProgressBar</font><font color="#0000FF">(),</font>
+<font color="#000000">    hbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">pbar</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">`MARGIN=10,SPACE=AROUND`</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">hbox</font><font color="#0000FF">,</font><font color="#008000">`gProgress`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">),</font>
+<font color="#000000">    timer</font><font color="#0000FF"> =</font><font color="#7060A8"> gTimer</font><font color="#0000FF">(</font><font color="#000000">tick</font><font color="#0000FF">,</font><font color="#000000">100</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">pbar</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 </pre>
             </small>
           </div>
-          <img alt="gProgressBar" style="float:right;" src="images/gProgressBar.png" width="240" height="80"/>
+          <img src="images/gProgressBar.png" alt="gProgressBar" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
          </td>
         </tr>
@@ -111,21 +101,14 @@ end procedure
           <b>Notes:</b>
          </td>
          <td>
-<!--
-//          It is similar of <a href>IupGauge</a>, but uses native controls internally. Also does not have support for text inside the bar.
+            Implemented in pure hll <small> - see hProgressBar.exw if desperately curious.</small><br>
+            An internal timer is used to update the display every 0.1s, which keeps the stripes drifting, and means there is no need to
+            (nor much harm in) <a href>gRedraw</a>(<i>progress_bar</i>) after setting an updated <a href="#VALUE">VALUE</a>.<br>
+            Typically an application using a progress bar will have a different independent timer, or be using an idle process.<br>
+            By default it assumes the state value lies between 0 and 100, but you can also specify a range and any value within that.
+            Note it is my choice above to stash the progress bar id in the timer&apos;s <a href>USER_DATA</a>, not compulsory.<br>
+            Should no <a href>SIZE</a> be provided, it expands to the container width, less any margins, and is 24 pixels high.
             <br>
-            <br>
--->
-            This is implemented using the native controls, with all the quirks, limitations, weirdness, hiccups, and gotchas that entails. It should 
-            not be even the slightest bit difficult to create a <a href>gCanvas</a>() of the desired size and draw exactly as wanted,
-            that is, should this control not meet your needs or expectations. For instance I would struggle to convince the native controls to
-            display "20%", let alone consistently between backends and at which of the 40-ish places I can immediately think of (l/m/r * in/out * 
-            t/m/b * in/out + moving). Admittedly Windows has a distinctive rolling gradient that might be fairly hard to replicate, but I&apos;m 
-            not really convinced I like that anyway. Obviuously there is nothing to stop you putting such text <i>next</i> to a progress bar, rather 
-            than inside it, to keep things simple.
-            <br>
-            <br>
-            Some examples can be seen in demo\theGUI\sample.exw
          </td>
          <td>
          </td>
@@ -135,64 +118,6 @@ end procedure
           <b>Attributes:</b>
          </td>
          <td>
-          <br><a name=MIN></a><a name=MAX></a>
-         </td>
-        </tr>
-<!--
-//      <tr>
-//       <td>
-//?       DASHED
-//       </td>
-//       <td>
-//          (creation only in Windows) [Windows and GTK only] Changes the style of the progress bar for a dashed pattern. Default is "NO".
-//       </td>
-//      </tr>
--->
-<!--
-//      <tr>
-//       <td>
-//        MARQUEE
-//       </td>
-//       <td>
-//          (creation) displays an undefined state. Default: NO. You can set the attribute after map but only to start or stop the animation. In Windows it will work only if using Visual Styles.
-//       </td>
-//      </tr>
--->
-        <tr>
-         <td>
-          MIN,<br>
-          MAX
-         </td>
-         <td>
-            (non inheritable) Contain the minimum and maximum value. Defaults are 0 and 1.<br>
-            The control display is not updated, must set the <a href="#VALUE">VALUE</a> attribute to update.<br>
-            There are also <a href>MNZ</a> and <a href>RST</a> attributes on a
-            <a href>gDialog</a>, and the <a href="min.htm">min</a>() and <a href="min.htm">max</a>() 
-            builtins, were you looking for them.
-          <br><a name=ORIENTATION></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          ORIENTATION
-         </td>
-         <td>
-            (creation only) can be "VERTICAL" or "HORIZONTAL". Default: "HORIZONTAL". <br>
-            Horizontal goes from left to right, and vertical from bottom to top.
-            <br>
-            <br>
-            Also present on <a href>gBox</a> and <a href="gSlider.htm#ORIENTATION">gSlider</a>, 
-            in case you were looking for those.
-          <br><a name=SIZE></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          <a href>SIZE</a>
-         </td>
-         <td>
-            The initial size is defined as "200x30", or "30x200" if vertical. 
-            <!--Set to <a href>NULL</a> to allow the use of smaller values in the layout computation.-->
           <br><a name=VALUE></a>
          </td>
         </tr>
@@ -201,7 +126,10 @@ end procedure
           <a href>VALUE</a>
          </td>
          <td>
-            (non inheritable) Contains a number between "MIN" and "MAX", controlling the current position.
+            (non inheritable) Can be set [initially] as {value,limit[,start[,run]]}, defaults to {0,100,0,true}.
+            The value is a number between start and limit, controlling the current position / percentage complete.
+            Setting to any value &lt; length 4 automatically reactivates the internal timer, which automatically
+            deactivates after displaying a value &gt;= limit.
          </td>
         </tr>
         <tr>
@@ -212,11 +140,11 @@ end procedure
             <a href>ACTIVE</a>, 
             <a href>EXPAND</a>, 
             <a href>FONT</a>, 
-            <a href>MARGIN</a>, 
+            <a href>MARGIN</a>,
             <a href>MINSIZE</a>,
             <a href>MAXSIZE</a>,
             <a href>TIP</a>, 
-<!--            <a href>SIZE</a>,-->
+            <a href>SIZE</a>,
             <a href>VISIBLE</a>. 
          </td>
         </tr>

@@ -279,7 +279,9 @@ struct _TEST {
     } u;
 } TEST, *PTEST;
 """
-check(test9,{"TEST",16,16,{{"u.i","u.f","u.s.u","u.s.d"},{{"int",4,0,1},{"float",4,0,1},{"uint",4,0,0},{"double",8,8,1}}}})
+--28/3/26 I assume this was wrong all along (align to largest align not largest item):
+--check(test9,{"TEST",16,16,{{"u.i","u.f","u.s.u","u.s.d"},{{"int",4,0,1},{"float",4,0,1},{"uint",4,0,0},{"double",8,8,1}}}})
+check(test9,{"TEST",16,8,{{"u.i","u.f","u.s.u","u.s.d"},{{"int",4,0,1},{"float",4,0,1},{"uint",4,0,0},{"double",8,8,1}}}})
 
 --constant structx = """
 --typedef struct x {
@@ -335,6 +337,46 @@ LONG WINAPI RegOpenKeyEx(
 if 1 then
     if define_cffi_func("Advapi32.dll",testROK,32)<=0 then ?9/0 end if
 end if
+
+constant idA = define_struct(`typedef struct A {
+                                char c;
+                                int i;
+                              };`)
+
+constant idB = define_struct(`#pragma pack(1)
+                              typedef struct A {
+                                char c;
+                                int i;
+                              };`)
+
+assert(get_struct_size(idA)=8)
+assert(get_struct_size(idB)=5)
+
+constant idInner = define_struct(`typedef struct Inner {
+                                    char c;
+                                    int i;
+                                  };`)
+
+constant idOuter = define_struct(`typedef struct Outer {
+                                    char x;
+                                    struct Inner y;
+                                  };`)
+
+assert(get_struct_size(idOuter)=12)
+assert(get_struct_field_addr(idOuter,0,`y`)=4)
+
+constant idS = define_struct(`typedef struct S {
+                                int a;
+                                char b;
+                              };`)
+
+constant idS2 = define_struct(`typedef struct S2 {
+                                S array[2];
+                              };`)
+
+assert(get_struct_size(idS)=8)
+assert(get_struct_size(idS2)=16)
+
 
 --constant test = "struct x{char *ps; short s;} "
 --?define_struct(test,32,0)

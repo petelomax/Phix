@@ -28,6 +28,7 @@
 -- TODO:
 --  check/add tests (t24slice) for eg 'x[1][2.2..5.9] = expr' giving the same results as 'x[1][2..5] = expr'.
 --  lots of tests in terror
+without debug
 
 include builtins\VM\pHeap.e     -- :%pDealloc, :%pAllocStr, :%pAllocSeq
 

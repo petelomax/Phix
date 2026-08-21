@@ -1,0 +1,37 @@
+--
+-- demo\rosetta\AnimatedSnail.exw
+-- ==============================
+--
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant title = "Animated snail"
+
+atom rot_y = 0
+
+procedure redraw(gdx canvas, integer w, h)
+   rot_y = mod(rot_y+10,360)
+   atom cos_y = cos(rot_y*TG_DEG2RAD),
+        sin_y = sin(rot_y*TG_DEG2RAD)
+   for th=180 to 1800 by 3 do
+      atom r = th / 180,
+         cth = cos(th*TG_DEG2RAD),
+         sth = sin(th*TG_DEG2RAD),
+         clr = rgba(sth*40,cth*40,0.7*255),
+           x = r * cth * cos_y + (r - 5) * sin_y,
+           y = r * sth
+     gDrawCircle(canvas,w/2+x*20,h/2+y*20,2,true,clr)
+   end for
+end procedure
+
+procedure action(gdx timer)
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(canvas)
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=BLACK"),
+    dialog = gDialog(canvas,title,"SIZE=800x600"),
+    timer = gTimer(action,200,user_data:=canvas)
+gMainLoop(dialog)
+

@@ -118,8 +118,9 @@ function opentechsometimes() {
         frag === "psum" ||
         frag === "GTK4" ||
         frag === "All" ||
-        frag === "Alle" ||
+        frag === "AllEP" ||
         frag === "hFake" ||
+        frag === "MX_XXX" ||
         frag === "hImages") {
       changeImageT(true);
     }

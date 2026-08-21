@@ -31,7 +31,7 @@
             Creates a checkbox interface element, also known as a toggle. It is a two-state (on/off) button.
             <br>
             <br>
-            title: Text to be shown, can be <a href>NULL</a>. Sets the <a href>TITLE</a> attribute.<br>
+            title: Text to be shown, can be <a href>NULL</a>, or {title,<a href>TG_W</a>[,<a href>TG_E</a>]}. Sets the <a href>TITLE</a> attribute.<br>
             value_changed: an (optional) procedure invoked when toggled, see <a href="#VALUE_CHANGED">VALUE_CHANGED</a> below.<br>
             For more information on the attributes and args parameters see <a href>gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
@@ -95,7 +95,7 @@ gMainLoop(dlg)
 </pre>
             </small>
           </div>
-          <img alt="gCheckbox" style="float:right;" src="images/gCheckbox.png" width="240" height="80"/>
+          <img src="images/gCheckbox.png" alt="gCheckbox" style="float:right;" width="240" height="80"/>
          </td>
         </tr>
         <tr>
@@ -112,8 +112,24 @@ gMainLoop(dlg)
             Checkboxes are activated/toggled using the Space key, or by being clicked.
             <br>
             <br>
-            Since GTK offers no obvious facility for checkboxes to the right of the text, said feature of WinAPI is <i>not</i> exposed, 
-            and all I can suggest is emulating that with something like <code>gHbox({gLabel(txt),gCheckbox("")})</code>.
+            TITLE may also be in the form {title,<a href>TG_W</a>[,<a href>TG_E</a>]}, similar to <a href>gLabel</a> but four-way with the check icon:<br>
+            <br>
+            <div style="padding: 0 0 0 25px;"><img src="images/gCheckAlign.png" alt="gCheckAlign" width="258" height="112"/></div>
+
+            <br>Left/right padding may become much more significant when a checkbox is part of a <a href>gNormalise</a>()&apos;d group.<br>
+            Multi-line checkboxes, ie any embedded '\n' in text, are expressly prohibited.
+
+<!--
+            See the custom F1 help popup in gCheckbox.exw for a clear as day visualisation that I&apos;m struggling to put into words.
+            title[2]==TG_W triggers (txt,icon) vs. (icon,txt), with title[3]==TG_E keeping the pair left-aligned/right-padded. <br>
+            Left/right padding may become much more significant when a checkbox is part of a <a href>gNormalise</a>()&apos;d group.<br>
+            Technically {title,<a href>TG_E</a>[,<a href>TG_E</a>]} is also valid, but the same as a plain title anyway, ie the title
+            is to the right of the icon and the pair left-aligned within <a href>SIZE</a>, 
+            {title,<a href>TG_E</a>,<a href>TG_W</a>} shunts the (icon,txt) pair right/makes it left-padded, and
+            {title,<a href>TG_W</a>} acts the same as {title,<a href>TG_W</a>,<a href>TG_W</a>}, ie the title is to the left of the icon
+            and the pair right-aligned within <a href>SIZE</a>. 
+            No values other than <a href>TG_E</a> or <a href>TG_W</a> are permitted in (a non-string) title[2..3].
+-->
 <!--
 //          <br>
 //          <br>
@@ -134,23 +150,30 @@ gMainLoop(dlg)
             Note that radio groups (and checkboxes) are <a href="gMenu.htm#menuchk">handled quite differently on menus</a>.
             <br>
             <br>
+<!--
             Should a dialog contain more than one radio group, be aware the first element of ids and the tab order of the dialog determine 
             radio groups under WinAPI, whereas they are more explicitly managed under GTK and JavaScript. 
+-->
             A toggle cannot be part of more than one radio group. 
             <br><a name=gRadioItem></a>
             <br>
-            Use <a href>gdx</a> selected = <b>gRadioItem</b>(<a href>gdx</a> id), where id is any element of ids, 
-            to obtain the currently selected radio button from that group, 0 if none, or -1 if it is not part of any radio group.
-<br>
+            Use <a href>gdx</a> selected = <b>gRadioItem</b>(<a href>gdx</a> ids), where ids is any element or all or subset of the
+            ids as passed to a previous gRadio() call, to obtain the currently selected radio button from that group.
+<!--, 0 if none, or -1 if it is not part of any radio group.
 DEV<br>
             Note that within a <a href="#VALUE_CHANGED">VALUE_CHANGED</a> handler, where it is not really needed anyway, under WinAPI 
             it returns the previous (off) selection, whereas under GTK and JavaScript [DEV testme] it gets the id of the latest (on).
             Also note that results from gRadioItem() before the dialog has been mapped/displayed are officially undefined/unsupported.
+-->
             <br>
             <br>
+            You would normally set a default explicitly, via the <a href="#VALUE">VALUE</a> attribute as normal, except it is illegal to
+            set a radio group toggle off, and gRadio panics should more than one of ids have it true, if none ids[1] gets the honour.
+<!--
             You would normally set a default explicitly, otherwise different backends <i>may</i> default differently, and otherwise the 
             <a href="#VALUE">VALUE</a> attribute may be used as normal, except it is illegal to set a radio group toggle off, and that 
             any multiple pre-mapping ons would be applied in mapping rather than chronological order.
+-->
             <!--, and while you can set a <i>single</i> toggle on as a default, 
             attempting to then alter that <i>before</i> mapping/display would most likely a) elude some special magic in the backend since
             that hasn&apos;t kicked in yet, eg leaving two items selected, <i>and</i> b) flip some valid internal "todo" entry into an 
@@ -170,7 +193,7 @@ include theGUI.e
 
 procedure radio_changed(gdx toggle, bool bState)
     string title = gGetAttribute(toggle,"TITLE")
-    printf(1,"toggle(%s), state:%t\n",{title,bState})
+    gSetAttribute(gGetDialog(toggle),`TITLE`,title)
 end procedure
 
 string yattr = `VALUE=ON, FONT="Arial, italic 9"`
@@ -190,7 +213,7 @@ gMainLoop(dlg)
 </font>
 <font color="#008080">procedure</font><font color="#000000"> radio_changed</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> toggle</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> bState</font><font color="#0000FF">)</font>
 <font color="#004080">    string</font><font color="#000000"> title</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">toggle</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">)</font>
-<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"toggle(%s), state:%t\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">title</font><font color="#0000FF">,</font><font color="#000000">bState</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gSetAttribute</font><font color="#0000FF">(</font><font color="#7060A8">gGetDialog</font><font color="#800000">(</font><font color="#000000">toggle</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">`TITLE`</font><font color="#0000FF">,</font><font color="#000000">title</font><font color="#0000FF">)</font>
 <font color="#008080">end procedure
 </font>
 <font color="#004080">string</font><font color="#000000"> yattr</font><font color="#0000FF"> =</font><font color="#008000"> `VALUE=ON, FONT="Arial, italic 9"`</font>
@@ -206,7 +229,7 @@ gMainLoop(dlg)
 </pre>
             </small>
           </div>
-          <img alt="gRadio" style="float:right;" src="images/gRadio.png" width="240" height="80"/>
+          <img src="images/gRadio.png" alt="gRadio" style="float:right;" width="240" height="80"/>
          </td>
         </tr>
         <tr>
@@ -332,6 +355,7 @@ gMainLoop(dlg)
             <a href>CANFOCUS</a>, 
             <a href>FONT</a>, 
             <a href>EXPAND</a>, 
+            <a href>MARGIN</a>,
 <!--            <a href>MINSIZE</a>, -->
 <!--            <a href>MAXSIZE</a>,-->
             <a href>TIP</a>, 
@@ -345,7 +369,7 @@ gMainLoop(dlg)
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(checkbox,"VALUE_CHANGED",value_changed), or specify value_changed at creation time
+            (optional) Specified at creation time or set using <a href>gSetHandler</a>(checkbox,"VALUE_CHANGED",value_changed).
           <br><a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -378,12 +402,12 @@ gMainLoop(dlg)
             <br>
             <br>
             procedure value_changed([<a href>gdx</a> id][, ][<a href>bool</a> bChecked])<br>
-            id: (semi-optional) identifier of the element that activated the event.<br>
-            bChecked: (semi-optional) <a href>true</a>(1) if the toggle&apos;s state is on,
-                                     <a href>false</a>(0) if it is off.
+            id: (optional) identifier of the element that activated the event.<br>
+            bChecked: (optional) <a href>true</a>(1) if the toggle&apos;s state is on,
+                                 <a href>false</a>(0) if it is off.
             <br>
             <br>
-            At least one of id or bChecked must be present: the single-arg case is construed/invoked as:<br>
+            When only one of id or bChecked is present, that single argument is construed/invoked as:<br>
             value_changed(gdx id) when id is a member of a gRadio group (so bChecked would always be true), otherwise<br>
             value_changed(bool bChecked), on the assumption the handler only ever deals with just the one id.<br>
             Note the 1-arg case doesn&apos;t <small><i>helpfully-</i></small>typecheck, but you can/shd panic yourself when id=0 or bChecked>1.
@@ -480,24 +504,24 @@ gMainLoop(dlg)
             <div style="display:flex;">
             Win11:
              <div style="display:flex; flex-direction:column; alirgn-items:center;">
-              <img alt="gCheckbox on Windows 11" style="padding-left:10px;" src="images/gCheckboxWin11.png" width="110" height="21"/>
-              <img alt="gCheckbox on Windows 11 checked with focus" style="padding-left:10px;" src="images/gCheckboxWin11cf.png" width="225" height="21"/>
+              <img src="images/gCheckboxWin11.png" alt="gCheckbox on Windows 11" style="padding-left:10px;" width="110" height="21"/>
+              <img src="images/gCheckboxWin11cf.png" alt="gCheckbox on Windows 11 checked with focus" style="padding-left:10px;" width="225" height="21"/>
              </div>
             </div>
             <br>
             <div style="display:flex;">
             GTK2:
              <div style="display:flex; flex-direction:column; align-items:center;">
-              <img alt="gCheckbox on GTK2" style="padding-left:10px;" src="images/gCheckboxGTK2.png" width="113" height="21"/>
-              <img alt="gCheckbox on GTK2 checked with focus" style="padding-left:10px;" src="images/gCheckboxGTK2cf.png" width="113" height="21"/>
+              <img src="images/gCheckboxGTK2.png" alt="gCheckbox on GTK2" style="padding-left:10px;" width="113" height="21"/>
+              <img src="images/gCheckboxGTK2cf.png" alt="gCheckbox on GTK2 checked with focus" style="padding-left:10px;" width="113" height="21"/>
              </div>
             </div>
             <br>
             <div style="display:flex;">
             GTK3:
              <div style="display:flex; flex-direction:column; align-items:center;">
-              <img alt="gCheckbox on GTK3" style="padding-left:10px;" src="images/gCheckboxGTK3.png" width="116" height="20"/>
-              <img alt="gCheckbox on GTK3 checked with focus" style="padding-left:10px;" src="images/gCheckboxGTK3cf.png" width="118" height="22"/>
+              <img src="images/gCheckboxGTK3.png" alt="gCheckbox on GTK3" style="padding-left:10px;" width="116" height="20"/>
+              <img src="images/gCheckboxGTK3cf.png" alt="gCheckbox on GTK3 checked with focus" style="padding-left:10px;" width="118" height="22"/>
              </div>
             </div>
             <br>
@@ -506,6 +530,7 @@ gMainLoop(dlg)
             GTK3 reports a size of 116x20, when it actually needs to be 118x22 to include the focus box.<br>
             I went hybrid, as right: Win11 checks, GTK2 size, including a 2px border round a GTK3-ish focus box.<br>
             GTK2 has a really gaudy hover-effect, whereas WinAPI/GTK3 a ludicrously subtle one, so I went with none.<br>
+            (I also forewent the pointless and silly GTK3 trick of hiding the accelerator (<u>h</u>) when the checkbox is ticked.)<br>
             Ditto gRadio. <small>I&apos;ll note my Win11 native attempt refused to tab between controls after selection, for reasons unknown.</small>
             <br>
          </td>

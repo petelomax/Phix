@@ -339,7 +339,7 @@ constant
          mov_mem32_eax  =  #A3,         -- 0o243 m32                -- mov [m32],eax
          mov_al_imm8    =  #B0,         -- 0o260 imm8               -- mov al,imm8
          mov_eax_imm32  =  #B8,         -- 0o270 imm32              -- mov eax,imm32
---       mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
+         mov_ecx_imm32  =  #B9,         -- 0o271 imm32              -- mov ecx,imm32
          mov_edx_imm32  =  #BA,         -- 0o272 imm32              -- mov edx,imm32
 --       mov_ebx_imm32  =  #BB,         -- 0o273 imm32              -- mov ebx,imm32
 --       mov_esi_imm32  =  #BE,         -- 0o276 imm32              -- mov esi,imm32
@@ -1826,6 +1826,13 @@ sequence bj, bj1, bjz, pdone
                     end if
                     cidx = bjz[2]
 --                  if symtab[rtn][S_il][cidx]!=-9 then ?9/0 end if
+                    -- 20/4/26: (binary_index missing from psym.e)
+                    if atom(symtab[rtn][S_il]) then
+                        fileno = bj1[2]
+                        tokcol = bjz[1]
+                        no_oops = 1
+                        Aborc("Fatal error backpatching forward call (undefined?)") 
+                    end if
                     if symtab[rtn][S_il][cidx]!=-9 then Aborc("?9/0") end if
 --object dbg = symtab[rtn]  --{-1,8,1,2304,0,0,"P",0,0,0,0,0,1,0}
 --                  if symtab[rtn][S_il][cidx]!=-9 then Aborc("uh?") end if
@@ -10339,7 +10346,24 @@ if rep!=ecx then
                 if slroot2=T_integer and smin2=smax2 then
 --                  if tmpd!=src2 then ?9/0 end if
 --                  emitHex5w(mov_ecx_imm32,smin2)      -- mov ecx,imm32
-                    movRegImm32(ecx,smin2)              -- mov ecx,imm32
+-- 30/5/26 (ctrl_set_attr[CANVAS] = tg_set_canvas_attribute)
+--                  if newEmit and and_bits(state1,K_rtn) then
+                    if newEmit and and_bits(state2,K_rtn) then
+                        if X64 then
+                            xrm = 0o300+ecx
+                            emitHex3l(#48,mov_regimm32,xrm) -- #48 0o307 0o301 imm32        -- mov rcx,imm32
+                        else
+                            emitHex1(mov_ecx_imm32)         -- mov ecx,imm32
+                        end if
+                        if q86>1 then
+                            ?9/0
+--                          quad2(isVno,smin2)
+                        else
+                            x86 &= {isVno,0,0,smin2}
+                        end if
+                    else
+                        movRegImm32(ecx,smin2)              -- mov ecx,imm32
+                    end if
                 else
                     loadToReg(ecx, src2)                -- mov ecx,[src2]       ; rep
                 end if
@@ -13484,14 +13508,15 @@ end if
             end if
 
         elsif opcode=opOpen
-           or opcode=opSeek
-           or opcode=opMemCopy
-           or opcode=opMemSet then
+           or opcode=opSeek then
+--         or opcode=opSeek
+--         or opcode=opMemCopy
+--         or opcode=opMemSet then
 --if isGscan then
-            if opcode=opMemCopy
-            or opcode=opMemSet then
-                -- do nowt, other than pc+=4 below
-            else
+--          if opcode=opMemCopy
+--          or opcode=opMemSet then
+--              -- do nowt, other than pc+=4 below
+--          else
                 dest = s5[pc+1]
                 getDest()
                 slroot = T_integer
@@ -13508,27 +13533,28 @@ end if
                 end if
                 sltype = slroot
                 storeDest()
-            end if
+--          end if
             --else
             if not isGscan then
                 dest = s5[pc+1] -- result (except for memcopy/set)
                 src = s5[pc+2]
                 src2 = s5[pc+3]
                 markConstUseds({dest,src,src2})
-                if opcode=opOpen
-                or opcode=opSeek then
+--              if opcode=opOpen
+--              or opcode=opSeek then
                     leamov(edi,dest)                -- lea edi,[dest]           -- result location
                     loadToReg(eax,src)              -- mov eax,[filepath/fn]    -- (opUnassigned)
-                else
-                    loadToReg(edi,dest)             -- mov edi,[p1] (dest addr) -- (opUnassigned)
-                    if opcode=opMemCopy then
-                        loadToReg(esi,src)          -- mov esi,[p2] (src addr)  -- (opUnassigned)
-                    elsif opcode=opMemSet then
-                        loadToReg(eax,src)          -- mov eax,[p3] (byte value)-- (opUnassigned)
-                    end if
-                end if
+--              else
+--                  loadToReg(edi,dest)             -- mov edi,[p1] (dest addr) -- (opUnassigned)
+--                  if opcode=opMemCopy then
+--                      loadToReg(esi,src)          -- mov esi,[p2] (src addr)  -- (opUnassigned)
+--                  elsif opcode=opMemSet then
+--                      loadToReg(eax,src)          -- mov eax,[p3] (byte value)-- (opUnassigned)
+--                  end if
+--              end if
                 loadToReg(ecx,src2)                 -- mov ecx,[p3] -- (mode/pos/length, opUnassigned)
-                emitHex5callG(opcode)               -- call :%opOpen/opSeek/opMemCopy/opMemSet
+--              emitHex5callG(opcode)               -- call :%opOpen/opSeek/opMemCopy/opMemSet
+                emitHex5callG(opcode)               -- call :%opOpen/opSeek
                 reginfo = 0 -- all regs trashed
                 if opcode=opSeek then
                     if vroot=T_integer then     -- (so no dealloc)

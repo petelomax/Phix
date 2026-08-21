@@ -849,7 +849,7 @@ global function get_struct_flags(object s, bool bAsText=false)
     return res
 end function
 
-global function get_struct_fields(object s)
+global function get_all_struct_fields(object s)
 -- reflection: returns a read-only copy of fields, to do with for whatever..
 -- result is a table of field definitions
     integer sdx = struct_dx(s,true),

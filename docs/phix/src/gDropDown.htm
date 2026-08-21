@@ -16,10 +16,10 @@
             include theGUI.e
             <br>
             <br>
-            <a href>gdx</a> id = gDropDown([<a href>sequence</a> options={},]
-                                                     [<a href>rtn</a> value_changed=<a href>NULL</a>,] <small>
-                                                      <a href>string</a> attributes=""
-                                                      <a href="html/glossary.htm#dwordseq">dword_seq</a> args={}</small>)
+            <a href>gdx</a> id = gDropDown(<a href>gdx</a> list,
+                                          [<a href>rtn</a> value_changed=<a href>NULL</a>,] <small>
+                                           <a href>string</a> attributes=""
+                                           <a href="html/glossary.htm#dwordseq">dword_seq</a> args={}</small>)
          </td>
         </tr>
         <tr>
@@ -27,13 +27,15 @@
           <b>Description:</b>
          </td>
          <td>
-            Creates an interface element that is a simple text-only dropdown selector.
+            Creates an interface element that is a simple text field with dropdown selector.
             <br>
             <br>
-            options: a sequence of text strings to populate the dropdown. It can be empty, sets the <a href="#OPTIONS">OPTIONS</a> attribute.<br>
-            value_changed: a procedure to invoke when the selection is changed, see <a href="#VALUE_CHANGED">VALUE_CHANGED</a> below.<br>
-            For more information on the attributes and args parameters see <a href>gSetAttributes</a>().<br>
-            This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
+            list: (mandatory) a <a href>gList</a> to be used in the drop-down.<br>
+<!--            options: a sequence of text strings to populate the dropdown. Can be empty, sets the <a href="#OPTIONS">OPTIONS</a> attribute.<br>-->
+            value_changed: (optional) procedure invoked when selection changes, see <a href="gText.htm#VALUE_CHANGED">VALUE_CHANGED</a>.<br>
+            The handler and attributes on a gDropDown are the same as those on a <a href>gText</a>, and distinct from a <a href>gList</a>.
+<!--        For more information on the attributes and args parameters see <a href>gSetAttributes</a>().<br>-->
+<!--            This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>-->
             <br>
             <br>
             Returns the identifier of the created element.
@@ -50,6 +52,7 @@
 -->
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <b>See Also:</b>
@@ -60,8 +63,10 @@
           <a href>gRadio</a>,
           <a href>gLabel</a>,
           <a href>gList</a>
+          <a href>gText</a>
          </td>
         </tr>
+-->
         <tr>
          <td>
           <b>Example:</b>
@@ -77,15 +82,11 @@
 -- demo\theGUI\gDropDown.exw
 include theGUI.e
 
-procedure changed(gdx id)
-    ?{"changed",gGetAttribute(id,"VALINT"),
-                gGetAttribute(id,"VALSTR")}
-end procedute
-
-constant dd123 = {"one","two","three"}
-gdx drop1 = gDropDown(dd123,changed),
-    drop2 = gDropDown(dd123,changed,"VALUE=3"),
-    hbox = gHbox({drop1,drop2},"MARGIN=13x13"),
+gdx list1 = gList({"one","two","three"}),
+    drop1 = gDropDown(list1),
+    list2 = gList(apply(true,ordinal,{tagset(21),true})),
+    drop2 = gDropDown(list2,"VALUE=3"),
+    hbox = gHbox({drop1,drop2},"MARGIN=13x13,GAP=15"),
     dlg = gDialog(hbox,"gDropDown",`SIZE=240x80`)
 gMainLoop(dlg)
 </eucode-->
@@ -93,24 +94,45 @@ gMainLoop(dlg)
 <font color="#000080"><i>-- demo\theGUI\gDropDown.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> theGUI.e
 </font>
-<font color="#008080">procedure</font><font color="#000000"> changed</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">)
-    ?{</font><font color="#008000">"changed"</font><font color="#0000FF">,</font><font color="#7060A8">gGetAttribute</font><font color="#800000">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"VALINT"</font><font color="#800000">)</font><font color="#0000FF">,</font>
-<font color="#7060A8">                gGetAttribute</font><font color="#800000">(</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"VALSTR"</font><font color="#800000">)</font><font color="#0000FF">}</font>
-<font color="#008080">end</font><font color="#000000"> procedute
-</font>
-<font color="#008080">constant</font><font color="#000000"> dd123</font><font color="#0000FF"> = {</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#0000FF">}</font>
-<font color="#7060A8">gdx</font><font color="#000000"> drop1</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">dd123</font><font color="#0000FF">,</font><font color="#000000">changed</font><font color="#0000FF">),</font>
-<font color="#000000">    drop2</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">dd123</font><font color="#0000FF">,</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#008000">"VALUE=3"</font><font color="#0000FF">),</font>
-<font color="#000000">    hbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">drop1</font><font color="#0000FF">,</font><font color="#000000">drop2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=13x13"</font><font color="#0000FF">),</font>
+<font color="#7060A8">gdx</font><font color="#000000"> list1</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008000">"one"</font><font color="#0000FF">,</font><font color="#008000">"two"</font><font color="#0000FF">,</font><font color="#008000">"three"</font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#000000">    drop1</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">list1</font><font color="#0000FF">),</font>
+<font color="#000000">    list2</font><font color="#0000FF"> =</font><font color="#7060A8"> gList</font><font color="#0000FF">(</font><font color="#7060A8">apply</font><font color="#800000">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#7060A8">ordinal</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#7060A8">tagset</font><font color="#00FF00">(</font><font color="#000000">21</font><font color="#00FF00">)</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">),</font>
+<font color="#000000">    drop2</font><font color="#0000FF"> =</font><font color="#7060A8"> gDropDown</font><font color="#0000FF">(</font><font color="#000000">list2</font><font color="#0000FF">,</font><font color="#008000">"VALUE=3"</font><font color="#0000FF">),</font>
+<font color="#000000">    hbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gHbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">drop1</font><font color="#0000FF">,</font><font color="#000000">drop2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=13x13,GAP=15"</font><font color="#0000FF">),</font>
 <font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">hbox</font><font color="#0000FF">,</font><font color="#008000">"gDropDown"</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 </pre>
             </small>
           </div>
-          <img alt="gDropDown" style="float:right;" src="images/gDropDown.png" width="240" height="80"/>
+          <div style="float:right;">
+            <img src="images/gDropDown.png" alt="gDropDown" width="240" height="80"/>
+            <div style="clear:right; padding-bottom: 5px;"><small><i>and with the list drop-down manually opened:</i></small></div>
+            <img src="images/gDropDown112.png" alt="gDropDownOpen" style="clear:right;" style="padding-top: 5px;" width="240" height="112"/>
+          </div>
+
           <div class="clear"></div>
          </td>
         </tr>
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            As per <a href>gDatePick</a> except I am probably more likely to use and fix/enhance this sooner.<br>
+<!--
+            and update the rest of this page, which should be taken with a bucket of salt, or better yet not even skimmed.-->
+            All the really important low-level tricky stuff (like alt-tab behaviour) works just fine, but there are two parts 
+            with [as yet] neither knowing the other even exists - however since (unlike gDatePick) there are no potential
+            parsing/formatting issues, it is much more reasonable to expect theGUI to automate their collaboration, and
+            (perhaps) implement some kind of smart filtering behaviour.
+            <br>
+            <br>
+            There is no "always down" version of a dropdown, and no plans to ever add one. Instead, if indeed that nonsense is
+            in fact what you actually want, you are expected to plant a separate <a href>gText</a> and <a href>gList</a> (or
+            whatever) on the dialog yourself, and make them interact in whatever weird way you think is right, yourself.
+         </td>
+        </tr>
+<!--
         <tr>
          <td>
           <b>Attributes:</b>
@@ -124,11 +146,9 @@ gMainLoop(dlg)
           EDITABLE
          </td>
          <td>
-            <b><i>NB broken on WinAPI</i></b> - see demo\theGUI\hText.exw for progress on a canvas-based drop-in replacement.<br>
-            (creation only) Specifies whether the user can type in a new value (<a href>true</a>/"YES") or 
+            <<span class="illegal">(not implemented)</span> 
+            Specifies whether the user can type in a new value (<a href>true</a>/"YES") or 
             only select one of the given options (the default, <a href>false</a>/"NO").
-            Note that when true there is no implicit validation or checking whether the entered value is or is not one of the specified options, 
-            and no facility for automatically "adding" the entered item, instead that would have to be done explicitly (by replacing the lot).
           <br><a name=OPTIONS></a>
          </td>
         </tr>
@@ -137,9 +157,9 @@ gMainLoop(dlg)
           OPTIONS
          </td>
          <td>
-            A list of text strings to populate the dropdown. Same as the first parameter on creation.<br>
+            A list of text strings to populate the dropdown. Same as the (non-optiopnal) first parameter on creation.<br>
             Can also be set later to purge the dropdown and re-populate it with an entirely different set of options.
-          <br><a name=VALUE></a><a name=VALINT></a><a name=VALSTR></a>
+//        <br><a name=VALUE></a><a name=VALINT></a><a name=VALSTR></a>
          </td>
         </tr>
         <tr>
@@ -149,19 +169,20 @@ gMainLoop(dlg)
          <td>
             Get/Set the selected item. <a href>gGetInt</a>() returns an integer, 0 if no entry is selected, 
             whereas <a href>gGetAttribute</a>() returns a string or the length-0 "" if no entry is selected. 
-            Note that the dflt param is not actually used at all when fetching this particular attribute on a gDropDown, ever.
-<!-- No promises or even remarks are or should be made about attempts to set silly values... -->
+[!--            Note that the dflt param is not actually used at all when fetching this particular attribute on a gDropDown, ever.---]
+[!-- No promises or even remarks are or should be made about attempts to set silly values... --]
             <br>
             <br>
             There is however a potential gotcha: should options be {"1","3","9"} then gSetAttributes(dropdown,"VALUE=3") could be
-            interpreted as "3" (the second entry) or as 3 (the "9" or third entry). The near-aliases "VALINT" and "VALSTR" can be 
+//          interpreted as "3" (the second entry) or as 3 (the "9" or third entry). The near-aliases "VALINT" and "VALSTR" can be 
             used to resolve any ambiguity, but when no such possible confusion exists you should be able to (and can) just use 
             "VALUE" with either integers or strings and let theGUI figure it all out for you in a common sense fashion.
             <br>
          </td>
         </tr>
+-->
 <!--
-          <br><a name=VALINT></a>
+//        <br><a name=VALINT></a>
 //      <tr>
 //       <td>
 //        VALINT
@@ -183,57 +204,6 @@ gMainLoop(dlg)
 //      </tr>
 -->
 <!--
---        <br><a name=ALIGNMENT></a>
---      <tr>
---       <td>
---        ALIGNMENT
---       </td>
---       <td>
---          (non inheritable): horizontal and vertical alignment. <br>
---          Possible values: "ALEFT", "ACENTER" and "ARIGHT",  combined to "ATOP", "ACENTER" and "ABOTTOM". Default: "ACENTER:ACENTER". <br>
---          Partial values are also accepted, like "ARIGHT" or ":ATOP", the other value will be used from the current alignment. <br>
---          In Motif, vertical alignment is restricted to "ACENTER". <br>
---          In GTK, horizontal alignment for multiple lines will align only the text block.
---          <br>
---       </td>
---      </tr>
-//      <tr>
-//       <td>
-//?       PADDING
-//       </td>
-//       <td>
-//          internal margin. Works just like the MARGIN attribute of the <a href>gHbox</a> and <a href>gVbox</a> containers, 
-//          but uses a different name to avoid inheritance problems. Default value: "0x0".<br>
-//          Value can be DEFAULTBUTTONPADDING, so the global attribute of this name will be used instead.
-//       </td>
-//      </tr>
-//      <tr>
-//       <td>
-//        CPADDING
-//       </td>
-//       <td>
-//          same as PADDING but using the units of the SIZE attribute. It will actually set the PADDING attribute.
-//       </td>
-//      </tr>
-        <tr>
-         <td>
-          SPACING
-         </td>
-         <td>
-            (creation only) defines the spacing between the image associated and the button&apos;s text. Default: 2.
-            <br>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          CSPACING
-         </td>
-         <td>
-            same as SPACING but using the units of the vertical part of the SIZE attribute. It will actually set the SPACING attribute.
-            <br>
-         </td>
-        </tr>
--->
         <tr>
          <td>
           also
@@ -242,11 +212,12 @@ gMainLoop(dlg)
             <a href>ACTIVE</a>, 
             <a href>CANFOCUS</a>, 
             <a href>FONT</a>, 
-<!--        <a href>FGCLR</a>,-->
-<!--        <a href>BGCLR</a>,-->
+[!--        <a href>FGCLR</a>,--]
+[!--        <a href>BGCLR</a>,--]
             <a href>EXPAND</a>, 
-<!--            <a href>MINSIZE</a>, -->
-<!--            <a href>MAXSIZE</a>,-->
+            <a href>MARGIN</a>, 
+[!--            <a href>MINSIZE</a>, --]
+[!--            <a href>MAXSIZE</a>,--]
             <a href>TIP</a>, 
             <a href>SIZE</a>,
             <a href>VISIBLE</a>.
@@ -258,7 +229,7 @@ gMainLoop(dlg)
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(dropdown,"VALUE_CHANGED",value_changed), or specify value_changed at creation time
+            (optional) Specified at creation time or via <a href>gSetHandler</a>(dropdown,"VALUE_CHANGED",value_changed)
           <br><a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -267,16 +238,15 @@ gMainLoop(dlg)
           VALUE_CHANGED
          </td>
          <td>
-            Event generated when the selection or entry is changed.
+            Event generated when the selection or entry is changed, or you can just fetch <a href="#VALUE">VALUE</a> on demand.
             <br>
             <br>
             procedure value_changed([<a href>gdx</a> id, ]<a href>string</a>/<a href>integer</a> v)<br>
             id: (optional) identifier of the element that activated the event.<br>
-          <div style="display:flex;">
-           <div>v: equivalent to&nbsp;<br>
-           <span style="float:right">or&nbsp;</span>
-           </div>
-           <div>
+          <div class="param">
+           <div class="paraname">v: equivalent to&nbsp;<br>
+            <span style="float:right">or&nbsp;</span></div>
+           <div class="paradesc">
             string v = <a href>gGetAttribute</a>(id,`<a href="#VALUE">VALUE</a>`)<br>
             integer v = <a href>gGetInt</a>(id,`<a href="#VALUE">VALUE</a>`).
            </div>
@@ -306,7 +276,7 @@ gMainLoop(dlg)
             <br>
             <br>
 <small>
-<!--eucode>
+<x!--eucode>
                         gDropDown()
                         gDropDown(changed)
                         gDropDown(changed, attributes)
@@ -319,8 +289,8 @@ gMainLoop(dlg)
                         gDropDown(options, attributes, args)
                         gDropDown(options, changed, attributes)
                         gDropDown(options, changed, attributes, args)  -- (the full set)
-</eucode-->
-<pre>
+</eucode--x>
+ <pre>
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">()</font>
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">(</font><font color="#000000">changed</font><font color="#0000FF">)</font>
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">(</font><font color="#000000">changed</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
@@ -333,7 +303,7 @@ gMainLoop(dlg)
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">(</font><font color="#000000">options</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">(</font><font color="#000000">options</font><font color="#0000FF">,</font><font color="#000000"> changed</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
 <font color="#7060A8">                        gDropDown</font><font color="#0000FF">(</font><font color="#000000">options</font><font color="#0000FF">,</font><font color="#000000"> changed</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">) </font><font color="#000080"><i> -- (the full set)</i></font>
-</pre>
+ </pre>
 </small>
             <br>
             Note that in practice options and changed are actually defined as <a href>object</a>, and attributes as
@@ -348,21 +318,21 @@ gMainLoop(dlg)
             <div style="display:flex;">
             Win11:
              <div style="display:flex; flex-direction:column; alirgn-items:center;">
-              <img alt="gDropdown on Windows 11" style="padding-left:10px;" src="images/gDropdownWin.png" width="240" height="114"/>
+              <img src="images/gDropDownWin.png" alt="gDropdown on Windows 11" style="padding-left:10px;" width="240" height="114"/>
              </div>
             </div>
             <br>
             <div style="display:flex;">
             GTK2:
              <div style="display:flex; flex-direction:column; align-items:center;">
-              <img alt="gDropdown on GTK2" style="padding-left:10px;" src="images/gDropdownGTK2.png" width="261" height="163"/>
+              <img src="images/gDropDownGTK2.png" alt="gDropdown on GTK2" style="padding-left:10px;" width="261" height="163"/>
              </div>
             </div>
             <br>
             <div style="display:flex;">
             GTK3:
              <div style="display:flex; flex-direction:column; align-items:center;">
-              <img alt="gDropdown on GTK3" style="padding-left:10px;" src="images/gDropdownGTK3.png" width="294" height="190"/>
+              <img src="images/gDropDownGTK3.png" alt="gDropdown on GTK3" style="padding-left:10px;" width="294" height="190"/>
              </div>
             </div>
             <br>
@@ -372,6 +342,7 @@ gMainLoop(dlg)
             <br>
          </td>
         </tr>
+-->
        </table>
        <div style="clear:both;height:1px;"> </div>
        <br>

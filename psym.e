@@ -2472,8 +2472,8 @@ if newEmit then
 --  AutoGlabel(opPeeki,     "%opPeeki",     "VM\\pMem.e")   -- (untested/erm/inlined?)
 --  AutoGlabel(opPoke,      "%opPoke",      "VM\\pMem.e")
 --  AutoGlabel(opPoke4,     "%opPoke4",     "VM\\pMem.e")
-    AutoGlabel(opMemCopy,   "%opMemCopy",   "VM\\pMem.e")
-    AutoGlabel(opMemSet,    "%opMemSet",    "VM\\pMem.e")
+--  AutoGlabel(opMemCopy,   "%opMemCopy",   "VM\\pMem.e")
+--  AutoGlabel(opMemSet,    "%opMemSet",    "VM\\pMem.e")
     AutoGlabel(opOpen,      "%opOpen",      "VM\\pfileioN.e")
     AutoGlabel(opClose,     "%opClose",     "VM\\pfileioN.e")
     AutoGlabel(opSeek,      "%opSeek",      "VM\\pfileioN.e")
@@ -2627,8 +2627,8 @@ if newEmit then
 --  AutoAsm("free",             S_Proc,"PN",    "VM\\pHeap.e",      opFree,     "%pFree",       E_other,0)
     AutoAsm("leave_cs",         S_Proc,"PI",    "VM\\pHeap.e",      opLeaveCS,  "%pLeaveCS",    E_other,0)      T_LeaveCS = symlimit
     symtab[symlimit][S_ParmN] = 0
-    AutoAsm("mem_copy",         S_Proc,"PNNI",  "VM\\pMem.e",       opMemCopy,  "%opMemCopy",   E_other,0)
-    AutoAsm("mem_set",          S_Proc,"PNII",  "VM\\pMem.e",       opMemSet,   "%opMemSet",    E_other,0)
+--  AutoAsm("mem_copy",         S_Proc,"PNNI",  "VM\\pMem.e",       opMemCopy,  "%opMemCopy",   E_other,0)
+--  AutoAsm("mem_set",          S_Proc,"PNII",  "VM\\pMem.e",       opMemSet,   "%opMemSet",    E_other,0)
 --  AutoAsm("poke",             S_Proc,"PIO",   "VM\\pMem.e",       opPoke,     "%opPoke",      E_other,0)
 --  AutoAsm("poke4",            S_Proc,"PIO",   "VM\\pMem.e",       opPoke4,    "%opPoke4",     E_other,0)
     AutoAsm("poke",             S_Proc,"PNO",   "VM\\pMem.e",       opPoke1,    "%opPokeN",     E_other,0)
@@ -2674,6 +2674,7 @@ end if
     initialAutoEntry("ends",                    S_Func,"FOPI",  "match.e",0,E_none,2)
 --9/4/22:
 --  initialAutoEntry("binary_search",           S_Func,"FOP",   "bsearch.e",0,E_none)
+    initialAutoEntry("binary_index",            S_Func,"FOPIII","bsearch.e",0,E_none,2)
     initialAutoEntry("binary_search",           S_Func,"FOPIII","bsearch.e",0,E_none,2)
     initialAutoEntry("chdir",                   S_Func,"FP",    "pchdir.e",0,E_other)
     initialAutoEntry("check_break",             S_Func,"F",     "pbreak.e",0,E_other)
@@ -2745,6 +2746,7 @@ end if
 --X initialAutoEntry("hll_wait_key",            S_Func,"F",     "hll_stubs.e",0,E_other)
 
     initialAutoEntry("include_file",            S_Func,"FI",    "pincpathN.e",0,E_none,0)
+    initialAutoEntry("is_call_back",            S_Func,"FN",    "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("is_dict",                 S_Func,"FI",    "dict.e",0,E_none)
     initialAutoEntry("is_empty",                S_Func,"FO",    "sets.e",0,E_none)
     initialAutoEntry("is_inf",                  S_Func,"FOII",  "infnan.e",0,E_none,1)
@@ -2867,6 +2869,7 @@ end if
     initialAutoEntry("float64_to_atom",         S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("float80_to_atom",         S_Func,"FP",    "VM\\pFloatN.e",0,E_none)
     initialAutoEntry("get_prime",               S_Func,"FI",    "primes.e",0,E_none)
+    initialAutoEntry("get_proc_address",        S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("get_rand",                S_Func,"F",     "prnd.e",0,E_none)
     initialAutoEntry("hash",                    S_Func,"FON",   "hash.e",0,E_none,1)
     initialAutoEntry("hll_and_bits",            S_Func,"FNN",   "hll_stubs.e",0,E_none)     hll_stubs[T_and_bits] = symlimit
@@ -3120,7 +3123,6 @@ end if
     initialAutoEntry("get_file_date",       S_Func,"FPI",   "pfile.e",0,E_none,1)
     initialAutoEntry("get_file_size",       S_Func,"FSII",  "pfile.e",0,E_none,1)
     Alias("file_length", symlimit)
-    initialAutoEntry("get_proc_address",    S_Func,"FNS",   "VM\\pcfunc.e",0,E_none)
     initialAutoEntry("get_text",            S_Func,"FOI",   "pfile.e",0,E_none,1)
     initialAutoEntry("getd",                S_Func,"FOII",  "dict.e",0,E_none,1)
     initialAutoEntry("getdd",               S_Func,"FOOII", "dict.e",0,E_none,2)
@@ -3304,6 +3306,8 @@ end if
 --  initialAutoEntry("free_console",        S_Proc,"P",     "pfileio.e",0,E_other)
 --end if
     initialAutoEntry("machine_proc",        S_Proc,"PIO",   "pmach.e",0,E_other)
+    initialAutoEntry("mem_copy",            S_Proc,"PNNI",  "VM\\mem_copy.e",0,E_none)
+    initialAutoEntry("mem_set",             S_Proc,"PNII",  "VM\\mem_set.e",0,E_none)
     initialAutoEntry("papply",              S_Proc,"POIO",  "pApply.e",0,E_all, 2)
     initialAutoEntry("poken",               S_Proc,"PNOI",  "peekns.e",0,E_other,2)
 --if newEmit then

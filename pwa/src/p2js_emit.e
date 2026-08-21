@@ -748,10 +748,17 @@ if fname=`~` then fname = "length" end if
                             emit_expr(expr[3],0) & " : " &
                             emit_expr(expr[4],0) & ")"
             elsif fttidx=T_source_line then
---              -- non-reversible:
---              res = sprintf("%d",{expr[1][TOKLINE]})
-                -- reversible:
-                res = sprintf("%s(%d)",{fname,expr[1][TOKLINE]})
+                if length(expr)=1 then
+--                  -- non-reversible:
+--                  res = sprintf("%d",{expr[1][TOKLINE]})
+                    -- reversible:
+                    res = sprintf("%s(%d)",{fname,expr[1][TOKLINE]})
+                else -- as mangled by (eg) clip_beeq()/fix_source_lines()
+                    expr = expr[2]
+                    integer ln_start = expr[TOKSTART],
+                            ln_finish = expr[TOKFINISH]
+                    res = sprintf("%s(%s)",{fname,src[ln_start..ln_finish]})
+                end if
             else
                 res = fname & "("
                 expr = expr[2..$]
@@ -1523,6 +1530,11 @@ end if
 --trace(1)
 --              massn &= massN
 --              massN = 0
+
+-- 2/7/26:
+                flush_oneline()
+                output &= "\n"
+
                 sequence name,args,body,statics
                 bool bNested2
                 {name,args,body,bNested2,statics} = node[2]
@@ -2023,6 +2035,16 @@ end if
                 else
                     dent("}",indent)
                 end if
+            elsif nodetype=T_ilASM then
+                dent(`crash("ilASM");`,0)
+                flush_oneline()
+            elsif nodetype=T_ilJS then
+                flush_oneline()
+                sequence tok = node[2][1]
+                integer js_start = tok[TOKSTART]+1,
+                        js_end = tok[TOKFINISH]
+                output &= src[js_start..js_end]
+--              ?9/0
             else    
 
                 ?{"warning: unknown nodetype:",nodetype,tok_name(nodetype)}
@@ -2488,6 +2510,8 @@ node = deep_copy(node)
 --              end if
             elsif nodetype="use strict" then
                 dent(iff(is_phix()?`/*"use_strict";*/`:`"use_strict";`),indent)
+--          elsif nodetype="JS" then
+--              dent(jscode[node[2]],0)
             else
                 ?{"warning: unknown nodetype:",nodetype}
                 dent("?(s)" & nodetype & ":" & sprint(node) & "?",0)
@@ -2559,8 +2583,45 @@ global function generate_source(sequence ast, integer oxt, src_offset, bool pGUI
         elsif btheGUI or theGUI then
             -- PL 3/12/24 added scanf for to_number, though I suspect I should be using to_integer..
             ai = add_includes(ai,{"find.e","pmaths.e","ptagset.e","psplit.e","match.e","vslice.e",
-                                  "pfindany.e","pcase.e","pfindall.e","scanf.e","pApply.e"})
+                                  "pfindany.e","pcase.e","pfindall.e","scanf.e","pApply.e",
+                                  "dict.e","porall.e","pcolumn.e","ptrim.e","psqop.e","psum.e",
+                                  "log10.e","misc.e","timedate.e","to_int.e"})
 --/*
+  <script src="builtins/bsearch.js"></script>
+--  <script src="builtins/dict.js"></script>
+--  <script src="builtins/find.js"></script>
+--  <script src="builtins/match.js"></script>
+--  <script src="builtins/misc.js"></script>
+--  <script src="builtins/pApply.js"></script>
+  <script src="builtins/pFilter.js"></script>
+--  <script src="builtins/pcase.js"></script>
+--  <script src="builtins/pcolumn.js"></script>
+  <script src="builtins/pdates.js"></script>
+  <script src="builtins/pdecodeflags.js"></script>
+  <script src="builtins/pextract.js"></script>
+--  <script src="builtins/pfindany.js"></script>
+  <script src="builtins/pflatten.js"></script>
+--  <script src="builtins/pmaths.js"></script>
+--  <script src="builtins/porall.js"></script>
+--  <script src="builtins/psplit.js"></script>
+--  <script src="builtins/psqop.js"></script>
+--  <script src="builtins/psum.js"></script>
+--  <script src="builtins/ptagset.js"></script>
+--  <script src="builtins/ptrim.js"></script>
+--  <script src="builtins/scanf.js"></script>
+  <script src="builtins/sort.js"></script>
+  <script src="builtins/substitute.js"></script>
+--  <script src="builtins/to_int.js"></script>
+--  <script src="builtins/vslice.js"></script>
+--  <script src="builtins/pfindall.js"></script>
+--  <script src="builtins/log10.js"></script>
+--  <script src="builtins/timedate.js"></script>
+
+theGUI.js.js:2798 Uncaught ReferenceError: is_integer is not defined
+tg_intint @ theGUI.js.js:2798
+gSetAttribute @ theGUI.js.js:4556
+(anonymous) @ test.htm:74
+
 <!DOCTYPE html>
 <html lang="en" >
  <head>

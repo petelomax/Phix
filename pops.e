@@ -48,6 +48,7 @@ without trace
 integer opUsed
         opUsed=0
 procedure opName(sequence label, integer chk, integer skip)
+--?{"opName",label,chk,skip}
     opUsed += 1
     if opUsed!=chk then opUsed = 9/0 end if
     opNames[opUsed] = label
@@ -446,8 +447,8 @@ global constant
     opClrScrn = 153,    -- clear_screen()
     opFreeCons = 154,   -- free_console()
     opFree = 155,       -- free(a)
-    opMemCopy = 156,    -- mem_copy(a,b,c)
-    opMemSet = 157,     -- mem_set(a,b,c)
+--  opMemCopy = 156,    -- mem_copy(a,b,c)
+--  opMemSet = 157,     -- mem_set(a,b,c)
 --  opPixel = opCode("opPixel",2),      -- pixel(a,b)   --DOS!
 --DEV becomes opPoke1 for newEmit:
     opPoke = 158,       -- poke(a,b)
@@ -836,8 +837,9 @@ global constant
     opName("opClrScrn",opClrScrn,1)
     opName("opFreeCons",opFreeCons,1)
     opName("opFree",opFree,2)
-    opName("opMemCopy",opMemCopy,4)
-    opName("opMemSet",opMemSet,4)
+--  opName("opMemCopy",opMemCopy,4)
+--  opName("opMemSet",opMemSet,4)
+    opUsed += 2
     opName("opPoke",opPoke,3)
     opName("opPoke4",opPoke4,3)
     opName("opPosition",opPosition,3)

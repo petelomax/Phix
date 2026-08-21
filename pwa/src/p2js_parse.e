@@ -572,7 +572,7 @@ function precedence(integer tdx)
 --nope...
 --      integer {toktype,start,object finish} = tok
 --if find(toktype,{T_and,T_or,T_xor}) then ?{"op_prec:",get_ttname(toktype)} end if
-        if find(toktype,`(,){}];?:`) then return 0 end if
+        if find(toktype,`(,){}];?:j`) then return 0 end if
         string op = src[start..finish]
 --      string op = iff(string(finish)?finish:src[start..finish])
         p = find(op,multisym)
@@ -674,14 +674,14 @@ end function
 --or:
     while higher_than(p) do
 integer np
-fn higher_than(integer p)
-    integer ndx = next()
-    if ndx=0 then return false end if
-    np = precedence(ndx)
-    if np<=p then return false end if
-    tdx = ndx
-    return true
-end function
+--function higher_than(integer p)
+--  integer ndx = next()
+--  if ndx=0 then return false end if
+--  np = precedence(ndx)
+--  if np<=p then return false end if
+--  tdx = ndx
+--  return true
+--end function
 
 --or:
 comments can only occur between statements and attached to operators.... [erm, would only help if tokeniser could do that, but it canny]
@@ -787,6 +787,8 @@ end function
 sequence static_ids = {}
 
 function vardef(integer thistdx, skip=0, iForPar=0)
+--?{"vardef",thistdx, skip, iForPar}
+--if thistdx=9 then trace(1) end if
 --
 -- iForPar of 0 is normal var definition
 -- iForPar of 2 is rtndef() parameters [see note[s] therein]
@@ -932,9 +934,12 @@ if is_C() then tdx += 1 exit end if
 --              elsif not bStatic and not is_C() and not find(ttidx,static_ids) then
                     integer r = add_local(ttidx, vtype)
 --                  if r!=1 then
-                    if r!=1 and not is_C() then
---?{"r!=1 line 906 p2js_parse.e",tok}
-                        return parse_error(tok,iff(r=-1?"illegal":"already defined"))
+                    if r!=1 and (not is_C()) and (not bAuto_theGUI) then
+--?{"r!=1 line 938 p2js_parse.e",tok}
+--                      integer {?,start,finish,line,col} = tok
+--                      warn(tok,"%s already defined",{src[tok[TOKSTART]..tok[TOKFINISH]]})
+                        printf(1,"Warning: %s already defined\n",{src[tok[TOKSTART]..tok[TOKFINISH]]})
+--                      return parse_error(tok,iff(r=-1?"illegal":"already defined"))
                     end if
                 end if
             end if
@@ -1213,14 +1218,17 @@ function rtndef(integer ttidx)
         integer rag = iff(bNested?add_local(rtnttidx,in_rtn_def)
                                  :add_global(rtnttidx,in_rtn_def))
         if rag!=1 then
+--?"rag!=1 p2js_parse.e line 1221"
 --erm, not if doing autoincludes...
 --          ?9/0
             integer fwdx = find(rtnttidx,forwards)
             if not bForward and fwdx!=0 then
                 forwards[fwdx..fwdx] = {}
-            else
+--          else
+            elsif not bAuto_theGUI then
 --          elsif not find(rtnttidx,{T_dictionary}) then
-                return parse_error(tok,"add_global!=1")
+                printf(1,"Warning: %s already defined\n",{src[tok[TOKSTART]..tok[TOKFINISH]]})
+--              return parse_error(tok,"add_global!=1")
             end if
         elsif bForward then
             forwards &= rtnttidx
@@ -1465,8 +1473,10 @@ function statement()
 --DEV mark as a constant?
                             integer rag = add_global(onem[TOKTTIDX],TYPI)
 --                          integer rag = add_global(onem[TOKTTIDX],TYKI)
-                            if rag!=1 then
-                                return parse_error(tok,"add_global!=1")
+                            if rag!=1 and not bAuto_theGUI then
+--?"rag!=1 p2jsparse.e line 1476"
+                                printf(1,"Warning: %s already defined\n",{src[tok[TOKSTART]..tok[TOKFINISH]]})
+--                              return parse_error(tok,"add_global!=1")
                             end if
                             onem[TOKALTYPE] = TYPI
 --                          onem[TOKALTYPE] = TYKI
@@ -1934,6 +1944,66 @@ end if
                         ast = append(ast,{T_ilASM,aste})
 --                      ?9/0
 
+                    case T_ilJS:
+                        if not is_phix() then
+                            return parse_error(tok,"illegal")
+                        end if
+                        -- this is gonna get messy...
+                        -- step one is to get Ctrl M to output plain text (colour in maybe later)
+                        --   [Noting that /will/ require a proper token-populated T_ilASM node]
+                        -- step two is to get Ctrl W to emit crash("#ilASM") in lieu of the whole block.
+                        --   [And of course we just don't care as long as js don't try to run it]
+--                      aste = {}
+                        integer js_start = tok[TOKFINISH]+2,
+                                js_line = tok[TOKLINE],
+                                js_col = 1
+                        expectt('{')
+--?9/0
+--/*
+    src = "integer k\n#ilJS{\n    img = document.createElement(\"canvas\");\n#}ilJS\nk = 1"
+           123456789 0123456 7890123456789012345678901234567890 1234567 890 1234567 890123
+                     1          2         3         4         5           6           7
+    lt = 73'I'
+    TOKTYPES = {{1,`EOL`,0},{2,`SPACE`,0},{3,`DIGIT`,0},{4,`LETTER`,0},{5,`COMMENT`,0},{6,`BLK_CMT`,0},{7,`ILLEGAL`,0},{8,`SYMBOL`,0}}
+    tokens[1] = {4,1,7,1,0,380} -- T_integer
+    tokens[2] = {4,9,9,1,8,45368} -- k
+    tokens[3] = {4,12,15,2,1,31172} -- T_ilJS
+    tokens[4] = {123'{',16,16,2,5}
+    tokens[5] = {4,22,24,3,4,45376} -- img
+    tokens[6] = {61'=',26,26,3,8}   -- =
+    tokens[7] = {4,28,35'#',3,10,6164} -- T_document
+    tokens[8] = {46'.',36'$',36'$',3,18} -- .
+    tokens[9] = {4,37'%',49'1',3,19,5496} -- T_createElement
+    tokens[10] = {40'(',50'2',50'2',3,32' '} -- (
+    tokens[11] = {34'"',51'3',58':',3,33'!'} -- "canvas"
+    tokens[12] = {41')',59';',59';',3,41')'} -- )
+    tokens[13] = {59';',60'<',60'<',3,42'*'} -- ;
+    tokens[14] = {4,63'?',67'C',4,1,45400} -- shit!
+    tokens[14] = {4,64'@',67'C',4,2,31172} -- yay, T_ilJS!!
+    tokens[15] = {4,69'E',69'E',5,0,45368} -- k
+    tokens[16] = {61'=',71'G',71'G',5,2}
+    tokens[17] = {3,73'I',73'I',5,4}
+    tokens[11..14] = {{34'"',51'3',58':',3,33'!'},{41')',59';',59';',3,41')'},{59';',60'<',60'<',3,42'*'},{4,64'@',67'C',4,2,31172}}
+    tokens[15..17] = {{4,69'E',69'E',5,0,45368},{61'=',71'G',71'G',5,2},{3,73'I',73'I',5,4}}
+
+    node = {31172,{{34'"',16,61'=',2,1}}}
+
+--*/
+                        while tdx<=length(tokens) do
+                            tok = tokens[tdx]
+                            if tok[TOKTYPE]=LETTER and tok[TOKTTIDX]=T_ilJS then exit end if
+--                          aste = append(aste,tok)
+                            tdx += 1
+                        end while
+                        integer js_end = tok[TOKSTART]-3
+                        while src[js_end]!='\n' do js_end -=1 end while
+                        tok = {'"',js_start,js_end,js_line,js_col}
+--                      expectt('#')
+--                      expectt('}')
+                        assert(expect(T_ilJS))
+                        ast = append(ast,{T_ilJS,{tok}})
+--                      ?9/0
+
                     case T_format:
                         -- (currently largely ignored)
 --/*
@@ -2298,6 +2368,10 @@ end if
 --                  ast = append(ast,{toktype,tdx})
 --                  exit
 --              end if
+            case 'j':
+                string jst = src[start..finish]
+                assert(jst[1..2]="js" and jst[$]=';' and is_integer(jst[3..-2]))
+                ast = append(ast,{"JS",to_integer(jst[3..-2])})
             default: 
 --              return parse_error(tok,"letter expected (erm, ? or { or [ perhaps?)")
                 return parse_error(tok,"unexpected token")

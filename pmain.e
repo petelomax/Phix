@@ -445,6 +445,8 @@ constant FROMROUTINE=1,
          PMTWCD = {T_profile, T_profile_time, T_trace, T_warning, T_type_check, T_debug},
          __T__D = {        0,              0, T_trace,         0,            0, T_debug}
 
+integer with_js_line, with_js_fileno
+
 procedure DoWithOptions(integer fromroutine=0)
     integer OptOn = find(ttidx,{T_withpop,T_without,T_with})-2, k
     if ttidx=T_withpop then
@@ -595,7 +597,8 @@ end if
                or ttidx=T_js_semantics then
 --?"with js"
                 if with_js!=2 and with_js!=OptOn then
-                    Aborp("cannot mix with and without js")
+                    Aborp(sprintf("cannot mix with and without js (see %s:%d)",
+                                  {filenames[with_js_fileno][2],with_js_line}))
                 elsif with_js=2 and OptOn and not_js then
                     Aborp("p2js violation already skipped ("&nj_reason&")")
                 end if
@@ -604,6 +607,8 @@ end if
 --                  Aborp("cannot mix with js and with trace")
 --              end if
                 with_js = OptOn
+                with_js_line = tokline
+                with_js_fileno = fileno
                 getToken()
 -- no need, done directly in p.exw/main():
 --              s5 &= {opWithJS,flag}
@@ -3511,8 +3516,10 @@ integer nestedConst = 0, wastokcol
 --                  if symtab[N][S_NTyp]=S_Rsvd then
                     if N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                         Aborp("illegal use of a reserved word")
-                    elsif InTable(InTop) then
-                        Duplicate()
+                    end if
+                    integer N2 = InTable(InTop)
+                    if N2 then
+                        Duplicate(N2)
                     end if
                 end if
                 nestedConst := ttidx
@@ -4256,7 +4263,7 @@ end if
                 -- Defer param creation until after ')'.
                 k = find(ttidx,paramNames)
 --              if ttidx=rtnttidx or (k and k<=nParams) then Duplicate() end if
-                if k and k<=nParams then Duplicate() end if
+                if k and k<=nParams then Duplicate(0) end if
             end if
             nParams += 1                
             if nParams>length(paramNames) then
@@ -4398,7 +4405,8 @@ integer SNtyp
                 end if
                 tokno = 0 --(since we just fiddled with it to check for types)
                 if N then
-                    if InTable(-InVeryTop) then Duplicate() end if
+                    integer N2 = InTable(-InVeryTop)
+                    if N2 then Duplicate(N2) end if
                 end if
                 N = addSymEntry(ttidx,false,S_TVar,Typ,0,0)
 --13/4/23:
@@ -5661,14 +5669,15 @@ end if
 --                  end if
 
                 elsif opsidx=3 then
-                    if DEBUG then
-                        if opcode!=opMemCopy
-                        and opcode!=opMemSet
-                        and opcode!=opScroll
+--                  if DEBUG then
+--                      if opcode!=opMemCopy
+--                      and opcode!=opMemSet
+--                      and opcode!=opScroll
+                        if opcode!=opScroll
                         and opcode!=opPokeN then
                             ?9/0
                         end if
-                    end if
+--                  end if
                     saveFunctionResultVars(opsidx,NOTINTS)  -- save eax if rqd
                     p1 = opstack[1]
                     p2 = opstack[2]
@@ -5694,8 +5703,9 @@ end if
             if routineNo=T_abort then
                 LastStatementWasAbort = 1
             end if
-        elsif routineNo=T_crash then
-            LastStatementWasAbort = 1
+-- removed 23/5/26 for crash("",{},-1)...
+--      elsif routineNo=T_crash then
+--          LastStatementWasAbort = 1
         end if
 --DEV removed for multiple assignment (idx may be on the stack)
 --      if DEBUG then
@@ -6517,7 +6527,7 @@ else
 --          if (rType!=FUNC or and_bits(symtab[N][S_State],K_fun)!=K_fun) then
             Aborp("illegal use of a reserved word")
         else
-            Duplicate()
+            Duplicate(N)
         end if
     elsif wasGlobal then
 -- 28/4/11
@@ -6536,6 +6546,7 @@ else
 --              N = 0   -- define a new one then...
 --else
                 if symtab[N][S_FPno]!=fileno then
+--/*
                     if N>T_Ainc then
                         -- ie/eg constant monthlen = {31,28+isLeapYear,31,30...
                         --       global function getDays(integer month)
@@ -6555,6 +6566,7 @@ else
                         --  this warning being emitted (test that theory...)
                         Warn("external forward reference; initialisation code may be skipped\n",tokline,tokcol,0)
                     end if
+--*/
                     symtab[N][S_FPno] = fileno
                     -- added 23/08/13 for intellilink:
                     symtab[N][S_ErrR] = rtntokcol
@@ -7180,7 +7192,7 @@ sequence sig
     --  fwdrtn(...)                             -- implicit fwd call, then
     --  [global] forward routine fwdrtn(...)    -- explicit fwd definition
     -- (obviously, it must be either implicit or explicit, not both!)
-    if N then Duplicate() end if
+    if N then Duplicate(N) end if
     N = InTable(InAny)
     if N>0 then
 --21/01/2021
@@ -8059,6 +8071,8 @@ object sig
                     else
 --                      top_level_abort = 0 -- not needed
 --                      Call(N,etype,FUNC,false)
+--21/5/26 (for gGetFileText's got_txt) [nope, killed t24... wrong thing I suspect too]
+--                      symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
                         Call(N,sig,FUNC,false)
 --DEV tryme: (erm, may need the <T_Bin ranges thingy) (still untried:)
 --                      if N<=T_Ainc then
@@ -8089,6 +8103,9 @@ object sig
                     end if
                     isLit = (and_bits(symtab[N][S_State],K_lit)=K_lit)
 if isLit then ?9/0 end if   -- I think we shd just use false!
+--21/5/26 (for gGetFileText's got_txt) [nope, didn't change a damn thing... -- ah, this is the x = fn() case...]
+                    symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
+--?{tokline,fileno,filenames[fileno]}
                     PushFactor(N,isLit,T_integer)
                     getToken()
                     -- (aside: not dot, no defaulted struct!)
@@ -10804,6 +10821,8 @@ end if
     end if
     continueBP = saveContinueBP
 
+--  integer wasemitline
+
     if wasttidx=T_do then
         MatchString(T_until)
         if exprBP then ?9/0 end if
@@ -10812,7 +10831,12 @@ end if
         if probable_logic_error then show_ple() end if
 
 --?{"scBP",scBP,"exprBP",exprBP}
+--  if lastline!=emitline then
+--DEV we should use a flag for this instead[?]
+--      wasemitline = emitline
+--      emitline = lastline -- prevent apnds5 from messing things up
         exitBP = Branch(NoInvert,1,exitMerge,exitBP)
+--      emitline = wasemitline
 --global constant scMerge=1, exprMerge=2, exitMerge=3, ifMerge=4, endIfMerge=5, breakMerge=6
         if drop_until_scope then
             -- aside: in most loops (etc) there's nothing but (say) "end while", however
@@ -10824,7 +10848,7 @@ end if
     end if -- do/until
 
     if emitON then
-        emitline = line
+--      emitline = line
 if wasttidx=T_do then
         if exprBP then
             if backpatch(exprBP,0,exprMerge) then ?9/0 end if
@@ -10838,6 +10862,7 @@ if wasttidx=T_do then
             scBP = 0
         end if
 end if
+        emitline = line
         --      s5[loopTop] = length(s5)    -- NO! bckwd jumps should not be linked from opLabel!
         if NOLT=0 or bind or lint then
             if s5[loopTop-7]!=opLoopTop then ?9/0 end if
@@ -11174,7 +11199,9 @@ integer link
                     else
 --12/9/15:
 --                      if ctrltyp!=ELSIF then ?9/0 end if
-                        if ctrltyp!=ELSIF and ctrltyp!=ELSE then ?9/0 end if
+                        if ctrltyp!=ELSIF and ctrltyp!=ELSE then
+                             Aborp("unexpected")
+                        end if
                         s5[ctrlink-1] = ELSE
                     end if
                 end if
@@ -11848,7 +11875,9 @@ integer Typ, rootInt
                 mapEndToMinusOne = 0
 -- untried (see docs? [not yet written])
 --              if not just_static then
-                    if InTable(InTop) then Duplicate() end if
+--                  if InTable(InTop) then Duplicate() end if
+                N = InTable(InTop)
+                if InTable(InTop) then Duplicate(N) end if
 --              end if
                 N = InTable(-InAny)
                 if N>0 then
@@ -12357,7 +12386,8 @@ integer pstype, petype
             if isDeclaration then
 --12/11/15...
 --              if InTable(InTop) then Duplicate() end if
-                if InTable(InVeryTop) then Duplicate() end if
+                integer N2 = InTable(InVeryTop)
+                if N2 then Duplicate(N2) end if
 --1/11/17:
 --          end if
 --          tokno = InTable(InAny)
@@ -12600,9 +12630,10 @@ end if
         MatchChar(',',float_valid:=false)
 --      if toktype='$' then MatchChar('$') exit end if -- allow ",$}"
         i += 1
+-- 19/4/26 (seems to do no harm) allow {string ch, integer c, s, a} = ...
         -- reset (see docs)
-        isDeclaration = wasDeclaration
-        Typ = wasTyp
+--      isDeclaration = wasDeclaration
+--      Typ = wasTyp
     end while
     mapEndToMinusOne = 0
 --  MatchChar('}')
@@ -13903,6 +13934,32 @@ end if
     if with_js=1 then breakBP = wasBreakBP end if
 end procedure
 
+local procedure ilJS()
+    -- just skip any #ilJS{ .. #}isJS blocks 
+    -- [which are for p2js.exw to deal with]
+    integer wastokline = tokline,
+            wastokcol = tokcol
+    MatchString(T_ilJS)
+--  MatchChar('{') -- (no - messes up error handling)
+    bool done = false
+    do
+        if Ch='\n' then line += 1 end if
+        bool was_hash = Ch='#'
+        col += 1
+        if col>=ltl then exit end if
+        Ch = text[col]
+        done = was_hash and Ch='}'
+    until done or (was_hash and upper(Ch)>='G')
+    if not done then
+        tokline = wastokline
+        tokcol  = wastokcol
+        Aborp("#}ilJS missing")
+    end if
+    getToken() -- (resume proper tokenising...)
+    MatchChar('}')
+    MatchString(T_ilJS)
+end procedure
+
 --integer Z_format -- T_format until include/code processed
 integer Z_format -- T_format until Statement() processed
 
@@ -13946,10 +14003,11 @@ integer N, isLit, etype
 --          if    ttidx=T_ilasm then ilasm()
 --          if    ttidx=T_ilasm then Warn("deprecated\n",tokline,tokcol,0) ilasm()
             if    ttidx=T_ilASM then ilASM()
+            elsif ttidx=T_ilJS  then ilJS()
             elsif ttidx=T_istype then istype()
             elsif ttidx=T_isinit then isinit()
             elsif ttidx=T_isginfo then isginfo()
-            else Aborp("ilasm, istype, isinit, or isginfo expected")
+            else Aborp("ilASM, ilJS, istype, isinit, or isginfo expected")
             end if
         elsif toktype='{' then
             MultipleAssignment(0,0)
@@ -14063,6 +14121,9 @@ integer N, isLit, etype
                     Aborp(sprintf("cannot be routine_id (Type is 0b%04b)",Type))
                 end if
                 isLit = (and_bits(symtab[N][S_State],K_lit)=K_lit)
+--21/5/26 (for gGetFileText's got_txt) [this is the actual proc() case...]
+                symtab[N][S_State] = or_bits(symtab[N][S_State],S_used)
+--?{tokline,fileno,filenames[fileno]}
                 PushFactor(N,isLit,T_integer)
                 getToken()
                 -- (aside: no dot, no defaulted struct!)
@@ -14295,7 +14356,8 @@ integer SNtyp
                     end if
 --30/5/16:
                 else
-                    if InTable(InTop) then Duplicate() end if
+                    integer N2 = InTable(InTop)
+                    if N2 then Duplicate(N2) end if
                 end if
             end if
             if toktype='{' then
@@ -14552,9 +14614,10 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
         end if
         tt_string(nameSpace,-2)
 --trace(1)
-        if InTable(-InTop) then
+        N = InTable(-InTop)
+        if N then
             tokcol = emitcol+kp1-1
-            Duplicate()
+            Duplicate(N)
         end if
         N = InTable(-InAny)
         if N then
@@ -14616,9 +14679,10 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
                 -- ie no "as", or a different name
                 newfile = fileno
                 fileno = prevfile
-                if InTable(-InTop) then
+                N = InTable(-InTop)
+                if N then
                     fileno = newfile
-                    Duplicate()
+                    Duplicate(N)
                 end if
                 N = InTable(-InAny)
                 fileno = newfile
@@ -14649,13 +14713,14 @@ integer k, kp1, ln, emitcol, N, reinclude, newfile, wasttidx, qch
             -- ie no "as", or a different name
             wasttidx = ttidx
             ttidx = default_namespaces[reinclude]
-            if InTable(-InTop) then
+            N = InTable(-InTop)
+            if N then
 --DEV (27/2/13) kp1 has not been assigned a value...
 --              (I suspect we want to save tokcol from when we set default_namespaces[fileno] just above) - not really, though
 if k!=0 then
                 tokcol = emitcol+kp1-1
 end if
-                Duplicate()
+                Duplicate(N)
             end if
             N = InTable(-InAny)
             k = addSymEntry(ttidx,0,S_Nspc,prevfile,0,0)
@@ -14773,7 +14838,7 @@ bool prevset = false
             elsif N<=T_Asm or symtab[N][S_NTyp]=S_Rsvd then
                 Aborp("illegal use of a reserved word")
             else
-                Duplicate()
+                Duplicate(N)
             end if
         end if
         typeid = ttidx
@@ -14816,7 +14881,8 @@ bool prevset = false
             Aborp("a name is expected here")
         end if
         mapEndToMinusOne = 0
-        if InTable(InTop) then Duplicate() end if
+        N = InTable(InTop)
+        if N then Duplicate(N) end if
         N = InTable(InAny)
         if N then
 --21/01/2021

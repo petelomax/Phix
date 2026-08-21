@@ -7,12 +7,16 @@
 --
 without debug -- (crash on user app line, and don't trace into this)
 
+bool bIgnore_nFrames = false
+
 global procedure crash(string msg, object args={}, integer nFrames=1)
+    if msg="" and args={} and nFrames=-1 then bIgnore_nFrames = true; return end if
 --  if atom(args) or length(args) then
     if args!={} then
         msg = sprintf(msg, args)
     end if
     if nFrames<1 then ?9/0 end if
+    if bIgnore_nFrames then nFrames = 1 end if
     crash_message(msg)  -- (yes, that increfs msg correctly, I just checked!)
     #ilASM{
         -- while e/rax do issue fake opRetf (including this routine!)

@@ -44,6 +44,7 @@ const NULL = 0,     // nb !=null, see docs
       EULER = Math.E,
       INVLN10 = 0.43429448190325182765,
 //    INVLN10 = 1/Math.LN10,    // NO!!
+      C_DOUBLE = 0x03000008,
       D_NAME = 1,
       D_ATTRIBUTES = 2,
       D_SIZE = 3,
@@ -180,6 +181,7 @@ function puts(/*integer*/ fn, /*object*/ text, cleanup=true) {
 } puts.$sig = "PIOO,2";
 
 function crash(/*string*/ msg, /*sequence*/ args = [] /*,nFrames=1*/) {
+    if (((msg==="") && (equal(args,["sequence"]))) && (nFrames===-1)) { return; }
 //  string(msg,"msg");
 //  object(args,"args");
     if (!Array.isArray(args) || (args.length !== 0)) {
@@ -193,9 +195,37 @@ function crash(/*string*/ msg, /*sequence*/ args = [] /*,nFrames=1*/) {
 //  puts(2,"this should not occur");
 } crash.$sig = "PSPI,1";
 
-function assert(/*bool*/ condition, /*string*/ msg = "", /*sequence*/ args = [] /*,integer nFrames=1*/) {
-    if (!condition) { crash(msg,args); }
-} assert.$sig = "PISPI,1";
+//function assert(/*bool*/ condition, /*string*/ msg = "", /*sequence*/ args = [] /*,integer nFrames=1*/) {
+//  if (!condition) { crash(msg,args); }
+//} assert.$sig = "PISPI,1";
+/*global*/ function assert(/*bool*/ condition, /*string*/ msg="", /*object*/ args=["sequence"], /*integer*/ nFrames=1) {
+    let /*string*/ colon = ((length(msg)) ? ":" : "");
+    if (!condition) { crash($conCat($conCat("assertion failure", colon), msg),args,nFrames+1); }
+} assert.$sig="PISOI,1";
+
+/*global*/ function asserteq(/*object*/ a, b, /*string*/ msg="", /*object*/ args=["sequence"], /*integer*/ nFrames=1) {
+    let /*sequence*/ tests = ["sequence","=", "==", "<", "<=", ">", ">=", "!="]; // (nb [2..7] flippable)
+    let /*integer*/ k = find(msg,tests), l = max(k,1);
+    let /*bool*/ bOK;
+    switch (l) {
+        case 1: case 2: bOK = equal(a,b);
+            break;
+        case 3: bOK = compare(a,b)<0;
+            break;
+        case 4: bOK = compare(a,b)<=0;
+            break;
+        case 5: bOK = compare(a,b)>0;
+            break;
+        case 6: bOK = compare(a,b)>=0;
+            break;
+        case 7: bOK = !equal(a,b);
+    }
+    if (!bOK) {
+        let /*string*/ m = ((k || (msg==="")) ? "" : $conCat($conCat(" (", sprintf(msg,args)), ")")), 
+                       t = $subse(tests,9-max(2,l));
+        crash("assertion failure: %v %s %v%s",["sequence",a,t,b,m],nFrames+1);
+    }
+} asserteq.$sig = "POOSOI,1";
 
 function abort(i) {
     crash("abort(%d)",["sequence",i])
@@ -1149,13 +1179,19 @@ function routine_id(/*string*/ rtn_name) {
 
 function call_func(/*integer*/ rid, /*sequence*/ params) {
     if (typeof(rid) !== "function") { crash("invalid routine_id"); }
+    if (string(params)) { params = $charArray(params); }
     return rid(...params.slice(1));
 } call_func.$sig="FIP";
 
 function call_proc(/*integer*/ rid, /*sequence*/ params) {
     if (typeof(rid) !== "function") { crash("invalid routine_id"); }
+    if (string(params)) { params = $charArray(params); }
     rid(...params.slice(1));
 } call_proc.$sig="PIP";
+
+function call_back(/*object*/ rid) {
+    crash("call_back not supported!");
+} call_back.$sig="FO";
 
 function xor(a,b) {
 //  return ( a || b ) && !( a && b );

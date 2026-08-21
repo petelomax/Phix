@@ -14,7 +14,8 @@ global function extract(sequence source, indexes, integer invert=false)
         indexes = inverse
         invert -= 1
     end if
-    sequence res = repeat(iff(invert=0 and string(source)?' ':0),l)
+--  sequence res = repeat(iff(invert=0 and string(source)?' ':0),l)
+    sequence res = repeat(iff(invert<=1 and string(source)?' ':0),l)
     for i=1 to l do
         ii = indexes[i]
         res[i] = source[ii]

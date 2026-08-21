@@ -1,0 +1,55 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">inline JavaScript</h1>
+      <div id="mainSection">
+        Similar to #ilASM{ ... } for inline assembly, Phix also uses #ilJS{ ... #}ilJS for embedded JavaScript code.<br>
+        Most applications should not need this at all, in fact there were over 1,250 fully working
+        programs that p2js.exw could transpile before this feature was added. It was <a href>theGUI</a> that 
+        already had (eg) <nobr>img = c_func(x_gdk_pixbuf_new,{...})</nobr> for GTK, and
+        <nobr>img = c_func(xCreateDIBSection,{...})</nobr> for WinAPI, and needed the equivalent in JavaScript,
+        that is once I decided a hand-crafted theGUI.js had become just a little too much effort.
+        <br>        
+        <br>
+        In practice, of course, desktop/Phix simply quietly skips such blocks, whereas p2js simply
+        copies the text between the two tags verbatim.
+        <br>
+        <br>
+        Of course it relies on "#}ilJS" not being valid JavaScript and should that occur in any comments or 
+        string literals suffers the same fate as HTML/JS always has and always will with "&lt;/script&gt;".
+        Incidentally, the fact that "}" <i>is</i> valid JavaScript is the reason for having the slightly longer
+        terminator (whereas "}" is <i>not</i> valid (x86) assembly, which is why that has worked well for ilASM, 
+        albeit "stmfd r13!,{r0,r1}" <i>is</i> valid ARM assembly, so a "#}ilASM" terminator might yet be needed).
+        All such blocks usually need some form of containing hll guard, for instance:
+        <br>
+<!--eucode>
+        if platform()=JS then
+-- or   elsif backend=TG_JS then -- (as found in/exclusive to theGUI.e)
+            #ilJS{
+                img = document.createElement("canvas");
+            #}ilJS
+        end if
+</eucode-->
+<pre>
+<font color="#008080">        if</font><font color="#7060A8"> platform</font><font color="#0000FF">()=</font><font color="#004600">JS</font><font color="#008080"> then</font>
+<font color="#000080"><i>-- or   elsif backend=TG_JS then -- (as found in/exclusive to theGUI.e)</i></font>
+<font color="#000000">            #ilJS</font><font color="#0000FF">{</font>
+<font color="#000000">                img</font><font color="#0000FF"> =</font><font color="#000000"> document</font><font color="#0000FF">.</font><font color="#000000">createElement</font><font color="#800000">(</font><font color="#008000">"canvas"</font><font color="#800000">)</font><font color="#0000FF">;</font>
+<font color="#000000">            #</font><font color="#0000FF">}</font><font color="#000000">ilJS</font>
+<font color="#008080">        end if</font>
+</pre>
+        Lastly note p2js.exw has a special pre-processing routine for theGUI.e to eliminate as much dead code as 
+        possible/practical before transpilation begins in earnest, see clip_beeq(). In time, I expect to eliminate 
+        that and make p2js smarter, skipping such code in much the same way that desktop/Phix skips "if false then" 
+        and similar <a href>platform</a>()/<a href>machine_bits</a>() guarded blocks.
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

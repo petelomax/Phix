@@ -1474,25 +1474,46 @@ string oneline
             nextCh()
             getToken()
             if toktype!=LETTER
-            or not find(token,{"ilasm","ilASM"}) then
-                Abort("ilASM expected")
+            or not find(token,{"ilASM","ilJS"}) then
+                Abort("ilASM or ilJS expected")
             end if
+            bool ilJS = token=="ilJS"
             getToken()
             if toktype!=SYMBOL
             or not equal(token,"{") then
                 Abort("{ expected")
             end if
-            while 1 do
-                getToken()
-                if toktype=SYMBOL then
-                    if equal(token,"}") then exit end if
-                end if
-                while find(Ch,"%@") do
-                    col += 1
-                    nextCh()
+            if ilJS then 
+--DEV untested:
+                while Ch!=-1 do
+                    do
+                        bool was_hash = Ch='#'
+                        col += 1
+                        nextCh()
+                    until was_hash or Ch=-1
+                    getToken()
+                    if equal(token,"}") then
+                        getToken()
+                        if token!="ilJS" then
+                            Abort(xl("#}ilJS expected"))
+                        end if
+                        getToken()
+                        exit
+                    end if
                 end while
-            end while
-            getToken()
+            else
+                while 1 do
+                    getToken()
+                    if toktype=SYMBOL then
+                        if equal(token,"}") then exit end if
+                    end if
+                    while find(Ch,"%@") do
+                        col += 1
+                        nextCh()
+                    end while
+                end while
+                getToken()
+            end if
         else
             nextCh()
         end if

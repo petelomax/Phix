@@ -1,0 +1,79 @@
+﻿--
+-- demo\rosetta\KleinBottle.exw
+-- ============================
+--
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant title = "Klein Bottle",
+        TG_NEON_CYAN = #00E5FF,
+        stepsU = 50,
+        stepsV = 40,
+          cosA = cos(PI/6), // cos 30°
+          sinA = sin(PI/6)  // sin 30°
+
+procedure redraw(gdx canvas, integer w, h)
+    integer scale = floor(h/40)
+
+    // 2D arrays to store screen coordinates for drawing grid lines.
+    sequence pointsX = repeat(repeat(0,stepsV+1),stepsU+1),
+             pointsY = repeat(repeat(0,stepsV+1),stepsU+1)
+
+    // STEP 1: Calculate mathematical points and project them.
+    for u=0 to stepsU do
+        atom uVal = (u / stepsU) * 2 * PI,  // true range: 0 to 2pi
+            cosuV = cos(uVal),
+            sinuV = sin(uVal)
+        for v=0 to stepsV do
+            atom vVal = (v / stepsV) * 2 * PI, 
+                cosvV = cos(vVal),
+                sinvV = sin(vVal),
+                 x, y = 4 * (1 - cosuV/2) * sinvV, z
+
+            // Klein bottle equations (Stewart Dickson / Mathworld formula)
+            if uVal<PI then
+                x = 6 * cosuV * (1 + sinuV) + 4 * (1 - cosuV/2) * cosuV * cosvV
+                z = 16 * sinuV + 4 * (1 - cosuV/2) * sinuV * cosvV
+            else
+                x = 6 * cosuV * (1 + sinuV) + 4 * (1 - cosuV/2) * cos(vVal+PI)
+                z = 16 * sinuV
+            end if
+
+            // 3D -> 2D Projection (with 30-degree rotation around Y and Z axes for better depth)
+            // Rotated coordinates.
+            atom xRot = x * cosA - y * sinA,
+                 yRot = x * sinA + y * cosA,
+                 zRot = z,
+                 // Scale and translate to the center of the window (900 x 700).
+                 sX = w/2 + (xRot - yRot * 0.3) * scale,
+                 sY = h/2 - (zRot - yRot * 0.2) * scale +30
+
+            // Save points for wireframe drawing.
+            pointsX[u+1][v+1] = sX
+            pointsY[u+1][v+1] = sY
+        end for
+    end for
+
+    // STEP 2: Connect the 3D wireframe mesh.
+
+    for u=1 to stepsU do
+        for v=1 to stepsV do
+            atom puvX = pointsX[u][v],
+                 puvY = pointsY[u][v],
+                 punX = pointsX[u][v+1],
+                 punY = pointsY[u][v+1],
+                 pnvX = pointsX[u+1][v],
+                 pnnY = pointsY[u+1][v+1]
+             // Line to adjacent V point (U lines).
+             gDrawLine(canvas,puvX, puvY, punX, punY, TG_NEON_CYAN)
+             // Line to adjacent V point (U lines).
+             gDrawLine(canvas,puvX, puvY, pnvX, pnnY, TG_NEON_CYAN)
+        end for
+    end for
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=#0A0A0F"),
+    dialog = gDialog(canvas,title,"SIZE=932x702")
+gMainLoop(dialog)
+

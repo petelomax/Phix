@@ -97,7 +97,7 @@ gMainLoop(dlg)
 </pre>
             </small>
           </div>
-          <img alt="gDialog" style="float:right;" src="images/gDialog.png" width="240" height="80"/>
+          <img src="images/gDialog.png" alt="gDialog" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
 <!--
             In the real world, of course, you would never specify a dialog with no contents (the <a href>NULL</a> above), 
@@ -196,6 +196,22 @@ gMainLoop(dlg)
         </tr>
         <tr>
          <td>
+          <b>Message<br>
+             &nbsp;Boxes:</b>
+         </td>
+         <td>
+            See demo\theGUI\gMsgBox.exw for an example message box: other GUI libraries have dedicated routines such as
+            <a href>IupMessage</a>[Alarm|Dlg|Error], <a href>messageBox</a>, and <a href>message_box</a>, however (to toot my own horn) in theGUI such 
+            things are so trivial that would simply <i>hinder rather than help</i>, so theGUI adopts a staunch "roll your own" stance: maybe create your 
+            own standard/application-specific include file.<br>
+            Yes, I know you <i>think</i> you still want one, but trust me, you <i>don&apos;t</i> want all the narks that
+            would come with it, that a diy-er can and will almost always fix without pausing for breath, plus your idea
+            of standard ain&apos;t everyone&apos;s.
+            <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Attributes:</b>
          </td>
          <td>
@@ -224,9 +240,11 @@ gMainLoop(dlg)
           DEFAULTESC
          </td>
          <td>
-            <a href>NULL</a>, <a href>TG_CLOSE</a>, <a href>TG_IGNORE</a>, 
-            or the <a href>gdx</a> of a button whose <a href>ACTION</a> handler should be to be invoked when the user 
-            presses (an otherwise unhandled) Enter/Escape when the keyboard focus is on any control within the dialog. 
+            <a href>NULL</a> (the default), <a href>TG_CLOSE</a>, <a href>TG_IGNORE</a>, or the <a href>gdx</a> of a button 
+            whose <a href>ACTION</a> handler should be invoked when the user presses (an otherwise unhandled) Enter/Escape 
+            when the keyboard focus is on any control within the dialog. 
+            Aside: <a href>gQuit</a> is quietly auto-corrected to <a href>TG_CLOSE</a>, but specifying any other handler
+            raises an error, even when it <i>is</i> the intended button handler.
             Alternatively or when no suitable button exists just use a <a href>KEY</a> handler on the dialog.<br>
             Note that DEFAULTESC takes priority over bEsc/CLOSE_ON_ESCAPE.
 <!--
@@ -287,6 +305,10 @@ void gtk_widget_set_receives_default ( GtkWidget* widget, gboolean receives_defa
          </td>
          <td>
             Show/hide the dialog titlebar (creation only, see also <a href="#HDRETC" onclick="opentech()">technicalia</a>). Default: <a href>true</a>.
+            <br>
+            <br>
+            Disclaimer: originally implemented for planned use on <a href>gMenu</a>(), <a href>gDatePick</a>(), and <a href>gDropDown</a>(), however
+            it turns out, especially on WinAPI, that popups need rather specialised non-focus-grabbing behaviour and do not in fact use this at all.
 <!--
 //           I&apos;ll just refuse to fix.
 //          You may (or may not) get better results by showing a window normalised, before trying to show it maximised and headerless, and
@@ -319,8 +341,7 @@ void gtk_widget_set_receives_default ( GtkWidget* widget, gboolean receives_defa
             make the dialog <a href>MODAL</a>, and hence there is no formal support for it on desktop/Phix.<br>
 -->
 <!--
-//          There are also <a href>MIN</a> and <a href>MAX</a> attributes on a
-//          <a href>gProgressBar</a>, and the <a href="min.htm">min</a>() and <a href="min.htm">max</a>() 
+//          There are also the <a href="min.htm">min</a>() and <a href="min.htm">max</a>() 
 //          builtins as well as a <a href>CLOSE</a> handler below, were you looking for them.
 -->
           <br><a name=FULLSCREEN></a><a name=MAXIMISED></a><a name=MINIMISED><a name=MAXIMIZED></a><a name=MINIMIZED></a>
@@ -376,9 +397,8 @@ Erm, actually now I think of it, all browsers /must/ allow fullscreen, eg watchi
             EXPAND is meaningless on a gDialog: there is nothing for it to expand into (you may be thinking of <a href="#RESIZE">RESIZE</a>). 
 -->
             EXPAND is meaningless on a gDialog: there is nothing for it to expand into (you may be thinking of resize). 
-            A dialog is given a natural size sufficient for its contents, unless explicitly overidden by the <a href="#SIZE">SIZE</a>, 
-            <a href>MINSIZE</a>, and/or 
-            <a href>MAXSIZE</a> attributes.
+            A dialog is given a natural size sufficient for its contents, unless explicitly overidden by <a href="#SIZE">SIZE</a>, 
+            <a href>MINSIZE</a>, and/or <a href>MAXSIZE</a>.
 <!--            In Motif the decorations are controlled by the Window Manager and may not be possible to be changed from IUP. <br>-->
 <!--
           <br><a name=MAXBOX></a><a name=MINBOX></a><a name=MENUBOX></a>
@@ -579,15 +599,6 @@ DEV post-v1, probably...<br>
 <!--
         <tr>
          <td>
-          DIALOGFRAME
-         </td>
-         <td>
-            Set the common decorations for modal dialogs. This means <a href="#RESIZE">RESIZE</a>=NO, MINBOX=NO and MAXBOX=NO. <br>
-            In Windows, if the PARENTDIALOG is defined then the MENUBOX is also removed, but the Close button remains.
-         </td>
-        </tr>
-        <tr>
-         <td>
           ICON
          </td>
          <td>
@@ -651,22 +662,6 @@ DEV post-v1, probably...<br>
          </td>
          <td>
             [Windows and GTK Only] (read-only) informs if the dialog is the active window (the window with focus). Can be Yes or No.
-         </td>
-        </tr>
-        <tr>
-         <td>
-          CUSTOMFRAME
-         </td>
-         <td>
-            [Windows and GTK Only] (non inheritable): allows the application to customize the dialog frame elements (the title and its buttons) by using 
-            IUP controls for its elements like caption, minimize button, maximize button, and close buttons. <br>
-            The custom frame support uses the native system support for custom frames. <br>
-            The application is responsible for leaving space for the borders. <br>
-            One drawback is that menu bars will not work. <br>
-            For the dialog to be able to be moved an IupLabel or an IupCanvas must be at the top of the dialog and must have the NAME attribute set 
-            to CUSTOMFRAMECAPTION. <br>
-            Native custom frames are supported only in Windows and in GTK version 3.10, so for older GTK versions we have to simulate the support 
-            using CUSTOMFRAMESIMULATE. See the Custom Frame notes above.
          </td>
         </tr>
 -->
@@ -799,9 +794,10 @@ DEV post-v1, probably...<br>
          </td>
          <td>
             Called just before a dialog is closed when the user clicks the close button of the title bar or an equivalent action.<br>
-            <b>NB</b>: other handlers returning <a href>TG_CLOSE</a> do <i>not</i> invoke any CLOSE handler, 
-            instead any required final processing, such as saving files, must be performed manually/explicitly first.<br>
-            <small>[DEV: I&apos;m beginning to think I really should improve on that...]</small>
+            <b>NB</b>: other handlers returning <a href>TG_CLOSE</a> do <i>not</i> invoke any CLOSE handler, nor does a  
+            program-terminating invocation of <a href>gHide</a>(), instead any required final processing must be performed manually
+            (eg saving files).
+<!--            <small>[DEV: I&apos;m beginning to think I really should improve on that...]</small>-->
             <br>
             <br>
             <!--or invoking <a href>IupConfigDialogClosed</a>(),-->
@@ -963,56 +959,56 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             <br>
 <small>
 <!--eucode>
-                        gDialog(child)
-                        gDialog(child, attributes)        -- (NB attributes must contain >=1 '=')
-                        gDialog(child, attributes, args)
-                        gDialog(child, attributes, args, bEsc)
-                        gDialog(child, attributes, bEsc)
-                        gDialog(child, title)                       -- (NB no '=' in [any] title)
-                        gDialog(child, title, attributes)
-                        gDialog(child, title, attributes, args)
-                        gDialog(child, title, attributes, args, bEsc)
-                        gDialog(child, title, attributes, bEsc)
-                        gDialog(child, title, bEsc)
---                      gDialog(child, bEsc)                -- (NB invalid/mistreated, see below)
-                        gDialog(child, parent)
-                        gDialog(child, parent, bEsc)
-                        gDialog(child, parent, attributes)
-                        gDialog(child, parent, attributes, bEsc)
-                        gDialog(child, parent, attributes, args)
-                        gDialog(child, parent, attributes, args, bEsc)
-                        gDialog(child, parent, title)
-                        gDialog(child, parent, title, bEsc)
-                        gDialog(child, parent, title, attributes)
-                        gDialog(child, parent, title, attributes, bEsc)
-                        gDialog(child, parent, title, attributes, args)
-                        gDialog(child, parent, title, attributes, args, bEsc)   -- (the full set)
+            gDialog(child)
+            gDialog(child, attributes)        -- (NB attributes must contain >=1 '=')
+            gDialog(child, attributes, args)
+            gDialog(child, attributes, args, bEsc)
+            gDialog(child, attributes, bEsc)
+            gDialog(child, title)                       -- (NB no '=' in [any] title)
+            gDialog(child, title, attributes)
+            gDialog(child, title, attributes, args)
+            gDialog(child, title, attributes, args, bEsc)
+            gDialog(child, title, attributes, bEsc)
+            gDialog(child, title, bEsc)
+--          gDialog(child, bEsc)                -- (NB invalid/mistreated, see below)
+            gDialog(child, parent)
+            gDialog(child, parent, bEsc)
+            gDialog(child, parent, attributes)
+            gDialog(child, parent, attributes, bEsc)
+            gDialog(child, parent, attributes, args)
+            gDialog(child, parent, attributes, args, bEsc)
+            gDialog(child, parent, title)
+            gDialog(child, parent, title, bEsc)
+            gDialog(child, parent, title, attributes)
+            gDialog(child, parent, title, attributes, bEsc)
+            gDialog(child, parent, title, attributes, args)
+            gDialog(child, parent, title, attributes, args, bEsc)   -- (the full set)
 </eucode-->
 <pre>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)       </font><font color="#000080"><i> -- (NB attributes must contain &gt;=1 &apos;=&apos;)</i></font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- (NB no &apos;=&apos; in [any] title)</i></font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#000080"><i>--                      gDialog(child, bEsc)                -- (NB invalid/mistreated, see below)</i></font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
-<font color="#7060A8">                        gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)  </font><font color="#000080"><i> -- (the full set)</i></font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)       </font><font color="#000080"><i> -- (NB attributes must contain &gt;=1 &apos;=&apos;)</i></font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">)                      </font><font color="#000080"><i> -- (NB no &apos;=&apos; in [any] title)</i></font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--          gDialog(child, bEsc)                -- (NB invalid/mistreated, see below)</i></font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">)</font>
+<font color="#7060A8">            gDialog</font><font color="#0000FF">(</font><font color="#000000">child</font><font color="#0000FF">,</font><font color="#000000"> parent</font><font color="#0000FF">,</font><font color="#000000"> title</font><font color="#0000FF">,</font><font color="#000000"> attributes</font><font color="#0000FF">,</font><font color="#000000"> args</font><font color="#0000FF">,</font><font color="#000000"> bEsc</font><font color="#0000FF">)  </font><font color="#000080"><i> -- (the full set)</i></font>
 </pre>
 </small>
             <br>
@@ -1108,8 +1104,9 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
 
             <h3>HDR/MNZ/RST/CLX, additional notes</h3>
 
-            A headerless window can be and is used for the dropdown on a <a href>gDatePick</a> and <a href>gDropDown</a>,
-            and <a href="gMenu.htm">menus</a>.<br>
+            The original plan was to use a headerless window for the dropdown on a <a href>gDatePick</a> and <a href>gDropDown</a>,
+            and all popup <a href="gMenu.htm">menus</a>, however it turned out they needed rather more specialised handling, so there isn&apos;t
+            actually anything still present that uses these attributes.<br>
             Displaying desktop-like window headers in a browser probably isn&apos;t really all that useful, beyond delivering a sense of comforting
             familiarity the first time you run a desktop-developed program in a browser, since a browser shows single pages/apps per tab rather than 
             a shared desktop with a taskbar, but child dialogs generally still need one. Without a taskbar, there is no practical/builtin mechanism
@@ -1133,7 +1130,7 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             which can appear in 54 different ways if you count hover-effects, of which I have picked 16 to show here (line 3 col 1 being 
             the default):<br>
             <br>
-            <p align="center"><img alt="MRX-JS" src="images/MRX_JS.png" width="584" height="144"/></p>
+            <p align="center"><img src="images/MRX_JS.png" alt="MRX-JS" width="584" height="144"/></p>
             <br>
             The above mimics Windows 11, see below for other possible styles.
             On desktop/Phix all three flags are plain booleans, and we are entirely at the mercy of the specific backend as to what they do.
@@ -1149,14 +1146,14 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             should you be capable of anything better) unfortunately you are straight out of luck:
             <br>
             <br>
-            <p align="center"><img alt="MRX-GTK" src="images/MRX_GTK.png" width="242" height="198"/></p>
+            <p align="center"><img src="images/MRX_GTK.png" alt="MRX-GTK" width="242" height="198"/></p>
             <br>
             Conversely, WinAPI can disable the minimise or restore button, but hides both when they are both disabled, and always hides
             rather than disables the close button, and when doing so automatically hides the other two whether there are enabled or not,
             along with the window icon. Again, you should be able to achieve/be straight out of luck:
             <br>
             <br>
-            <p align="center"><img alt="MRX-WinAPI" src="images/MRX_WinAPI.png" width="142" height="210"/></p>
+            <p align="center"><img src="images/MRX_WinAPI.png" alt="MRX-WinAPI" width="142" height="210"/></p>
             <br>
             There is no guarantee of any consistency between backends whatsoever, you may very well want to set these flags differently
             depending on what <a href>gVersion</a>(-1) returns.
@@ -1201,13 +1198,13 @@ focus: is non zero if the dialog or any of its children is getting the focus, is
             <br>
             <div style="display:flex; align-items:center;">
             Window 11 style dialog:
-            <img alt="gDialogW11" style="padding-left:10px;" src="images/gDialogW11.png" width="390" height="75"/>
+            <img src="images/gDialogW11.png" alt="gDialogW11" style="padding-left:10px;" width="390" height="75"/>
             </div>
             <br>
             <br>
             <div style="display:flex; align-items:center;">
             Mint Cinnamon style dialog:
-            <img alt="gDialogMintCinnamon" style="padding-left:10px;" src="images/gDialogMintCinnamon.png" width="341" height="102"/>
+            <img src="images/gDialogMintCinnamon.png" alt="gDialogMintCinnamon" style="padding-left:10px;" width="341" height="102"/>
             </div>
             <br>
             The main idea here being that should you whip up some similar images (Phix-based or not), I&apos;ll see what I can do.<br>

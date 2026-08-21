@@ -17,9 +17,9 @@
             <br>
             <br>
             <a href>gdx</a> id = gTabs(<a href>object</a> tabitems,
-                                                [<a href>rtn</a> tabchanged=<a href>NULL</a>,]
-                                                 <a href>string</a> attributes="",
-                                                 <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+                                      [<a href>rtn</a> tabchanged=<a href>NULL</a>,]
+                                       <a href>string</a> attributes="",
+                                       <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
          </td>
         </tr>
         <tr>
@@ -31,7 +31,7 @@
             <br>
             <br>
             tabitems: a static sequence of titles|images[,colours,style] for each tab, or a <a href>TABITEMS</a> function.<br>
-            tabchanged: an optional procedure invoked whenever the user changes the selected tab, see <a href="#TABCHANGED">TABCHANGED</a> below.<br>
+            tabchanged: (optional) handler for tab changes/clicks, see <a href>TABCHANGED</a>/<a href>TABCLICK</a> below.<br>
             For more information on the attributes and args parameters see <a href>gSetAttributes</a>().<br>
             This is a <a href="g_paranormal.htm">paranormalised function</a> <small>(see <a href="#tech" onclick="opentech()">technicalia</a>).</small>
             <br>
@@ -68,7 +68,7 @@
 -- demo\theGUI\gTabs.exw
 include theGUI.e
 constant xpm = ...(code omitted for brevity)
-gdx tabs = gTabs({{"First",xpm},"Second","Third","Fourth"}),
+gdx tabs = gTabs({{"First",xpm},"Second","Third",...}),
     dlg = gDialog(gVbox({tabs}),"gTabs","SIZE=240x80")
 gMainLoop(dlg)
 </eucode-->
@@ -76,14 +76,13 @@ gMainLoop(dlg)
 <font color="#000080"><i>-- demo\theGUI\gTabs.exw</i></font>
 <font color="#008080">include</font><font color="#000000"> theGUI.e</font>
 <font color="#008080">constant</font><font color="#000000"> xpm</font><font color="#0000FF"> = ...(</font><font color="#000000">code omitted</font><font color="#008080"> for</font><font color="#000000"> brevity</font><font color="#0000FF">)</font>
-<font color="#7060A8">gdx</font><font color="#000000"> tabs</font><font color="#0000FF"> =</font><font color="#7060A8"> gTabs</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008080">{</font><font color="#008000">"First"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008000">"Second"</font><font color="#0000FF">,</font><font color="#008000">"Third"</font><font color="#0000FF">,</font><font color="#008000">"Fourth"</font><font color="#800000">}</font><font color="#0000FF">),</font>
+<font color="#7060A8">gdx</font><font color="#000000"> tabs</font><font color="#0000FF"> =</font><font color="#7060A8"> gTabs</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#008080">{</font><font color="#008000">"First"</font><font color="#0000FF">,</font><font color="#000000">xpm</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#008000">"Second"</font><font color="#0000FF">,</font><font color="#008000">"Third"</font><font color="#0000FF">,...</font><font color="#800000">}</font><font color="#0000FF">),</font>
 <font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#7060A8">gVbox</font><font color="#800000">(</font><font color="#008080">{</font><font color="#000000">tabs</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"gTabs"</font><font color="#0000FF">,</font><font color="#008000">"SIZE=240x80"</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 </pre>
-           <br>
            </small>
           </div>
-          <img alt="gTabs" style="float:right;" src="images/gTabs.png" width="240" height="80"/>
+          <img src="images/gTabs.png" alt="gTabs" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
 <!--
             <br>
@@ -99,20 +98,20 @@ gMainLoop(dlg)
           <b>Notes:</b>
          </td>
          <td>
-            A gTabs is <i>not</i> a container, the application is responsible for managing visibility, size, etc of any associated controls.<br>
+            A gTabs is <i>not</i> a container: the application is responsible for managing visibility, size, etc of any associated controls.<br>
             theEditor uses a single <a href>gList</a> below a gTabs and replaces the content of that when switched. <!--, and properly
-            emulates a cuebanner when empty.--> Other applications might use a <a href>gHbox</a> or <a href>gVbox</a> 
-            (assuming only one immediate child would ever be <a href>VISIBLE</a> at the toplevel it matters not which) 
-            with different contents for each tab item, but that is down to the application, rather than the tab control.
+            emulates a cuebanner when empty.--> Other applications might have different controls for each tab item, typically with only one 
+            immediate child of a <a href>gHbox</a> or <a href>gVbox</a> <a href>VISIBLE</a> (so it matters not which), but that is down to 
+            the application, rather than the tab control.
             <br>
             <br>
-            There is no natural width on a gTabs <small>(apart from the 1-char canvas thing, typically 15px)</small>. Either it is a fixed width, 
-            which you should explicitly provide, or the dialog should be much more dependent on whatever you have put underneath it, with the 
-            gTabs expanding to match/cover that. I might even say that if non-static tabs are not allowed to expand full width, or shrink way 
-            below some mythical natural size, your&apos;e missing out on half the fun. The natural height is 24.
+            There is no natural width on a gTabs.<!-- <small>(apart from the 1-char canvas thing, typically 15px)</small>.-->
+            Either it is a fixed width, which you should explicitly provide, or the dialog should be much more dependent on whatever you have 
+            put underneath it, with the gTabs expanding to match/cover that. I might even say that if non-static tabs are not allowed to expand 
+            full width, or shrink way below some mythical natural size, you&apos;re missing out on half the fun! The natural height is 24.
             <br>
             <br>
-            Each element of tabitems, or the returns from a <a href>TABITEMS</a> function, can be a plain string or <br>
+            Each element of tabitems or the return from a <a href>TABITEMS</a> function, can be a plain string or <br>
             a sequence of the form {string[,image][,bgclr[,fgclr[,style]]]}.
             <br>
             <br>
@@ -120,23 +119,20 @@ gMainLoop(dlg)
             images can be any width and are centred vertically based on a 16px height model <small>(ie +8-floor(h/2))</small>,<br>
             a background colour (eg <a href>TG_RED</a>, "RED", or #FF0000) applies around and between images/text,<br>
             a foreground colour applies to the title text only, as does<br>
-            style, which can be <a href>TG_NORMAL</a>, 
-                                <a href>TG_BOLD</a>,
-                                <a href>TG_ITALIC</a>, 
-                                <a href>TG_BOLDITALIC</a>, or
-                                a full <a href>FONT</a> string.
-            <br>
+            style, which is as per <a href>gDrawText</a>.<br>
             <br>
             Note that changing <i>any</i> of these on the fly or for the currently selected tab constitutes a dynamic tabslist, which
             mandates the use of a <a href>TABITEMS</a> function.
             <br>
             <br>
             Although you should be able to mimic the appearance and behaviour of such, there is no formal way to disable individual tabitems.
-            There is no way, and never will be, to change the visibility of individual tabitems, instead <!--should you insist on such a frankly
+            There is no way to change the visibility of individual tabitems, and never will be, instead <!--should you insist on such a frankly
             awful interface design (fair point, theEditor does just that)--> you are expected to physically remove and re-insert entries yourself. 
-            You can mimic the <i>appearance</i> of mnemonics using the standard & prefix, however you would have to write a special custom
-            <a href>KEY</a> handler yourself to actually switch to the appropriate tabs (or not if your&apos;e pretending
-            they&apos;re disabled), which would be a function that has an alt parameter/all 5, and lets any other mnemonics though unhindered.
+<!--
+//          You can mimic the <i>appearance</i> of mnemonics using the standard & prefix, however you would have to write a special custom
+//          <a href>KEY</a> handler yourself to actually switch to the appropriate tabs (or not if your&apos;e pretending
+//          they&apos;re disabled), which would be a function that has an alt parameter/all 5, and lets any other mnemonics though unhindered.
+-->
 <!-- oh, see TABMOUSE below...
             If ever needed I suppose I could fairly easily add support for an optional tooltip on individual tabitems by letting the first of 
             each entry be either text or {text,tip}, but that handling isn&apos;t there just yet.
@@ -167,17 +163,17 @@ gMainLoop(dlg)
             and of course within that statement I&apos;m including a run-time crash that rudely terminates the entire application,
             but equally I am not about to guarantee it will not work, just look like it has been dragged through a hedge backwards.
 DDEV...
-            Mnemonics on tab titles are only formally supported in the fixed "obvious"/with-gdx case: ymmv, the fundamental issue is 
-            with removing/replacing mnemonics, and besides which it is probably not a good GUI design to have say Alt H only available 
-            half the time.
-            <br>
-            <br>
-            As mentioned theEditor uses a "virtual" gTabs and a single <a href>gList</a> that is fully redrawn on tab change, 
-            and likewise filedump.exw does a similar trick over a single <a href>gTable</a>, hence neither should be copied
-            or studied for more traditional uses, by which I specifically mean where selecting a different tab automatically hides some 
-            controls and displays some others. Neither of those make any attempt to use mnemonics on tab titles, either.
-            <br>
-            <br>
+//          Mnemonics on tab titles are only formally supported in the fixed "obvious"/with-gdx case: ymmv, the fundamental issue is 
+//          with removing/replacing mnemonics, and besides which it is probably not a good GUI design to have say Alt H only available 
+//          half the time.
+//          <br>
+//          <br>
+//          As mentioned theEditor uses a "virtual" gTabs and a single <a href>gList</a> that is fully redrawn on tab change, 
+//          and likewise filedump.exw does a similar trick over a single <a href>gTable</a>, hence neither should be copied
+//          or studied for more traditional uses, by which I specifically mean where selecting a different tab automatically hides some 
+//          controls and displays some others. Neither of those make any attempt to use mnemonics on tab titles, either.
+//          <br>
+//          <br>
 <hr>
 <hr>
 DEV... <small><i>(everything below needs a complete rewrite/rethink...)</i></small><br>
@@ -243,14 +239,7 @@ rather than changing under your feet as/when things are added and removed...]</i
           POSN
          </td>
          <td>
-            (non inheritable) Retrieves/changes the active tab by its position, starting at 1. Default: 1.<br>
-            The legacy <a href>gCbox</a> also utilises a POSN attribute, in case you were looking for that.
-<!--
-            When the tabs is created, the first element inserted is set as the visible child.
-            <br>
-            <br>
-            <b>NB</b> inconsistent between different backends when <a href="#TABCHANGED">TABCHANGED</a> is invoked.
--->
+            (non inheritable) Retrieves/changes the active tab by its position, starting at 1. Default: 1.
             <br><a name=SHOWCLOSE></a>
          </td>
         </tr>
@@ -262,20 +251,20 @@ rather than changing under your feet as/when things are added and removed...]</i
             (non inheritable) display a close button on each tab. Default value: "NO"/<a href>false</a>. <br>
             An error occurs when setting this to <a href>true</a> if tabitems is defined as a static sequence, rather than 
             a <a href>TABITEMS</a> function <small>(since closing an entry in a static list means it&apos;s not static)</small>, 
-            or if neither a <a href>TABCLICK</a> nor a <a href="#TABCLOSED">TABCLOSED</a> handler has been defined.
-            <br><a name=TABCOUNT></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TABCOUNT
-         </td>
-         <td>
-            (read-only, non inheritable) returns the number of tabs, ie the length of a static tabitems sequence or matching the return of 
-            <a href="#TABITEMS">tabitems(0)</a>. Included primarily to make the internal code more self-documenting/debuggable.
+            or if a <a href>TABCHANGED</a>/<a href>TABCLICK</a> handler has not been defined.
          </td>
         </tr>
 <!--
+//          <br><a name=TABCOUNT></a>
+//      <tr>
+//       <td>
+//??          TABCOUNT
+//       </td>
+//       <td>
+//          (read-only, non inheritable) returns the number of tabs, ie the length of a static tabitems sequence or matching the return of 
+//          <a href="#TABITEMS">tabitems(0)</a>. Included primarily to make the internal code more self-documenting/debuggable.
+//       </td>
+//      </tr>
 //      <tr>
 //       <td>
 //?       TABORIENTATION
@@ -323,6 +312,7 @@ rather than changing under your feet as/when things are added and removed...]</i
          <td>
             <a href>ACTIVE</a>, 
             <a href>FONT</a>, 
+            <a href>MARGIN</a>, 
             <a href>MINSIZE</a>, 
             <a href>MAXSIZE</a>,
             <a href>SIZE</a>,
@@ -335,7 +325,7 @@ rather than changing under your feet as/when things are added and removed...]</i
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(tabs,"TABITEMS",tabitems), or 2 out of 5 can be specified at creation time
+            (optional) Specified at creation time or set eg <a href>gSetHandler</a>(tabs,"TABITEMS",tabitems).
           <br><a name=TABITEMS></a>
          </td>
         </tr>
@@ -350,59 +340,18 @@ rather than changing under your feet as/when things are added and removed...]</i
             sequence tabslist = {"one","two","three"} <i><small>-- assume this gets modified</small></i>
             <br>
             <br>
-            function tabitems([<a href>gdx</a> id,]
-                              <a href>integer</a> item)<br>
-<!--
-            &nbsp;&nbsp;&nbsp;&nbsp;if item=0 then return length(tabslist) end if<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;return tabslist[item]<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;return iff(item=0?length(tabslist):tabslist[item])<br>
--->
-            &nbsp;&nbsp;&nbsp;&nbsp;return iff(item=0 ? length(tabslist) : tabslist[item])<br>
+            function tabitems([<a href>gdx</a> id,])<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;return tabslist<br>
             end function
             <br>
             <br>
-            id: (optional) identifier of the element that activated the event.<br>
-            item: index of the desired item, or 0 to get the total number of tabs.
+            id: (optional) identifier of the element that activated the event.
             <br>
             <br>
-            Return must be an integer when item is 0, otherwise a plain string or <br>
-            sequence of the form {string[,image][,bgclr[,fgclr[,style]]]}.
-          <br><a name=TABCLICK></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TABCLICK
-         </td>
-         <td>
-            Note the standard <a href>CLICK</a> handler is used internally by this control and should
-            not be overidden, however it will forward all such events to a TABCLICK handler first, if one is defined, and as 
-            a bonus indicates which tab (if any) it occurred on, with -2 for none, -1 for left overflow and 0 for right, 
-            <i>before</i> <a href="#POSN">POSN</a> is updated, so that attribute can still be used within this handler to 
-            determine the current/prior one, and whether a close button has been clicked.
-            <br>
-            <br>
-            function tabclick(<a href>gdx</a> id, <a href>sequence</a> status,
-                                                            <a href>integer</a> x, y, posn,
-                                                            <a href>bool</a> bClose)
-            <br>
-            See <a href>CLICK</a> for more details, note however this must be a function with all six
-            parameters. If status does not begin with "LS" (ie a left single click) the internal handler will do nothing 
-            (nor invoke any other handlers bar this).
-            <!--posn will be -2 and bClose false.-->
-            <br>
-            <br>
-            Returns of <a href>TG_IGNORE</a> prevent any further processing (which is merely to 
-            update <a href="#POSN">POSN</a> as required and invoke the appropriate <a href="#TABCHANGED">TABCHANGED</a> 
-            and/or <a href="#TABCLOSED">TABCLOSED</a> when they exist and redraw) and hence effectively disable the control 
-            (or just the close action), <a href>TG_CONTINUE</a> and 
-            <a href>TG_DEFAULT</a> behave as if this handler did not exist, with all other values 
-            triggering an error, including <a href>TG_CLOSE</a>.
-            <br>
-            <br>
-            A single TABCLICK handler can replace/do all the work needed for both <a href="#TABCHANGED">TABCHANGED</a> and 
-            <a href="#TABCLOSED">TABCLOSED</a> handlers, but of course when you have no need to prohibit things or don&apos;t
-            need both, the latter are a tiny smidge simpler.
+            Return must be a sequence in which every element is a string or of the form {string[,image][,bgclr[,fgclr[,style]]]}.<br>
+            <small>[Aside: an image/<a href>gdm</a> is negative, distinguishing it from a colour, and style can only occur after two colours,
+             hence avoiding any ambiguity.]</small><br>
+            When the set of tabitems is fixed and final, it can be provided directly in the gTabs() creation call instead.
             <br><a name=TABCHANGED></a>
          </td>
         </tr>
@@ -411,77 +360,136 @@ rather than changing under your feet as/when things are added and removed...]</i
           TABCHANGED
          </td>
          <td>
-            (same as second param on creation, when provided as such) Handler called when(/after) the user changes the active tab.
+            Same as the optional second param on creation, called after the user changes the active tab (not when <a href>POSN</a> is set). 
             <br>
             <br>
             procedure tabchanged([<a href>gdx</a> id,] <a href>integer</a> old_posn, new_posn)<br>
             id: (optional) identifier of the element that activated the event.<br>
-            old_posn, new_posn: integers 1..<a href>TABCOUNT</a>
+            old_posn: an integer 1..length(tabitems)
+            new_posn: as above or 0 to indicate a close (only when <a href>SHOWCLOSE</a> is <a href>true</a>).
+            <br>
+            <br>
+            The second parameter on creation sets <a href>TABCLICK</a> instead when the provided routine is a function with six parameters.<br>
+            This handler (or <a href>TABCLICK</a>) is only mandatory when <a href>SHOWCLOSE</a> is <a href>true</a> - it would for instance 
+            be perfectly acceptable for an application similar to task manager to draw a graph twice a second and fetch <a href>POSN</a> to
+            decide what to draw, rather than (only) redraw on tab switch, or pointlessly double-up drawing when that happens, or worse mess 
+            up your sampling rate.
             <br>
             <br>
 <!--
-            Note the value of <a href="#POSN">POSN</a> is inconsistent between backends when this routine is called. [DEVthat no longer need be so]
+            Note the value of <a href>POSN</a> is inconsistent between backends when this routine is called. [DEVthat no longer need be so]
             <br>
             <br>
 -->
-            It is entirely the application&apos;s responsibility to hide/show/update any associated controls.<br>
-            Note this is decidedly <i>not</i> a "before change with the option to prohibit" event: you would have to mimic such yourself,
-            and perhaps explicitly <small>[<a href>gSetAttribute</a>(tabs,`>a href="#POSN">POSN</a>`,<i>?</i>)]</small> 
-            switch back to some incomplete tab.
-            <br><a name=TABCLOSED></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          TABCLOSED
-         </td>
-         <td>
-<!--            [Windows and GTK Only] -->
-            Handler called when the user clicks on the close button. Called only when <a href>SHOWCLOSE</a> is true.
-            <br>
-            <br>
-            procedure tabclosed([<a href>gdx</a> id,] <a href>integer</a> posn)<br>
-            id: (optional) identifier of the element that activated the event.<br>
-            posn: the tab position
-            <br>
-            <br>
-            It is entirely the application&apos;s responsibility to maintain the dynamic tabitems list, which it owns.
+            It is entirely the application&apos;s responsibility to update tabitems <!--(and <a href>POSN</a>)--> when new_posn is 0, and 
+            (on any change) hide/show/update any associated controls, and you could effectively prohibit a tab change simply by explicitly 
+            setting <a href>POSN</a> back to old_posn, or do nothing to prohibit a tab close, to wit there would actually be no point in
+            letting this be a function which can return <a href>TG_IGNORE</a>, or anything else. You might instead, for instance, 
+            display a <a href>gDialog</a> asking whether to save a file, and/or perform the actual close (or tabswitch) when/depending 
+            on which button they click. 
 <!--
-            It does not matter whether said is done here or in <a href>TABCLICK</a> instead (presumably after checking bClose 
-            and returning <a href>TG_CONTINUE</a>/<a href>TG_DEFAULT</a>) 
-            and not having a separate TABCLOSED handler at all, except TABCLICK gives you the option to permit/prohibit close at the same time.<br>
-            Will always be immediately followed by a flurry of calls to the <a href>TABITEMS</a> function, so
-            technically you could just ignore this completely, do nothing, and it won&apos;t exactly hurt (that is, if you
-            want to refuse or prevent the close operation).
+            In fact a gTabs makes no attempt to throw an error if tabitems is shortened and <a href>POSN</a> left invalid, but equally 
+            no guarantee that so doing <i>won&apos;t</i> trigger a crash.
 -->
-<!--            
-??          Returns: the tab will be hidden if the handler returns <a href>TG_DEFAULT</a> or if it does not exists. 
-            If <a href>TG_CONTINUE</a> is returned the tab is removed and its children are destroyed. <br>
-            If <a href>TG_IGNORE</a> is returned does nothing.
--->
-          <br><a name=TABMOUSE></a>
+          <br><a name=TABCLICK></a>
          </td>
         </tr>
         <tr>
          <td class="techbtn">
-          TABMOUSE
+          TABCLICK
           <img id="Timg" />
          </td>
          <td>
-            In a similar fashion to <a href>CLICK</a>/<a href>TABCLICK</a> the standard
-            <a href>MOUSEMOVE</a> handler is also used internally by this control and should
-            not be overidden (otherwise hover effects may/will stop working), however it will forward all such events to a 
-            TABMOUSE handler first, if one is defined, and as a bonus indicate which tab (if any) the mouse cursor is over, 
-            with -2 for none, -1 for left overflow and 0 for right, and whether it is on a close button.
+            <small>(untested, but that is expected to happen fairly soon in theEditor)</small><br>
+            Can (also) be set via the optional second param on creation, called when mouse click events occur on the tab control. <br>
+            Note the standard <a href>CLICK</a> handler is used internally by this control and should not be overidden, however 
+            it forwards all such events to a TABCLICK handler first, if one is defined, and as a bonus indicates which tab (if any) 
+            it occurred on, with -2 for none, -1 for left overflow and 0 for right, <i>before</i> <a href>POSN</a> is updated, 
+            so that attribute can still be used within this handler to determine the current/prior one, and whether a close button has 
+            been clicked.
             <br>
             <br>
-            procedure tabmouse(<a href>gdx</a> id, <a href>integer</a> x, y, posn, 
-                                                             <a href="bool.htm">bool</a> bClose[,
-                                                                                         left,middle,right[,
-                                                                                         ctrl,shift,alt]])
+            function tabclick(<a href>gdx</a> id, <a href>sequence</a> status,
+                                                  <a href>integer</a> x, y, posn,
+                                                  <a href>bool</a> bClose)
             <br>
-            See <a href>MOUSEMOVE</a> for more details, note however this must be a procedure with 
-            five, eight, or all eleven parameters. You might need this, for instance, to change the tooltip on each tab.
+            See <a href>CLICK</a> for more details, note however this must be a function with all six parameters. 
+            If status does not begin with "LS" (ie a left single click) the internal click handler does nothing 
+            (nor invokes any other handlers bar this).
+            <!--posn will be -2 and bClose false.-->
+            <br>
+            <br>
+            Returns of <a href>TG_IGNORE</a> prevent any further processing (which is merely to update <a href>POSN</a> 
+            as required and invoke the appropriate <a href>TABCHANGED</a> <!--and/or <a href="#TABCLOSED">TABCLOSED</a> -->
+            when it exists and redraw) and hence effectively prohibit/ignore the switch/close. <br>
+            Returns of <a href>TG_CONTINUE</a> and <a href>TG_DEFAULT</a> behave as if this handler did not exist, with all 
+            other values triggering an error, including <a href>TG_CLOSE</a>.
+            <br>
+            <br>
+            A single TABCLICK handler can replace/be specified instead of a <a href>TABCHANGED</a> handler, and if both are defined 
+            then both will(/may) be called, but of course the latter cannot open a popup right-click menu (in the right place).
+<!--
+             , and can be set on
+            control creation, which this handler cannot.-->
+            
+<!--            
+//          While <a hrXef>TABCLICK</a> can prohibit the switch, this cannot.
+            Note this is decidedly <i>not</i> a "before change with the option to prohibit" event: you would have to mimic such yourself,
+            and perhaps explicitly <small>[<a href>gSetAttribute</a>(tabs,`<a href>POSN</a>`,<i>?</i>)]</small> 
+            switch back to some incomplete tab.
+-->
+<!--
+//          <br><a name=TABCLOSED></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+//        TABCLOSED
+         </td>
+         <td>
+            Handler called when the user clicks on the close button. Called only when <a href>SHOWCLOSE</a> is true.
+            <br>
+            <br>
+//          procedure tabclosed([<a href>gdx</a> id,] <a href>integer</a> posn)<br>
+            id: (optional) identifier of the element that activated the event.<br>
+            posn: the tab position that this routine should close/delete.
+            <br>
+            <br>
+            It is entirely the application&apos;s responsibility to maintain the dynamic tabitems list, which it owns.
+[!--
+            It does not matter whether said is done here or in <a hrXef>TABCLICK</a> instead (presumably after checking bClose 
+            and returning <a href>TG_CONTINUE</a>/<a href>TG_DEFAULT</a>) 
+//          and not having a separate TABCLOSED handler at all, except TABCLICK gives you the option to permit/prohibit close at the same time.<br>
+            Will always be immediately followed by a flurry of calls to the <a href>TABITEMS</a> function, so
+            technically you could just ignore this completely, do nothing, and it won&apos;t exactly hurt (that is, if you
+            want to refuse or prevent the close operation).
+--]
+[!--            
+??          Returns: the tab will be hidden if the handler returns <a href>TG_DEFAULT</a> or if it does not exists. 
+            If <a href>TG_CONTINUE</a> is returned the tab is removed and its children are destroyed. <br>
+            If <a href>TG_IGNORE</a> is returned does nothing.
+--]
+//        <br><a name=TABMOUSE></a>
+         </td>
+        </tr>
+        <tr>
+         <td class="techbtn">
+//        TABMOUSE
+          <img id="Timg" />
+         </td>
+         <td>
+//          In a similar fashion to <a href>CLICK</a>/<a hrXef>TABCLICK</a> the standard <a href>MOUSEMOVE</a> handler is also 
+            used internally by this control and should not be overidden (otherwise hover effects may/will stop working), however 
+//          it forwards all such events to a TABMOUSE handler first, if one is defined, and as a bonus indicates which tab (if any) 
+            the mouse cursor is over, with -2 for none, -1 for left overflow and 0 for right, and whether it is on a close button.
+            <br>
+            <br>
+//          procedure tabmouse(<a href>gdx</a> id, <a href>integer</a> x, y, posn, 
+                                                   <a href="bool.htm">bool</a> bClose[, left,middle,right[, ctrl,shift,alt]])
+            <br>
+            See <a href>MOUSEMOVE</a> for more details, note however this must be a procedure with 5, 8, or all 11 parameters. 
+            You might need this, for instance, to change the tooltip on each tab.
+-->
           <br><a name=tech></a>
          </td>
         </tr>
@@ -591,14 +599,14 @@ rather than changing under your feet as/when things are added and removed...]</i
             I tried using native tab controls, which were pretty fiddly I can tell you, and got the following on WinAPI/GTK2/GTK3:
             <br>
             <br>
-            <p align="center"><img alt="gNativeTabs" src="images/gNativeTabs.png" width="285" height="93"/></p>
+            <p align="center"><img src="images/gNativeTabs.png" alt="gNativeTabs" width="285" height="93"/></p>
             <br>
             which immediately raised issues with figuring out the native sizes, and had lots of little behavioural quirks between backends,
             and then I looked at adding an optional close button on each tab, and immediately decided it would be <i>much</i> simpler to 
             re-implement the whole thing myself, so behind the scenes it is just a <a href>gCanvas</a>, of height 24 that 
             expands to fill the width of the parent container, with all drawing and mouse interaction directly implemented in hll code.
             I&apos;ll toot my own horn here and recommend that anyone remotely interested in such matters take a good gander at
-            tg_redraw_tabs() in theGUI.e: it packs a serious punch in a mere 120 lines of pretty elegantly written code, imnsho!
+            tg_redraw_tabs() in theGUI.e: it packs a serious punch in a mere 130 lines of pretty elegantly written code, imnsho!
             Note the standard <a href="tglayout.htm#SoleChild">sole child</a> exception applies, and especially when building a prototype
             you may notice some faint strange blotchy squares being drawn below a gTabs, as it dithers between that rule and "height=24", 
             unless it is in an appropriate <a href>gHbox</a> or <a href>gVbox</a> that absorbs any excess space.
@@ -615,10 +623,9 @@ rather than changing under your feet as/when things are added and removed...]</i
             other backends (I&apos;d need some screenshots, ideally with and without overflow[but see below] and close buttons).<br>
             I didn&apos;t bother to implement any of the very subtle gradients in the tab edges (well done if you can see them above).<br>
             I should perhaps also mention that WinAPI makes some weird and subtle adjustments to the results from (the equivalent of) 
-            <a href>gGetTextExtent</a>() that I never figured out, so it uses a slightly different 
-            and simpler spacing model. Also, (as I used it) WinAPI uses an imagelist, forcing all images to be the same wxh, but the 
-            replacement does not.<br>
-            No focus or keyboard handling, as yet, and tbh I am not sure that I ever want to bother with those (except mnemonics).<br>
+            <a href>gGetTextExtent</a>() that I never figured out, so it uses a slightly different and simpler spacing model. <br>
+            Also, (as I used it) WinAPI uses an imagelist, forcing all images to be the same wxh, but the replacement does not.<br>
+            No focus or keyboard handling, as yet, and tbh I am not sure that I ever want to bother with those.<!-- (except mnemonics).--><br>
             Single line tab only, not that I think it would be spectacularly difficult to do multiline.<br>
             There is no '+' button but it should be easy to add one [only when the right overflow button is not showing?], and presumably
             have it simply invoke <a href="#TABITEMS">tabitems(-1)</a>, and possibly bump left-overflow when needed. [PLUSBTN?]<br>
@@ -627,15 +634,14 @@ rather than changing under your feet as/when things are added and removed...]</i
             In accordance with every version of this control I have ever seen, should a single pixel overlap the edge (or the overflow
             button) it displays no part of the rightmost tab, though I&apos;m not entirely convinced that is ideal. <br>
             On the plus side, it drags in any left-hidden tabs much better/earlier when [none on the right and] resizing the containing 
-            window, at least on WinAPI (I gave up with the native controls before I could make the GTK versions "shrinkable"). However
-            it does not [as yet] hide more on the left(/right) to ensure the current/active tab stays visible, when shrinking. 
+            window, and hides more on the left(/right) to ensure the current/active tab stays visible, when shrinking. 
             Then again you can, as you probably should be able to, dribble said off-screen, either way, using the overflow buttons.
             <br>
             <br>
-            Just for completeness, this is what the close and overflow buttons look like (when latter needed/visible, in this shot both are):
+            Just for completeness, this is what the close and overflow buttons look like when needed/visible:
             <br>
             <br>
-            <p align="center"><img alt="gOverflowTabs" src="images/gOverflowTabs.png" width="242" height="80"/></p>
+            <p align="center"><img src="images/gOverflowTabs.png" alt="gOverflowTabs" width="240" height="80"/></p>
             <br>
          </td>
         </tr>

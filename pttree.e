@@ -1288,6 +1288,12 @@ global constant T_lr            = 6048  tt_stringF("lr",T_lr)
 global constant T_pc            = 6056  tt_stringF("pc",T_pc)
 global constant T_swi           = 6060  tt_stringF("swi",T_swi)
 global constant T_movss         = 6068  tt_stringF("movss",T_movss)
+global constant T_cvtsi2sd      = 6100  tt_stringF("cvtsi2sd",T_cvtsi2sd)
+global constant T_mulsd         = 6112  tt_stringF("mulsd",T_mulsd)
+global constant T_subsd         = 6124  tt_stringF("subsd",T_subsd)
+global constant T_addsd         = 6136  tt_stringF("addsd",T_addsd)
+global constant T_cvtsd2si      = 6156  tt_stringF("cvtsd2si",T_cvtsd2si)
+global constant T_ilJS          = 6168  tt_stringF("ilJS",T_ilJS)
 
 --CVTTSS2SI
 --cvttss2si

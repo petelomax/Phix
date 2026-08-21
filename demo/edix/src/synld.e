@@ -310,7 +310,7 @@ local function opening_set(string ebnf)
         end if
 --      ?9/0 -- unknown/unhandled enbf
 --  end if
-    assert(find(ebnf,{"#ilASM{","[ARM]","<?php","<style>"})) -- (those known)
+    assert(find(ebnf,{"#ilASM{","#ilJS{","[ARM]","<?php","<style>"})) -- (those known)
     return {ebnf} -- (assume just the one single exact terminal token)
 end function
 
@@ -326,7 +326,7 @@ local function closing_set(string ebnf)
         end if
         ?9/0 -- unknown/unhandled enbf
     end if
-    assert(find(ebnf,{"?>","</script>","</style>","}"})) -- (those known)
+    assert(find(ebnf,{"?>","</script>","</style>","}","#}ilJS"})) -- (those known)
     return {ebnf} -- (assume just the one single exact terminal token)
 end function
 
@@ -1048,6 +1048,8 @@ integer lh, f2, k, b1, b2
     end if
     fullname = ""
 end procedure
+
+--forward global procedure Error_Message(string title, msg)
 
 global procedure initSyn()
 

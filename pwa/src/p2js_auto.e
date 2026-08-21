@@ -1,10 +1,11 @@
 --
 -- p2js_auto.e (nb automatically over-written, all comments get trashed)
 --
-global constant last_built = "February 10 2026 6:31:03pm"
+global constant last_built = "April 28 2026 8:01:50pm"
 
 global constant p2js_auto = {{`decode_base64`, `Func`, `FP`, `base64.e`},
                              {`encode_base64`, `Func`, `FPI`, `base64.e`},
+                             {`binary_index`, `Func`, `FOPIII`, `bsearch.e`},
                              {`binary_search`, `Func`, `FOPIII`, `bsearch.e`},
                              {`call_lambda`, `Func`, `FOO`, `closures.e`},
                              {`define_lambda`, `Func`, `FOPII`, `closures.e`},

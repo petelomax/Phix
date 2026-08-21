@@ -17,8 +17,7 @@
 // This is an auto-include file; there is no need to manually include
 //  it, unless you want a namespace.
 //
-//without trace
-//include VM\pTrig.e    -- (not strictly necessary)
+/*without trace*/ //include VM\pTrig.e    -- (not strictly necessary)
 
 /*global*/ function abs(/*atom*/ a) {
     if (a<0) {

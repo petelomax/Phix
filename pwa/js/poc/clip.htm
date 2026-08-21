@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="UTF-8"/>
+  <title>Clipboard Image Toggle</title>
+  <style>
+  body { 
+    font-family: sans-serif; 
+    text-align: center;
+  }
+
+  #container {
+    display: inline-block;
+    padding: 10px;
+    border: 1px solid #444;
+    background: white;
+    margin-top: 10px;
+  }
+
+  canvas {
+    display: block;
+    cursor: pointer;
+  }
+  </style>
+ </head>
+ <body>
+  <button id="loadBtn">Load Image from Clipboard</button>
+  <p id="msg">No image loaded</p>
+  <div id="container">
+   <canvas id="canvas"></canvas>
+  </div>
+  <script>
+var btn = document.getElementById("loadBtn");
+var canvas = document.getElementById("canvas");
+var ctx = canvas.getContext("2d");
+var msg = document.getElementById("msg");
+
+var hasImage = false;
+
+// ---- Load image helper ----
+function loadImageFromBlob(blob) {
+    var img = new Image();
+    img.onload = function () {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        ctx.drawImage(img, 0, 0);
+        hasImage = true;
+        msg.textContent = "Click image to toggle corners";
+    };
+    img.src = URL.createObjectURL(blob);
+}
+
+// ---- Clipboard load ----
+async function loadFromClipboard() {
+    try {
+        var items = await navigator.clipboard.read();
+        for (var i=0; i<items.length; i++) {
+            var item = items[i];
+            for (var j=0; j<item.types.length; j++) {
+                var type = item.types[j];
+                if (type.indexOf("image/") === 0) {
+                    var blob = await item.getType(type);
+                    loadImageFromBlob(blob);
+                    return;
+                }
+            }
+        }
+        msg.textContent = "No image in clipboard";
+    } catch (e) {
+        msg.textContent = "Clipboard access failed";
+    }
+}
+btn.onclick = loadFromClipboard;
+//loadFromClipboard();
+
+// ---- Drag & drop ----
+function handleDragOver(e) {
+    e.preventDefault();
+}
+function handleDrop(e) {
+    e.preventDefault();
+    var files = e.dataTransfer.files;
+    if (files.length > 0) {
+        var file = files[0];
+        if (file.type.indexOf("image/") === 0) {
+            loadImageFromBlob(file);
+        } else {
+            msg.textContent = "Dropped file is not an image";
+        }
+    }
+}
+canvas.addEventListener("dragover", handleDragOver);
+canvas.addEventListener("drop", handleDrop);
+
+// ---- Corner pattern ----
+var pattern = [
+    [0,0],[1,0],[2,0],[3,0],[4,0],
+    [0,1],[1,1],[2,1],
+    [0,2],[1,2],
+    [0,3],
+    [0,4]
+];
+
+// ---- Toggle logic ----
+function handleClick() {
+    if (!hasImage) return;
+
+    var w = canvas.width;
+    var h = canvas.height;
+
+    var imgData = ctx.getImageData(0, 0, w, h);
+    var data = imgData.data;
+
+    function idx(x,y){ return (y*w + x)*4; }
+
+    // check top-left corner
+    var white = true;
+    for (var i=0; i<pattern.length; i++) {
+        var dx = pattern[i][0];
+        var dy = pattern[i][1];
+        var p = idx(dx,dy);
+        if (!(data[p]===255 && data[p+1]===255 && data[p+2]===255)) {
+            white = false;
+            break;
+        }
+    }
+
+    var val = white ? 0 : 255;
+
+    function setPixel(x,y) {
+        var p = idx(x,y);
+        data[p] = data[p+1] = data[p+2] = val;
+        data[p+3] = 255;
+    }
+
+    for (var i=0; i<pattern.length; i++) {
+        var dx = pattern[i][0];
+        var dy = pattern[i][1];
+
+        setPixel(dx,dy);
+        setPixel(w-1-dx,dy);
+        setPixel(dx,h-1-dy);
+        setPixel(w-1-dx,h-1-dy);
+    }
+
+    ctx.putImageData(imgData, 0, 0);
+
+    // ---- Write back to clipboard ----
+    canvas.toBlob(function(blob) {
+        navigator.clipboard.write([
+            new ClipboardItem({ "image/png": blob })
+        ]).then(function() {
+            msg.textContent = "Updated and copied back to clipboard";
+        }, function() {
+            msg.textContent = "Updated (clipboard write failed)";
+        });
+    });
+}
+canvas.onclick = handleClick;
+  </script>
+ </body>
+</html>

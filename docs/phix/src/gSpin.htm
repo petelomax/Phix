@@ -17,8 +17,8 @@
             <br>
             <br>
             <a href>gdx</a> id = gSpin([<a href>rtn</a> value_changed=<a href>NULL</a>,] 
-                                                 <a href>string</a> attributes="",
-                                                 <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
+                                        <a href>string</a> attributes="",
+                                        <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
          </td>
         </tr>
         <tr>
@@ -26,8 +26,6 @@
           <b>Description:</b>
          </td>
          <td>
-DEV <b>badly broken</b>, needs to be rewritten as a canvas-based control, see demo/theGUI/hSpin/hText.exw for progress... 
-<br><br>
             Creates a spin control.
             <br>
             <br>
@@ -69,11 +67,12 @@ DEV <b>badly broken</b>, needs to be rewritten as a canvas-based control, see de
 include theGUI.e
 
 procedure value_changed(integer v)
-    ?{"value_changed",v}
+    ?v
 end procedure
 
-gdx spin = gSpin(value_changed,"MARGIN=13x13,VALUE=5"),
-    dlg = gDialog(gHbox({spin}),`gSpin`,`SIZE=240x80`)
+gdx spin = gSpin(value_changed,`VALUE=5`),
+    hbox = gVbox({spin},`MARGIN=13`),
+    dlg = gDialog(hbox,`gSpin`,`SIZE=240x80`)
 gMainLoop(dlg)
 </eucode-->
 <pre>
@@ -81,19 +80,34 @@ gMainLoop(dlg)
 <font color="#008080">include</font><font color="#000000"> theGUI.e
 </font>
 <font color="#008080">procedure</font><font color="#000000"> value_changed</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> v</font><font color="#0000FF">)
-    ?{</font><font color="#008000">"value_changed"</font><font color="#0000FF">,</font><font color="#000000">v</font><font color="#0000FF">}</font>
+    ?</font><font color="#000000">v</font>
 <font color="#008080">end procedure
 </font>
-<font color="#7060A8">gdx</font><font color="#000000"> spin</font><font color="#0000FF"> =</font><font color="#7060A8"> gSpin</font><font color="#0000FF">(</font><font color="#000000">value_changed</font><font color="#0000FF">,</font><font color="#008000">"MARGIN=13x13,VALUE=5"</font><font color="#0000FF">),</font>
-<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#7060A8">gHbox</font><font color="#800000">(</font><font color="#008080">{</font><font color="#000000">spin</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">`gSpin`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
+<font color="#7060A8">gdx</font><font color="#000000"> spin</font><font color="#0000FF"> =</font><font color="#7060A8"> gSpin</font><font color="#0000FF">(</font><font color="#000000">value_changed</font><font color="#0000FF">,</font><font color="#008000">`VALUE=5`</font><font color="#0000FF">),</font>
+<font color="#000000">    hbox</font><font color="#0000FF"> =</font><font color="#7060A8"> gVbox</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">spin</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">`MARGIN=13`</font><font color="#0000FF">),</font>
+<font color="#000000">    dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gDialog</font><font color="#0000FF">(</font><font color="#000000">hbox</font><font color="#0000FF">,</font><font color="#008000">`gSpin`</font><font color="#0000FF">,</font><font color="#008000">`SIZE=240x80`</font><font color="#0000FF">)</font>
 <font color="#7060A8">gMainLoop</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">)</font>
 </pre>
             </small>
           </div>
-          <img alt="gSpin" style="float:right;" src="images/gSpin.png" width="240" height="80"/>
+          <img src="images/gSpin.png" alt="gSpin" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
          </td>
         </tr>
+<!--
+        <tr>
+         <td>
+          <b>Notes:</b>
+         </td>
+         <td>
+            Known issue: value is left-aligned but should really be right-aligned. A gSpin is based on a <a href>gText</a> and that code 
+            (see hText.exw) would require a not insubstantial number of individually straightforward tweaks, to get the display, mouse, and 
+            cursor all lined up, and given how infrequently I personally use this control, simply cannot justify that unpaid effort myself.
+            There may be some clever little `integer adj = iff(tType=SPIN?w-gGetTextExtent(v)[1]:0)` trick.
+            <br>
+         </td>
+        </tr>
+-->
 <!--
         <tr>
          <td>
@@ -137,10 +151,9 @@ gMainLoop(dlg)
          </td>
          <td>
             (non inheritable)<!--, creation only)--> Accepts/returns {lo,hi[,step[,wrap]]} where lo and hi must be integers with lo&lt;=hi,
-            step must be an integer&gt;=1, and wrap is a boolean. Default: {0,100,1,<a href>false</a>}. Not that dynamic
-            toggling between the two is actively supported, nor is there <i>any</i> attempt to prevent such foolish behaviour, in practice 
-            a gSpin() is in fact just a <a href>gText</a>() with SPIN!=<a href>false</a>, aka a few relatively 
-            minor tweaks, obviously affecting the expected drawing, input field length/limit/right hand margin, and mouse and key handling.
+            step must be an integer&gt;=1, and wrap is a boolean. Default: {0,9,1,<a href>false</a>}. In practice a gSpin() is in fact just 
+            a <a href>gText</a>() with a few relatively minor tweaks, obviously affecting the expected drawing, right hand margin, and mouse 
+            and key handling.
 <!--
             Makes the control a <a href>gSpin</a>. Can be <a href>false</a> (the default),
             <a href>true</a> (== ), or Reading ths attribute yeilds either false or a four-element sequence. 
@@ -212,7 +225,7 @@ gMainLoop(dlg)
           RANGE
          </td>
          <td>
-            the min/maximum values. Default: {0,100}.
+            the min/maximum values. Default: {0,9}.
             <br><a name="STEP"></a>
          </td>
         </tr>
@@ -294,7 +307,7 @@ gMainLoop(dlg)
             <a href>CANFOCUS</a>, 
             <a href>FONT</a>, 
             <a href>EXPAND</a>, 
-            <a href>MARGIN</a>, 
+            <a href>MARGIN</a>,
             <a href>MINSIZE</a>, 
             <a href>MAXSIZE</a>,
             <a href>SIZE</a>,
@@ -308,7 +321,7 @@ gMainLoop(dlg)
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(spin,"VALUE_CHANGED",value_changed), or simply specify value_changed at creation time
+            (optional) Specified at creation time or set using <a href>gSetHandler</a>(spin,"VALUE_CHANGED",value_changed).
           <br><a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -427,12 +440,12 @@ gMainLoop(dlg)
 -->
             <br><a name=hImages></a>
             <br>
-            See demo\theGUI\hText.exw for progress on a canvas-based drop-in replacement.<br>
+            See demo\theGUI\hText.exw for deatils of the now-finished canvas-based drop-in replacement.<br>
             The following are images of the native controls, Windows(IUP), GTK2, and GTK3 (for reference only):
             <br>
             <br>
             <div style="display:flex; align-items:center;">
-            <img alt="gSpinNative" style="padding-left:10px;" src="images/gSpinNative.png" width="227" height="38"/>
+            <img src="images/gSpinNative.png" alt="gSpinNative" style="padding-left:10px;" width="227" height="38"/>
             </div>
             <br>
             No attempt has been made to replicate the GTK3 style.

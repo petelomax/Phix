@@ -99,6 +99,7 @@ function get_interpreter()
     return ""
 end function
 
+without warning
 global procedure save_extensions()
 --if not ext_init then init_ext() end if
 if not ext_init then ?9/0 end if
@@ -113,6 +114,7 @@ if length(extensions)!=length(runwiths) then ?9/0 end if
         setIniTextValue(runwiths[i])
     end for
 end procedure
+with warning
 
 procedure load_extensions()
     switchToIniGroup("Extensions")

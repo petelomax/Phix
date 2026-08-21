@@ -37,7 +37,8 @@
 --  This file was chosen for use in the first steps to getting the optable to work, and
 --  also a key factor in deciding to use :!opCallOnceYeNot instead of :%opRetf/::fin.
 --
-with debug
+--with debug
+without debug
 
 --/*
 This will not work on RDS Eu/OpenEuphoria!!

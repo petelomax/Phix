@@ -7,9 +7,45 @@
       <h1 class="title">time travel debugging</h1>
       <div id="mainSection">
         There is a pretty inspirational video <a href="javascript:ExternalLink('ext897');" title='https://www.youtube.com/watch?v=72y2EC5fkcE'
-        id="ext897" style="color:#9B5565" >here</a>.
+        id="ext897" style="color:#9B5565" >here</a>, however the "live GUI" aspect, as impressive (and actually severely limited) as it is, is
+        <i>not</i> what we&apos;re really after. <small>[I can imagine a way to implement such a Gameboy-level live GUI on a much more powerful
+        PC: write a display engine that works entirely off a reasonably small fixed-size block of memory, monitor/keep a history of that block, 
+        and embed a second copy of the display engine in the debugger which works entirely off the copy. But I couldn&apos;t scale that to full 
+        PC graphics capabilities, that is assuming saving untold gigabytes of individual screen images ends up being impractical.]</small>
         <br>
         <br>
+        Phix supports <small>(or rather one day hopefully will)</small> an ever so slightly limited form of "time travel debugging":<br>
+        <ul>
+        <li>The debugger maintains a small circular buffer of things <i>it has already shown you</i> which allows it to <b>mimic</b> "step back".
+        <li>Incidentally, the buffer values are all just the string representations, which skirts any refcount/deep_copy() required issues.
+        <li>Said buffer also contains a history of the line numbers it actually touched on, it is not actually analysing <i>anything at all</i>.
+        <li>Once no longer at the execution "tip", you <i>cannot</i> change anything, in particular view variables not already in said buffer.
+        <li>A "restart" option tries very hard to get you back, pretty much instantly, to the same line you are currently on, only now the "tip".
+        <li>Obviously a restart restores the watched variables and copes with sources being edited under your feet, eg line 1724 is now 1727.
+        <li>Note restart is "stop here" when a specified set of variables meet explicitly specified conditions, rather than any "voodoo magic".
+        <li>Should said fail to trigger then I&apos;m afraid your time here is over and you are pretty much forced right back to square one.
+        <li>You may/will often need to trap earlier in the execution, to populate said buffer with the information needed to step back.
+        <li>The latter is often just a restart after editing in a new trace(1), which it <i>will</i> seem to effectively completely ignore.
+        <li>However be warned inadvertently asking it to quietly skip say 250 million instructions is likely to take a while...
+        <li>There are no massive data dumps, severe technical difficulties, or any attempt to defeat non-deterministic behaviour.
+        <li>Naturally, chasing (say) low-level bugs in the heap manager may be made nigh on impossible by the mere presence of any debugger.
+        <li>In other words the latter must continue to rely on x32dbg/x86dbg/edb aka things that don&apos;t mess with (eg) the Phix heap.
+        </ul>
+        
+        Step one is to create a "fake debugger", which just displays some random source and imaginary variables with a hard-coded list of 
+        stepping points. That is all purely look-and-feel, with no need whatsoever for any clever low-level technical realities. That said,
+        should you want any snazzy fancy tricks to improve the data visualisation and/or navigation, <i>now</i> is the time to add them.
+        There may need to be (for instance) "stop earlier" and "start single stepping when" variants of restart, and again it is going to
+        be much better if such are predicted/planned up front, than later bemoan they weren&apos;t properly thought about earlier.
+        Likewise should you be able to recall some tricky bug, and with the benefit of 20:20 hindsight imagine what might have helped, 
+        create a mock-up with sufficient detail it manages to convince someone [else] to at least try and implement it for real.
+        <br>
+        <br>
+        It remains undecided as to whether this will be a new standalone theDebugger.exw or integrated in theEditor.exw, but one thing
+        for sure is that while p.exe may have the necessary hooks, system_exec(), shared memory, and/or lock stepping, the new debugger
+        will <i>not</i> be part of it, unlike the previous one, and it may even end up significantly smaller because of that, not that
+        said is an important goal.
+<!--
         The likes of rr, undo, WinTTD sound like <i>alot</i> of blood, sweat, and tears, and I&apos;m looking for/thinking of something much simpler.<br>
         The notion of "hot reload" is good, but being part of the "timelime" as per the tomorrow corp video is just plain daft.<br>
         What you want is a seamless "get back to where you were", and I think we can accept a 95% solution rather than demand perfection.<br>
@@ -25,7 +61,7 @@
         <br>
         <br>
         Staring us in the face is a very simplistic addition of a trivial (circular) buffer (or ten) in the debugger of breakpoints and those
-        variables it <i>has already been asked to show</a>, with "step back" leaving the running program paused where it is but showing details
+        variables it <i>has already been asked to show</i>, with "step back" leaving the running program paused where it is but showing details
         from said mini-history. Should you want to look at anything else, or step back further, then a "hot reload"/"full restart" is required.
         When I said 95%, what I was thinking of is: it will get you to the same point in the code where the variables you are currently looking
         at match, rather than precisely where you were. A "step back" probably needs two forms: the previous line of code, and the last time
@@ -34,6 +70,7 @@
         <br>
         The last thing I want to do is embed a full GUI in the heart of the interpreter. Instead it needs to be a standalone program (or part 
         of theEditor) that communicates with the runtime via ipc or somesuch. A simple "fake driver" could be written to get that going.
+-->
         <br>
       </div>
      </stripped>

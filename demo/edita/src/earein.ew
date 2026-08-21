@@ -1373,7 +1373,7 @@ integer wastokline, wastokstart, wastokend
                                    "SUNOS","OPENBSD","OSX","UNIX",
                                    "WIN32_GUI","WIN32_CONSOLE",
                                    "SAFE","DATA_EXECUTE","UCSTYPE_DEBUG",
-                                   "CRASH","EU4_1","BITS32"}) then
+                                   "CRASH","EU4_1","BITS32","PHIX"}) then
                     if not find(token,withdefs) then
 --                      errtext &= "idfef "&token&xl(" unrecognised, and no \"--#withdef\" for it")
 --trace(1)
@@ -2320,23 +2320,44 @@ end procedure
 --DEV this currently makes no attempt to indent anything:
 procedure DoIlasmEtc()
     getToken()
-    if not find(token,{"ilasm","ilASM","istype","isinit","isginfo"}) then
-        Abort(xl("ilasm, istype, isinit, or isginfo expected"))
+    integer tkdx = find(token,{"ilasm","ilASM","ilJS","istype","isinit","isginfo"})
+    if tkdx=0 then
+        Abort(xl("ilASM, ilJS, istype, isinit, or isginfo expected"))
         return
     end if
     getToken()
     Match("{")
-    while Ch!=-1 do
-        while find(Ch,":%@") do
-            col += 1
-            nextCh()
-        end while
-        getToken()
-        if equal(token,"}") then
+    if tkdx=3 then 
+        while Ch!=-1 do
+            do
+                bool was_hash = Ch='#'
+                col += 1
+                nextCh()
+            until was_hash or Ch=-1
             getToken()
-            exit
-        end if
-    end while
+            if equal(token,"}") then
+                getToken()
+                if token!="ilJS" then
+                    Abort(xl("#}ilJS expected"))
+                    return
+                end if
+                getToken()
+                exit
+            end if
+        end while
+    else
+        while Ch!=-1 do
+            while find(Ch,":%@") do
+                col += 1
+                nextCh()
+            end while
+            getToken()
+            if equal(token,"}") then
+                getToken()
+                exit
+            end if
+        end while
+    end if
 end procedure
 
 procedure Assignment()
@@ -2404,16 +2425,17 @@ sequence sType, tType
             if Ch=':' then skip_namespace() end if
             if not find(token,vartypes) then
                 if charClass[Ch]!=LETTER then
-                    Abort(xl("a type is expected here"))
-                    exit
+                    if Ch!=',' and Ch!=')' then
+                        Abort(xl("a type is expected here"))
+                        exit
+                    end if
+                else
+                    WarnType()
+                    vartypes = append(vartypes,token)
                 end if
-                WarnType()
-                vartypes = append(vartypes,token)
+            else
+                getToken()
             end if
---if tType="resize_cb" then
---  trace(1)
---end if
-            getToken()
 --15/2/16: (unnamed params)
 if equal(token,",") then
             while 1 do
@@ -2466,7 +2488,7 @@ end if
                 MultiAssignment()
                 if Ch!=',' then exit end if
             end if
-            if Ch='=' then
+            if Ch='=' or Ch=':' then
                 Assignment()
                 if token!="," then exit end if
             else
@@ -2624,7 +2646,7 @@ integer wasMapEndToMinusOne
             MultiAssignment()
             if Ch!=',' then exit end if
         end if
-        if Ch='=' then
+        if Ch='=' or Ch=':' then
             Assignment()
             if not equal(token,",") then exit end if
         else
@@ -2723,6 +2745,35 @@ integer wasmapEndToMinusOne, wascursorY, fwd=0
     if textlen
     and match("#!",filetext[currfile][1])=1 then    -- skip shebang
         CurrLine = 2
+    end if
+    if CurrLine<=textlen
+    and match("#[",filetext[currfile][CurrLine])=1 then -- skip multiline shebang
+        integer level = 0
+        do
+            string oneline = filetext[currfile][CurrLine]
+            col = 1
+            while col<length(oneline) do
+                Ch = oneline[col]
+                if Ch='#' then
+                    col += 1
+                    Ch = oneline[col]
+                    if Ch='[' then
+                        level += 1
+                    elsif Ch=']' then
+                        level -= 1
+                    end if
+                end if
+                col += 1
+            end while
+            CurrLine += 1
+            if CurrLine>textlen and level then
+                errtext &= "missing #] (closing multiline shebang)"
+                exit
+            end if
+        until level=0
+        col = 1
+        SkipSpacesAndComments()
+--      trace(1)
     end if
     ifdefstackidx = 0
     ifdefnests = {}

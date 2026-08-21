@@ -253,6 +253,10 @@ global procedure tokenise()
                     and i+4<=lt
                     and src[i..i+4]="ilASM" then
                         i += 4
+                    elsif is_phix()
+                    and i+3<=lt
+                    and src[i..i+3]="ilJS" then
+                        i += 3
                     else
                         bool ok = is_C()
                         if ok then
@@ -271,6 +275,32 @@ global procedure tokenise()
                     tokstart += 1
                     toktype = LETTER
                     std_ident()
+--30/6/26:
+                elsif tok_ch='}' then
+                    if not is_phix()
+                    and i+4>lt
+                    and src[i..i+4]!="}ilJS" then
+                        {} = tok_error("unrecognised")
+                        return
+                    end if
+--5?
+                    i += 4
+                    tokstart += 2
+                    toktype = LETTER
+                    std_ident()
+
+--/*
+--24/6/26:
+                elsif tok_ch='j'
+                  and src[i+1]='s' 
+                  and is_phix() then
+                        i = find(';',src,i)
+                    tokstart += 1
+--T_ilASM
+--                  toktype = LETTER
+                    toktype = 'j'
+                    std_ident()
+--*/
 --31/1/22
                 elsif tok_ch='!' then
 --trace(1)

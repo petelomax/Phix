@@ -536,6 +536,7 @@ constant ANSI    = 0,   -- (ie 8-bit chars)
 --  straightforward, the important question is whether there is any real need.)
 
 include src/auto.e
+forward global procedure Error_Message(string title, msg)
 --DEV after main/IupOpen...
 include src/synld.e
 include src/synclr.e as synclr
@@ -974,7 +975,7 @@ sequence r
 --          if rtnList and not F11mode then
 --              if isEnabled(rtnList) then
 --                  setIndex(rtnList,k)
-                    IupSetInt(toolb_rtns,"VALUE",k)
+            IupSetInt(toolb_rtns,"VALUE",k)
 --              end if
 --          end if
         end if
@@ -1692,15 +1693,15 @@ integer k
 --DEV[?]
 --/!*
 --              if atom(routines[currfile]) and isEu 
-                if atom(routines[currfile]) 
-                and match(untitled,filenames[currfile])!=1 then
+        if atom(routines[currfile])
+        and match(untitled,filenames[currfile])!=1 then
 --                  setText(SB6,"rebuilding routine list")
-                    IupSetAttribute(sbmsg,"TITLE","rebuilding routine list")
-                    setListOfAllRoutines(currfile,filetext[currfile],2,filenames[currfile])
-                    --      setRtnIndex()   -- added 17/05 (no help!)
+            IupSetAttribute(sbmsg,"TITLE","rebuilding routine list")
+            setListOfAllRoutines(currfile,filetext[currfile],2,filenames[currfile])
+            --      setRtnIndex()   -- added 17/05 (no help!)
 --                  setText(SB6,"")
-                    IupSetAttribute(sbmsg,"TITLE","")
-                end if
+            IupSetAttribute(sbmsg,"TITLE","")
+        end if
 --*!/
 --17/11/17: (definately helps!)
         setRtnIndex()
@@ -1896,7 +1897,7 @@ integer revision = 0
     for i=firstdigit to firstdigit+3 do
         integer ch = s[i]
         if ch<'0' or ch>'9' then return 0 end if
-        revision = revision*10 + (ch-'0')
+        revision = revision*10+(ch-'0')
     end for
     return revision
 end function
@@ -2004,12 +2005,12 @@ sequence cursel
 --      end if
         bCfwd = bCfwds[currfile]
     end if
---DEV... (8/8/16 cannot think why this would help)
-if 0 then
-    colourTabs[newSyntax] = ColourTab
-    styleTabs[newSyntax] = StyleTab
-end if
---  charMaps[newSyntax] = charMap -- removed 17/7/(05?)
+    --DEV... (8/8/16 cannot think why this would help)
+    if 0 then
+        colourTabs[newSyntax] = ColourTab
+        styleTabs[newSyntax] = StyleTab
+    end if
+    --  charMaps[newSyntax] = charMap -- removed 17/7/(05?)
 end procedure
 
 procedure setMainText()
@@ -2020,7 +2021,7 @@ string name = filenames[currfile]
         name = untitled
     end if
 --  if isShowFullPath then
-        name = filepaths[currfile]&name
+    name = filepaths[currfile]&name
 --  end if
 --  setText(Main, Edita & " - " & name)
     IupSetAttribute(dlg,"TITLE","Edix" & " - " & name)
@@ -2239,9 +2240,9 @@ integer revision
 
 --      if isTabWidth!=8 or isReplaceTabs or (isEu and Xtrans) then
 --          if isReplaceTabs then -- now always on...
-                for i=1 to length(ftxt) do
-                    ftxt[i] = ConvertTabs(ftxt[i],isTabWidth,0)
-                end for
+            for i=1 to length(ftxt) do
+                ftxt[i] = ConvertTabs(ftxt[i],isTabWidth,0)
+            end for
 --          elsif isTabWidth!=8 or (isEu and Xtrans) then
 --              for i=1 to length(ftxt) do
 ----                    ftxt[i] = UnPackTabs(ftxt[i])
@@ -2316,9 +2317,9 @@ integer revision
 --          end if
             savecursel()
 
---DEV:
-if c!=currfile then ?9/0 end if
---          setSaveIcon(c,1,1)
+            --DEV:
+            if c!=currfile then ?9/0 end if
+            --          setSaveIcon(c,1,1)
             setSaveIcon()
 --DEV/SUG: (untried, but it might work!)
 --          setSaveIcon(tabfile-1)
@@ -2333,8 +2334,8 @@ if c!=currfile then ?9/0 end if
 --              iniHandModded = 1
                 if IupConfigLoad(config)!=0 then
                     IupMessage(xl("Warning"),xl("IupConfigLoad failed"))
-else
- ?"IupConfig succeeded!"
+                else
+                    ?"IupConfig succeeded!"
                 end if
             else
                 -- if we save a .syn file, reload them all.
@@ -2429,7 +2430,7 @@ global procedure changeTo(integer i, integer npos)
 --      end if
 --      setSaveIcon(currfile,0,1)
 --  else
-        currfile = i
+    currfile = i
 --  end if
     restcursel()
 --?"restcursel"
@@ -2440,12 +2441,12 @@ global procedure changeTo(integer i, integer npos)
 --  for l = lenExt to 1 by -1 do
 --      if fileExt[l]='.' then
 --          newSyntax = find(LowerCase(fileExt[l+1..lenExt]),Extensions)
-            newSyntax = find(get_file_extension(filenames[currfile]),Extensions)
-            if newSyntax then
-                newSyntax = ExtensionNos[newSyntax]
-            else
-                newSyntax = 1
-            end if
+    newSyntax = find(get_file_extension(filenames[currfile]),Extensions)
+    if newSyntax then
+        newSyntax = ExtensionNos[newSyntax]
+    else
+        newSyntax = 1
+    end if
 --          exit
 --      end if
 --  end for 
@@ -2542,7 +2543,7 @@ end function
 
 procedure removelast(integer delidx)
     integer fidx = length(filenames)
-if fidx=0 then ?"removelast0?!" end if
+    if fidx=0 then ?"removelast0?!" end if
     for pos=0 to IupGetInt(tabs,"COUNT")-1 do
         Ihandle mtab = IupGetChild(tabs, pos)
         if IupGetInt(mtab,"FILEIDX")=fidx then
@@ -2563,30 +2564,30 @@ if fidx=0 then ?"removelast0?!" end if
 --              filedt          = filedt[1..$-1]
 --              bCfwds          = bCfwds[1..$-1]
 --          else
-                -- move high FILEIDX into the just vacated slot
-                -- (and update currfile if it is the one moved)
-                IupSetInt(mtab,"FILEIDX",delidx)
-                filenames       = move_last_to_vacated_spot(filenames,       delidx)
-                filepaths       = move_last_to_vacated_spot(filepaths,       delidx)
-                filetext        = move_last_to_vacated_spot(filetext,        delidx)
-                unicodefile     = move_last_to_vacated_spot(unicodefile,     delidx)
-                actionptr       = move_last_to_vacated_spot(actionptr,       delidx)
-                actions         = move_last_to_vacated_spot(actions,         delidx)
-                actionsave      = move_last_to_vacated_spot(actionsave,      delidx)
-                bookmarks       = move_last_to_vacated_spot(bookmarks,       delidx)
-                filelinelengths = move_last_to_vacated_spot(filelinelengths, delidx)
-                routines        = move_last_to_vacated_spot(routines,        delidx)
-                filedt          = move_last_to_vacated_spot(filedt,          delidx)
-                bCfwds          = move_last_to_vacated_spot(bCfwds,          delidx)
-                if currfile=fidx then
-                    currfile = delidx
-                end if
---          end if
-fidx = 0
+            -- move high FILEIDX into the just vacated slot
+            -- (and update currfile if it is the one moved)
+            IupSetInt(mtab,"FILEIDX",delidx)
+            filenames       = move_last_to_vacated_spot(filenames,       delidx)
+            filepaths       = move_last_to_vacated_spot(filepaths,       delidx)
+            filetext        = move_last_to_vacated_spot(filetext,        delidx)
+            unicodefile     = move_last_to_vacated_spot(unicodefile,     delidx)
+            actionptr       = move_last_to_vacated_spot(actionptr,       delidx)
+            actions         = move_last_to_vacated_spot(actions,         delidx)
+            actionsave      = move_last_to_vacated_spot(actionsave,      delidx)
+            bookmarks       = move_last_to_vacated_spot(bookmarks,       delidx)
+            filelinelengths = move_last_to_vacated_spot(filelinelengths, delidx)
+            routines        = move_last_to_vacated_spot(routines,        delidx)
+            filedt          = move_last_to_vacated_spot(filedt,          delidx)
+            bCfwds          = move_last_to_vacated_spot(bCfwds,          delidx)
+            if currfile=fidx then
+                currfile = delidx
+            end if
+            --          end if
+            fidx = 0
             exit
         end if
     end for
-if fidx!=0 then ?"removelast!=0?!!!" end if
+    if fidx!=0 then ?"removelast!=0?!!!" end if
 end procedure
 
 function saveFileAs()
@@ -2609,8 +2610,8 @@ string filename = ""
                 path = {path}
             end if
             encoding = unicodefile[c]
---DEV??
-if encoding=0 then encoding = 1 end if
+            --DEV??
+            if encoding=0 then encoding = 1 end if
             string ext = get_file_extension(name)
             res = newGetSaveFileName(hWnd,buildFileFilter2(),{2,ext},path,encoding)
             if sequence(res) then
@@ -2652,23 +2653,23 @@ if encoding=0 then encoding = 1 end if
 --23/7/17...
             unicodefile[c] = encoding
             if saveFile(warnBackup:=false) then
---DEV tryme:
-if 0 then
-                IupSetAttributeId(tabs, "TABTITLE", findtab(c), filenames[c])
-else
-                Ihandle tab
-                for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-                    tab = IupGetChild(tabs, pos)
-                    if IupGetInt(tab,"FILEIDX")=c then
+                --DEV tryme:
+                if 0 then
+                    IupSetAttributeId(tabs, "TABTITLE", findtab(c), filenames[c])
+                else
+                    Ihandle tab
+                    for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+                        tab = IupGetChild(tabs, pos)
+                        if IupGetInt(tab,"FILEIDX")=c then
                         -- nb does not work after tab added (as documented):
 --                      IupSetAttribute(tab, "TABTITLE", filenames[c])
-                        -- However the following works just fine here, and
-                        --  updates the above child attribute as well:
-                        IupSetAttributeId(tabs, "TABTITLE", pos, filenames[c])
-                        exit
-                    end if
-                end for
-end if
+                            -- However the following works just fine here, and
+                            --  updates the above child attribute as well:
+                            IupSetAttributeId(tabs, "TABTITLE", pos, filenames[c])
+                            exit
+                        end if
+                    end for
+                end if
                 IupConfigRecentUpdate(config, filename)
                 for i=1 to length(filenames) do
                     if i!=c
@@ -2678,19 +2679,19 @@ end if
 --?{i,c}
 --show_tab_info()
                         removelast(i)
---DEV tryme:
-if 0 then
-                        {} = IupDestroy(findtab(i,true))
-else
-                        for pos=0 to IupGetInt(tabs,"COUNT")-1 do
-                            Ihandln dtab = IupGetChild(tabs, pos)
-                            if IupGetInt(dtab,"FILEIDX")=i then
-                                dtab = IupDestroy(dtab)
-                                exit
-                            end if
-                        end for
-end if
---show_tab_info()
+                        --DEV tryme:
+                        if 0 then
+                            {} = IupDestroy(findtab(i,true))
+                        else
+                            for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+                                Ihandln dtab = IupGetChild(tabs, pos)
+                                if IupGetInt(dtab,"FILEIDX")=i then
+                                    dtab = IupDestroy(dtab)
+                                    exit
+                                end if
+                            end for
+                        end if
+                        --show_tab_info()
                         exit
 --?9/0
                     end if
@@ -2776,14 +2777,14 @@ end procedure
 procedure addLineLengths(sequence lines)
 integer len, recalc
     recalc = 0
-    for i = 1 to length(lines) do
-        len = ExpLength(lines[i]) + 1
+    for i=1 to length(lines) do
+        len = ExpLength(lines[i])+1
         if len>length(filelinelengths[currfile]) then
             filelinelengths[currfile] = filelinelengths[currfile] &
                                         repeat(0,len-length(filelinelengths[currfile])+1)
         end if
-        filelinelengths[currfile][len] = filelinelengths[currfile][len] + 1
-        if len > maxlen then recalc = 1 end if
+        filelinelengths[currfile][len] = filelinelengths[currfile][len]+1
+        if len>maxlen then recalc = 1 end if
     end for
     if recalc then reCalcMaxLen() end if
 end procedure
@@ -2833,7 +2834,7 @@ sequence oneline, twoline
             end if
             replaceLine(CursorY+1,oneline)
 --void = syntaxColour(oneline,CursorY+1,0,0)
-            paintCursorY()  
+            paintCursorY()
         else                            -- multi lines
             if k then
                 twoline = oneline[k..length(oneline)]
@@ -2906,7 +2907,7 @@ sequence thisline
     forceCursorOnscreen()
     if atom(what) then      -- VK_TAB
         thisline = filetext[currfile][CursorY+1]
-        if length(thisline) = 0 then
+        if length(thisline)=0 then
             return 0
         elsif match("--/**/",thisline)=1 then
             CursorX = 6
@@ -3002,7 +3003,7 @@ sequence res
 --          {selY,CursorY} = {CursorY,selY}
         end if
     end if
-    if equal(what,"--") 
+    if equal(what,"--")
     and length(filetext[currfile][CursorY+1])
     and find(filetext[currfile][CursorY+1][1],"<>") then
         what = filetext[currfile][CursorY+1][1..1]
@@ -3054,14 +3055,14 @@ integer wasSelON, outTabWidth, p1End, p2Start, p2End
 --integer fmt
 --trace(1)
     wasSelON = selON
-    if mode = COPY then
+    if mode=COPY then
         clipText = getSelection(SEL_COPY)
     else -- mode = CUT
         pos = DeleteBlockPos()
         clipText = getSelection(SEL_DELETE)
     end if
     if sequence(clipText) then
-        if mode = CUT then
+        if mode=CUT then
             addAction(pos,clipText)
         end if
 --DEV
@@ -3160,6 +3161,14 @@ sequence ci
 --              clipText = split(clipText,'\n')
 --1/8/22:
 --object wasct = clipText
+--for i,c in clipText do
+--  ?{i,c}
+--end for
+clipText = substitute(clipText,x"E28091","-")
+clipText = substitute(clipText,x"E2809C",`"`)
+clipText = substitute(clipText,x"E2809D",`"`)
+clipText = substitute(clipText,utf32_to_utf8({#2019}),`'`)
+
                 clipText = utf8_to_utf32(clipText)
                 if unicodefile[currfile]=ANSI
                 and not string(clipText)
@@ -3319,7 +3328,7 @@ integer ch, dotfound, isnumber, validhex, lch
                 if CursorX<length(oneline) then
                     ch = oneline[CursorX+1]
 --                  if ch = '.' then exit end if
-                    if ch <'0' or ch>'9' then exit end if
+                    if ch<'0' or ch>'9' then exit end if
                 end if
             elsif ch<'0' or ch>'9' then
                 if isnumber=1 and (ch='e' or ch='E') then
@@ -3347,7 +3356,7 @@ integer ch, dotfound, isnumber, validhex, lch
                 if CursorX>0 then
                     ch = oneline[CursorX]
 --                  if ch = '.' then exit end if
-                    if ch <'0' or ch>'9' then exit end if
+                    if ch<'0' or ch>'9' then exit end if
                 end if
             elsif ch<'0' or ch>'9' then
                 if isnumber=1 and (ch='e' or ch='E') then
@@ -3383,7 +3392,7 @@ function cmap(integer n)
     if n='\\' then return `\\` end if
 --  setText(SB6,sprintf("invalid character:%d",n))
     IupSetStrAttribute(sbmsg,"TITLE","invalid character:%c(#%02x)",{n,n})
-    return ""   
+    return ""
 end function
 
 include src\withjs.e
@@ -3397,7 +3406,7 @@ procedure set_js_line(integer line, bool bInsert, string s)
         selON = 1
         selX = ExpLength(filetext[currfile][CursorY+1])
         selY = CursorY
-        if deleteSelection() then end if        
+        if deleteSelection() then end if
         block = {s}
     end if
     addAction(INSERTBLOCK,block)
@@ -3420,7 +3429,7 @@ procedure show_as_base(integer base)
             atom n = 0
             bool signed = false
             integer ch, k
-            
+
             if base>0 then
 
                 if length(d)>1 and d[1]='-' then
@@ -3488,7 +3497,7 @@ procedure show_as_base(integer base)
                     end for
                 end if
                 if signed
-                and base!=10 
+                and base!=10
                 and n<#100000000 then
                     n = #100000000-n
                     signed = false
@@ -3501,9 +3510,9 @@ procedure show_as_base(integer base)
                     c = ""
                     do
                         k = floor(remainder(n,16)+1)
-                        c = prepend(c,hexchar[k])
-                        n = floor(n/16)
-                    until n=0
+                    c = prepend(c,hexchar[k])
+                    n = floor(n/16)
+                    until n = 0
                     c = prepend(c,'#')
 
                 elsif base=10 then  -- show as decimal
@@ -3518,18 +3527,18 @@ procedure show_as_base(integer base)
                     c = ""
                     do
                         k = remainder(n,8)
-                        c = prepend(c,k+'0')
-                        n = floor(n/8)
-                    until n=0
+                    c = prepend(c,k+'0')
+                    n = floor(n/8)
+                    until n = 0
                     c = "0o"&c
 
                 elsif base=2 then   -- show as binary
                     c = ""
                     do
                         k = remainder(n,2)
-                        c = prepend(c,k+'0')
-                        n = floor(n/2)
-                    until n=0
+                    c = prepend(c,k+'0')
+                    n = floor(n/2)
+                    until n = 0
                     c = "0b"&c
                 else
                     ?9/0    -- unknown base
@@ -3670,21 +3679,21 @@ integer c,      -- a character
     for i=1 to length(strings) do
         for j=1 to length(strings[i]) do
             c = strings[i][j]
-            if method = LOWER then
+            if method=LOWER then
                 if c>='A' and c<='Z' then
                     strings[i][j] = c+32
                 end if
-            elsif method = UPPER then
+            elsif method=UPPER then
                 if c>='a' and c<='z' then
                     strings[i][j] = c-32
                 end if
-            elsif method = INVERT then
+            elsif method=INVERT then
                 if c>='A' and c<='Z' then
                     strings[i][j] = c+32
                 elsif c>='a' and c<='z' then
                     strings[i][j] = c-32
                 end if
-            elsif method = CAPITALISE then
+            elsif method=CAPITALISE then
 --              if find(pc," \"/") then
                 if find(pc,` "/`) then
                     if c>='a' and c<='z' then
@@ -3694,9 +3703,9 @@ integer c,      -- a character
                     if c>='A' and c<='Z' then
                         strings[i][j] = c+32
                     end if
-                end if  
-            elsif method = SENTENCE then
-                if pc = ' ' then
+                end if
+            elsif method=SENTENCE then
+                if pc=' ' then
                     if eos then
                         if c>='a' and c<='z' then
                             strings[i][j] = c-32
@@ -3717,7 +3726,7 @@ integer c,      -- a character
                 elsif c!=' ' then
                     eos = False
                 end if
-                if c = '\"' then
+                if c='\"' then
                     c = ' '
                     inQuote = not inQuote
                     eos = inQuote
@@ -3995,8 +4004,8 @@ integer rebuildbCfwdAtEnd = 0
 --DEV if paintall...
 --  if paintRqd=1 and paintLast=0 then
 --      cdCanvasSetBackground(cddbuffer, ColourTab[Background])
-        cdCanvasSetBackground(cddbuffer, CD_GRAY)
-        cdCanvasClear(cddbuffer)
+    cdCanvasSetBackground(cddbuffer, CD_GRAY)
+    cdCanvasClear(cddbuffer)
 --  end if
 
 --?"appUpdateRender"
@@ -4037,11 +4046,11 @@ integer rebuildbCfwdAtEnd = 0
     --  and, importantly, blank when there was no new VALUEPOS setting.)
     if tab!=NULL and IupGetInt(tab,"VISIBLE") then
         fidx = IupGetInt(tab,"FILEIDX")
---DEV?? (needed 23/7/17...) [misbehaved...]
---currfile = fidx
---if currfile!=fidx then ?9/0 end if
-if currfile!=fidx then ?"currfile!=fidx" end if
-currfile = fidx
+        --DEV?? (needed 23/7/17...) [misbehaved...]
+        --currfile = fidx
+        --if currfile!=fidx then ?9/0 end if
+        if currfile!=fidx then ?"currfile!=fidx" end if
+        currfile = fidx
         text = filetext[fidx]
         line = TopLine+1
 
@@ -4075,90 +4084,90 @@ linesPerPage = 0
             if line>length(text) then exit end if
             x = 1
             y = height-i+3
---          if i>charheight then
---              x += putx(x, y, "The ", CD_BLACK)
---              x += putx(x, y, "quick", CD_BLUE)
---              x += putx(x, y, " brown fox jumped over the lazy dog", CD_BLACK)
---          else
-----                x += putx(x, y, "The quick brown fox jumped over the lazy dog", CD_BLACK)
---              x += putx(x, y, "12345678901234567890123456789012345678901345", CD_BLACK)
---          end if
---(not tried)
---          if not string(oneline) then
---              oneline = utf32_to_utf8(oneline)
---          end if
-if 0 then
-            oneline = ExpandTabs(text[line])
-            x += putx(x, y, oneline, CD_BLACK)
-else
-            oneline = text[line]
-            if CursorY=synclr:getcY() 
-            and MapToByte(oneline,CursorX)=0 then
-                acrest = synclr:getacrest()
+            --          if i>charheight then
+            --              x += putx(x, y, "The ", CD_BLACK)
+            --              x += putx(x, y, "quick", CD_BLUE)
+            --              x += putx(x, y, " brown fox jumped over the lazy dog", CD_BLACK)
+            --          else
+            ----                x += putx(x, y, "The quick brown fox jumped over the lazy dog", CD_BLACK)
+            --              x += putx(x, y, "12345678901234567890123456789012345678901345", CD_BLACK)
+            --          end if
+            --(not tried)
+            --          if not string(oneline) then
+            --              oneline = utf32_to_utf8(oneline)
+            --          end if
+            if 0 then
+                oneline = ExpandTabs(text[line])
+                x += putx(x, y, oneline, CD_BLACK)
             else
-                acrest = ""
-            end if
-if showSpecials then
---          oneline = ConvertTabs(oneline, isTabWidth, isTabWidth)
-            oneline = ExpandTabSpecials(oneline)
---NO:: (need to do individual blocks)
---          if unicodeflag!=ANSI then -- no!
---          oneline = utf32_to_utf8(oneline,1)
---          end if
-else
-            oneline = ExpandTabs(oneline)
-end if
-
---DEV [30/9/16] this may now be necessary:
---          if not string(oneline) then
---              oneline = utf32_to_utf8(oneline)
---          end if
-
---?{marginRqd,isLineNumbers}
-            if marginRqd or isLineNumbers then
-                if isLineNumbers then
-                    marginRqd = length(sprint(length(filetext[currfile])))+isMarginSpace
-                    if isMarginSpace then
---                      oneline = sprintf(sprintf("%%%dd ",marginRqd-1),lineno) & oneline
-                        oneline = sprintf(sprintf("%%%dd ",marginRqd-1),line) & oneline
-                    else
---                      oneline = sprintf(sprintf("%%%dd",marginRqd),lineno) & oneline
-                        oneline = sprintf(sprintf("%%%dd",marginRqd),line) & oneline
-                    end if
+                oneline = text[line]
+                if CursorY=synclr:getcY()
+                and MapToByte(oneline,CursorX)=0 then
+                    acrest = synclr:getacrest()
                 else
-                    marginRqd = 1+isMarginSpace
-                    oneline = repeat(' ',marginRqd) & oneline
+                    acrest = ""
                 end if
-                marginColour = ColourTab[Linenos]
-            else
-                marginColour = 0
-            end if
-            chunk = {}  -- (I think this improves matters)
+                if showSpecials then
+                --          oneline = ConvertTabs(oneline, isTabWidth, isTabWidth)
+                    oneline = ExpandTabSpecials(oneline)
+                --NO:: (need to do individual blocks)
+                --          if unicodeflag!=ANSI then -- no!
+                --          oneline = utf32_to_utf8(oneline,1)
+                --          end if
+                else
+                    oneline = ExpandTabs(oneline)
+                end if
+
+                --DEV [30/9/16] this may now be necessary:
+                --          if not string(oneline) then
+                --              oneline = utf32_to_utf8(oneline)
+                --          end if
+
+                --?{marginRqd,isLineNumbers}
+                if marginRqd or isLineNumbers then
+                    if isLineNumbers then
+                        marginRqd = length(sprint(length(filetext[currfile])))+isMarginSpace
+                        if isMarginSpace then
+--                      oneline = sprintf(sprintf("%%%dd ",marginRqd-1),lineno) & oneline
+                            oneline = sprintf(sprintf("%%%dd ",marginRqd-1),line) & oneline
+                        else
+--                      oneline = sprintf(sprintf("%%%dd",marginRqd),lineno) & oneline
+                            oneline = sprintf(sprintf("%%%dd",marginRqd),line) & oneline
+                        end if
+                    else
+                        marginRqd = 1+isMarginSpace
+                        oneline = repeat(' ',marginRqd) & oneline
+                    end if
+                    marginColour = ColourTab[Linenos]
+                else
+                    marginColour = 0
+                end if
+                chunk = {}  -- (I think this improves matters)
 --          chunk = syntaxColour(oneline,lineno,marginRqd,marginColour)
 --DEV
 --comment="--"
 --blockComment = ""
-            chunk = syntaxColour(oneline,line,marginRqd,marginColour)
+                chunk = syntaxColour(oneline,line,marginRqd,marginColour)
 --?chunk[1..chunkMax]
-            -- chunk is now {length,txtclr,bkclr,font,length,txtclr...}
-            oneline &= acrest
-            charsLeft = charsWide
+                -- chunk is now {length,txtclr,bkclr,font,length,txtclr...}
+                oneline &= acrest
+                charsLeft = charsWide
 --          isCY = (lineno=CursorY+1)
-            isCY = (line=CursorY+1)
+                isCY = (line=CursorY+1)
 
 --          conti = 1
-            offset = 0
+                offset = 0
 
 --          zeroDrawn = True
 --          bkColour = ColourTab[Background]
 
 --              for i=conti to chunkMax by 4 do
-            for c=1 to chunkMax by 4 do
+                for c=1 to chunkMax by 4 do
 --                  conti = 0
-                -- chunk is {len, textcolour, backcolour, font,
-                --       len, textcolour, backcolour, font,
-                --       ...}
-                chunklen = chunk[c]
+                    -- chunk is {len, textcolour, backcolour, font,
+                    --       len, textcolour, backcolour, font,
+                    --       ...}
+                    chunklen = chunk[c]
 --?chunklen
 --              if isWordWrapON then
 --                  if sequence(BookMarkSet[lineno])
@@ -4177,26 +4186,26 @@ end if
 --                  end if
 --              end if
 --?{offset,chunklen,Column}
-                if offset+chunklen>=Column then -- skip blocks wholly left of view
-                    if offset<Column then
-                        chunklen -= Column-offset
-                        offset = Column
-                    end if
-                    if chunklen>charsLeft then
-                        chunklen = charsLeft+1
-                    end if
+                    if offset+chunklen>=Column then -- skip blocks wholly left of view
+                        if offset<Column then
+                            chunklen -= Column-offset
+                            offset = Column
+                        end if
+                        if chunklen>charsLeft then
+                            chunklen = charsLeft+1
+                        end if
 --                      void = c_func(xSetTextColor, {mDC, chunk[c+1]})
 --                  cdCanvasSetForeground(cddbuffer, chunk[c+1])
-                    txt = oneline[offset+1..offset+chunklen]
+                        txt = oneline[offset+1..offset+chunklen]
 
-                    if showSpecials or not string(txt) then
-                        txt = utf32_to_utf8(txt,1)
-                    end if
+                        if showSpecials or not string(txt) then
+                            txt = utf32_to_utf8(txt,1)
+                        end if
 
-                    bkColour = chunk[c+2]
-                    --
-                    -- modify/narrow down that isCY to one chunk of a wordwrapped line:
-                    --
+                        bkColour = chunk[c+2]
+                        --
+                        -- modify/narrow down that isCY to one chunk of a wordwrapped line:
+                        --
 --                  if isCY=1 and isWordWrapON then
 --                      isCY = 2    -- Still True, but do this once per screenline only.
 --                                  -- (the tests below only work for offset as at display
@@ -4217,29 +4226,29 @@ end if
 --                          end for
 --                      end if
 --                  end if
-                    if isCY 
-                    and bkColour = ColourTab[Background] then
-                        bkColour = ColourTab[HighLine]
-                    end if
-                    if bkColour!=ColourTab[Background] then
+                        if isCY
+                        and bkColour=ColourTab[Background] then
+                            bkColour = ColourTab[HighLine]
+                        end if
+                        if bkColour!=ColourTab[Background] then
 --                      cdCanvasSetBackground(cddbuffer, bkColour)
 --?bkColour
-                        cdCanvasSetForeground(cddbuffer, bkColour)
-                        atom {xmin, xmax, ymin, ymax} = cdCanvasGetTextBox(cddbuffer, x, y, txt)
+                            cdCanvasSetForeground(cddbuffer, bkColour)
+                            atom {xmin, xmax, ymin, ymax} = cdCanvasGetTextBox(cddbuffer, x, y, txt)
 --?{xmin, xmax, ymin, ymax}
-                        cdCanvasBox(cddbuffer, xmin, xmax, ymin, ymax)
+                            cdCanvasBox(cddbuffer, xmin, xmax, ymin, ymax)
 --DEV
 --                      cdCanvasSetBackground(cddbuffer, ColourTab[Background])
 --                      cdCanvasSetBackground(cddbuffer, CD_GRAY)
-                    end if
+                        end if
 --?chunk[c+1]
-                    cdCanvasSetForeground(cddbuffer, chunk[c+1])
-                    thisFont = chunk[c+3]
-                    if fontstyle!=thisFont then
-                        cdCanvasFont(cddbuffer, fontname, thisFont, fontsize)
+                        cdCanvasSetForeground(cddbuffer, chunk[c+1])
+                        thisFont = chunk[c+3]
+                        if fontstyle!=thisFont then
+                            cdCanvasFont(cddbuffer, fontname, thisFont, fontsize)
 --DEV tryme (and get rid of the reset below)
-                        fontstyle = thisFont
-                    end if
+                            fontstyle = thisFont
+                        end if
 --                      void = c_func(xSetBkColor, {mDC, bkColour})
 --                      if lastFont!=chunk[c+3] then
 --                          lastFont = chunk[c+3]
@@ -4258,10 +4267,10 @@ end if
 --                      end if
 --                      void = c_func(xExtTextOut, {mDC,x,y,ETO_OPAQUE,oRect,mem+offset,chunklen,NULL})
 --?{x,y,txt,chunklen}
-                    cdCanvasText(cddbuffer,x,y,txt)
-                    {w} = cdCanvasGetTextSize(cddbuffer,txt)
+                        cdCanvasText(cddbuffer,x,y,txt)
+                        {w} = cdCanvasGetTextSize(cddbuffer,txt)
 --                  x += chunklen*CharWidth
-                    x += w
+                        x += w
 --                  if fontstyle!=thisFont then
 --                      cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
 --                  end if
@@ -4312,7 +4321,7 @@ end if
 --              end if
 
 --DEV make this an edit option? (Highlight whole line)
-                if isCY 
+                if isCY
                 and charsLeft>0
                 and ColourTab[Background]!=ColourTab[HighLine] then
                     chunklen = charsWide+Column-length(oneline)+1
@@ -4326,8 +4335,8 @@ end if
                 end if
 
                 paintRqd += 1
---              y += CharHeight
-end if
+            --              y += CharHeight
+            end if
             if line=CursorY+1 then
                 -- set blinking cursor info
 --              if unicode then
@@ -4347,13 +4356,13 @@ end if
 --              tipline = line
             end if
             line += 1
-    if RotateBackground then
-        backgroundidx += 1
-        if backgroundidx>length(backgrounds) then
-            backgroundidx = 1
-        end if
+            if RotateBackground then
+                backgroundidx += 1
+                if backgroundidx>length(backgrounds) then
+                    backgroundidx = 1
+                end if
 --      cdCanvasSetBackground(cddbuffer, backgrounds[backgroundidx])
-    end if
+            end if
 
         end for
 
@@ -4430,28 +4439,28 @@ YMIN
 --DEV/UGH. (esp IupRedraw) Triggers 5 calls to appUpdateRender() on startup, 3 on tab switch. But at least it works...
         IupSetInt(canvas,"POSY",TopLine)
 
-if IupGetInt(canvas,"YMIN")!=0
-or IupGetInt(canvas,"YMAX")!=length(text)+1
-or IupGetInt(canvas,"DY")!=linesPerPage then
---or IupGetInt(canvas,"POSY")!=TopLine then
-        IupSetInt(canvas,"YMIN",0)
-        IupSetInt(canvas,"YMAX",length(text)+1)
-        IupSetInt(canvas,"DY",linesPerPage)
+        if IupGetInt(canvas,"YMIN")!=0
+        or IupGetInt(canvas,"YMAX")!=length(text)+1
+        or IupGetInt(canvas,"DY")!=linesPerPage then
+            --or IupGetInt(canvas,"POSY")!=TopLine then
+            IupSetInt(canvas,"YMIN",0)
+            IupSetInt(canvas,"YMAX",length(text)+1)
+            IupSetInt(canvas,"DY",linesPerPage)
 --      IupSetInt(canvas,"POSY",TopLine)
 --      IupUpdate(dlg)
 -- removed (on a whim) 1/9/16... seems fine...
 -- 1/10/16: needed if the above changes scrollbar visibility
-        IupRedraw(dlg,1)
-end if
---      if linesPerPage>=length(text) then
-----            IupUpdate(dlg)
-----            IupHide(dlg)
-----            IupShow(dlg)
---trace(1)
---      end if
+            IupRedraw(dlg,1)
+        end if
+        --      if linesPerPage>=length(text) then
+        ----            IupUpdate(dlg)
+        ----            IupHide(dlg)
+        ----            IupShow(dlg)
+        --trace(1)
+        --      end if
 
---  else
---      --DEV clear scrollbar info?
+        --  else
+        --      --DEV clear scrollbar info?
     end if
     if cursorx=-1 then
         if cursorc!=0 then
@@ -4516,7 +4525,7 @@ function map_cb(Ihandle ih)
 --  cdCanvasFont(cddbuffer, fontname, fontstyle, fontsize)
     {charwidth,charheight} = cdCanvasGetTextSize(cddbuffer,"I")
 --?{charwidth,charheight}
-    cdCanvasSetLineWidth(cddbuffer, 2) 
+    cdCanvasSetLineWidth(cddbuffer, 2)
     return IUP_DEFAULT
 end function
 
@@ -4741,8 +4750,8 @@ string filename = ""
 --          res = newGetOpenFileName(hWnd,filters,{2,"exw"})
 --      else
 --          res = newGetOpenFileName(hWnd,buildFileFilter2(),{2,"exw"},{filepaths[c]})
-            object fpc = iff(c?{filepaths[c]}:NULL)
-            res = newGetOpenFileName(hWnd,buildFileFilter2(),NULL,fpc)
+        object fpc = iff(c?{filepaths[c]}:NULL)
+        res = newGetOpenFileName(hWnd,buildFileFilter2(),NULL,fpc)
 --      end if
         if sequence(res) then
             {encoding,filename} = res
@@ -4871,7 +4880,7 @@ end function
 end function
 constant cb_open = Icallback("open_cb")
 
-Ihandle file_new, file_open, file_reopen, file_save, file_saveas, file_list, 
+Ihandle file_new, file_open, file_reopen, file_save, file_saveas, file_list,
         file_close, file_prntp, file_print, recent_menu, file_recent, file_exit
 
 function reopen_cb(Ihandle /*file_reopen*/)
@@ -4892,13 +4901,13 @@ function reopen_cb(Ihandle /*file_reopen*/)
         filedt[c] = 0
         bCfwds[c] = 0
 --      if c=currfile then
-            restcursel()
+        restcursel()
 --      else
 --          changeTo(c)
 --      end if
 --DEV test:
 --      if c=currfile then
-            setSaveIcon()
+        setSaveIcon()
 --      else
 --          for pos=0 to IupGetInt(tabs,"COUNT")-1 do
 --              Ihandle tab = IupGetChild(tabs, pos)
@@ -5018,15 +5027,15 @@ integer c
         if tabfile then -- (from tab_rightclick_cb, via IupPopup)
             c = tabfile
         else
-            c = currfile        
+            c = currfile
         end if
         -- (Aside: if you right-click on the current tab, you will get
         --         a non-zero tabfile here that happens to be currfile)
         if c=currfile then
             -- save? [DEV, yes/no/cancel]
-?"save??"
+            ?"save??"
         end if
-    
+
 --DEV tryme/findtab()...
         for pos=0 to IupGetInt(tabs,"COUNT")-1 do
             Ihandln tab = IupGetChild(tabs, pos)
@@ -5111,17 +5120,17 @@ end function
 constant cb_close = Icallback("close_cb")
 
 function preview_cb(atom /*self*/)
---(Printing should be done as one function with page setup/preview/print buttons, and 
--- all the rest, such as ->pdf, ->html, ->file, change printer, copies, duplex, ...)
-?"preview_cb" --DEV
+    --(Printing should be done as one function with page setup/preview/print buttons, and 
+    -- all the rest, such as ->pdf, ->html, ->file, change printer, copies, duplex, ...)
+    ?"preview_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_preview = Icallback("preview_cb")
 
 function print_cb(atom /*self*/)
---(Printing should be done as one function with page setup/preview/print buttons, and 
--- all the rest, such as ->pdf, ->html, ->file, change printer, copies, duplex, ...)
-?"print_cb" --DEV
+    --(Printing should be done as one function with page setup/preview/print buttons, and 
+    -- all the rest, such as ->pdf, ->html, ->file, change printer, copies, duplex, ...)
+    ?"print_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_print = Icallback("print_cb")
@@ -5197,7 +5206,7 @@ function exit_cb(Ihandle /*item_exit*/)
     for t=0 to IupGetInt(tabs,"COUNT")-1 do
         Ihandle tab = IupGetChild(tabs, t)
         integer fidx = IupGetInt(tab,"FILEIDX")
-        if SessionLimit=0 
+        if SessionLimit=0
         or filecursel[fidx][11]<SessionLimit then
             string filename = filenames[fidx]
             if match(untitled,filename)!=1 then
@@ -5330,7 +5339,7 @@ procedure bracket(integer base, /*ctrl*/, shift, alt)
 --?"bracket"
 --trace(1)
     if selON then
-        if selY = CursorY then
+        if selY=CursorY then
             CursorX = 0
             clearSelection()
         end if
@@ -5339,8 +5348,8 @@ procedure bracket(integer base, /*ctrl*/, shift, alt)
     startSelection(shift,alt)
     integer d = iff(base='['?-1:+1)
     ctrlBracket(d)
-    if cbY = CursorY
-    and cbX = CursorX
+    if cbY=CursorY
+    and cbX=CursorX
     and CursorX then
         integer wasCursorX = CursorX
         CursorX = 0
@@ -5425,7 +5434,7 @@ procedure F5key(integer ctrl, shift)
 end procedure
 
 function run_cb(atom self)
-integer ctrl = IupGetInt(self,"ID"), 
+integer ctrl = IupGetInt(self,"ID"),
 --      shift = IupGetGlobal("SHIFTKEY")
         shift = IupGetInt(NULL,"SHIFTKEY")
     F5key(ctrl,shift)
@@ -5449,13 +5458,17 @@ integer k,l,cY
         end if
     end if
     if match("Warning: ",oneline)=1 then
-        if length(oneline)>=11 
+        if length(oneline)>=11
         and oneline[11]=':' then
             oneline = oneline[10..length(oneline)]
         else
             oneline = filepaths[currfile]&oneline[10..length(oneline)]
         end if
 --  elsif usegpp then
+--15/7/26:
+    elsif begins("^",trim(oneline))
+      and match(", see ",oneline) then
+        oneline = oneline[match(", see ",oneline)+6..$]
     else
         if equal(filenames[currfile],"ctrace.out")
         and match(filepaths[currfile],oneline)!=1 then
@@ -5563,8 +5576,8 @@ constant cb_jerr = Icallback("jerr_cb")
 include src/compare.e as comp
 
 function comp_cb(atom /*self*/)
-?"comp_cb" --DEV
---  comp:Compare()
+    ?"comp_cb" --DEV
+    --  comp:Compare()
     return IUP_IGNORE
 end function
 constant cb_comp = Icallback("comp_cb")
@@ -5614,7 +5627,7 @@ end function
 constant cb_rein = Icallback("rein_cb")
 
 function cca_cb(atom /*self*/)
-?"cca_cb" --DEV
+    ?"cca_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_cca = Icallback("cca_cb")
@@ -5626,25 +5639,25 @@ end function
 constant cb_qjmp = Icallback("qjmp_cb")
 
 function rcvr_cb(atom /*self*/)
-?"rcvr_cb" --DEV
+    ?"rcvr_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_rcvr = Icallback("rcvr_cb")
 
 function design_cb(atom /*self*/)
-?"design_cb" --DEV
+    ?"design_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_design = Icallback("design_cb")
 
 function dvwr_cb(atom /*self*/)
-?"dvwr_cb" --DEV
+    ?"dvwr_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_dvwr = Icallback("dvwr_cb")
 
 function dvfy_cb(atom /*self*/)
-?"dvfy_cb" --DEV
+    ?"dvfy_cb" --DEV
     return IUP_IGNORE
 end function
 constant cb_dvfy = Icallback("dvfy_cb")
@@ -5836,12 +5849,12 @@ function file_menu_open_cb(Ihandle /*ih*/)
     return IUP_DEFAULT;
 end function
 
-Ihandle edit_undo, edit_redo, 
-        edit_cut, edit_cuta, edit_cutp, 
-        edit_copy, edit_copya, edit_copyp, 
-        edit_paste, copy_fname, edit_clip, edit_clips, 
-        edit_delete, edit_find, find_next, find_prev, 
-        edit_nextcs, edit_prevcs, 
+Ihandle edit_undo, edit_redo,
+        edit_cut, edit_cuta, edit_cutp,
+        edit_copy, edit_copya, edit_copyp,
+        edit_paste, copy_fname, edit_clip, edit_clips,
+        edit_delete, edit_find, find_next, find_prev,
+        edit_nextcs, edit_prevcs,
         edit_goto, edit_selall
 
 function edit_menu_open_cb(Ihandle /*ih*/)
@@ -6121,10 +6134,10 @@ function config_recent_cb(Ihandle ih)
 --      {text,linelengths} = read_file(filename)
 --?currfile
     {} = openFile(0,filename,-1)
---?currfile
---DEV (copied/factor out??)
-integer c = currfile
-                for pos=0 to IupGetInt(tabs,"COUNT")-1 do
+    --?currfile
+    --DEV (copied/factor out??)
+    integer c = currfile
+    for pos=0 to IupGetInt(tabs,"COUNT")-1 do
                     Ihandle tab = IupGetChild(tabs, pos)
                     if IupGetInt(tab,"FILEIDX")=c then
                         -- nb does not work after tab added (as documented):
@@ -6134,11 +6147,11 @@ integer c = currfile
 --                      IupSetAttributeId(tabs, "TABTITLE", pos, filenames[c])
 --?pos
 --                      IupSetAttribute(tab, "VALUEPOS", pos)
-                        IupSetAttributeHandle(tabs, "VALUE", tab)
-                        appUpdateRender()
-                        exit
-                    end if
-                end for
+            IupSetAttributeHandle(tabs, "VALUE", tab)
+            appUpdateRender()
+            exit
+        end if
+    end for
 
 --/*
     object res = readFile(filename)
@@ -6355,7 +6368,7 @@ Ihandle options_display     = menu_item("&Display Options",                 "PNG
 Ihandle options_edit        = menu_item("&Edit Options",                    "PNG_EditOpt",      gdlg:cb_goto,       0)
 Ihandle options_keyboard    = menu_item("&Keyboard Settings\t(Ctrl F1)",    "PNG_KeyboardOpt",  keybd:cb_keybd, 1)
 Ihandle options_file_extns  = menu_item("File E&xtensions",                 "PNG_ExtOpt",       extns:cb_ext,   1)
-        options_file_panel  = menu_item("File Pane&l\t(Ctrl L)",            "PNG_PanelOn",      cb_file_panel,  1)
+    options_file_panel  = menu_item("File Pane&l\t(Ctrl L)",            "PNG_PanelOn",      cb_file_panel,  1)
     IupSetStrAttribute(options_file_panel, "IMPRESS", get_image("PNG_PanelOff"))
     IupSetAttribute(options_file_panel,"VALUE","OFF")
 
@@ -6410,8 +6423,8 @@ constant r_MHelp=routine_id("MHelp")
 include src/qj.e
 --*/
 
-constant H_F1 = 101, 
-         H_HOME = 102, 
+constant H_F1 = 101,
+         H_HOME = 102,
          H_MANUAL = 103,
          H_LICENCE = 104,
          H_FORUM = 105,
@@ -6447,17 +6460,17 @@ integer id = IupGetInt(self,"ID")
     elsif id=H_F1 then
         F1key(0)
     elsif id=H_HOME then
-?"F1-home"
+        ?"F1-home"
     elsif id=H_MANUAL then
-?"F1-manual"
+        ?"F1-manual"
     elsif id=H_LICENCE then
-?"F1-licence"
+        ?"F1-licence"
     elsif id=H_FORUM then
-?"F1-forum"
+        ?"F1-forum"
     elsif id=H_UPGRADE then
-?"F1-upgrade"
+        ?"F1-upgrade"
     elsif id=H_ABOUT then
-?"F1-about"
+        ?"F1-about"
     else
         ?9/0
     end if
@@ -6479,9 +6492,9 @@ Ihandle help_forum      = menu_item("OpenEuphoria Forum",   "PNG_UserGroup",    
 Ihandle help_upgrades   = menu_item("Check for &Upgrades",  "PNG_AppUpgrade",   cb_help,  1, H_UPGRADE)
 Ihandle help_about      = menu_item("&About",               "PNG_HelpAbout",    cb_help,  1, H_ABOUT)
 
-F1menuitem = help_context
-Ihandles children = {help_context,
-                     IupSeparator()}
+    F1menuitem = help_context
+    Ihandles children = {help_context,
+                         IupSeparator()}
 --Ihandles from_helpfiles = {}
     for i=1 to length(helpfiles) do
         string help_name = get_file_name(helpfiles[i])
@@ -6500,21 +6513,21 @@ Ihandles children = {help_context,
                  help_upgrades,
                  help_about}
 
-Ihandle help_menu = IupMenu(children)
---                          {help_context,
---                           IupSeparator()}&
---                           help_phix,
---                           help_msdn,
---                          from_helpfiles&
---                          {IupSeparator(),
---DEV [HELP!!] any and all of these crash, w/o a proper ex.err
---                           help_home,
---                           help_manual,
---                           help_licence,
---                           help_forum,
---                           help_upgrades,
---                           help_about})
---})
+    Ihandle help_menu = IupMenu(children)
+    --                          {help_context,
+    --                           IupSeparator()}&
+    --                           help_phix,
+    --                           help_msdn,
+    --                          from_helpfiles&
+    --                          {IupSeparator(),
+    --DEV [HELP!!] any and all of these crash, w/o a proper ex.err
+    --                           help_home,
+    --                           help_manual,
+    --                           help_licence,
+    --                           help_forum,
+    --                           help_upgrades,
+    --                           help_about})
+    --})
     IupSetCallback(help_menu, "OPEN_CB", cb_help_menu_open)
 --  IupSetCallback(help_menu, "GETFOCUS_CB", cb_help_get_focus)
     reset_help_timer = IupTimer(Icallback("reset_help_cb"),40,false)
@@ -6525,18 +6538,18 @@ end function
 
 
 function create_menu()
-main_help_menu = IupSubmenu("&Help",    create_help_menu())
-Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
-                        IupSubmenu("&Edit",    create_edit_menu()),
-                        IupSubmenu("&Tools",   create_tool_menu()),
-                        IupSubmenu("&Macro",   create_macro_menu()),
-                        IupSubmenu("&Options", create_options_menu()),
+    main_help_menu = IupSubmenu("&Help",    create_help_menu())
+    Ihandle menu = IupMenu({IupSubmenu("&File",    create_file_menu()),
+                            IupSubmenu("&Edit",    create_edit_menu()),
+                            IupSubmenu("&Tools",   create_tool_menu()),
+                            IupSubmenu("&Macro",   create_macro_menu()),
+                            IupSubmenu("&Options", create_options_menu()),
 --                      IupSubmenu("&Help",    create_help_menu()),
-                        main_help_menu
+                            main_help_menu
 --                          sub_menu_format,
 --                          sub_menu_view,
 --                          sub_menu_help});
-                       })
+                           })
     return menu
 end function
 
@@ -6708,7 +6721,7 @@ Ihandle tab
         -- unfortunately there is no easy way to obtain the tab title position,
         -- so this just plants it with top left in the middle of the tab bar.
         {x,y} = sq_add({0,10},
-                sq_add(IupGetIntInt(tabs,"SCREENPOSITION"),
+                       sq_add(IupGetIntInt(tabs,"SCREENPOSITION"),
                 sq_floor_div(IupGetIntInt(tabs,"CLIENTSIZE"),2)))
     end if
     tabfile = IupGetInt(tab,"FILEIDX")  -- (for New,Open,etc)
@@ -6881,7 +6894,7 @@ function motion_cb(Ihandle /*ih*/, integer x, integer y, atom pStatus)
             if not iup_isalt(pStatus) then
                 x = min(x,ExpLength(filetext[currfile][y+1]))
             end if
-            if iup_isbutton1(pStatus) 
+            if iup_isbutton1(pStatus)
             or iup_isbutton3(pStatus) then
 --              string status = peek_string(pStatus)
 --              ?{"motion_cb",x,y,status}
@@ -7428,8 +7441,8 @@ integer newY
             CursorX = WordLeft(filetext[currfile][CursorY+1],CursorX,alt)
 --          string oneline = ConvertTabs(filetext[currfile][CursorY+1],8,isTabWidth)
 --          CursorX = WordLeft(oneline,CursorX,alt)
-            if CursorX != -1 then exit end if
-            if CursorY = 0 then
+            if CursorX!= -1 then exit end if
+            if CursorY=0 then
                 CursorX = 0
                 exit
             end if
@@ -7453,14 +7466,16 @@ integer newY
 --          CursorX = ExpLength(filetext[currfile][adjustLine(CursorY,-1,CursorX)+1])
 --          newY = adjustLine(CursorY,-1,CursorX)
             newY = adjustLine(CursorY,-1,0)         -- 21/5/07
-            CursorX = ExpLength(filetext[currfile][newY+1]) -- ""
+            if newY<length(filetext[currfile]) then -- 31/5/26
+                CursorX = ExpLength(filetext[currfile][newY+1]) -- ""
 --          CursorX = length(filetext[currfile][newY+1])
-            if selON=2 or isCurrLineColoured or isWordWrapON then
-                paintCursorY()
-                CursorY = newY
-                paintCursorY()
-            else
-                CursorY = newY
+                if selON=2 or isCurrLineColoured or isWordWrapON then
+                    paintCursorY()
+                    CursorY = newY
+                    paintCursorY()
+                else
+                    CursorY = newY
+                end if
             end if
         end if
     end if
@@ -7484,9 +7499,9 @@ integer newY
     if ctrl then -- jump word right
         while 1 do
             CursorX = WordRight(filetext[currfile][CursorY+1],CursorX,alt)
-            if CursorX != -1 then exit end if
+            if CursorX!= -1 then exit end if
             CursorX = ExpLength(filetext[currfile][CursorY+1])
-            if CursorY >= length(filetext[currfile])-1 then exit end if
+            if CursorY>=length(filetext[currfile])-1 then exit end if
             newY = adjustLine(CursorY,+1,CursorX)
             CursorX = -1    -- Let next call to WordRight stop on column 1.
             if selON or isCurrLineColoured or isWordWrapON then
@@ -7572,9 +7587,9 @@ function tabkey(integer ctrl, shift, alt)
 --      if c='\t' then
 --      if shift=0 then
 --          addAction(INSERTCHAR,VK_TAB)
-            addAction(INSERTCHAR,K_TAB)
+        addAction(INSERTCHAR,K_TAB)
 --          InsertChar(VK_TAB,insertMode)
-            InsertChar(K_TAB,insertMode)
+        InsertChar(K_TAB,insertMode)
 --      end if
     end if
     forceCursorOnscreen()
@@ -7611,7 +7626,7 @@ procedure homekey(integer ctrl, shift, alt)
         else
 --          newCol = leadingWhiteSpaceLength(filetext[currfile][CursorY+1])
 --          if CursorX = 0 then
-            if CursorX = 0 and CursorY<length(filetext[currfile]) then
+            if CursorX=0 and CursorY<length(filetext[currfile]) then
 --              CursorX = newCol
                 CursorX = leadingWhiteSpaceLength(filetext[currfile][CursorY+1])
             else
@@ -7689,9 +7704,9 @@ procedure pageup(integer ctrl, shift, alt)
 --      if currfile>1 then
 --          if isEnabled(TC) then
 --              if shift and isTabBarVIS then
-                integer pos = IupGetInt(tabs,"VALUEPOS")
-                if pos>0 then
-                    if shift then
+        integer pos = IupGetInt(tabs,"VALUEPOS")
+        if pos>0 then
+            if shift then
 --                  for i=currfile-1 to 1 by -1 do
 --                      if tabs[i] then
 --                          shuffleTabs(i-currfile)
@@ -7699,23 +7714,23 @@ procedure pageup(integer ctrl, shift, alt)
 --                      end if
 --                  end for
 --DEV:
-                        Ihandle ctab = IupGetAttributeHandle(tabs, "VALUE")
-                        integer cidx = IupGetInt(ctab,"FILEIDX")
-                        if currfile!=cidx then ?9/0 end if  -- sanity check
-                        IupSetInt(tabs,"VALUEPOS",pos-1)
-                        Ihandle ntab = IupGetAttributeHandle(tabs, "VALUE")
-                        integer nidx = IupGetInt(ntab,"FILEIDX")
-                        IupSetInt(ctab,"FILEIDX",nidx)
-                        IupSetInt(ntab,"FILEIDX",cidx)
-                        -- does not work (as documented):
+                Ihandle ctab = IupGetAttributeHandle(tabs, "VALUE")
+                integer cidx = IupGetInt(ctab,"FILEIDX")
+                if currfile!=cidx then ?9/0 end if  -- sanity check
+                IupSetInt(tabs,"VALUEPOS",pos-1)
+                Ihandle ntab = IupGetAttributeHandle(tabs, "VALUE")
+                integer nidx = IupGetInt(ntab,"FILEIDX")
+                IupSetInt(ctab,"FILEIDX",nidx)
+                IupSetInt(ntab,"FILEIDX",cidx)
+                -- does not work (as documented):
 --                      IupSetAttribute(ctab, "TABTITLE", filenames[nidx])
 --                      IupSetAttribute(ntab, "TABTITLE", filenames[cidx])
-                        IupSetAttributeId(tabs, "TABTITLE", pos, filenames[nidx])
-                        IupSetAttributeId(tabs, "TABTITLE", pos-1, filenames[cidx])
-                        setSaveIcon(pos,ctab)
-                        setSaveIcon()
+                IupSetAttributeId(tabs, "TABTITLE", pos, filenames[nidx])
+                IupSetAttributeId(tabs, "TABTITLE", pos-1, filenames[cidx])
+                setSaveIcon(pos,ctab)
+                setSaveIcon()
 --                      currfile = nidx
-                    else
+            else
 --                  for i=currfile-1 to 1 by -1 do
 --                      if isTabBarVIS=0 or tabs[i] then
 --                          changeTo(i)
@@ -7730,17 +7745,17 @@ procedure pageup(integer ctrl, shift, alt)
 ----                        currfile = nidx
 --                      changeTo(nidx)
 --else
-                        savecurr()
-                        Ihandle ntab = IupGetChild(tabs, pos-1)
-                        integer nidx = IupGetInt(ntab,"FILEIDX")
+                savecurr()
+                Ihandle ntab = IupGetChild(tabs, pos-1)
+                integer nidx = IupGetInt(ntab,"FILEIDX")
 --                      currfile = nidx
-                        changeTo(nidx,pos-1)
+                changeTo(nidx,pos-1)
 --                      IupSetInt(tabs,"VALUEPOS",pos-1)
 --end if
-                    end if
-                    IupRefresh(tabs)
-                    appUpdateRender()
-                end if
+            end if
+            IupRefresh(tabs)
+            appUpdateRender()
+        end if
 --          end if
 --      end if
     else
@@ -7799,14 +7814,14 @@ procedure pagedn(integer ctrl, shift, alt)
         end if
         startSelection(shift,alt)
         integer filelen = length(filetext[currfile])
-        if adjustLine(TopLine,+linesPerPage,TopChunk) < filelen then
+        if adjustLine(TopLine,+linesPerPage,TopChunk)<filelen then
             TopLine = adjustLine(TopLine,+linesPerPage,TopChunk)
             TopChunk = nacX
             CursorY = min(adjustLine(CursorY,+linesPerPage,CursorX),filelen-1)
             CursorX = nacX
             paintall()
             checkCursorX()
-        elsif CursorY != filelen-1 then
+        elsif CursorY!=filelen-1 then
             jumpTo(ExpLength(filetext[currfile][filelen]),filelen-1)
         end if
     end if
@@ -7822,7 +7837,7 @@ procedure backdel(integer base, ctrl, shift, /*alt*/)
     else
         if not deleteSelection() then
             integer filelen = length(filetext[currfile])
-            if base=K_DEL 
+            if base=K_DEL
             and CursorX=ExpLength(filetext[currfile][CursorY+1]) then
                 -- join two lines
                 if CursorY+1<filelen then
@@ -7835,7 +7850,7 @@ procedure backdel(integer base, ctrl, shift, /*alt*/)
                     if length(bookmarks[currfile])!=length(filetext[currfile]) then ?94/(1-isDebug) end if
                     paintall()
                 end if
-            elsif base=K_BS 
+            elsif base=K_BS
               and CursorX=0 then
                 -- join two lines
                 if CursorY then

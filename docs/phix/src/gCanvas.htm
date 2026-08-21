@@ -37,9 +37,12 @@
             Returns the identifier of the created element.
             <br>
             <br>
-            A gCanvas is also used to implement <a href>gGraph</a>, <a href>gList</a>, <a href>gTable</a>, and 
-            <a href>gTabs</a>, as well as the resizer in a <a href>gSplit</a>.
+            A gCanvas is also used to implement <a href="tgelements.htm">all the other controls</a>, or perhaps more accurately a 
+            <a href>gImage</a>, and technically even a canvas is emulated via said, not unlike good old-fashioned double buffering, 
+            with the additional advantage of speeding up gDraw/GetPixel at least ten-fold and quite possibly a frankly mind-boggling 
+            <i>33&frac13; thousand</i>-fold. <!--small>(depending on backend)</small-->
             <br>
+<!--
             <br>
             Note that gCanvas (and gImage/gPixbuf) are aimed squarely at being easy to use and covering all your basic needs, including 
             "fast enough for most things", but <i><b>not</b></i> astonishing performance. Everything static should be perfectly fine, 
@@ -47,13 +50,17 @@
             plus something faster, just for the bits that need it, other than that other thing doing the blocking itself, such as 
             <a href="gMainLoop.htm#GTK4"><span class="illegal">GTK4</span></a> being arrogantly adamant that everything be wrapped 
             in a meaningless GtkApplication thingy.
+-->
 <!--
-            except (perhaps) when used with OpenGL, and 
+            except (perhaps) when used with <a href>OpenGL</a>, and 
             even then only when getting that to do <i>all</i> the tricky stuff, instead of thinking you can do it super-fast yourself.
             That said, I&apos;ll certainly accept any help to make anything here a bit (or a lot) faster! 
--->
-            See this <a href="gPixbuf.htm#psum">performance summary</a>.
+            Note v1 is aimed squarely at being easy to use, and of course working, with relatively scant regard to performance,
+            but no obvious hindrance to improvement in that regard. See this <a href="gPixbuf.htm#psum">performance summary</a>.
+            As noted below, <a href>gRotatePolygon</a>() has already been flagged for future investigation, let me know/help me
+            prioritise any others that need attention.
             <br>
+-->
          </td>
         </tr>
         <tr>
@@ -90,7 +97,7 @@
            <div style="float:left;">
             <small>
 <!--eucode>
--- demo\theGUI\gCanvas.exw (significantly simplified)
+-- demo\theGUI\gCanvas.exw (simplified as below)
 include theGUI.e
 
 procedure redraw(gdx canvas, integer w, h)
@@ -103,7 +110,7 @@ gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
 gMainLoop(dialog)
 </eucode-->
 <pre>
-<font color="#000080"><i>-- demo\theGUI\gCanvas.exw (significantly simplified)</i></font>
+<font color="#000080"><i>-- demo\theGUI\gCanvas.exw (simplified as below)</i></font>
 <font color="#008080">include</font><font color="#000000"> theGUI.e
 </font>
 <font color="#008080">procedure</font><font color="#000000"> redraw</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> w</font><font color="#0000FF">,</font><font color="#000000"> h</font><font color="#0000FF">)</font>
@@ -118,7 +125,7 @@ gMainLoop(dialog)
             </small>
            </div>
            <div style="float:right;">
-            <img alt="gCanvas" src="images/gCanvasACS.png" width="240" height="156"/>
+            <img src="images/gCanvasACS.png" alt="gCanvas" width="240" height="156"/>
             <div style="clear:right; text-align:center;" ><i><small>&nbsp;&nbsp;(compare with <!--see <a href="#WU_BLEND">WU_BLEND</a> 
                                                              and/or--> <a href="gPixbuf.htm#eg">gPixbuf</a>)</small></i></div>
            </div>
@@ -193,7 +200,7 @@ gMainLoop(dialog)
                 <tr><td style="background-color:#008080;"></td> <td><code>#008080</code> TG_TEAL                        </td>
                     <td style="background-color:#EE82EE;"></td> <td><code>#EE82EE</code> TG_VIOLET                      </td></tr>
                 <tr><td style="background-color:#00C0C0;"></td> <td><code>#00C0C0</code> TG_DARK_CYAN                   </td>
-                    <td style="background-color:#FF00FF;"></td> <td><code>#FF00FF</code> TG_MAGENTA                     </td></tr>
+                    <td style="background-color:#FF00FF;"></td> <td><code>#FF00FF</code> TG_MAGENTA*                    </td></tr>
                 <tr><td style="background-color:#00FFFF;"></td> <td><code>#00FFFF</code> TG_CYAN                        </td>
                     <td style="background-color:#800000;"></td> <td><code>#800000</code> TG_DARK_RED, TG_MAROON         </td></tr>
                 <tr><td style="background-color:#008000;"></td> <td><code>#008000</code> TG_DARK_GREEN                  </td>
@@ -703,13 +710,18 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             Also, to achieve consistency between backends, theGUI quietly performs quite a bit of platform-specific RGB&hArr;BGR
             mapping automatically, a fact you may need to know when porting some (legacy) code to theGUI. Colour codes are usually 
             declared as atom, however integer is also fine except under 32-bit when the alpha channel is #40..#BF, which is probably 
-            fairly rare. Several routines below imply integer colour although it is actually an atom <small>(esp when small)</small> 
-            just to save space/keep it neat.
+            fairly rare. Some <small>small print</small> below implies integer colour when actually an atom, just to save space.
             <br>
             <br>
             All the standard colours are fully opaque, ie have an alpha channel of #00 <small>(which may get flipped to/from #FF 
-            on some backends)</small>. 
-            Note as yet no attempt has been made to actually test alpha blending <i>at all</i>. [DEV]
+            on some backends)</small>. *TG_MAGENTA is officially the transparent colour, set as BGCLR on any canvas intended to be
+            drawn using <a href>OpenGL</a>, which effectively punches out a transparent hole all the way up the dialog hierarchy.
+            Should you want a gCanvas to show a border around some OpenGL content, my advice would be to set BGCLR for the border
+            and punch your own transparent hole, that is within the standard <a href>REDRAW</a> routine, or rely on <a href>MARGIN</a>.
+            Use TG_MAGENTA-1 or #FE00FE for something indistinguishable to the naked eye but which isn&apos;t transparent. Note
+            that xpm use "None" instead, which is replaced by the first unused colour it can find, typically #000001, not that
+            you can see that. Lastly, there has been no formal testing of alpha blending, but some of the drawing primitives may
+            it seems have already incorporated most of what is needed.
 <!--
             </div>
             <div class="clear"></div>           
@@ -796,12 +808,12 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             Note that values other than TG_CONTINUOUS with a line width other than 1 appear as rhomboids, and perhaps for that 
             same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable on
             slightly thicker lines, and just seems churlish to remove it completely.<br>
-            &nbsp;&nbsp;style may also be a sequence (of 1/0, see theGUI.e) which sets TG_CUSTOM_DASH(==6).<br>
+//          &nbsp;&nbsp;style may also be a sequence (of 1/0, see theGUI.e) which XXXsets TG_CUSTOM_DASH(==6).<br>
             &nbsp;&nbsp;<small><i>(TG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>
 //X         <a name=gCanvasGetLineStyle></a>
 //          &nbsp;&nbsp;<a href>object</a> style = <b>gCanvasGetLineStyle</b>(<a href>gdx</a> canvas) is also provided
             (returns 1..5 but pattern not TG_CUSTOM_DASH).<br>
-            &nbsp;&nbsp;Use <a href>string</a> res = <b>gGetLineStyleName</b>(<a href>object</a> style) to 
+//X         &nbsp;&nbsp;Use <a href>string</a> res = <b>gGetLineStyleName</b>(<a href>object</a> style) to 
             convert a style to a human readable string.
             <br>
 //X         <a name=gCanvasSetLineWidth></a>
@@ -817,8 +829,8 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             anywhere/anytime on a <a href>gImage</a> or <a href>gPixbuf</a> (except
             <a href>gDrawText</a>, and <a href>gDrawImage</a> with gdx target).
             Use <a href>gRedraw</a>() to force a repaint.<br>
-            Non-1 colour/width/style transiently override
-            <a href>FGCLR</a>/<a href>LINEWIDTH</a>/<a href>LINESTYLE</a>, which would otherwise be used.
+            Non-1 colour/style/width transiently override
+            <a href>FGCLR</a>/<a href>LINESTYLE</a>/<a href>LINEWIDTH</a>, which would otherwise be used.
 <!--
             Since images and pixbufs do not have such attributes any -1 are treated as <a href>TG_BLACK</a>/1/TG_CONTINUOUS respectively.
 -->
@@ -827,6 +839,10 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             All co-ordinates are in pixels, with fractions permitted, but simply ignored/truncated, and 0-based, so on a 200x150 canvas {0,0} 
             to {199,149} are valid, with any attempts to draw off-canvas pixels simply quietly ignored, though will probably incur some additional
             overhead.
+            <br>
+            <br>
+            Note while the vast majority of use is expected to be in a redraw handler in the main GUI thread, none of these routines are thread-safe, 
+            so attempting to build images in a background thread is ill-advised, however they should be fine in an <a href>IDLE_ACTION</a> routine.
 <!--            say a line from {50,50} to {-300,27000} just draws the bit it can.-->
 <!-- no longer so:
             <br>
@@ -834,14 +850,19 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             Anti-aliasing on a gCanvas is performed using just the two currently-in-force foreground and background colours, whereas on a 
             gImage it more properly merges the painted colour with the existing pixels.
 -->
-<!--
+
             <br><a name=gCanvasClip></a>
             <br>
-            <b>gCanvasClip</b>(<a href>gdx</a> canvas, <a href>object</a> rect 
-                                                                     <small>/*{atom xmin, ymin, xmax, ymax}, or NULL*/</small>)<br>
+            <b>gCanvasClip</b>(<a href>gdx</a> canvas, <a href>object</a> rect <small>/*{atom xmin, ymin, xmax, ymax}, or NULL*/</small>)<br>
             &nbsp;&nbsp;Set a rectangular clipping area on the canvas, or remove it, which should occur on a strictly 1:1 basis.<br>
-            &nbsp;&nbsp;Not [yet] supported on images or pixbufs.
+<!--
+            &nbsp;&nbsp;Does not apply to pixbufs. Use NULL to remove a clipping region. Note WinAPI uses centralised device contexts,<br>
+            &nbsp;&nbsp;&nbsp;which may mean this needs applying/removing more/less often than you first think, sometimes that&apos;s a bug.
 -->
+            &nbsp;&nbsp;<b>NB</b> woefully incomplete, and fairly low down on my list of priorities. All I know is it seems to work for
+            <a href>gDrawText</a> within a <a href>gText</a>, such that over-large fonts do not damage the border. With other routines expect 
+            hiccups, total disregrard, wilful indifference, and complete ignorance.
+
 <!-- technically true, but let's not muddy things, or for that matter bother with keeping a full stack, just TG & USER.
             <br>
             &nbsp;&nbsp;Note that clip regions are cumulative: {100,100,120,120} then {10,10,40,15} is equivalent to {110,110,120,115},<br>
@@ -850,49 +871,58 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             &nbsp;&nbsp;"<i>Tip</i>": wreak havoc on other controls by removing the auto-clip <small>(and presumably prevent crash by putting dummy one back)</small>.
 -->
 
-            <br><a name=gDrawLine></a>
-            <br>
-            <b>gDrawLine</b>(<a href>gcp</a> canvas, <a href>atom</a> x1, y1, x2=0, y2=0, <small>
-                                                                      colour=-1,
-                                                     <a href>integer</a> width=-1, style=-1</small>)<br>
-            &nbsp;&nbsp;Can also be invoked as gDrawLine(canvas,{x1,y1},{x2,y2}), however any colour/width/style <i>must</i><br>
-            &nbsp;&nbsp;&nbsp;&nbsp;then use <a href="procedures.htm#namedparams">named parameters</a>
-                                    <small>- throws "bad args" should you forget, aka original pre-from-y1 {x2,y2}!={0,0}</small>.<br>
-            &nbsp;&nbsp;Draw a line on a gCanvas, <a href>gImage</a>, or <a href>gPixbuf</a> from 
-                        {x1,y1} to {x2,y2} inclusive (zero-based).<br>
-<!-- stop underselling yourself, Pete!
-            &nbsp;&nbsp;Note that on WinAPI non-horizontal/vertical lines may be significantly faster on a pixbuf than the other two.
--->
-<!-- DEV run some tests and fill this in: (ideally WinAPI/GTK/JS too) [or , see <a href="#speed" onclick="opentech()">my results</a>]
-            &nbsp;&nbsp;&nbsp;<small>[my tests yielded WinAPI: canvas: 300/s, image: 420/s, pixbuf: 900/s]<br>
-                                                          GTK: canvas: 300/s, image: 420/s, pixbuf: 900/s]<br>
-                                                           JS: canvas: 300/s, image: 420/s, pixbuf: 900/s]</small>
-            pixbuf: 900/s, image: WinAPI: 420/s, GTK: 420/s, JS: 420/s, 
-            canvas: WinAPI: 300/s, WinApi+WU_BLEND: 150/s, GTK: 300.s, JS: 300/s.
--->
-
-<!--
-//          &nbsp;&nbsp;<small>(Note that GTK does not really do width-1 lines, and instead draws width-2 lines in a slightly lighter colour.</small><br>
-//<X-- DEV ah: need +0.5 everywhere, see eg https://forum.affinity.serif.com/index.php?/topic/82479-how-to-draw-a-one-pixel-opaque-line/ --X>
-//          &nbsp;&nbsp;<small> Easily emulated under WinAPI, but that would be your call not someone else&apos;s opinion rudely foisted on you,</small><br>
-//          &nbsp;&nbsp;<small> and I would agree it sometimes/often looks better, but disagree with GTK blanket-saying <i>not</i> my/your choice.)</small>
--->
             <br><a name=gDrawArc></a>
             <br>
-            <b>gDrawArc</b>(<a href>gcp</a> canvas, <a href>atom</a> xc, yc, w, h, angle1, angle2,<small>
-                                                                  <a href>integer</a> flags=0, colour=-1, width=-1, style=-1</small>)<br>
+            <b>gDrawArc</b>(<a href>gcp</a> canvas, <a href>atom</a> xc, yc, w, h, angle1=0, angle2=360, rot=0, <small>
+                                                                  flags=0, colour=-1, 
+                                                                  <a href>object</a> <a href="#LINESTYLE">style</a>=-1</small>)<br>
             <!--br--><a name=gDrawCircle></a>
             <b>gDrawCircle</b>(<a href="gdx.htm">gcp</a> canvas, <a href>atom</a> xc, yc, radius, 
                                                                  <a href>bool</a> filled=<a href>false</a>, <small>
-                                                                 <a href>integer</a> colour=-1, width=-1, style=-1</small>)<br>
+                                                                 <a href>atom</a> colour=-1, 
+                                                                 <a href>object</a> <a href="#LINESTYLE">style</a>=-1</small>)<br>
             &nbsp;&nbsp;Co-ordinates are in pixels, angles in degrees, flags can be TG_FILLED with TG_CHORD or TG_SECTOR.<br>
             &nbsp;&nbsp;The angles define the arc start and end, but they are <i>not</i> relative to the center, except for w==h aka a circle.<br>
             &nbsp;&nbsp;The arc starts at the point (xc+(w/2)*<a href>cos</a>(angle1), yc+(h/2)*<a href>sin</a>(angle1)) and ditto 
                             ends/angle2 (always clockwise).<br>
+<!--            &nbsp;&nbsp;<b>NB:</b> rotate <i>and</i> fill only works on whole ellipses, as yet only unfilled chords/sectors can be rotated.<br>-->
+            &nbsp;&nbsp;Subsequent rotation (simply daft on a circular arc) may then change those points, but not the final shape.<br>
             &nbsp;&nbsp;A complete ellipse can be drawn using 0 and 360 as the angles (note implied *<a href>TG_DEG2RAD</a> in the above).<br>
-            &nbsp;&nbsp;If angle2 is less than angle1 it will be increased by 360 until it is greater than angle1.<br>
-            &nbsp;&nbsp;gDrawCircle() just simply invokes gDrawArc( ... ,w=h=2*radius,0,360, ... ), nothing more than that.<br>
-            &nbsp;&nbsp;TG_FILLED has the same value as <a href>true</a>, and hence can be passed to gDrawCircle.
+            &nbsp;&nbsp;The angles are first rounded to 4dp to mop up any (eg) <a href>atan2</a>() numerical errors, then if angle2 is (strictly) less <br>
+            &nbsp;&nbsp;&nbsp;than angle1 it is increased by 360 until greater than angle1, so for instance 45,40 is a near-complete arc, <br>
+            &nbsp;&nbsp;&nbsp;noting that while 0,0 draws nothing, 1e-4,0 draws the full thing, but as above most glitches of that ilk ironed out.<br>
+            &nbsp;&nbsp;gDrawCircle() just simply invokes gDrawArc( ... ,w=h=2*radius,0,360,0, ... ), nothing more than that.<br>
+            &nbsp;&nbsp;TG_FILLED has the same value as <a href>true</a>, and hence can be passed to gDrawCircle <small>(which forwards it on to gDrawArc)</small>.<br>
+            &nbsp;&nbsp;Note the absence of a width parameter: A width>1 effect can only be achieved by first drawing a filled outer <br>
+            &nbsp;&nbsp;&nbsp;and then a smaller inner filled arc/ellipse/circle, both of which treat style as TG_CONTINUOUS.
+<!--
+            &nbsp;&nbsp;Note: angle1 and angle2 are parametric angles of the unrotated ellipse.<br>
+            &nbsp;&nbsp;The ellipse is then rotated by rot. Therefore the angles are not relative to the rotated axes unless w == h.<br>
+
+gDrawArc(gcp canvas, atom xc, yc, w, h, angle1, angle2, rot=0)
+
+Draws an arc of an ellipse centred at (xc, yc), with width w and height h,
+rotated by rot degrees clockwise.
+
+The arc is defined parametrically. The start and end angles (angle1, angle2)
+are parameters t (in degrees) of the unrotated ellipse:
+
+    x = (w/2)*cos(t)
+    y = (h/2)*sin(t)
+
+These points are then rotated by rot about (xc, yc):
+
+    xr = xc + x*cos(rot) - y*sin(rot)
+    yr = yc + x*sin(rot) + y*cos(rot)
+
+The arc is traced from angle1 to angle2 in increasing t (clockwise on screen).
+
+Notes:
+- The angles are NOT geometric angles about the centre unless w == h (a circle).
+- Rotation does NOT change the meaning of angle1/angle2; it only rotates the final shape.
+- For a circle (w == h), angle1/angle2 correspond to standard polar angles.
+
+-->
 <!--            &nbsp;&nbsp;There is no real difference between TG_FILLED and TG_CHORD|SECTOR+TG_FILLED when Fore/Back are the same.<br> -->
 <!-- DEV once working:
             &nbsp;&nbsp;Note that under WinAPI filled arcs/cirles/chords/sectors have <a href="gCanvas.htm#bresenham">bresenham edges</a> on a gCanvas 
@@ -913,25 +943,75 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             <br>
             <b>gDrawCubicBezier</b>(<a href="gdx.htm">gcp</a> canvas, <a href>atom</a> x1, y1, xc1, yc1, xc2, yc2, x2, y2,
                                                                                            <small>colour=-1,
-                                                                      <a href>integer</a> width=-1, style=-1</small>)<br>
+                                                                      <a href>object</a> <a href="#LINESTYLE">style</a>=-1,
+                                                                      <a href>integer</a> width=-1</small>)<br>
             <!--br--><a name=gDrawQuadBezier></a>
             <b>gDrawQuadBezier</b>(<a href="gdx.htm">gcp</a> canvas, <a href>atom</a> x1, y1, cx, cy, x2, y2,
                                                                                           <small>colour=-1,
-                                                                     <a href>integer</a> width=-1, style=-1</small>)<br>
+                                                                     <a href>object</a> <a href="#LINESTYLE">style</a>=-1,
+                                                                     <a href>integer</a> width=-1</small>)<br>
             &nbsp;&nbsp;Draws a curve from x1,y1 to x2,y2 using control points xc1,yc1 and xc2,yc2.<br>
-            &nbsp;&nbsp;The (simpler) quadratic version just invokes the cubic one using the same control point twice.
+            &nbsp;&nbsp;The (simpler) quadratic version just invokes the cubic one using the same control point twice.<br>
+            &nbsp;&nbsp;See <a href="#bezier" onclick="opentech()">here</a> for some pretty images and an explanation of these things.
+
+            <br><a name=gDrawImage></a>
+            <br>
+            <b>gDrawImage</b>(<a href>gdm</a> image, <a href="gdx.htm">gdc</a> canvas, <small>
+                              <a href>atom</a> x=0, y=0, sx=0, sy=0,
+                              <a href>integer</a> w=-1, h=-1</small>)<br>
+<!--            Note that src can only be a gImage, not a gCanvas, whereas tgt can be either.<br>-->
+<!--            When tgt is a gCanvas, -->
+<!--            &nbsp;&nbsp;Same deal as gDrawLine re passing two|one points instead of four|two atoms.<br>-->
+            &nbsp;&nbsp;Draws a <a href>gImage</a>, or part of it, onto a gCanvas or another gImage.<br>
+            &nbsp;&nbsp;image: (source) must be a gImage.<br>
+            &nbsp;&nbsp;canvas: (target) must be a gCanvas or gImage.<br>
+            &nbsp;&nbsp;x,y: locate top left corner on the target <small>(fractions rounded to nearest integer)</small>.<br>
+            &nbsp;&nbsp;sx,sy: locate top left corner on the source <small>(ditto)</small>.<br>
+            &nbsp;&nbsp;w,h: width and height to draw, -1 equate to "all", sensibly clipped to image/canvas boundaries.<br>
+            &nbsp;&nbsp;The default is to display all of the image, though you can specify some smaller region.
+
+            <br><a name=gDrawLine></a>
+            <br>
+            <b>gDrawLine</b>(<a href>gcp</a> canvas, <a href>atom</a> x1, y1, x2=0, y2=0, <small>
+                                                                      colour=-1,
+                                                     <a href>object</a> <a href="#LINESTYLE">style</a>=-1,
+                                                     <a href>integer</a> width=-1</small>)<br>
+            &nbsp;&nbsp;Can also be invoked as gDrawLine(canvas,{x1,y1},{x2,y2}), however any colour/style/width <i>must</i><br>
+            &nbsp;&nbsp;&nbsp;&nbsp;then use <a href="procedures.htm#namedparams">named parameters</a>
+                                    <small>- throws "bad args" should you forget, aka original pre-from-y1 {x2,y2}!={0,0}</small>.<br>
+            &nbsp;&nbsp;Draw a line on a gCanvas, <a href>gImage</a>, or <a href>gPixbuf</a> from 
+                        {x1,y1} to {x2,y2} inclusive (zero-based).
+<!-- stop underselling yourself, Pete!
+            &nbsp;&nbsp;Note that on WinAPI non-horizontal/vertical lines may be significantly faster on a pixbuf than the other two.
+-->
+<!-- DEV run some tests and fill this in: (ideally WinAPI/GTK/JS too) [or , see <a href="#speed" onclick="opentech()">my results</a>]
+            &nbsp;&nbsp;&nbsp;<small>[my tests yielded WinAPI: canvas: 300/s, image: 420/s, pixbuf: 900/s]<br>
+                                                          GTK: canvas: 300/s, image: 420/s, pixbuf: 900/s]<br>
+                                                           JS: canvas: 300/s, image: 420/s, pixbuf: 900/s]</small>
+            pixbuf: 900/s, image: WinAPI: 420/s, GTK: 420/s, JS: 420/s, 
+            canvas: WinAPI: 300/s, WinApi+WU_BLEND: 150/s, GTK: 300.s, JS: 300/s.
+-->
+
+<!--
+//          &nbsp;&nbsp;<small>(Note that GTK does not really do width-1 lines, and instead draws width-2 lines in a slightly lighter colour.</small><br>
+//<X-- DEV ah: need +0.5 everywhere, see eg https://forum.affinity.serif.com/index.php?/topic/82479-how-to-draw-a-one-pixel-opaque-line/ --X>
+//          &nbsp;&nbsp;<small> Easily emulated under WinAPI, but that would be your call not someone else&apos;s opinion rudely foisted on you,</small><br>
+//          &nbsp;&nbsp;<small> and I would agree it sometimes/often looks better, but disagree with GTK blanket-saying <i>not</i> my/your choice.)</small>
+-->
 
             <br><a name=gDrawPolygon></a>
             <br>
             <b>gDrawPolygon</b>(<a href="gdx.htm">gcp</a> canvas, <a href>sequence</a> poly, <small>
                                                                   <a href>bool</a> bFilled=<a href>true</a>, 
-                                                                  <a href>integer</a> colour=-1, width=-1, style=-1</small>)<br>
+                                                                  <a href>atom</a> colour=-1,
+                                                                  <a href>object</a> <a href="#LINESTYLE">style</a>=-1,
+                                                                  <a href>integer</a> width=-1</small>)<br>
             &nbsp;&nbsp;poly: a list of vertices aka starting points of each segment to be drawn. <br>
             &nbsp;&nbsp;If a segment is just {x,y} a straight line is drawn to the end point (ie next/first segment).<br>
             &nbsp;&nbsp;If a segment is length 4 aka {x,y,cx,cy} a quadratic bezier is drawn, likewise length 6 a cubic bezier. <br>
-            &nbsp;&nbsp;If a segment is length 8 aka {sx,sy,xc,yc,w,h,a1,a2} an arc is drawn. <br>
+            &nbsp;&nbsp;If a segment is length 8 aka {sx,sy,xc,yc,w,h,a1,a2} an (unrotated) arc is drawn. <br>
+            &nbsp;&nbsp;Note it is all round easier to use a bezier curve than attempting to use a rotated arc segment anyway.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;Warning: errors occur should start or end (aka start of next segment) not lie on the ellipse.<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;NB: gDrawArc() does not [yet] support any form of rotation, so neither do polygon arc segments.<br>
             &nbsp;&nbsp;The poly can also contain {} which makes it a multi-part polygon, allowing "holes" such as those in O,P,D,A,B, etc. <br>
 <!-- (no, length-1 is fine for a whole ellipse, for instance...
             &nbsp;&nbsp;An error occurs for any part containing less than three vertices, or any segment not length 0|2|3|4|6.<br>
@@ -941,10 +1021,13 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             &nbsp;&nbsp;All segments (in each {}-separated part) must also meet up exactly, including {last,first}.<br>
             &nbsp;&nbsp;<b>NB</b> Filled polygons are only supported on a <a href="gPixbuf.htm">pixbuf</a>. [ERM, RECONSIDERING...]<br>
 -->
-            &nbsp;&nbsp;<a href="#filling" onclick="opentech()">Polygon filling</a> occurs on the full collection of segments, 
-                        rather than each individually.<br>
+<!--
             &nbsp;&nbsp;A filled polygon may <i>not</i> have a style other than TG_CONTINUOUS or width other than 1.<br>
             &nbsp;&nbsp;bFilled/colour/width/style: assumed to be self-explanatory.<br>
+-->
+            &nbsp;&nbsp;bFilled/colour/style/width: bFilled ignores style/width&rArr;TG_CONTINUOUS/1, and arcs don&apos;t have a width.<br>
+            &nbsp;&nbsp;<a href="#filling" onclick="opentech()">Polygon filling</a> occurs on the full collection of segments, 
+                        rather than each individually.<br>
 <!-- DEV: update gDrawPoly.exw with some arc examples, then just delete this comment -->
             &nbsp;&nbsp;<small>[Be warned performance is far from stellar, esp on WinAPI, see demo\rosetta\DrawRotatingCube.exw, </small><br>
             &nbsp;&nbsp;<small>&nbsp;GTK2 is 4* better, no idea why/how GTK3 is 1000*(!) better, we can only hope things improve over time...</small><br>
@@ -954,16 +1037,14 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             <br><a name=gRotatePolygon></a>
             <br>
             <a href>sequence</a> poly = <b>gRotatePolygon</b>(<a href>sequence</a> poly, 
-                                                                             <a href>object</a> angle)<br>
+                                                              <a href>object</a> angle)<br>
             &nbsp;&nbsp;poly: as <a href="#gDrawPolygon">gDrawPolygon above</a> but less restrictive, so (eg) you can rotate a single point. <br>
-            &nbsp;&nbsp;&nbsp;&nbsp;Will crash if poly contains an arc (or any odd-length) segment: not only do arcs not support rotation,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;at least as yet, the w,h,a1,a2 such segments contain are not rotatable points (unlike the rest).<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;Will crash if poly contains (any odd-length or) an arc segment: the w,h,a1,a2 such segments contain <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;are not rotatable points, and besides using a bezier curve is simply all round easier.<br>
             &nbsp;&nbsp;angle: rotate all the points of poly. If angle is an atom, rotation occurs about poly[1][1..2], <br>
             &nbsp;&nbsp;&nbsp;&nbsp;otherwise it must be a three-atom {angle,xr,yr} triplet with rotation about {xr,yr}.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;The angle should be specified in degrees, clockwise, usually but does not have to be 0..+/-360.<br>
-            &nbsp;&nbsp;<small>[Be warned this seems significantly slower than anticipated, possibly only managing ~150 points per second,<br>
-            &nbsp;&nbsp;&nbsp;  whereas I would have confidently predicted it was going to be 10 or even 100 times faster than that...<br>
-            &nbsp;&nbsp;&nbsp;  A cache of previously calculated rotations may help, quite probably rounded to nearest degree/pixel.]</small>
+            &nbsp;&nbsp;<small>[Aside: there is a 10* faster #ilASM{} version of this in gDrawPoly.exw in case it is ever needed.]</small>
             
 
 <!--
@@ -987,29 +1068,17 @@ DEV args shd be swapped... (to match clip)<br>
 -->
             <b>gDrawRect</b>(<a href="gdx.htm">gcp</a> canvas, <small><a href>atom</a> xmin, ymin, xmax, ymax,
                                             <a href>bool</a> bFill=<a href>false</a>,
-                                            <a href>integer</a> rc=0, <small>colour=-1, width=-1, style=-1</small></small>)<br>
+                                            <a href>integer</a> rc=0, <small>
+                                            <a href>atom</a> colour=-1
+                                            <a href>object</a> <a href="#LINESTYLE">style</a>=-1,
+                                            <a href>integer</a> width=-1</small></small>)<br>
 <!--            &nbsp;&nbsp;Same deal as gDrawLine re passing two points instead of four atoms.<br>-->
-            &nbsp;&nbsp;Draws a rectangle, optionally filled and/or with rounded corners.<br>
+            &nbsp;&nbsp;Draws a rectangle, optionally filled and/or with rounded corners <small>[both of which treat width as 1]</small>.<br>
             &nbsp;&nbsp;xmin/ymin/xmax/ymax: inclusive, so {0,0,0,0} draws a single pixel top-left.<br>
             &nbsp;&nbsp;rc: 0 for square corners, else the radius of the a quadrant/arc to use. Unpredictable results when &gt; w/2 or h/2.<br>
-            &nbsp;&nbsp;bFill/colour/width/style: assumed to be self-explanatory.<br>
+            &nbsp;&nbsp;bFill/colour/style/width: assumed to be self-explanatory. A width>1 with rounded corners can only be achieved<br>
+            &nbsp;&nbsp;&nbsp;by first drawing a filled outer and then a smaller inner filled rectangle, with style ignored/overidden.<br>
             &nbsp;&nbsp;Replaces <a href="cdCanvasBox.htm">cdCanvas[Rounded](Box|Rect)</a>() of pGUI.
-
-            <br><a name=gDrawImage></a>
-            <br>
-            <b>gDrawImage</b>(<a href>gdm</a> image, <a href="gdx.htm">gdc</a> canvas, <small>
-                              <a href>atom</a> x=0, y=0, sx=0, sy=0,
-                              <a href>integer</a> w=-1, h=-1</small>)<br>
-<!--            Note that src can only be a gImage, not a gCanvas, whereas tgt can be either.<br>-->
-<!--            When tgt is a gCanvas, -->
-<!--            &nbsp;&nbsp;Same deal as gDrawLine re passing two|one points instead of four|two atoms.<br>-->
-            &nbsp;&nbsp;Draws a <a href>gImage</a>, or part of it, onto a gCanvas or another gImage.<br>
-            &nbsp;&nbsp;image: (source) must be a gImage.<br>
-            &nbsp;&nbsp;canvas: (target) must be a gCanvas or gImage.<br>
-            &nbsp;&nbsp;x,y: locate top left corner on the target <small>(fractions rounded to nearest integer)</small>.<br>
-            &nbsp;&nbsp;sx,sy: locate top left corner on the source <small>(ditto)</small>.<br>
-            &nbsp;&nbsp;w,h: width and height to draw, -1 equate to "all", sensibly clipped to image/canvas boundaries.<br>
-            &nbsp;&nbsp;The default is to display all of the image, though you can specify some smaller region.
 
             <br><a name=gDrawText></a>
             <br>
@@ -1017,8 +1086,10 @@ DEV args shd be swapped... (to match clip)<br>
                                                                <a href>string</a> text, <small>
                                                                <a href>sequence</a> args={},
                                                                <a href>integer</a> align=TG_E,
-                                                               <a href>object</a> angle=0, colour=-1, style=-1)</small><br>
+                                                               <a href>object</a> angle=0, colour=-1, 
+                                                               <a href="#textstyle">style</a>=-1)</small><br>
             &nbsp;&nbsp;Draws text, with full UTF-8 support, optionally realigned, rotated, and/or coloured.<br>
+            &nbsp;&nbsp;For those of you with a GTK background, &amp;lt; draws that or an underlined l, should you want &lt;, then just use that.<br>
             &nbsp;&nbsp;Take note of the <a href="gdx.htm">gdc</a> type: this can be used on a gCanvas or <a href>gImage</a>,
                         but <i>not</i> a <a href>gPixbuf</a>.<br>
             &nbsp;&nbsp;Also this is <i>not</i> <a href="g_paranormal.htm">paranormalised</a>, use of 
@@ -1028,7 +1099,7 @@ DEV args shd be swapped... (to match clip)<br>
 <!--            &nbsp;&nbsp;&nbsp;&nbsp;As per (eg) <a href="gLabel.htm#TITLE">gLabel</a>, \n is a newline, &x underlines x, and && is a literal &.<br>-->
             &nbsp;&nbsp;align: replaces <a href>cdCanvasSetTextAlignment</a>() of pGUI (transiently,
                                 red diamonds are at {x,y}):<br>
-            <img alt="gCanvasText" src="images/gCanvasText.png" width="195" height="75"/>
+            <img src="images/gCanvasText.png" alt="gCanvasText" width="195" height="75"/>
             <span style="visibility: hidden;"><small>TG_N TG_S TG_W TG_E TG_NW TG_NE TG_SW TG_SE</small></span><br>
             &nbsp;&nbsp;&nbsp;&nbsp;The longhand aliases TG_NORTH, TG_SOUTH, TG_WEST, TG_EAST (the default) can also be used, along<br>
             &nbsp;&nbsp;&nbsp;&nbsp;with TG_NORTHWEST, TG_NORTHEAST, TG_SOUTHWEST, TG_SOUTHEAST, and TG_CENTRE.<br>
@@ -1043,34 +1114,42 @@ DEV args shd be swapped... (to match clip)<br>
             &nbsp;&nbsp;Note that on Windows a FONT must have been explicitly applied to the canvas before any rotation can occur.<br> -->
             &nbsp;&nbsp;&nbsp;&nbsp;Rotation normally occurs around the top left (TG_NW) corner of wherever the text ended up. <br>
             &nbsp;&nbsp;&nbsp;&nbsp;The rotation point may be overidden by specifying the angle as eg {TG_SE,90}.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>[DEV r.p. handling deserves improvement, for now you may/have to adjust x,y in a backend-specific manner.]</small><br>
             &nbsp;&nbsp;&nbsp;&nbsp;Note rotation points are relative to text, and the logical inverse of align <small>(aka txt-&gt;pt vs. pt-&gt;txt)</small><br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>[Arguably align is at fault, but north putting it below would just be completely counter-intuitive.]</small><br>
             &nbsp;&nbsp;&nbsp;&nbsp;There are a full 81 combinations of align and rotation point for any given angle, which should suffice!<br>
             &nbsp;&nbsp;&nbsp;&nbsp;Fairly obviously, (eg) align:=TG_NE and angle:={TG_SW,90} actually results in the text being TG_SE of {x,y},<br>
             &nbsp;&nbsp;&nbsp;&nbsp;and likewise, the same align:=TG_NE but angle:={TG_SW,270} actually puts the text TG_NW of {x,y}.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;You may prefer to use the following diagram to select a rotation point (<small>TG_C alone is its own logical inverse</small>):<br>
-            <img alt="gCanvasTextRot" src="images/gCanvasTextRot.png" width="195" height="75"/><br>
+            <img src="images/gCanvasTextRot.png" alt="gCanvasTextRot" width="195" height="75"/><br>
             &nbsp;&nbsp;colour: atoms other than -1 transiently set <a href>FGCLR</a>, or used directly
                          on a <a href>gImage</a> with -1&rArr;<a href>TG_BLACK</a>,<br>
             &nbsp;&nbsp;&nbsp;&nbsp;should colour <small>(nb object not atom here)</small> be a {fore,back} pair such as 
                                     {<a href>TG_RED</a>,<a href>TG_BLUE</a>}, then<br>
             &nbsp;&nbsp;&nbsp;&nbsp;while WinAPI/DrawText copes, under GTK it does a <a href>gDrawRect</a>() or if angle!=0 a rotated
-                                                                                     <a href>gDrawPolygon</a>() first.<br>
-            &nbsp;&nbsp;style: may be TG_NORMAL, TG_BOLD, TG_ITALIC, or TG_BOLDITALIC, or a full <a href>FONT</a> string.<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;When not provided and canvas is a gImage defaults to "Helvetica, 9" (the std default for a gCanvas).<br>
+                                                                                     <a href>gDrawPolygon</a>() first.<br><a name=textstyle></a>
+            &nbsp;&nbsp;style: may be TG_NORMAL, TG_BOLD, TG_ITALIC, or TG_BOLDITALIC, or a full <a href>FONT</a> string.<!--br>
+            &nbsp;&nbsp;&nbsp;&nbsp;When not provided and canvas is a gImage defaults to "Helvetica, 9" (the std default for a gCanvas).-->
+            <br><a name=TG_UNDERLINE></a><a name=TG_STRIKEOUT></a><a name=TG_SQUIGGLE></a>
+<!--
             &nbsp;&nbsp;&nbsp;&nbsp;Note that underline and strikeout are not supported (by most/all backends), you&apos;d&apos;ve to <a href>gDrawLine</a>() it.<br>
             &nbsp;&nbsp;&nbsp;&nbsp;<small>[DEV erm, shd actually be easy enough to emulate (h|v anyway)... I&apos;ve now got a hankering for a "spellcheck-squiggle" thing too...]</small><br>
-<!--
-            &nbsp;&nbsp;bNorm: convert eg "&amp;lt;" to "&amp;&amp;lt;", invoke (say) pango_layout_set_text instead of pango_layout_set_markup_with_accel,<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and similar backend-specifics to defeat mnemonic/markup handling and make the text appear "normal"/"as-is".<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>(always true / intended for instance to be used when <a href>gList</a> and similar invoke this)</small><br>
-                                                               <a href>bool</a> bNorm=<a href>false</a>
 -->
-            &nbsp;&nbsp;&nbsp;&nbsp;The style may also be in the form {style, bool bNorm}, with style as above and bNorm as per 
+<!--
+//          &nbsp;&nbsp;bNorm: convert eg "&amp;lt;" to "&amp;&amp;lt;", invoke (say) pango_layout_set_text instead of pango_layout_set_markup_with_accel,<br>
+//          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and similar backend-specifics to defeat mnemonic/markup handling and make the text appear "normal"/"as-is".<br>
+//          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>(always true / intended for instance to be used when <a href>gList</a> and similar invoke this)</small><br>
+//                                                             <a href>bool</a> bNorm=<a href>false</a>
+-->
+            &nbsp;&nbsp;&nbsp;&nbsp;The style may also be {style, bool bNorm[,after_effect]}, with style as above, bNorm as per 
                                     <a href>gGetTextExtent</a>(), <br>
             &nbsp;&nbsp;&nbsp;&nbsp;which gDrawText() uses as well as <a href>gRotatePolygon</a>() 
-                                    <small>[when angle!=0 and bgclr!=-1 on GTK]</small>.
+                                    <small>[when angle!=0 and bgclr!=-1 on GTK]</small>, and after_effect <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<i>one</i> of TG_UNDERLINE, TG_STRIKEOUT, or TG_SQUIGGLE, which can also be provided on its own or <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;in {<i>&lt;after_effect&gt;</i>,bNorm} form to use the existing font.
 <!--
+.<br>
+            &nbsp;&nbsp;<i><b>Warning</b></i>: work on switching to a cached font height remains in progress, also see gDrawText.exw.
                          <br>
             &nbsp;&nbsp;<b>NB</b> While WinAPI and JavaScript allow <a href>gGetTextExtent</a>() from anywhere, 
                                   as does GTK2, however GTK3, <br>
@@ -1083,7 +1162,7 @@ DEV args shd be swapped... (to match clip)<br>
             Planned: <br>
 //          A larger canvas (than the window that holds it) with automatic scroll bars is pretty high on my wish list (i/p, see scroller.exw).<br>
             GTK wants +0.5 everywhere, see eg https://forum.affinity.serif.com/index.php?/topic/82479-how-to-draw-a-one-pixel-opaque-line/ <br>
-            I suppose I should have a gCanvasGetPixel(), even if it may be outrageously slow under GTK <small>(like 4 or 5 pixels per second...)</small>.<br> 
+            I suppose I should have a gGetPixel(), even if it may be outrageously slow under GTK <small>(like 4 or 5 pixels per second...)</small>.<br> 
             There is quite a bit of work left on gImage() (SVG?), and perhaps I could even incorporate some of the 
             <a href="arwen32dib.htm">arwen32dib</a> code in a GTK/JavaScript compatible way.<br>
 -->
@@ -1210,9 +1289,10 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             integer {width,height,bpp} = <b>IupDrawGetImageInfo</b>(string name) - Returns the given image size and bits per pixel. bpp can be 8, 24 or 
             32.
 -->
-            <!--br--><a name=gCanvasPixel></a>
-            <!--br--><a name=gCanvasGetPixel></a>
-
+            <!--br--><a name=gDrawPixel></a>
+            <!--br--><a name=gGetPixel></a>
+            <br>
+<!--
          </td>
         </tr>
 
@@ -1230,17 +1310,23 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             indices, which is precisely what theGUI does internally on theGUI-owned pixbufs. 
             <br>
             <br>
-            <b>gCanvasPixel</b>(<a href="gdx.htm">gdc</a> canvas, <a href>atom</a> x, y, colour) <i>-- Draw a single pixel</i><br>
-            atom colour = <b>gCanvasGetPixel</b>(<a href="gdx.htm">gdc</a> canvas, <a href>atom</a> x, y) <i>-- Retrieve a single pixel</i>
+-->
+            <b>gDrawPixel</b>(<a href="gdx.htm">gcp</a> canvas, <a href>atom</a> x, y, colour) <i>-- Draw a single pixel</i><br>
+            atom colour = <b>gGetPixel</b>(<a href="gdx.htm">gcp</a> canvas, <a href>atom</a> x, y) <i>-- Retrieve a single pixel</i>
             <br>
-            <br>
+            For an app-owned <a href>gPixbuf</a> you are expected to simply subscript it directly instead, remembering to map any 0-based coordinates 
+            to 1-based indices, which is precisely what theGUI does internally on theGUI-owned pixbufs. It will probably be about ten times faster
+            than using these routines on an image(/canvas), however there is a fairly hefty overhead to converting between images and pixbufs.<br>
+            Attempts to set an off-canvas pixel are quietly ignored, whereas fetching said yields -1 (which is not a valid colour).
+<!--            
             It would not be unfair to say these really only exist for platitude sake and perhaps emergency use only. They are pretty slow, the latter
             excruciatingly so on GTK (to be fair they are pretty vocal with you cannot do that, albeit technically lying through their teeth, and 
             do their level best to make them unnecessary). I will not make any guarantee they are up-to-date, ie require a GdiFlush/gdk_flush between 
-            each (thus even slower and/or highly suspect results). <!--I have not yet added anything to theGUI.js.--> 
+            each (thus even slower and/or highly suspect results). [!--I have not yet added anything to theGUI.js.--] 
             Of course by "Formally <small>unsupported</small>" I mean <i>"Wah, 60/s"</i> will just get "So? told you not to use em." as will wrong 
             results, but of course you can have a bash at improving things yourself. The <a href="gPixbuf.htm#psum">performance summary</a> details 
             a <b><i>750,000:1</i></b> speed ratio on GTK3!
+-->
          </td>
         </tr>
 
@@ -1276,11 +1362,11 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
          </td>
          <td>
             A 4-way bit field: 0b00 (default, neither), 0b10 (horiz), 0b01 (vert), 0b11 (both) scrollbars permanent.<br>
-            <small>&nbsp;(There are no corresponding named constants, when needed or desired you will simply have to define your own.)</small>
+            <small>&nbsp;(There are no corresponding named constants, simply define your own when needed or desired, or use literals.)</small>
             <br>
             <br>
             Permanent scrollbars are a matter of taste. Sometimes switching (between tabs, say) can be a little less janky, or comparison of screenshots
-            a little easier, that is without the scrollbars popping in and out of existence.
+            a little easier, that is without the scrollbars popping in and out of existence. They are(/will be) a configuration setting in theEditor.
             <br>
             <br>
             Returns the integer 0..3 as previously specified.
@@ -1441,28 +1527,37 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
             LINESTYLE
          </td>
          <td>
-            Default: TG_CONTINUOUS(==1), valid styles <small>(DEV needs work and img redoing)</small> are:<br>
-            <img src="images/gCanvasLineStyles.png" border="2" width="262" height="62"/>
+            Default: TG_CONTINUOUS(==1==TG_CONTIGUOUS), valid styles <small>(GTK on the left and WinAPI on the right)</small> are:<br>
+            <img src="images/gCanvasLineStyles.png" border="2" width="313" height="70"/>
             <span style="visibility: hidden;"><small>TG_DASHED TG_DOTTED TG_DASH_DOT TG_DASH_DOT_DOT</small></span><br>
 <!--
             &nbsp;&nbsp;Values other than TG_CONTINUOUS reset the line width to 1, since WinAPI/GTK support nowt else.<br>
 -->
-            Note that values other than TG_CONTINUOUS with a line width other than 1 may appear as rhomboids, and perhaps for that 
-            same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable on
-            slightly thicker lines, and fine on horizontal/vertical lines, and just seems churlish to remove it completely.<br>
-            The style may also be a sequence (of 1/0, see theGUI.e) which sets TG_CUSTOM_DASH(==6).<br>
-            <small><i>(TG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>
-            <small>[DEV There is a trivial test/demo in gtk_splitter1.exw that gets [hz/vt] TG_DOTTED right on GTK, that needs incorporating.]</small><br>
-
+            Note that values other than TG_CONTINUOUS on sloping lines with a width other than 1 may appear as rhomboids,
+            and likewise thick line ends may be a bit triangular. There may be a third interpretation of those patterns,
+            in particular by the explicit code used on a pixbuf: as noted elsewhere perfect consistency between backends
+            is a bit of a pipe dream when it comes to graphics.
+<!--
+            , and perhaps for that 
+            same reason native WinAPI/GTK do not support such, but while that effect may be less than ideal it is reasonably acceptable 
+            and not a problem on horizontal/vertical lines, and just seems churlish to remove it completely.<br>
+-->
+            May also be a custom sequence such as {1,0,1,1,0}, which may also prove a shade more consistent.<br>
+<!--            <small><i>(TG_CUSTOM_DASH is currently set at the system level rather than per canvas, for no good reason, shout should that sting.)</i></small><br>-->
+<!--            <small>[DEV There is a trivial test/demo in gtk_splitter1.exw that gets [hz/vt] TG_DOTTED right on GTK, that needs incorporating.]</small><br> DONE-->
+            Returns: 1..5 or a custom pattern.
 <!--
 //X         <br><a name=gCanvasGetLineStyle></a>
 //          &nbsp;&nbsp;<a href>object</a> style = <b>gCanvasGetLineStyle</b>(<a href>gdx</a> canvas) is also provided
--->
-            returns 1..5 but pattern not TG_CUSTOM_DASH.
 
-            <br><a name=gGetLineStyleName></a>
-            Use <a href>string</a> res = <b>gGetLineStyleName</b>(<a href>object</a> style) to 
-            convert a style to a human readable string.
+//          <a href>gGetInt</a>() returns 1..6, <a href>gGetIntInt</a>() returns 1..5 but pattern not TG_CUSTOM_DASH, whereas 
+//          <a href>gGetAttribute</a>() returns a human readable string and, unlike the first two, the latter <i>cannot</i> 
+//          be subsequently used to restore some previous setting.
+
+//          <br><a name=gGetLineStyleName></a>
+//          Use <a href>string</a> res = <b>gGetLineStyleName</b>(<a href>object</a> style) to 
+//          convert a style to a human readable string.
+-->
             <br><a name=LINEWIDTH></a>
          </td>
         </tr>
@@ -1740,6 +1835,7 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             <a href>FGCLR</a>, 
 <!--?           <a href>CANFOCUS</a>, -->
             <a href>FONT</a>, 
+            <a href>MARGIN</a>,
             <a href>MINSIZE</a>, 
             <a href>MAXSIZE</a>,
             <a href>SIZE</a>,
@@ -1753,7 +1849,7 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(canvas,"REDRAW",redraw), or specify redraw at creation time
+            Specified at creation time or set using <a href>gSetHandler</a>(canvas,"REDRAW",redraw).
           <br><a name=REDRAW></a>
          </td>
         </tr>
@@ -1819,18 +1915,6 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             <br>
             procedure redraw(<a href>gdx</a> canvas[,<a href>integer</a> w, h[, ox, oy]])<br>
             canvas: identifier of the canvas element that needs drawing.<br>
-<!--
-            <div style="display:flex;">
-             <div>
-               w,h:&nbsp;
-             </div>
-             <div>
-              (optional) almost equivalent to <small><code>integer {w,h} = <a href>gGetIntInt</a>(canvas,"SIZE")</code></small> 
-                as 1st line of 1-arg proc,<br> except they may be reduced by the presence of any scrollbars
-                <small>(not that it really matters should it draw a little too much)</small>.
-             </div>
-            </div>
--->
             w,h,ox,oy: (optional) same as <small><code>integer {ox,oy,w,h} = 
             <a href>gGetAttribute</a>(canvas,`<a href>VIEWPORT</a>`)</code></small> as 1st line of 1-arg proc.<br>
 <!--
@@ -1850,7 +1934,7 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
 -->
             <br>
             <br>
-            The routine is normally expected to be almost entirely composed of <a href>gDrawLine</a>()..<a href>gDrawText</a>() statements,<br>
+            The routine is normally expected to be almost entirely composed of <a href>gDrawArc</a>()..<a href>gDrawText</a>() statements,<br>
             though (eg) <a href>gTree</a>() [also] uses it to populate width/widest and (quickly) perform deferred loading updates.<br>
             Originally theGUI would crash if you tried to display a canvas without a redraw routine, these days a redraw parameter on creation of NULL or "edge"
             is replaced by a (private) default drawing routine with the outcome as shown:<br>
@@ -1861,32 +1945,45 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
 <!--eucode>
 local procedure tg_canvas_edge(gdx canvas, integer w,h)
     gDrawRect(canvas,1,1,w-2,h-2)
-    gDrawLine(canvas,1,1,w-2,h-2)
-    gDrawLine(canvas,w-2,1,1,h-2)
-    integer l = length(sprintf("%d",max(w,h)))
-    string fmt = sprintf("%%%dd x %%%dd",{l,-l})
-    gDrawText(canvas,w/2,h/2,fmt,{w,h},TG_C,style:="Monospace,8")
+    object ud = gGetAttribute(canvas,`USER_DATA`)
+    if string(ud) then
+        gDrawText(canvas,w/2,h/2,ud,{},TG_C)
+    else
+        gDrawLine(canvas,1,1,w-2,h-2)
+        gDrawLine(canvas,w-2,1,1,h-2)
+        -- and the size with a meticulously centred 'x':
+        integer l = length(sprintf(`%d`,max(w,h)))
+        string fmt = sprintf(`%%%dd x %%%dd`,{l,-l})
+        gDrawText(canvas,w/2,h/2,fmt,{w,h},TG_C,style:=`Monospace,8`)
+    end if
 end procedure
 </eucode-->
 <pre>
 <font color="#008080">local procedure</font><font color="#000000"> tg_canvas_edge</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> canvas</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">)</font>
 <font color="#7060A8">    gDrawRect</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gDrawLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gDrawLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">)</font>
-<font color="#004080">    integer</font><font color="#000000"> l</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#7060A8">sprintf</font><font color="#800000">(</font><font color="#008000">"%d"</font><font color="#0000FF">,</font><font color="#7060A8">max</font><font color="#008080">(</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#008080">)</font><font color="#800000">)</font><font color="#0000FF">)</font>
-<font color="#004080">    string</font><font color="#000000"> fmt</font><font color="#0000FF"> =</font><font color="#7060A8"> sprintf</font><font color="#0000FF">(</font><font color="#008000">"%%%dd x %%%dd"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">l</font><font color="#0000FF">,-</font><font color="#000000">l</font><font color="#800000">}</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gDrawText</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">fmt</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600">TG_C</font><font color="#0000FF">,</font><font color="#000000">style</font><font color="#0000FF">:=</font><font color="#008000">"Monospace,8"</font><font color="#0000FF">)</font>
-<font color="#008080">end procedure</font>
+<font color="#004080">    object</font><font color="#000000"> ud</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#008000">`USER_DATA`</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">ud</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#7060A8">        gDrawText</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">ud</font><font color="#0000FF">,</font><font color="#800000">{}</font><font color="#0000FF">,</font><font color="#004600">TG_C</font><font color="#0000FF">)</font>
+<font color="#008080">    else</font>
+<font color="#7060A8">        gDrawLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gDrawLine</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">-</font><font color="#000000">2</font><font color="#0000FF">)</font>
+<font color="#000080"><i>        -- and the size with a meticulously centred &apos;x&apos;:</i></font>
+<font color="#004080">        integer</font><font color="#000000"> l</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#7060A8">sprintf</font><font color="#800000">(</font><font color="#008000">`%d`</font><font color="#0000FF">,</font><font color="#7060A8">max</font><font color="#008080">(</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#008080">)</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#004080">        string</font><font color="#000000"> fmt</font><font color="#0000FF"> =</font><font color="#7060A8"> sprintf</font><font color="#0000FF">(</font><font color="#008000">`%%%dd x %%%dd`</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">l</font><font color="#0000FF">,-</font><font color="#000000">l</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">        gDrawText</font><font color="#0000FF">(</font><font color="#000000">canvas</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">/</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">fmt</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">w</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#004600">TG_C</font><font color="#0000FF">,</font><font color="#000000">style</font><font color="#0000FF">:=</font><font color="#008000">`Monospace,8`</font><font color="#0000FF">)</font>
+<font color="#008080">    end if
+end procedure</font>
 </pre>
             </small>
            </div>
            <div style="float:right;">
-            <img alt="gCanvas" src="images/edge.png" width="198" height="112"/>
+            <img src="images/edge.png" alt="gCanvas" width="198" height="112"/>
            </div>
             <div class="clear"></div>
 
 <!--            however in general you need to avoid doing anything that risks making the application (esp resize) sluggish.-->
             <br>
+            The "user data is a string" code was added for, and a screen shot can be found in the <a href>gSplit</a> example.<br>
             For obvious performance reasons, namely being it can be invoked 50 times per second when manually resizing, <br>
             this routine should as far as possible avoid any "heavy lifting", except perhaps in a once-only fashion.
             <br>
@@ -2097,25 +2194,27 @@ end procedure
 
             <h3>Platform/backend considerations</h3>
             GTK, bless it, decrees top left to be {0.5,0.5} and (eg) cairo_rectangle(0.5,0.5,0,0) ie width,height of 0,0, draws 1 pixel.<br>
-            WinAPI, bless it, decrees top left to be {0,0} and <i>excludes</i> right/btm edge, so Rectange(0,0,1,1), ie ltrb, "".<br>
+            WinAPI, bless it, decrees top left to be {0,0} and <i>excludes</i> right/btm edge, so Rectange(0,0,1,1), ie ltrb, draws 1 pixel.<br>
             Of course theGUI abstracts such differences away, such that gDrawRect(0,0,0,0) draws the one top left pixel, and maps everything for GTK and
             other backends appropriately, and for a canvas size of {w,h} valid pixel coordinates are 0..w-1 and 0..h-1. 
-            <small>[I could perhaps have made them 1..w and 1..h, but I didn&apos;t, and predict I&apos;ll thank myself when I get round to OpenGL.]</small>
+            <small>[I could perhaps have made them 1..w and 1..h, but I didn&apos;t, which is probably better for (eg) <a href>OpenGL</a> anyway.]</small>
             In the same fashion as slices, 1..1 is 1 wide/high, and (eg) 1..0 or 7..6 logically draw nothing, not yet fully tested, though adding a few 
             scattered if&gt;0 as/when/should they turn out to be helpful is not likely to be all that stressful.
             <br>
             <br>
             Let&apos;s take a moment to clear up the ingrained stupidity of the cairo <i>mental</i> model of fill/stroke/align and pixel centres/boundaries.
-            In theGUI, pixels are identified by their <i>centres</i>: an unfilled rectangle from {0,0} to {5,2} is 18-4 crisp pixels, and the filled version
-            is 18 crisp pixels, 6 wide and 3 deep. A one-pixel wide line from {7,0} to {7,2} is a crisp one pixel wide line of three pixels. Let me quickly
-            paint that for you:<br><br>
-            <p align="center"><img alt="pixels" src="images/pixels.png" width="73" height="33"/></p>
+            In theGUI, pixels are identified by their <i>centres</i>: an unfilled rectangle from {0,0} to {5,2} is 14 crisp pixels, as in a 6x3 box with the 
+            4 central ones missing, and the filled version is 18 crisp pixels, 6 wide and 3 deep. A one-pixel wide line from {7,0} to {7,2} is a crisp one 
+            pixel wide line of three pixels. Let me quickly paint that for you:<br><br>
+            <p align="center"><img src="images/pixels.png" alt="pixels" width="73" height="33"/></p>
             <br>
             The cairo developers have somehow locked it in their heads that you <i>cannot</i> align edges and fills, which I simply don&apos;t get: there 
             is a paragraph in the cairo FAQ which neither Stack Overflow nor ChatGPT can adequately explain to me, probably simply because theGUI draws
             lines then [optionally] fills the resulting shape, whereas GTK treats stroke and fill as entirely separate and independant operations.
+            It reads:
             <small><i>
             <blockquote>
+            <center><font color="#B0B0B0">[paraphrasing: for crisp strokes adjust offsets by 0.5]</font></center><br>
             The reason that cairo does it this way is so that fills align nicely, at the cost that some strokes do not. It is not possible to set up 
             sample locations in a way so that both fills and strokes with integer coordinates work nicely, so one had to be preferred over the other. 
             One argument in favor of preferring fills is that all fills with integer coordinates align nicely this way. 
@@ -2129,14 +2228,27 @@ end procedure
             a good old-fashioned fencepost error: 0..2 is <i>two!</i> pixels wide, since 2-0==2, but of course it isn&apos;t, it is <i>three</i> pixels wide.
             Maybe they actually realise this now, but it is simply all far too late to ever change. 
 -->
+            To the best of my understandaing, that means cairo draws a crisp filled rectangle at 10,10 and a blurred outline rectange, and vice versa at
+            10.5,10.5 <small>(which of course theGUI neatly sidesteps)</small>, or in other words it uses a different coordinate system for filled and 
+            unfilled shapes <small>(to which googleAI says I am exactly right, before stoutly arguing it is the same coordinate system, just interpreted 
+            completely differently for filled and unfilled shapes)</small>.
+            <br>
+            <br>
             Otherwise cairo is fine, apart from that very serious blunder at the get-go, which of course theGUI shields you from, and of course I get 
-            there is no way to fix a thirty year old brainfart. Technically it may be fair to say that odd-width lines on pixel centres (whole numbers)
+            there is no way to fix a thirty year old brainfart. Note that in theGUI filled and unfilled shapes have the same perimeter, whereas thicker
+            lines are centred on the specified endpoints, which may therefore occasionally need adjusting, perhaps to 0.5s for even widths, to align 
+            nicely with and/or fit inside shapes. However (quite unlike cairo) when everything has (the default) width of 1, no such tweaks should be 
+            needed at all. Feel free to ridicule me for disparaging cairo&apos;s 0.5s before introducing my own, but I think you&apos;d struggle to 
+            explain how it could posssibly be any better. <small>[Update: theGUI has since dropped support for thicker lines, so you can <i>probably</i>
+            ignore everything in the last paragraph after `perimeter`.]</small>
+<!--
+            Technically it may be fair to say that odd-width lines on pixel centres (whole numbers)
             are crisp, likewise even-width lines centred on pixel boundaries (ending in .5 that is), whereas vice-versa are blurry/faded, which is the 
             direct opposite of cairo, however it is probably better to drop "the cario mindset" as much as possible and try and do everything based on 
             pixel centres, perhaps even going so far as to replace even-width lines with filled rectanges, and/or deliberately round/floor/ceil pixel 
             offsets to make the edges crisp. 
 [DEV that all deserves thorough re-testing]
-<!--
+[!--
             In other words, for crispness centre odd-width lines on (integer) pixel centres and even-width lines on 0.5-pixel boundaries
             give theGUI/GTK integers and you will be happy as larry, give it numbers ending in 0.5 and it will interfere with the 
             0.5-adjustments theGUI is trying to automate for you.
@@ -2145,11 +2257,11 @@ end procedure
             <br><a name=fakescroll></a>
 
             <h3>Scrollbars</h3>
-            <p align="center"><img alt="gList with a scrollbar" src="images/gList.png" width="240" height="80"/></p>
+            <p align="center"><img src="images/gList.png" alt="gList with a scrollbar" width="240" height="80"/></p>
 <!--
             <div class="parent">
               <div class="child">
-                <img alt="gList" src="images/gList.png" width="240" height="80"/>
+                <img src="images/gList.png" alt="gList" width="240" height="80"/>
               </div>
             </div>
             <div style="clear:both;height:1px;"> </div>
@@ -2162,15 +2274,19 @@ end procedure
             It was perhaps surprisingly all much simpler that way.
             One serendipitous outcome during development was that clicking to one side of a scrollbar thumb and holding down did not stop once the 
             thumb hit the mouse position, which it does on WinAPI/Arwen, but carried on like it does on GTK, which I prefer anyway, so I kept that.
-            Some relatively minor platform-specific tweaks may yet be needed. <br>
+            Some relatively minor platform-specific tweaks may yet be needed. Just for completeness here are the fully emulated Windows 10 (on the 
+            left, admittedly fudged within a Windows 11 window here) and Windows 11 (right) scrollbars, unhovered, thumb-hovered, and down-hovered:<br>
+            <p align="center"><img src="images/WinScrollBars.png" alt="W10/11 scrollbar details" width="108" height="132"/></p>
+
             I did not particularly want and saw no need to replicate the <i>42</i> attributes that IUP uses to manage scrollbars, not that 
             I would stand in the way of any genuinely useful and specifically requested ones. In other words it replaces forty-two attributes
             with three, which I have thus far found not only perfectly adequate but in fact more powerful and flexible.
             <br>
             <br>
-            Aside: Should a menu overlap a scrollbar, hover effects still occur even though the menu is "in the way". I note that Windows Notepad
-            "cheats" a little by hiding the horizontal scrollbar when the menu is displayed, which strongly suggests there is no proper way to
-            prevent that sort of thing.
+            Aside: Quite some time ago, when using native menus, I found that should a menu overlap a scrollbar, hover effects still occured even 
+            though the menu is "in the way". I also noted that Windows Notepad "cheats" a little by hiding the horizontal scrollbar when the menu 
+            is displayed, which strongly suggests there is no proper way to prevent that sort of thing using WinAPI. However, I am glad to report,
+            similar misbehaviour turned out relatively straightforward to fix with fully emulated menus and scrollbars.
             <br>
             <br>
 <!--            , and maybe I&apos;d even support scrollbars which are 
@@ -2220,6 +2336,8 @@ end procedure
             By "unit axis" I really mean (mathematical, horizontal/vertical) lines through the logical centres of the pixels, rather than 
             their edges. Of course it is not perfect, but can almost make a 1080p (1K) monitor look like a (non-anti-aliased) 4K UHD one. 
             Every modern font (for example) is anti-aliased in much the same way, and you would soon grumble were they suddenly not.
+            <br><a name=bezier></a>
+
             <div class="parent">
               <div class="child">
                 <img src="images/b/Bezier_2_big.gif" width="240" height="100"/>
@@ -2244,7 +2362,7 @@ end procedure
             Cubic (eg ax^3+bx^2+cx+d), and Biquadratic or Quartic (eg ax^4+bx^3+cx^2+dx+e). And yes, I know the Latin word for square is quadratum, 
             but it was still a daft naming choice, at least for English speakers. Quadratic beziers (first two above) are <i>simpler</i> than 
             cubic beziers (last two).</small>
-            <p align="center"><img alt="decasteljau" src="images/b/decasteljau.png" width="275" height="275"/></p>
+            <p align="center"><img src="images/b/decasteljau.png" alt="decasteljau" width="275" height="275"/></p>
 <!--
             <div class="parent">
               <div class="child">
@@ -2293,7 +2411,7 @@ end procedure
             be bothered to create anything better let me know). While the middle part is a tad misleading, the important thing to note is the bottom 
             (steep) part is constructed using horizontal pairs of pixels whereas the top (flat) part is constructed using vertical pairs.
 -->
-            <p align="center"><img alt="bezier_aa" src="images/b/bezier_aa.png" width="241" height="73"/></p>
+            <p align="center"><img src="images/b/bezier_aa.png" alt="bezier_aa" width="241" height="73"/></p>
 <!--
             <div class="parent">
               <div class="child">
@@ -2303,9 +2421,9 @@ end procedure
             <div style="clear:both;height:1px;"> </div>
 -->
             A zoomed in comparison of bresenham and anti-aliased bezier curves. Such a line could of course be drawn in either direction.
-            Notice how the lower/steep part is (naturally) constructed using more horizontal pairs of pixels than vertical, whereas the top/flat part 
-            is the other way round. <small>(Originally I planned to <i>only</i> draw horizontals on steep fragments and only vertical on flat, as 
-            per Xiaolin Wu&apos;s original (straight) line anti-aliasing algorithm, but drawing both turned out much nicer.)</small>
+            Notice how the lower/steep part is (naturally) constructed using horizontal pairs of pixels rather than vertical, whereas the top/flat 
+            part is the other way round. <!--small>(Originally I planned to <i>only</i> draw horizontals on steep fragments and only vertical on 
+            flat, as per Xiaolin Wu&apos;s original (straight) line anti-aliasing algorithm, but drawing both turned out much nicer.)</small-->
             <br><a name="filling"></a>
 
             <h3>Filled shapes</h3>
@@ -2326,8 +2444,8 @@ end procedure
             <br>
             <br>
             Polygons can be composed of a mixture of straight and curved lines. While not recommended, complex (self-crossing) polygons are supported, 
-            and filled using an odd-even rule similar to <a href>cdCanvasSetFillMode</a>(canvas,CD_EVENODD): the 
-            winding rule would only ever be applicable to polygons constructed from all straight edges, so that is not even attempted in theGUI. 
+            and filled using an odd-even rule similar to <a href>cdCanvasSetFillMode</a>(canvas,CD_EVENODD): the winding rule would only ever apply to 
+            polygons constructed from all straight edges, so that is not even attempted in theGUI. 
             <small>(Fairly sure adding winding would be relatively easy if/when needed, on the understanding it&apos;d object to any curves.)</small><br>
             Of somewhat more interest, multi-part polygons (with embedded {}, see demo\theGUI\gDrawPoly.exw for some examples) do not shade any inner
             holes they might have. Just in case you were wondering, there is <i><b>no</b></i> scheme to interpolate hard corners (and if you don&apos;t 
@@ -2351,37 +2469,40 @@ end procedure
             you yourself want to step up.
             <br>
             <br>
---->
             Dots and dashes look a bif naff especially for curved lines, but that is definitively something for someone else to solve.
             <br>
             <br>
+--->
             I once had the opportunity/need to compare some zoomed-in images of what I thought was the same font on GTK (upper) and Windows API 
             (lower) <small>[except for some colour diffs, uon are pretty close, Bt wildly off - no beef, just it is what it is]</small>:<br><br>
-            <p align="center"><img alt="Button" src="images/Button.png" width="337" height="209"/></p>
+            <p align="center"><img src="images/Button.png" alt="Button" width="337" height="209"/></p>
             <br>
             There is of course slim to zero chance of ever achieving pixel-perfect identical results on GTK, JavaScript, and WinAPI, and almost
             certainly none whatsoever should any fonts/text be involved, but of course they should look pretty similar - let me know of anything
-            blatently wrong, that is by more than a couple of stray pixels. Update: I stumbled across a post on TheCodeProject (RIP, my dear old
+            blatently wrong, that is by more than a couple of stray pixels. 
+<!--
+            Update: I stumbled across a post on TheCodeProject (RIP, my dear old
             friend) which showed how to draw (straight) <a href>TG_DOTTED</a> properly under WinAPI, which I incorporated, but have 
             not found a GTK equivalent or even tested it under JavaScript yet.<br>
             UPDATE: there&apos;s a trivial test/demo in gtk_splitter1.exw that gets TG_DOTTED right on GTK.
+-->
             <br>
 <!-- rotated ellipsis under js, plus link to "gi-1985-15.pdf" : http://g6auc.me.uk/ellipses/index.html -->
 <!-- see also https://stackoverflow.com/questions/3025519/how-do-i-draw-an-ellipse-with-arbitrary-orientation-pixel-by-pixel -->
 
             <h3>Planned</h3>
-            Integrate some or all of Arwen32dibdemo into theGUI. Some routines would of course need tweaking to work on a GtkPixbuf as well as
-            a DIBSection and recoded from scratch in theGUI.js, all need brand new names, and maybe the four file-based ones integrated with 
-            <a href>gGetOpenFileName</a>() and/or a new matching gGetSaveFileName() - perhaps a little tricky but 
-            certainly not impossible. I guess the big question is which one should I have a go at first to get my foot in the door. I&apos;ve 
-            commented out (just) four that most probably won&apos;t be wanted, and in preparation I&apos;ve already replaced the raw hex machine 
-            code bytes of the original with much more readable #ilASM{} code.
+            Integrate some or all of Arwen32dibdemo into theGUI. All would of course need tweaking to work on a gImage (ie GtkPixbuf as well as
+            a DIBSection) and recoded from scratch in theGUI.js, all need brand new names, and maybe the file-based ones integrated with 
+            <a href>gGetOpenFileName</a>() and/or a new matching gGetSaveFileName() - perhaps a little tricky but certainly not impossible. 
+            I guess the big question is which one(s) should I have a go at first to get my foot in the door. Seventeen that most probably 
+            won&apos;t be wanted are commented out, and in preparation I&apos;ve replaced the raw hex machine code bytes of the original with 
+            much more readable/tweakable #ilASM{} code.
             <br>
             <br>
 <small>
 <!--eucode>
-global procedure copyDibToClipboard(a32Dib dib)
-global function getDibFromClipboard()
+//global procedure copyDibToClipboard(a32Dib dib)
+//global function getDibFromClipboard()
 global procedure applyDibBrightnessToDib(a32Dib dib_dst, dib_src, 
                                          integer dX, dY, sX1, sY1, sX2, sY2, pct)
 global procedure invertDib(a32Dib dib)
@@ -2397,20 +2518,20 @@ global procedure adjustDibBrightnessAndContrast(a32Dib dib, integer brightness, 
 //global procedure killDib(a32Dib dib)
 global function copyDib(a32Dib dib)
 //global function dibColor(integer red, green, blue)
-global procedure putDibPixel(a32Dib dib, integer x, y, a32Colour color)
-global function getDibPixel(a32Dib dib, integer x, y)
-global procedure fastPutDibPixel(a32Dib dib, integer x, y, a32Colour color)
-global function fastGetDibPixel(a32Dib dib, integer x, y)
-global procedure clearDib(a32Dib dib, a32Colour color)
-global function loadDib(sequence fileName)
-global function saveDib(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
-global function saveDibGray(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
-global function saveDibReduced(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
-global procedure drawDib(integer control, a32Dib dib, integer cX, cY, dX1, dY1, dX2, dY2)
-global procedure copyToDib(a32Dib dib, integer control, dX, dY, cX1, cY1, cX2, cY2)
-global procedure drawDibToDib(a32Dib dst, src, integer dX, dY, sX1, sY1, sX2, sY2, 
-                                               sequence trans_color, integer alpha)
-global procedure copyDibToDib(a32Dib dst, src)
+//global procedure putDibPixel(a32Dib dib, integer x, y, a32Colour color)
+//global function getDibPixel(a32Dib dib, integer x, y)
+//global procedure fastPutDibPixel(a32Dib dib, integer x, y, a32Colour color)
+//global function fastGetDibPixel(a32Dib dib, integer x, y)
+//global procedure clearDib(a32Dib dib, a32Colour color)
+?global function loadDib(sequence fileName)
+?global function saveDib(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
+//global function saveDibGray(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
+//global function saveDibReduced(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
+//global procedure drawDib(integer control, a32Dib dib, integer cX, cY, dX1, dY1, dX2, dY2)
+//global procedure copyToDib(a32Dib dib, integer control, dX, dY, cX1, cY1, cX2, cY2)
+//global procedure drawDibToDib(a32Dib dst, src, integer dX, dY, sX1, sY1, sX2, sY2, 
+//                                             sequence trans_color, integer alpha)
+//global procedure copyDibToDib(a32Dib dst, src)
 //global function extractDib(object src, integer x1, y1, x2, y2)
 global procedure tileDibToDib(a32Dib dst, src, integer dX, dY, sX1, sY1, sX2, sY2, 
                                                sequence trans_color, integer alpha)
@@ -2434,8 +2555,8 @@ global procedure drawDibTransformedPolygon(a32Dib dib_dst, dib_src, sequence pol
 global procedure drawShadedPolygonToDib(a32Dib dib_dest, sequence coords_dest, colors_dest)
 </eucode-->
 <pre>
-<font color="#008080">global procedure</font><font color="#7060A8"> copyDibToClipboard</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> getDibFromClipboard</font><font color="#0000FF">()</font>
+<font color="#000080"><i>//global procedure copyDibToClipboard(a32Dib dib)
+//global function getDibFromClipboard()</i></font>
 <font color="#008080">global procedure</font><font color="#7060A8"> applyDibBrightnessToDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib_dst</font><font color="#0000FF">,</font><font color="#000000"> dib_src</font><font color="#0000FF">, </font>
 <font color="#004080">                                         integer</font><font color="#000000"> dX</font><font color="#0000FF">,</font><font color="#000000"> dY</font><font color="#0000FF">,</font><font color="#000000"> sX1</font><font color="#0000FF">,</font><font color="#000000"> sY1</font><font color="#0000FF">,</font><font color="#000000"> sX2</font><font color="#0000FF">,</font><font color="#000000"> sY2</font><font color="#0000FF">,</font><font color="#000000"> pct</font><font color="#0000FF">)</font>
 <font color="#008080">global procedure</font><font color="#7060A8"> invertDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">)</font>
@@ -2450,22 +2571,22 @@ global procedure drawShadedPolygonToDib(a32Dib dib_dest, sequence coords_dest, c
 <font color="#000080"><i>//global function newDib(integer width, height)
 //global procedure killDib(a32Dib dib)</i></font>
 <font color="#008080">global function</font><font color="#7060A8"> copyDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">)</font>
-<font color="#000080"><i>//global function dibColor(integer red, green, blue)</i></font>
-<font color="#008080">global procedure</font><font color="#7060A8"> putDibPixel</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> a32Colour</font><font color="#000000"> color</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> getDibPixel</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> fastPutDibPixel</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> a32Colour</font><font color="#000000"> color</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> fastGetDibPixel</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> clearDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> a32Colour</font><font color="#000000"> color</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> loadDib</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> fileName</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> saveDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> fileName</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x1</font><font color="#0000FF">,</font><font color="#000000"> y1</font><font color="#0000FF">,</font><font color="#000000"> x2</font><font color="#0000FF">,</font><font color="#000000"> y2</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> saveDibGray</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> fileName</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x1</font><font color="#0000FF">,</font><font color="#000000"> y1</font><font color="#0000FF">,</font><font color="#000000"> x2</font><font color="#0000FF">,</font><font color="#000000"> y2</font><font color="#0000FF">)</font>
-<font color="#008080">global function</font><font color="#7060A8"> saveDibReduced</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> fileName</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x1</font><font color="#0000FF">,</font><font color="#000000"> y1</font><font color="#0000FF">,</font><font color="#000000"> x2</font><font color="#0000FF">,</font><font color="#000000"> y2</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> drawDib</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> control</font><font color="#0000FF">,</font><font color="#004080"> a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> cX</font><font color="#0000FF">,</font><font color="#000000"> cY</font><font color="#0000FF">,</font><font color="#000000"> dX1</font><font color="#0000FF">,</font><font color="#000000"> dY1</font><font color="#0000FF">,</font><font color="#000000"> dX2</font><font color="#0000FF">,</font><font color="#000000"> dY2</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> copyToDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> control</font><font color="#0000FF">,</font><font color="#000000"> dX</font><font color="#0000FF">,</font><font color="#000000"> dY</font><font color="#0000FF">,</font><font color="#000000"> cX1</font><font color="#0000FF">,</font><font color="#000000"> cY1</font><font color="#0000FF">,</font><font color="#000000"> cX2</font><font color="#0000FF">,</font><font color="#000000"> cY2</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> drawDibToDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dst</font><font color="#0000FF">,</font><font color="#000000"> src</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> dX</font><font color="#0000FF">,</font><font color="#000000"> dY</font><font color="#0000FF">,</font><font color="#000000"> sX1</font><font color="#0000FF">,</font><font color="#000000"> sY1</font><font color="#0000FF">,</font><font color="#000000"> sX2</font><font color="#0000FF">,</font><font color="#000000"> sY2</font><font color="#0000FF">, </font>
-<font color="#004080">                                               sequence</font><font color="#000000"> trans_color</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> alpha</font><font color="#0000FF">)</font>
-<font color="#008080">global procedure</font><font color="#7060A8"> copyDibToDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dst</font><font color="#0000FF">,</font><font color="#000000"> src</font><font color="#0000FF">)</font>
-<font color="#000080"><i>//global function extractDib(object src, integer x1, y1, x2, y2)</i></font>
+<font color="#000080"><i>//global function dibColor(integer red, green, blue)
+//global procedure putDibPixel(a32Dib dib, integer x, y, a32Colour color)
+//global function getDibPixel(a32Dib dib, integer x, y)
+//global procedure fastPutDibPixel(a32Dib dib, integer x, y, a32Colour color)
+//global function fastGetDibPixel(a32Dib dib, integer x, y)
+//global procedure clearDib(a32Dib dib, a32Colour color)</i></font>
+<font color="#0000FF">?</font><font color="#008080">global function</font><font color="#7060A8"> loadDib</font><font color="#0000FF">(</font><font color="#004080">sequence</font><font color="#000000"> fileName</font><font color="#0000FF">)
+?</font><font color="#008080">global function</font><font color="#7060A8"> saveDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> fileName</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x1</font><font color="#0000FF">,</font><font color="#000000"> y1</font><font color="#0000FF">,</font><font color="#000000"> x2</font><font color="#0000FF">,</font><font color="#000000"> y2</font><font color="#0000FF">)</font>
+<font color="#000080"><i>//global function saveDibGray(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
+//global function saveDibReduced(a32Dib dib, sequence fileName, integer x1, y1, x2, y2)
+//global procedure drawDib(integer control, a32Dib dib, integer cX, cY, dX1, dY1, dX2, dY2)
+//global procedure copyToDib(a32Dib dib, integer control, dX, dY, cX1, cY1, cX2, cY2)
+//global procedure drawDibToDib(a32Dib dst, src, integer dX, dY, sX1, sY1, sX2, sY2, 
+//                                             sequence trans_color, integer alpha)
+//global procedure copyDibToDib(a32Dib dst, src)
+//global function extractDib(object src, integer x1, y1, x2, y2)</i></font>
 <font color="#008080">global procedure</font><font color="#7060A8"> tileDibToDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dst</font><font color="#0000FF">,</font><font color="#000000"> src</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> dX</font><font color="#0000FF">,</font><font color="#000000"> dY</font><font color="#0000FF">,</font><font color="#000000"> sX1</font><font color="#0000FF">,</font><font color="#000000"> sY1</font><font color="#0000FF">,</font><font color="#000000"> sX2</font><font color="#0000FF">,</font><font color="#000000"> sY2</font><font color="#0000FF">, </font>
 <font color="#004080">                                               sequence</font><font color="#000000"> trans_color</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> alpha</font><font color="#0000FF">)</font>
 <font color="#008080">global procedure</font><font color="#7060A8"> filterDib</font><font color="#0000FF">(</font><font color="#004080">a32Dib</font><font color="#000000"> dib</font><font color="#0000FF">,</font><font color="#004080"> sequence</font><font color="#000000"> matrix</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> div</font><font color="#0000FF">,</font><font color="#000000"> bias</font><font color="#0000FF">)</font>

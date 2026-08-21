@@ -28,24 +28,24 @@
                                                                <a href>sequence</a> pixels={<a href>TG_WHITE</a>})
           <small><br><i>-- or --</i><br></small>
 -->
-          <a href>gdm</a> image = gImage_from_XPM(<a href>sequence</a> xpm,
-                                                                <a href>bool</a> bPixbuf=<a href>false</a>)<!--<small>,-->
+          <a href>gdm</a> image = gImage_from_XPM(<a href>sequence</a> xpm)
+<!--                                                                <a href>bool</a> bPixbuf=<a href>false</a>)<small>,-->
 <!--                                                            <a href>atom</a> ?transparent=<a href>TG_WHITE</a></small>)-->
 <!-- DEV planned: (and possibly/probably an img user defined type instead of sequence) [NO: gPixbuf_from_Image() instead]
 //        <small><br><i>-- or --</i><br></small>
 //        <a href>sequence</a> pixels = gImageGetPixels(<a href>sequence</a> img)
 -->
 
-          <small><br><i>-- or --</i><br></small>
+          <small><br><a name=transparam></a><i>-- or --</i><br></small>
           <a href>gdm</a> image = gImage(<a href>integer</a> w, h, 
-                                                       <a href>atom</a> bgclr=<a href>TG_WHITE</a>,
-                                                                             transparent=<a href>TG_WHITE</a><small>,
-                                                       <a href>bool</a> bClear=<a href>true</a></small>)
+                                         <a href>atom</a> bgclr=<a href>TG_WHITE</a>,
+                                                          transparent=<a href>TG_WHITE</a><small>,
+                                         <a href>bool</a> bClear=<a href>true</a></small>)
 
           <small><br><i>-- or --</i><br></small>
           <a href>gdm</a> image = gImage_from_Pixbuf(<a href>gdp</a> pixbuf,
-                                                                   <a href>atom</a> transparent=<a href>TG_WHITE</a>)
-                                                                                    <small><i>-- [NB not fast, aim for once-only]</i></small>
+                                                     <a href>atom</a> transparent=<a href>TG_WHITE</a>)
+                                                <small><i>-- [NB not fast, aim for once-only]</i></small>
 <!--
           <small><br><i>-- or (maybe...) --</i><br></small>
           <a href>gdm</a> image = gImage(<a href>integer</a> x, y,
@@ -95,7 +95,7 @@
             palette: up to 256 colours, with an empty palette being replaced/defaulted as below.<br>
 -->
             xpm: a [locally defined constant] text or sequence of text strings in human readable form <small><i>(but <b>not</b> a filename)</i></small>.<br>
-            bPixbuf: permit <a href>gPixbuf_from_Image</a>(). <small>[False affords savings on [unalterable] images, esp for buttons/tabs/menus.]</small><br>
+<!--            bPixbuf: permit <a href>gPixbuf_from_Image</a>(). <small>[False affords savings on [unalterable] images, esp for buttons/tabs/menus.]</small><br>-->
             w, h, bgclr: width, height and initial fill colour of a blank gImage.<br>
             <small>bClear: (intended for internal use only) - no point clearing when we are about to blat every pixel from a pixbuf/leave the garbage alone.<br></small>
             transparent: probably only useful on images intended for WinAPI menus, same as "None" in an xpm.<br>
@@ -137,7 +137,7 @@
           <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
-            Supported, except gImage_get_transparent<!--/gImage_get_wh/gImage_replace_pixels--> has not yet been written.
+            Supported.
          </td>
         </tr>
         <tr>
@@ -236,7 +236,7 @@ gMainLoop(dialog)
 </pre>
             </small>
           </div>
-          <img alt="gImage" style="float:right;" src="images/gImage.png" width="240" height="80"/>
+          <img src="images/gImage.png" alt="gImage" style="float:right;" width="240" height="80"/>
           <div class="clear"></div>
 <!--
             <br>
@@ -296,18 +296,18 @@ gMainLoop(dialog)
 //          Routines such as <a href>gDrawLine</a>() accept a <a href>gdc</a>, meaning 
 //          they can be applied to both a gGanvas or a gImage, however <a href>gDrawText</a>() (as the 
 //          name implies) is gCanvas-only, and likewise/conversely <a href="#gImageGetPixel">gImageGetPixel</a>() is gImage-only.
--->
+--]
 
             <br><a name=gImage_get_transparent></a>
             <br>
             <a href>atom</a> transparent = <b>gImage_get_transparent</b>(<a href>gdm</a> image)<br>
-<!--
+[!--
             <a href>integer</a> width = <b>gImage_get_width</b>(<a href>gdm</a> image)<br>
             <a href>integer</a> height = <b>gImage_get_height</b>(<a href>gdm</a> image)<br>
             <a href>integer</a> {w,h} = <b>gImage_get_wh</b>(<a href>gdm</a> image)<br>
--->
+--]
             Just in case you need it.
-<!--
+[!--
             <br><a name=gImage_replace_pixels></a>
             <br>
             <b>gImage_replace_pixels</b>(<a href>gdm</a> image,
@@ -323,6 +323,7 @@ gMainLoop(dialog)
             x and y are such that the pixbuf does not completely fit (whereas gDrawImage can clip). While originally intended for
             straight (re-)conversion purposes, this routine can also be used in a similar fashion to gDrawImage(), except for
             always being transfer-whole-pixbuf-only
+, bool bBlack2Grey=false)
 -->
             <br><a name=gGreyscale_XPM></a>
             <br>
@@ -332,9 +333,13 @@ gMainLoop(dialog)
             Return matches the input type, with non-XPM gdm returned unaltered.
             <br>
             <br>
-            Note this works by modifying the original xpm text: should it be a gdm on which you have performed <a href>gDrawLine</a>() .. 
+            Note this works by modifying the original xpm text: should it be a gdm on which you have performed <a href>gDrawArc</a>() .. 
             <a href>gDrawText</a>() those do <i>not</i> appear. The equivalent can easily be performed on a pixbuf by invoking
-            <a href>gGreyscale</a>() on each pixel.<br>
+            <a href>gGreyscale</a>() on each pixel. Also note sometimes this simply does not pan out, for instance when implementing
+            the <a href>ACTIVE</a> attribute on <a href>gRadio</a> toggles, greyscaled versions of both the checked and unchecked
+            images (crb and urb in tg_xpm.e) were just awful, to the extent I hand crafted an inactive checked version (irb) and
+            simply didn&apos;t bother changing urb, despite the fact that fairly similar images for a non-radio <a href>gCheckbox</a> 
+            (ccb and ucb) greyscaled just fine, and I cannot easily explain why.<br>
 <!--
             (atom clr)
     integer {rr,gg,bb,aa} = to_rgba(clr)
@@ -397,7 +402,8 @@ Actually, patching pixbufs and images in-place is probably quite a bit easier th
             The colour codes part consists of <small><i>&lt;colours&gt;</i></small> lines, each being 
             <small><i>&lt;code&gt; &lt;key&gt; &lt;colour&gt;</i></small>.<br>
             Only the c key is currently supported (not m/s/g4/g), and given the tendency of copy/paste to mangle whitespace 
-            it is completely prohibited to use said anywhere in the pixels part of an XPM definition <small>[in theGUI]</small>.<br>
+            it is now completely prohibited to use said <small>[in theGUI]</small> anywhere in the pixels part of an XPM definition,
+            and should you ever encounter an xpm that uses such whitespace you&apos;ll just have to edit it before use.<br>
             The colour code can be None for transparency or a hex RGB code (no other [symbolic] names or HSV codes).<br>
 <!-- DEV shush, at least until you've re-looked-up when m/s/g4/g actually are...
             <small>[I have not even thought about the presence/absence of an alpha channel, just assumed it does not exist.]</small><br>
@@ -406,6 +412,14 @@ Actually, patching pixbufs and images in-place is probably quite a bit easier th
             and <small><i>exactly &lt;wide&gt;*&lt;chars per pixel&gt;</i> bytes</small> long.<br>
             No extensions are supported (such as XPMEXT or XPMENDEXT).<br>
             There is no use of nor any replication of any of the functions or structures of xpmlib <small>[except within/private to GTK]</small>.
+            <br>
+            <br>
+            <b>Known issue</b>: demo\theGUI\gProgressBar gets black stripes unless "stripes_text" as defined in thegui_xpm.e has an otherwise 
+            unused ". c None". It is probably true right now that all xpm currently need that, which is obviously a bug, which incidentally was 
+            (indirectly) introduced or at least made more prevalent when I effectively banned 1/4/8 bit bitmaps and made them all 32-bit for 
+            the sake of significantly simplifying the <a href>CLIPIMG</a> implementation. 
+            <small>[Maybe it&apos;s a bug in tg_winAPI_create_DIB_from_xpm, or maybe one in gDrawImage, or maybe it&apos;s a part of the
+            official 32-bit DibSection definition I don&apos;t know about, but at least there is an easy workaround.]</small>
             <br>
             <br>
             GTK does not like duplicate colour codes, hence although fine on WinAPI, theGUI.e validates that for you. However, that bit of code 
@@ -485,8 +499,9 @@ Actually, patching pixbufs and images in-place is probably quite a bit easier th
 -->
             <a href>LINESTYLE</a> default: <a href>TG_CONTINUOUS</a>,<br>
             <a href>LINEWIDTH</a> default: 1,<br>
-            <a href>USER_DATA</a> default: <a href>NULL</a>,<br>
-            <a href>SIZE</a> (read-only).
+            <a href>USER_DATA</a> default: <a href>NULL</a>,<br><a name=TRANSPARENT></a>
+            <a href>SIZE</a> (read-only),<br>
+            TRANSPARENT (read-only, retrieves the <a href="#transparam">transparent</a> creation parameter above).
             <br><a name=USERSIZE></a>
             <br>
 <!--
@@ -496,9 +511,8 @@ Actually, patching pixbufs and images in-place is probably quite a bit easier th
             on a gImage, but may be used/useful when (re-)creating or drawing the image. 
 that since nothing else interferes
 -->
-            Note there is no <a href>SIZE</a>/<a href>USER_SIZE</a>-like
-            situation of a dialog element, on a gImage SIZE is absolute and final, and read-only <small>(should you create a
-            replacement it is your responsibility to preserve any of these attributes it might need)</small>.<br>
+            Note there is no <a href>SIZE</a>/<a href>USER_SIZE</a>-like situation of a dialog element, on a gImage SIZE is absolute and final, 
+            and read-only <small>(should you create a replacement it is your responsibility to preserve any of these attributes it might need)</small>.<br>
 <!--
             , partly for simplicity,
             and partly because you do not have to use all of a gImage, and partly because it should be your descision
@@ -506,13 +520,11 @@ that since nothing else interferes
 -->
             When needed, to wipe an image clean use <a href>gDrawRect</a>(image,0,0,w-1,h-1,true,0,bgclr).<br>
             Technically you can also set <a href>BGCLR</a>, but it is not actually used (or sensibly defaulted) anywhere.<br>
-            While <a href>NULL</a> effectively resets <a href>FGCLR</a>, 
-            <a href>FONT</a>, and <a href>USER_DATA</a>, the others 
+            While <a href>NULL</a> effectively resets <a href>FGCLR</a>, <a href>FONT</a>, and <a href>USER_DATA</a>, the others 
             may need their defaults deliberately restoring.<br>
 <!--            also note that BGCLR has a much less (frequent) effect on a gImage(/gPixbuf) than a gCanvas.-->
-            Lastly note that <a href="gSetAttributes.htm">gSetAttribute<b>s</b></a> (the with-an-s one) is <i>not</i>
-            applicable to a gImage; instead you have to set them one-at-a-time, or stick to overriding them on the
-            individual gDrawXxxx statements.
+<!--            Lastly note that <a href="gSetAttributes.htm">gSetAttribute<b>s</b></a> (the with-an-s one) is <i>not</i> applicable to a gImage; instead 
+            you have to set them one-at-a-time, or stick to overriding them on the individual gDrawXxxx statements.-->
          </td>
         </tr>
         <tr id="Technicalia" class="hiddenRow">
@@ -525,26 +537,25 @@ that since nothing else interferes
             Of course I have no objections to there being a separate desktop-only component (marked <a href="with.htm#js">without js</a>) for loading images 
             from disk, but theGUI itself (which cannot be so marked) should remain staunchly platform independent. It is important that simply including (or
             even auto-including) the bits you actually use is enough to get those tags right automatically.
-            <be>
-            <be>
+            <br>
+            <br>
 <!-- DEV cleanup rqd:
             Other methods of creating images, perhaps from standard phix sequences or encoded binary strings, and ways of manipulating them, are expected
 --X         to appear in a later version. gImage(), gImageRGB(), and gImageRGBA() have in fact already been penciled in, similar to their IUP counterparts.
             <br>
             <br>
--->
+--]
             On WinAPI, images from gImage_from_XPM() can be 1, 4, 8, or 32 bpp (bits per pixel), whereas those from gImage_from_Pixbuf() are 32 bpp, not that
-            any attempt has yet been made to use or test an alpha (/transparency) channel, and not that such differences should be a major concern. GTK
+            [!--any attempt has yet been made to use or test an alpha (/transparency) channel, and not that--] such differences should be a major concern. GTK
             handles xpm natively, and theGUI.js painstakingly constructs a 2d canvas <small>(again, not that you should really care)</small>.
             <br>
             <br>
-<!--
+[!--
             Internally, the transparent parameter is set to the (currently private) colours TG_MENUBG for normal menu items and TG_MENUHLT for 
             highlit menus, instead of (nearly always) creating (wrong pseudo-transparency) bitmaps that will never actually be used. 
             It is not massively important, quite the opposite.
             <br>
             <br>
--->
             GTK, HTML/JS, and gDrawImage() all handle transparency properly, and buttons under WinAPI now I&apos;ve got the imagelists working properly, 
             however that is not the case for menu items under WinAPI <small><b><i>(why oh why is there no way to use imagelists on menus?)</i></b></small>,
             hence for them theGUI creates multiple/as-needed bitmaps with the background colour replaced, maintaining a mini-cache of images - see the 
@@ -554,13 +565,14 @@ that since nothing else interferes
             it out yet... <small>[and now you see why I wanted/bothered to state 1/4/8/32 bpp above]</small>
             <br>
             <br>
+--]
             Multiple calls to gImageDestroy() with the same gdm would trigger a fatal error. Further, images created via gImage_from_XPM() are deemed 
             static, relatively small and few in number, and reusable, as are any images ever added to a button, tab, or menu entry, and are <i>never</i> 
             deleted - only those from gImage_from_Pixbuf() are ever actually removed. 
             You should endeavour to avoid repeatedly recreating identical images via the latter, whereas theGUI detects when multiple calls are made
-            to gImage_from_XPM() with the same string as previously provided, and returns a pre-existing/permanent slot (with a different transparent 
-            colour for menu items under WinAPI as noted above).
-<!--
+            to gImage_from_XPM() with the same string [!--as previously provided,--] and returns a pre-existing/permanent slot.
+[!--
+            (with a different transparent colour for menu items under WinAPI as noted above).
             <br>
             <br>
             Otherwise transparent is (almost/effectively) completely ignored in all other cases (ie the first three just mentioned), though might 
@@ -587,8 +599,8 @@ that since nothing else interferes
             <br>
             At some point in the probably distant future I plan to port some or all of the code/demos from demo\Arwen32dibdemo to theGUI, and fiddly 
             little technical issues aside cannot think offhand of any reason why they would not work on both a gImage and a gPixbuf. Admittedly
-            fancy textures and more importantly special effects like lighting are really an OpenGL thing, and I cannot see theGUI ever taking advantage
-            of the GPU hardware.
+            fancy textures and more importantly special effects like lighting are really an <a href>OpenGL</a> thing, and I cannot see theGUI ever 
+            taking advantage of the GPU hardware, except perhaps via the open source route/nature of it.
             <!--, as long as the 
 ?           While I have shied away from it, there is no real reason why gDrawText() should not be able to draw onto a gImage. [**DEV** DONE, I THINK, BUT NEEDS TESTING]
             latter is an appropriate backend-specific thing [and not a phix sequence of pixels]. --><!--That could mean resurecting the gdc type (still there in 
@@ -597,16 +609,16 @@ that since nothing else interferes
             <br>
             To avoid pointless CORS violations (I take a very dim view of those stupid localhost restrictions), theGUI is much more concerned with 
             loading images from locally defined data rather than file. At this point in time only xpm is supported. There are plenty of online
-            converters for creating xpm from any image, personally I downloaded and installed and use 
-            <a href="wrectools.htm#Greenfish">Greenfish Icon Pro</a>, for now at least that sort of thing should suffice. Longer term I would not 
-            mind handling svg and/or a standalone utility to convert other formats into a suitable/shortest source code snippet, especially png, 
-            with jpg, gif, ico, and bmp (etc) being a much lower priority, along with suitable guards and/or methods to achieve js compatibility.
+            converters for creating xpm from any image, personally I use <a href="wrectools.htm#Greenfish">Greenfish Icon Pro</a>, for now at least 
+            that sort of thing should suffice. Longer term I would not mind handling svg and/or a standalone utility to convert other formats into 
+            a suitable/shortest source code snippet, especially png, with jpg, gif, ico, and bmp (etc) being a much lower priority, along with 
+            suitable guards and/or methods to achieve js compatibility.
 <!-- DEV add some links, maybe some standalone desktop/Phix only programs, ... -->
             <br>
             <br>
-            You could of course use <a href>get_text</a>() to open an xpm file, but that would be desktop/Phix only, and may as
-            well just open that file in an editor and copy/paste the contents into a source file, as a string constant. Makes shipping and
-            installing the final product a tad easier, too.
+            You could of course use <a href>get_text</a>() to open an xpm file, but that would be desktop/Phix only, and may as well just open that 
+            file in an editor and copy/paste the contents into a source file, as a string constant. Makes shipping and installing the final product 
+            a tad easier, too.
 <!-- now that I've got cached xpm for menus, a separate gImage and [oft-blanked] gCanvas make much more sense...-->
             <!--<br><a name=cors></a> -->
             <br>

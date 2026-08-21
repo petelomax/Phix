@@ -1713,10 +1713,11 @@ end if
                             end if
                             pairing = NP
                         elsif c1=#2A then       -- 0o052
+--??                       or c1=#2D then       -- 0o057
                             k = 4
                             if c1=#2A then
                                 k = 7
-                                asm = "cvtpi2ps "
+                                asm = "cvtpi2ps " -- also cvtsi2ss, cvtsi2sd
                             else
                                 ?9/0
                             end if
@@ -1742,6 +1743,8 @@ end if
                             if mode=3 then
                                 if dmode=64 then
                                     asm &= "mm"&'0'+rm
+                                elsif machine=64 then
+                                    asm &= r64[rm+1]
                                 else
                                     asm &= r32[rm+1]
                                 end if
@@ -1761,6 +1764,38 @@ end if
 --;     0F  2B  r   MOVNTPS m128        xmm         Store Packed Single-FP Values Using Non-Temporal Hint
 --; 66  0F  2B  r   MOVNTPD m128        xmm         Store Packed Double-FP Values Using Non-Temporal Hint
 
+                        elsif c1=#2D then   -- 0o057
+--cvtsi2sd -- mergs with #2A above??
+                            asm = "cvtsd2si "
+--                          dmode = 64
+                            if equal(repprefix,"repne ") then   -- F2 (0o362)
+                                repprefix = ""
+                                referenced = ecxbit
+                                modified = ecxbit
+--                              asm[4] = 's'
+--                              asm[k..k+1] = "sd"  -- eg "mulsd "
+--                              dmode = 32
+                            else
+                                ?9/0
+                            end if
+                            if c66=1 then                       -- 66 (0o146)
+                                ?9/0
+                            end if
+--                          asm &= r32[rm+1]
+
+                            if machine=64 then
+                                asm &= r64[reg+1]
+                            else
+                                asm &= r32[reg+1]
+                            end if
+                            if mode=3 then
+                                asm &= ",xmm"&'0'+rm
+                            else
+                                ?9/0
+--?                             dorm()
+                            end if
+                            pairing = NP
+--trace(1)
                         elsif c1=#2F then   -- 0o057
 --DEV merge with #28?
                             asm = "comiss "
@@ -3964,7 +3999,14 @@ integer thismod, lastmod, umod, lastinu, uclocks, cycle
 
 --integer firsty=1
 
+with trace
+with debug
 global function decode()
+--if fileno!=1256 then
+--?{"decode",fileno}
+--end if
+--if fileno=1 then trace(1) end if
+--?9/0
 sequence analysis
 integer agistall, dependency, thispairing
 sequence res

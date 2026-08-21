@@ -23,6 +23,7 @@
 --
 --  Phix.syn:   NestedSyntax
 --              FASM #ilASM{ }
+--              js #js{ }#js                -- ????
 --              **end NestedSyntax
 --
 --  FASM.syn:   NestedSyntax
@@ -30,7 +31,7 @@
 --              **end NestedSyntax
 --
 --  Html.syn:   NestedSyntax
---              pphp <?php ?>
+--              PHP <?php ?>
 --              js <script[_type="text/javascript"]> </script>
 --              css <style> </style>
 --              **end NestedSyntax
@@ -1561,7 +1562,13 @@ constant {fake,fres} = columnize({
     {"            ret",
      {{"            ret",BIN}}},
     {"      }",
-     {{"      }",B1}}}})
+     {{"      }",B1}}},
+    {"#ilJS{",
+     {"#",{"ilJS",RW},{"{",B1}}},
+    {`    img = document.createElement("canvas");`,
+     {" img",{" =",OP},{" document",BIN},{".",OP},{" createElement",BIN},{"(",B2},{`"canvas"`,STR},{")",B2},{";",OP}}},
+    {"#}ilJS",
+     {"#",{"}",B1},{"ilJS",RW}}}})
 
 -->>>>>
 --{{"        [",8388608},{"ARM",-1},{"]",255}}
@@ -3922,7 +3929,7 @@ Global & Local Variables
     WordLists[15][5][351..358] = {`destroy_stack`,`dict_name`,`dict_size`,`difference`,`dword_seq`,`elapsed`,`elapsed_short`,`encode_base64`}
     WordLists[15][5][359..368] = {`equal`,`even`,`exp`,`extract`,`factors`,`file_size_k`,`find`,`find_all`,`find_any`,`flatten`}
     WordLists[15][5][369..375] = {`float32_to_atom`,`float64_to_atom`,`floor`,`format_timedate`,`free_console`,`gButton`,`gCanvas`}
-    WordLists[15][5][376..383] = {`gCanvasPixel`,`gCanvasGetPixel`,`gcd`,`gCheckbox`,`gClipboard`,`gDatePick`,`gDialog`,`gDrawArc`}
+    WordLists[15][5][376..383] = {`gDrawPixel`,`gGetPixel`,`gcd`,`gCheckbox`,`gClipboard`,`gDatePick`,`gDialog`,`gDrawArc`}
     WordLists[15][5][384..390] = {`gDrawCircle`,`gDrawCubicBezier`,`gDrawQuadBezier`,`gDrawImage`,`gDrawLine`,`gDrawPolygon`,`gDrawRect`}
     WordLists[15][5][391..396] = {`gDrawText`,`gDropDown`,`get_file_base`,`get_file_extension`,`get_file_name`,`get_file_name_and_path`}
     WordLists[15][5][397..402] = {`get_file_path`,`get_file_path_and_name`,`get_maxprime`,`get_prime`,`get_primes`,`get_primes_le`}
@@ -4489,7 +4496,7 @@ Global & Local Variables
     WordLists[20][8][1753..1758] = {`glUniform1f`,`glUniform1i`,`glUniformMatrix4fv`,`glUseProgram`,`glVertexAttribPointer`,`glViewport`}
     WordLists[20][8][1759..1765] = {`m4_crossProduct`,`m4_inverse`,`m4_lookAt`,`m4_multiply`,`m4_normalize`,`m4_perspective`,`m4_subtractVectors`}
     WordLists[20][8][1766..1774] = {`m4_xRotate`,`m4_yRotate`,`rgb`,`to_rgb`,`wglGetProcAddress`,`wglUseFontOutlines`,`gBox`,`gButton`,`gCanvas`}
-    WordLists[20][8][1775..1784] = {`gCanvasGetPixel`,`gCanvasPixel`,`gcd`,`gCheckbox`,`gClipboard`,`gcp`,`gcps`,`gDatePick`,`gdc`,`gDialog`}
+    WordLists[20][8][1775..1784] = {`gGetPixel`,`gDrawPixel`,`gcd`,`gCheckbox`,`gClipboard`,`gcp`,`gcps`,`gDatePick`,`gdc`,`gDialog`}
     WordLists[20][8][1785..1792] = {`gdm`,`gdp`,`gDrawArc`,`gDrawCircle`,`gDrawCubicBezier`,`gDrawImage`,`gDrawLine`,`gDrawPolygon`}
     WordLists[20][8][1793..1800] = {`gDrawQuadBezier`,`gDrawRect`,`gDrawText`,`gDropDown`,`gdx`,`gFrame`,`gGetAlignName`,`gGetAttribute`}
     WordLists[20][8][1801..1807] = {`gGetBrother`,`gGetChild`,`gGetChildCount`,`gGetColourName`,`gGetDialog`,`gGetDouble`,`gGetFocus`}

@@ -17,9 +17,9 @@
           <br>
           <br>
             <a href>gdx</a> menu = gMenu(<a href>sequence</a> children,
-                                                   <a href>rtn</a> handler,
-                                                   <a href>bool</a> bRadio=<a href>false</a>)
+                                         <a href>rtnn</a> handler)
           <!--
+                                                   <a href>bool</a> bRadio=<a href>false</a>)
                                                    <a href>string</a> attributes="",
                                                    <a href="html/glossary.htm#dwordseq">dword_seq</a> args={})
 -->
@@ -33,10 +33,13 @@
             Creates a menu with items, submenus and separators, which can be attached to a gDialog() or shown standalone.
           <br>
           <br>
-            children: simple nested structure detailing the menu contents, see example below.
-          <br>
-            handler: routine for processing menu interactions, see <a href>HANDLER</a> below.<br>
+            children: a <a href="#EXAMPLE">nested</a> structure <i>or</i> <a href="#tech" onclick="opentech()">internal</a> version 
+                        detailing the menu contents, sets <a href="#DATA">DATA</a>.<br>
+            handler: routine for processing menu interactions, see <a href>HANDLER</a> below.
+<!--
+            <br>
             bRadio: for popup menus only, instead of '?' in the (non-existent) submenu title, see <a href="#menuchk">below</a>.
+-->
           <!--            For more information on the attributes and args parameters see <a href>gSetAttributes</a>(). -->
           <br>
           <br>
@@ -49,24 +52,32 @@
           <span class="pwap2js"><b>pwa/p2js:</b></span></a>
          </td>
          <td>
+          <span class="illegal">Not yet supported</span>, but pwa/js/poc/menus.html now seems pretty good/straightforward.
+<!--
           Supported. (However checkbox/radio group handling is incomplete, actually all handling is incomplete, and gPopupMenu not even started.)
+except for keyboard navigation <small>(I simply could not justify the extra effort at the time)</small>.
+-->
+          <br><a name=M_CTRL></a><a name=M_SHIFT></a><a name=M_ALT></a><a name=M_NOT_KEY></a><a name=EXAMPLE></a>
          </td>
         </tr>
+<!--
         <tr>
          <td>
           <b>See Also:</b>
          </td>
          <td>
           <a href>gDialog</a>
-          <!--
+          [!--
 //        <a href="gMenuItem.htm">gMenuItem</a>,
 //        <a href="gSeparator.htm">gSeparator</a>,
 //        <a href="gSubmenu.htm">gSubmenu</a>
--->
-          <!--          <a href>IupPopup</a> -->
-          <!--          <a href>IupDestroy</a>-->
+--]
+          [!--          <a href>IupPopup</a> --]
+          [!--          <a href>IupDestroy</a>--]
+          <br>
          </td>
         </tr>
+-->
         <tr>
          <td>
           <b>Example:</b>
@@ -77,20 +88,22 @@
 <!--eucode>
 -- demo\theGUI\gMenu.exw, somewhat simplified
 include theGUI.e
-constant CTRL = #100, ALT = #200,
-         MAIN_MENU = {{"&File",{{"&New",CTRL+'N'},
-                                {"&Open",CTRL+'O'},
-                                {"&Close",CTRL+VK_F4},
+constant MAIN_MENU = {{"&File",{{"&New\t",M_CTRL+'N'},
+                                {"&Open\t",M_CTRL+'O'},
+                                {"&Recent Files",{}},
+                                {"&Close\t",M_CTRL+VK_F4},
                                 "|",
-                                {"E&xit",ALT+VK_F4}}},
-                      {"&Edit",ALT+'E',
-                               {{"Copy",CTRL+'C'}}},
+                                {"E&xit\t",M_ALT+VK_F4}}},
+                      {"&Edit",M_NOT_KEY+'E',
+                               {{"Copy\t",M_CTRL+'C'}}},
                       {"&Help",VK_F1}}
 
-function menu_handler(gdx menu, integer id, bool bHighlight)
-    string s = gMenuGetAttribute(menu,id,"TITLE")
-    printf(1,"%s%s\n",{s,iff(bHighlight?" (highlight)","")})
-    return iff(id=ALT+VK_F4 and not bHighlight?TG_CLOSE:TG_DEFAULT)
+function menu_handler(gdx menu, integer id)
+    if c&&M_NOT_KEY==0 then
+        {integer ch, bool ctrl,shift,alt} = gMenuCcsa(id)
+--      key_handler(dlg,ch,ctrl,shift,alt) -- (offload it)
+    end if
+    return iff( id==M_ALT+VK_F4 ? TG_CLOSE : TG_DEFAULT )
 end function
 
 gdx menu = gMenu(MAIN_MENU,menu_handler),
@@ -101,20 +114,22 @@ gMainLoop(dlg)
 <pre>
 <font color="#000080"><i>-- demo\theGUI\gMenu.exw, somewhat simplified</i></font>
 <font color="#008080">include</font><font color="#000000"> theGUI.e</font>
-<font color="#008080">constant</font><font color="#000000"> CTRL</font><font color="#0000FF"> =</font><font color="#000000"> #100</font><font color="#0000FF">,</font><font color="#000000"> ALT</font><font color="#0000FF"> =</font><font color="#000000"> #200</font><font color="#0000FF">,</font>
-<font color="#000000">         MAIN_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#00FF00">{</font><font color="#008000">"&amp;New"</font><font color="#0000FF">,</font><font color="#000000">CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;N&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
-<font color="#00FF00">                                {</font><font color="#008000">"&amp;Open"</font><font color="#0000FF">,</font><font color="#000000">CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;O&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
-<font color="#00FF00">                                {</font><font color="#008000">"&amp;Close"</font><font color="#0000FF">,</font><font color="#000000">CTRL</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#008080">constant</font><font color="#000000"> MAIN_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#00FF00">{</font><font color="#008000">"&amp;New\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;N&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"&amp;Open\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;O&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"&amp;Recent Files"</font><font color="#0000FF">,</font><font color="#000080">{}</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"&amp;Close\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
 <font color="#008000">                                "|"</font><font color="#0000FF">,</font>
-<font color="#00FF00">                                {</font><font color="#008000">"E&amp;xit"</font><font color="#0000FF">,</font><font color="#000000">ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
-<font color="#800000">                      {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#000000">ALT</font><font color="#0000FF">+</font><font color="#008000">&apos;E&apos;</font><font color="#0000FF">,</font>
-<font color="#008080">                               {</font><font color="#00FF00">{</font><font color="#008000">"Copy"</font><font color="#0000FF">,</font><font color="#000000">CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;C&apos;</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">                                {</font><font color="#008000">"E&amp;xit\t"</font><font color="#0000FF">,</font><font color="#004600">M_ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#004600">M_NOT_KEY</font><font color="#0000FF">+</font><font color="#008000">&apos;E&apos;</font><font color="#0000FF">,</font>
+<font color="#008080">                               {</font><font color="#00FF00">{</font><font color="#008000">"Copy\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;C&apos;</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
 <font color="#800000">                      {</font><font color="#008000">"&amp;Help"</font><font color="#0000FF">,</font><font color="#004600">VK_F1</font><font color="#800000">}</font><font color="#0000FF">}
 </font>
-<font color="#008080">function</font><font color="#000000"> menu_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> menu</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> bHighlight</font><font color="#0000FF">)</font>
-<font color="#004080">    string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#7060A8"> gMenuGetAttribute</font><font color="#0000FF">(</font><font color="#000000">menu</font><font color="#0000FF">,</font><font color="#000000">id</font><font color="#0000FF">,</font><font color="#008000">"TITLE"</font><font color="#0000FF">)</font>
-<font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"%s%s\n"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#7060A8">iff</font><font color="#008080">(</font><font color="#000000">bHighlight</font><font color="#0000FF">?</font><font color="#008000">" (highlight)"</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#008080">)</font><font color="#800000">}</font><font color="#0000FF">)</font>
-<font color="#008080">    return</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">=</font><font color="#000000">ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#008080"> and not</font><font color="#000000"> bHighlight</font><font color="#0000FF">?</font><font color="#004600">TG_CLOSE</font><font color="#0000FF">:</font><font color="#004600">TG_DEFAULT</font><font color="#0000FF">)</font>
+<font color="#008080">function</font><font color="#000000"> menu_handler</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> menu</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+<font color="#008080">    if</font><font color="#000000"> c</font><font color="#0000FF">&amp;&amp;</font><font color="#004600">M_NOT_KEY</font><font color="#0000FF">==</font><font color="#000000">0</font><font color="#008080"> then</font>
+<font color="#0000FF">        {</font><font color="#004080">integer</font><font color="#000000"> ch</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000">shift</font><font color="#0000FF">,</font><font color="#000000">alt</font><font color="#0000FF">} =</font><font color="#7060A8"> gMenuCcsa</font><font color="#0000FF">(</font><font color="#000000">id</font><font color="#0000FF">)</font>
+<font color="#000080"><i>--      key_handler(dlg,ch,ctrl,shift,alt) -- (offload it)</i></font>
+<font color="#008080">    end if
+    return</font><font color="#7060A8"> iff</font><font color="#0000FF">(</font><font color="#000000"> id</font><font color="#0000FF">==</font><font color="#004600">M_ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#0000FF"> ?</font><font color="#004600"> TG_CLOSE</font><font color="#0000FF"> :</font><font color="#004600"> TG_DEFAULT</font><font color="#0000FF"> )</font>
 <font color="#008080">end function
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> menu</font><font color="#0000FF"> =</font><font color="#7060A8"> gMenu</font><font color="#0000FF">(</font><font color="#000000">MAIN_MENU</font><font color="#0000FF">,</font><font color="#000000">menu_handler</font><font color="#0000FF">),</font>
@@ -125,29 +140,87 @@ gMainLoop(dlg)
             </small>
           </div>
           <div style="float:right;">
-           <img alt="gMenu" src="images/gMenu.png" width="240" height="80"/>
+           <img src="images/gMenu.png" alt="gMenu" width="240" height="80"/>
            <div style="clear:right; padding-bottom:5px;" ><i><small>&nbsp;&nbsp;and when opened, with an icon on a menu entry:</small></i></div>
-           <img alt="gMenu open" style="clear:right;" src="images/gMenuo.png" style="padding-top: 5px;" width="240" height="122"/>
+           <img src="images/gMenuo.png" alt="gMenu open" style="clear:right;" style="padding-top: 5px;" width="249" height="147"/>
           </div>
           <div class="clear"></div>
+          <br><a name=gMenuCcsa></a>
+            The above uses <i>keystroke-like</i> ids, M_CTRL+'N'..VK_F1, <i>implying</i> there is a <a href>KEY</a> handler the menu handler 
+            <i><b>can explicitly</b></i> <small>(as shown commented out to keep it runnable)</small> offload work to 
+            <small>(except M_NOT_KEY+<i>x</i>)</small>, but <i>it doesn&apos;t hook that up for you magically</i>. <br>
+            The <b>gMenuCcsa</b>(<a href>integer</a> id) function can be used to split such an id into the base character and bool flags 
+            expected by <a href>KEY</a>, though it&apos;s actually your choice which handler it occurs in, key perhaps simplifying 
+            a <a href>gGetKeyName</a>(). <br>
+            The menu-specific M_CTRL, M_SHIFT, M_ALT, and M_NOT_KEY <small>(#20/10/08/0400_0000)</small> are I trust pretty self-evident. <br>
+            Equally it could use the somewhat less meaningful 1..7 menu-ids, or indeed almost any <small>(unordered but &gt; 0)</small> integers.
+          <br><a name=formalspec></a>
           <br>
             The "children" structure (MAIN_MENU above) should be fairly self-explanatory. Each entry is:
             <ul>
-              <li>{string menu_item, [<a href>gImage</a>,] integer id} for a "leaf" menu entry, or </li>
+              <li>{<a href>string</a> menu_item, [<a href>gImage</a>|"?[?]",] [<a href>bool</a> [enabled,]checked,] <a href>integer</a> id} for a "leaf" menu entry, or </li>
               <li>any of {"|","-",'|','-'} for a separator (which are all treated identically), or </li>
-              <li>{string submenu, [integer id,] sequence children}</li>
+              <li>{<a href>string</a> submenu, [<a href>gImage</a>,] [[<a href>bool</a> enabled,] <a href>integer</a> id,] <a href>sequence</a> children}</li>
             </ul>
             That final [nested sub-]children obviously follows the exact same rules, recursively, as deep as you like.<br>
-            There is of course nothing to prevent such a menu from being built dynamically, rather than it being a constant.
+            There is of course nothing to prevent such a menu from being built dynamically, rather than it being a constant.<br>
+            <small>[The "common sense" rules used to interpret shorthand notations, aka all those [], are fully detailed in the 
+                    <a href="#shorthand" onclick="opentech()">technicalia</a>]</small>
             <br>
             <br>
-            There is no id on the &File menu, hence you cannot enable/disable it, and won&apos;t be notified on open or mouseover.<br>
+            The MAIN_MENU above could (of course) equivalently be coded as:
+            <br>
+            <br>
+            <small>
+<!--eucode>
+constant FILE_MENU = {{"&New\t",M_CTRL+'N'},
+                      {"&Open\t",M_CTRL+'O'},
+                      {"&Recent Files",{}},
+                      {"&Close\t",M_CTRL+VK_F4},
+                      "|",
+                      {"E&xit\t",M_ALT+VK_F4}},
+         EDIT_MENU = {{"Copy\t",M_CTRL+'C'}},
+         MAIN_MENU = {{"&File",FILE_MENU},
+                      {"&Edit",M_NOT_KEY+'E',EDIT_MENU},
+                      {"&Help",VK_F1}}
+</eucode-->
+<pre>
+<font color="#008080">constant</font><font color="#000000"> FILE_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"&amp;New\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;N&apos;</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Open\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;O&apos;</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Recent Files"</font><font color="#0000FF">,</font><font color="#008080">{}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Close\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#008000">                      "|"</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"E&amp;xit\t"</font><font color="#0000FF">,</font><font color="#004600">M_ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#800000">}</font><font color="#0000FF">},</font>
+<font color="#000000">         EDIT_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"Copy\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;C&apos;</font><font color="#800000">}</font><font color="#0000FF">},</font>
+<font color="#000000">         MAIN_MENU</font><font color="#0000FF"> = {</font><font color="#800000">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font><font color="#000000">FILE_MENU</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#004600">M_NOT_KEY</font><font color="#0000FF">+</font><font color="#008000">&apos;E&apos;</font><font color="#0000FF">,</font><font color="#000000">EDIT_MENU</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000">                      {</font><font color="#008000">"&amp;Help"</font><font color="#0000FF">,</font><font color="#004600">VK_F1</font><font color="#800000">}</font><font color="#0000FF">}</font>
+</pre>
+            </small>
+            <br>
+            Or specified (up-front) in the <a href="#tech" onclick="opentech()">internal</a> format, should that help.<br>
+            Empty submenus <small>(eg recent, and excluding top-level popups/drop-downs from a menubar)</small> are automatically disabled.
+            <br>
+            <br>
+            There is no id on the "&File" menu, hence you cannot enable/disable it, and won&apos;t be notified on open or mouseover.<br>
             It would also not be possible to set/get the checked status, except for the fact that you cannot have checkboxes on
-            [sub]menu[header]s, only menu items, and also it is an outright error not to have an id on "leaf" items anyway.
-            In contrast, the presence of EDIT_MENU means you get events, can change the text, etc.
+            submenus, only menu items, whereas it is an outright error not to have an id (or one &lt;=0) on "leaf" items anyway.<br>
+            In contrast, the presence of M_NOT_KEY+'E' on the "&Edit" menu means you get events and can change it.
             <br>
             <br>
+            When there is a tab character in the string, text to the left is left-aligned and the rest right-aligned, otherwise when
+            it was at the end (as per "&New\t") or absent and id &gt; M_ALT it constructs the key hint from the id instead.
+            In general it doesn&apos;t make any sense to put that sort of keyboard shortcut on a submenu, and would overlap the '>'.
 <!--
+            Also note that mnemonics, as in "&File", only apply to the top level bar menu and (may) trigger an error when used on
+            submenus and popups (but almost certainly wouldn&apos;t achieve whatever you intended). -->
+            As mentioned above <small><i>(doesn&apos;t magically hook up)</i></small> except for display it doesn&apos;t actually 
+            do anything at all with any(/most) mnemonics and shortcuts itself, instead you are expected to catch them(/any that 
+            don&apos;t work) in a <a href>KEY</a> handler for the dialog. In the example given above, &lt;Alt F&gt;, &lt;Alt E&gt;,
+            and &lt;Alt H&gt; should do what you expect automatically, but nothing else will.
+<!--
+            <br>
+            <br>
             Aside: Should you not have met them before, "NEW:=$" is just a <a href="constants.htm#nested_declarations">nested declaration</a>, 
             and no different to using a preceding "enum NEW,...", less the tedious repetition and first opportunity for silly typos. 
             You could of course also use [nested] "NEW:=17" style declarations instead if preferred, perhaps more effort to maintain but 
@@ -155,12 +228,13 @@ gMainLoop(dlg)
             On that note, theGUI.e contains several uses of vslice() to help map between meaningless numbers and human readable strings.
             <br>
             <br>
--->
             While ids must be unique within a menu, there is no need to keep them in ascending order, nor any prohibition on using some 
-            app-specific meaning (probably best limited to 1..#7FFF). Using keycodes as above can certainly simplify matters if all your 
+            app-specific meaning (probably best limited to 1..#7FFF). 
+            Using keycodes as above can certainly simplify matters if all your 
             menu handler need do is (selectively) invoke your key handler - you probably wouldn&apos;t want to forward Alt E, say.<br>
             Note the <code>CTRL+'N'</code> above implies there is a completely separate <a href>KEY</a> handler 
             which actually implements that independently, and quite probably the menu_handler() above should invoke that directly.
+-->
 <!--
             though certainly under WinAPI you are limited to 16 bits, and it is probably wise to limit yourself to 1..#7FFF (=32767),
             and of course separate menus can use the same ids for completely different purposes, as long as they either have different
@@ -169,59 +243,42 @@ gMainLoop(dlg)
             <br>
             There is a mildly interesting little menu in demo\theGUI\hText.exw that uses control key codes for ids quite elegantly.<br>
             demo\Edix\theEditor.exw uses something similar, with local constant MCTRL/SHIFT/ALT+<i>keycode</i> for (most) menu ids.
+            <br>
+            <br>
+            See below or the unabridged gMenu.exw for further details of popups, radios, checkboxes, and images.
 -->
-            <br>
-            <br>
-            See below or the unabridged gMenu.exw for further details of popups, radios, checkboxes, and images [the cut and paste entries
-            of the second image have been removed from the source code here for clarity, see that file].
+<!--
+             [the cut and paste entries
+            of the second image have been removed from the source code here for clarity, see that file].-->
+            <br><a name=menuchk></a>
          </td>
         </tr>
         <tr>
          <td>
-          <b>Notes:</b>
+          <b>Radios and<br>
+             Checkboxes</b>
          </td>
          <td>
-            A menu can be the menubar of a dialog, as shown above, or a popup menu.<br>
-            For the former it <i>must</i> be the first element of a gDialog(gVbox({})) construct.<br>
-            For the latter it <i>must not</i> have a parent, ie be no part of any dialog hierarchy. 
-<!--
-            <br>
-            <br>
-            Technically speaking, all menus apart from the menubar shown above are popup menus, but in these docs we&apos;ll stick to the more usual
-            convention of a popup meaning one that can appear anywhere, usually triggered by a right click, and use menu (and usually submenu) when we 
-            mean anything attached to the menubar.
--->
-            <br><a name=gPopupMenu></a>
-            <br>
-            <b>gPopupMenu</b>(<a href>gdx</a> menu, <a href>integer</a> x=TG_MOUSEPOS, y=TG_MOUSEPOS)<br>
-            menu: a result from gMenu() which has <i>not</i> already been used as a child of any other element.<br>
-            x,y: screen position, literal values or <a href="gShow.htm#TG_MOUSEPOS">TG_MOUSEPOS</a> as per <a href>gShow</a>, 
-            which is the only such flag supported here, and implicitly uses <a href>gGetGlobalIntInt</a>("MOUSEPOS").
-            <br>
-            <br>
-            A popup menu is displayed for the user and disappears when an item is selected. Under GTK and JavaScript control returns
-            immediately, however under WinAPI that does not happen until the menu has gone, though the main message loop remains active.
-            Obviously, therefore, you need to deal with the menu selection immediately in the <a href>HANDLER</a> routine; were
-            you instead to save that and deal with it when gPopupMenu() returns, that would only work properly under WinAPI, or in other
-            words: on GTK and JS, but not WinAPI, gPopupMenu() returns <i>before</i> any menu item has or can be selected by the user (and
-            you are expected to allow control to flow back to the main message loop, which may later invoke the handler it its own due time).
-            <br><a name=menuchk></a>
-            <br>
-            A menu item with a leading '?' generates a checked menu item (with the '?' removed).<br>
-<!-- DEV why not make ?? start a new radio set? -->
-            A submenu item with a leading '?' makes the first set of checked menu items on the submenu ("") into a radio set.<br>
+            A menu item with "??" instead of an image starts a new one if needed and extends/becomes part of a radio set.<br>
+            A menu radio group must be consecutive menu items; any non-radio, separator, or submenu terminates the group.<br>
+            Unlike WinAPI/GTK there are no weird/confusing/conflicting restrictions on what ids you can use within a radio group.<br>
+            A radio group with &gt; 1 item checked triggers an error, see below for setting a default (first if none).<br>
+            A menu item with the string "?" instead of an image generates a checked menu item.<br>
+            Radios and checkboxes do <i>not</i> by default close the menu when clicked, unless the <a href="#HANDLER">handler</a> returns 
+            <a href>TG_CLOSE</a>.
 <!-- DEV/SUG (and get rid of bRadio) [was there some reason I decided against this?]
+            A submenu item with a leading '?' makes the first set of checked menu items on the submenu ("") into a radio set.<br>
             Alternatively a menu item with a leading '??' starts a new radio set with itself as the first item.<br>
--->
             In the case of a popup menu there is no (top-level) submenu item title for that, so the bRadio flag is used instead.<br>
             That set is terminated by the next separator or submenu after one or more checked items have been seen.<br>
+-->
 <!-- Erm, it is not particularly helpful to advertise very single one of my random thoughts...
             <small><i>[I could probably quite easily make "?-" a separator that starts a 2nd+ radio group, should that ever be needed.]</i><br></small>
             <small><i>[DEV: perhaps I should instead use "??" to start a new group, "?+" to specify checked, "?." to end a group?]</i><br></small>
 -->
-<!--DEV can we not have a hidden mapping table instead? And require non-first to be explicitly set, as above? -->
+<!--DEV can we not have a hidden mapping table instead? And require non-first to be explicitly set, as above? --
             The command ids on those items (such as NEW/OPEN/CLOSE above [DEV:since replaced]) must form a contiguous integer range, that is 
-            for a radio group, though they need not be in order, with the lowest numerically being initially selected. 
+            for a radio group, though they need not be in order, with the lowest numerically being initially selected. -->
 <!-- Grandma, see this here egg, this is how you should suck it...
             Should you want to set a default radio from some kind 
             of config file, then your command-ids would have to be variables rather than constants, and I would recommend starting with say 
@@ -243,20 +300,84 @@ gMainLoop(dlg)
         </tr>
         <tr>
          <td>
+          <b>Popups:</b>
+         </td>
+         <td>
+            A menu can be the menubar of a dialog, as shown above, or a (right-click) popup menu.<br>
+            For the former it would normally be the first element of a gDialog(gVbox({})) construct.<br>
+            For a (top-level) popup it <i>must not</i> have a parent, ie be no part of any dialog hierarchy.
+<!--
+            <br>
+            <br>
+            Technically speaking, all menus apart from the menubar shown above are popup menus, but in these docs we&apos;ll stick to the more usual
+            convention of a popup meaning one that can appear anywhere, usually triggered by a right click, and use menu (and usually submenu) when we 
+            mean anything attached to the menubar.
+-->
+            <br><a name=gPopupMenu></a>
+            <br>
+            <b>gPopupMenu</b>(<a href>gdx</a> menu, parent, <a href>integer</a> x=TG_MOUSEPOS, y=TG_MOUSEPOS)<br>
+            menu: a result from gMenu() which has <i>not</i> already been used as a barmenu for a dialog.<br>
+            parent: (not optional) the (usually just clicked on) dialog to act as the (current/temp) parent for the menu.<br>
+            x,y: (optional) screen position, literal values or <a href="gShow.htm#TG_MOUSEPOS">TG_MOUSEPOS</a> 
+            <small>(but no other <a href>gShow</a>-style flags)</small>. 
+<!--
+            which is the only such flag supported here, and implicitly uses <a href>gGetGlobalIntInt</a>("MOUSEPOS").
+            Note a <a href>CLICK</a> handler (optionally) gets client coordinates, which are fairly useless here.
+-->
+            <br>
+            <br>
+            A popup menu is displayed for the user and disappears when an item is selected, or on escape/outside clicks/focus loss. <br>
+            Control returns immediately, with appropriate messages sent to the previously set <a href="#HANDLER">handler</a>.<br>
+            <small>Aside: Of course all submenus are technically popups, just ones that appear where their parent/menubar tells them to, 
+            and while you could in theory have a completely independent gMenu(EDIT_MENU), there is <i>simply no way</i> to specify the 
+            above initial example&apos;s gdx menu&apos;s embedded second-level version of that as the main parameter to gPopupMenu, or 
+            for that matter a gVbox&apos;s first element.</small>
+
+<!--
+            Under GTK and JavaScript control returns
+            immediately, however under WinAPI that does not happen until the menu has gone, though the main message loop remains active.
+            Obviously, therefore, you need to deal with the menu selection immediately in the <a href>HANDLER</a> routine; were
+            you instead to save that and deal with it when gPopupMenu() returns, that would only work properly under WinAPI, or in other
+            words: on GTK and JS, but not WinAPI, gPopupMenu() returns <i>before</i> any menu item has or can be selected by the user (and
+            you are expected to allow control to flow back to the main message loop, which may later invoke the handler it its own due time).
+-->
+<!--
+//          Under WinAPI such icons are not naturally transparent, so [the internal] <a href="gImage.htm">xImage_from_XPM</a> allows any transparent pixels 
+//          to be replaced with (eg) the menu background colour[s].
+-->
+<!--
+            <br>
+            <br>
+            Some more examples can also be seen in demo\theGUI\sample.exw
+-->
+            <br><a name=MenuAttr></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
           <b>Attributes:</b>
          </td>
          <td>
-            <!--br--><a name=MenuAttr></a>
-            All menu attributes are set via gMenuSetAttribute() rather than the usual gSetAttribute(), likewise Get.
+            All menu attributes are managed via the following rather than the usual <a href="gSetAttribute.htm">gSet/GetAttribute</a>().
             <br>
             <br>
             <b>gMenuSetAttribute</b>(<a href>gdx</a> menu, <a href>object</a> id, 
-                                     <a href>string</a> name, <a href>object</a> v)<br>
-            <a href>object</a> v = <b>gMenuGetAttribute</b>(<a href>gdx</a> menu, <a href>integer</a> id, 
-                                                                         <a href>string</a> name)<br>
+                                                           <a href>string</a> name, 
+                                                           <a href>object</a> v)<br>
+            <a href>object</a> v = <b>gMenuGetAttribute</b>(<a href>gdx</a> menu,
+                                                            <a href>integer</a> id, 
+                                                            <a href>string</a> name)<br>
             <b>gMenuToggleInt</b>(<a href>gdx</a> menu, <a href>object</a> id, 
-                                                                  <a href>string</a> name)<br>
-            menu,id: both must always be provided, and id be non-zero. A flat sequence of them can be passed to set/toggle, but not get.<br>
+                                                        <a href>string</a> name)<br>
+          <br>
+          <div class="param">
+           <div class="paraname">menu,id&nbsp;</div>
+           <div class="paradesc">
+            both must always be provided, and id be non-zero. <br>
+            Flat sequence[s] of them can be passed to set/toggle, <br>
+            but not get (and are applied n*m rather than pair-wise).
+           </div>
+          </div>
             name,v: as detailed below
 <!--
 //          <br>
@@ -265,6 +386,7 @@ gMainLoop(dlg)
 //          which might actually help by exposing the odd logic error, such as trying to update a menu on the wrong 
 //          window. You could of course invoke <a href="gMap.htm">gMap</a>() explicitly yourself.
 -->
+            <br><a name=ACTIVE></a>
          </td>
         </tr>
 <!--
@@ -282,8 +404,10 @@ gMainLoop(dlg)
           <a href>ACTIVE</a>
          </td>
          <td>
-            Same as the standard attribute, except for needing both a gdx and (non-zero) command-id.<br>
-            The above example could perhaps contain gMenuSetAttribute(menu,CLOSE,"ACTIVE",bThereIsAnOpenFile)
+            Equivalent to the standard attribute (linked left), except for needing both a gdx and (non-zero) command-id.<br>
+            <small>(In fact the standard attribute applies to a menubar, but is meaningless on any popup, unless 
+            the application itself somehow implements it.)</small><br>
+            The above example could perhaps contain gMenuSetAttribute(menu,M_CTRL+VK_F4,"ACTIVE",bThereIsAnOpenFile)
 <!--
             <br>
             <br>
@@ -293,6 +417,7 @@ gMainLoop(dlg)
             While things like cut/copy/paste/undo/redo being disabled/enabled is perfectly acceptable, it may be much better to leave 
             the more obscure entries active but display an explanatory message when inappropriately clicked.
 -->
+            <br><a name=CHECKED></a>
          </td>
         </tr>
         <tr>
@@ -302,9 +427,11 @@ gMainLoop(dlg)
          <td>
             Set or retrieve the state of a specified checked menu item.<br>
             Unlike <a href>gRadioItem</a>(), there is no "which one is selected?" query for a radio group on a menu,
-            you&apos;ll either have to remember what events your handler was sent, or iterate through all of the menu items until you find it. 
+            you&apos;ll either have to remember what events your handler was sent, or iterate through all of the menu items until you find it - 
+            typically using a manually constructed set of ids and the CHECKED attribute, or perhaps, much more fiddly, via <a href="#DATA">DATA</a>.
             Also, attempting to unset any member of a radio group quietly does nothing, since the internal handling of clicking on an already set 
             item is significantly simpler that way, plus you don&apos;t want to risk it getting left in a nothing selected/invalid state anyway.<br>
+            You can also use VALUE as an alias of CHECKED, and get exactly the same results.<br>
 <!--
             <br>
             <a name=gMenuToggleCheck></a>
@@ -315,6 +442,30 @@ gMainLoop(dlg)
             radio group <small>(since unsetting the current/only selected item is prohibited/ignored)</small>.
 -->
             There is also a CHECKED attribute on a <a href="gTree.htm#CHECKED">gTree</a>, in case you were looking for that.
+            <br><a name=DATA></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          DATA[+]
+         </td>
+         <td>
+            (rarely used/needed) Equivalent to (part of) the children parameter, but always in the 
+            <a href="#tech" onclick="opentech()">internal</a> form. <br>
+            In this one case id is an internal index to said internal form, see next, rather than a keystroke-like id.<br>
+            There is also a DATA attribute on a <a href="gTable.htm#DATA">gTable</a> and <a href="gTree.htm#DATA">gTree</a>, and  
+            DATA handlers on a <a href="gList.htm#DATA">gList</a> and <a href="gGraph.htm#DATA">gGraph</a>.
+            <br><a name=MDXHIT></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          MDXHIT
+         </td>
+         <td>
+            (read only, rarely used/needed) Returns <a href>integer</a> {mdx,hit} for the specified potentially keystroke-like id (crashing 
+            should such not exist) such that as noted above mdx is suitable for retrieving <a href>DATA</a>, then hit subscripting the 
+            <a href>MX_ITEMS</a> of that.
             <br><a name=IMAGE></a>
          </td>
         </tr>
@@ -325,9 +476,15 @@ gMainLoop(dlg)
 <!--        , IMPRESS-->
          </td>
          <td>
+            Set/replace a <a href>gImage</a> for the menu item, typically 16x16 but up to 30x22 (auto-centred). <br>
+<!--            Not permitted on/guaranteed to mangle checked/radio items, which use their own 13x13 images. Default: NULL.<br>-->
+            Ignored/overidden on checked/radio items, which use their own 13x13 images. Default: NULL.<br>
+            It seems generally unwise to put images on submenus, but theGUI makes no attempt to hinder that.<br>
 <!--            Sadly, not particularly high on my to-do list. Needs more work, of course, on <a href>gImage</a>() first.-->
+<!--
             (create/replace only) Under GTK, this determines whether to create a GtkImageMenuItem rather than a GtkMenuItem, hence you 
             <i>cannot</i> set an image on a menu item which has not had one from the get-go, you can however replace(/blank) it. 
+-->
 <!--            <small>(Rather than making it destroy/re-create controls, the programmer is expected to use/replace a blank/transparent image.)</small>-->
 <!--DEV: in progress, or at least planned:<br> [DONE] -->
 <!-- ... but why advertise it?
@@ -344,15 +501,13 @@ gMainLoop(dlg)
             XPG or SVG (or for that matter many of the newer web-optimised image formats, not that theGUI does any better), and does not allow 
             any metadata to be stored against PNG images (quite specifically, for reasons unknown), and (surprise!) needs .NET 3.0 installed.
             Anyway, what I really meant to say is: be warned, stuff that should be dirt-simple rarely is.
--->
             <br>
             <br>
             Note that having an image on a check/radio button w/should be considered poor design and rather mangles the menu layout (on WinAPI anyway).
-            <br>
-            <br>
-            There is also a IMAGE attribute on a <a href="gButton.htm#IMAGE">gButton</a><!--, <a href="gGraph.htm#IMAGE">gGraph</a>,--> and 
+-->
+            There is also an IMAGE attribute on a <a href="gButton.htm#IMAGE">gButton</a><!--, <a href="gGraph.htm#IMAGE">gGraph</a>,--> and 
             <a href="gTree.htm#IMAGE">gTree</a>, in case you were looking for them.
-            <br>
+            <br><a name=TITLE></a>
          </td>
         </tr>
 <!--
@@ -393,17 +548,20 @@ gMainLoop(dlg)
          </td>
          <td>
             Use a '&' to indicate a mnemonic, and "&&" for a literal ampersand. UTF-8 should be fully supported.<br>
-            The separator characters '|', '-' and initial '?' for checkboxes and radio groups do <i><b>not</b></i> apply here, 
+<!--
+            The separator characters '|' and '-' and initial '?' for checkboxes and radio groups do <i><b>not</b></i> apply here, 
             only as initially embedded inside the children structure, in other words they are strictly creation-only.<br>
-            An automatic mapping occurs between the '&X' that Windows uses (and you should too) and the '_X' of Linux / &lt;span class="malt"&gt;X&lt;/span&gt; of HTML.<br>
-            Note that retrieved titles are mnemonic-less, eg "&Close" -> "Close", in a consistent/backend-agnostic fashion.
+            An automatic mapping occurs between the '&X' that WinAPI uses (and you should too) and the '_X' of GTK / 
+            <nobr>&lt;span class="malt"&gt;X&lt;/span&gt;</nobr> of HTML.
+-->
 <!-- DEV this needs testing...
-            <br>
-            <br>
-            A fatal error occurs if an attempt is made to retrieve a menu title before the menu has been mapped - strings within the original 
-            nested children structure parameter of gMenu() would not have been processed before that point, and it is a fairly strong indicator
-            of some sort of logic error to attempt such before the window/popup menu has even been displayed, anyway. At a push you could perhaps 
-//          invoke <a href="gMap.htm">gMap</a> explicitly yourself, assuming you were really sure that&apos;s alright.
+//          Note that retrieved titles are mnemonic-less, eg "&Close" -> "Close", in a consistent/backend-agnostic fashion.
+//          <br>
+//          <br>
+//          A fatal error occurs if an attempt is made to retrieve a menu title before the menu has been mapped - strings within the original 
+//          nested children structure parameter of gMenu() would not have been processed before that point, and it is a fairly strong indicator
+//          of some sort of logic error to attempt such before the window/popup menu has even been displayed, anyway. At a push you could perhaps 
+////            invoke <a href="gMap.htm">gMap</a> explicitly yourself, assuming you were really sure that&apos;s alright.
 -->
          </td>
         </tr>
@@ -442,7 +600,7 @@ gMainLoop(dlg)
           <b>Handlers:</b>
          </td>
          <td>
-            Set using eg <a href>gSetHandler</a>(menu,"HANDLER",handler), or specify handler at creation time
+            Usually specified at creation time, or may be set using eg <a href>gSetHandler</a>(menu,"HANDLER",handler).
           <br><a name=HANDLER></a>
          </td>
         </tr>
@@ -455,13 +613,22 @@ gMainLoop(dlg)
             A routine that deals with/implements all menu interactions.
             <br>
             <br>
-            function/procedure handler(<a href>gdx</a> menu, integer id [,bool bHighlight])<br>
+            function/procedure handler(<a href>gdx</a> menu, <a href>integer</a> id [, <a href>bool</a> bHover])<br>
             menu: identifier of the (toplevel) menu, as originally returned from gMenu().<br>
-            id: identifier of the menu entry (must be unique within each menu).<br>
-            bHighlight: (optional) when <a href>true</a> the event is just select/mouseover, 
-            <a href>false</a> for an actual click or keyboard activation.
+            id: identifier of the menu entry (must be unique within the given menu).<br>
+            <div style="display: table;">
+              <div style="display: table-row;">
+                <div style="display: table-cell;">
+            bHover: (optional)&nbsp;
+                </div>
+                <div style="display: table-cell;">
+                                 when <a href>false</a> the event is an actual click or keyboard activation,<br>
+                                 when <a href>true</a> the selection/hover has changed (to id, which may be 0).
+<!--                                 When bHover is absent you are not informed of the latter event.-->
+                </div>
+              </div>
+            </div>
 <!-- [NO LONGER TRUE] aside: since JavaScript is a typeless language, it would never be able to distinguish handler(menu,id) from handler(id,bHighlight). -->
-            <br>
             <br>
 <!-- I think we can, but it is untested and in fact *NO* handler stuff has yet been properly implemented...
 DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d",{menu_id,item_id}...<br>
@@ -470,10 +637,11 @@ DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d
             <br>
             <br>
 -->
-            If there is no bHighlight parameter, only click events are forwarded. Some applications may benefit from displaying 
-            a longer description of what a menu entry does in a status bar, say, as mouseover and similar events occur. As noted 
-            above, signals from sub-menus opening (there are no close signals) and highlighting events are only sent when an id 
-            is actually specified on the individual menu[item]s.
+            When there is no bHover parameter only activation events are forwarded. Some applications may benefit from displaying 
+            a longer description of what a menu entry does in a status bar, say, as mouseover and similar events occur. Likewise
+            some menu checks may have no immediate effect so there is nothing to be done straightaway. As noted above, signals from 
+            sub-menus opening (there are no close signals) and highlighting events are only sent when an id is actually specified 
+            on them (and it is illegal <i>not</i> to have a valid id on a leaf node, which covers check events in that regard).
 <!-- erm, not really helpful:
             <br>
             <br>
@@ -501,24 +669,24 @@ DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d
             <br>
             <br>
             A menu handler can also invoke <a href>gGetOpenFileName</a>().
+<!--
             <br>
             <br>
-<!--        You might, for instance, want to <a href>gMenuSetAttribute</a>(menu,PASTE,"ACTIVE",clipboard_contains_text()). -->
+[!--        You might, for instance, want to <a href>gMenuSetAttribute</a>(menu,PASTE,"ACTIVE",clipboard_contains_text()). --]
             There is no guarantee of cross-platform/backend consistency of event signals, for instance changing a radio menu entry may
             signal {old,new} or {new,old}, heck some backends might only send new, or even send them in command-id or menu order. 
             Under WinAPI, you may also get mouseover events from disabled menu items and sub-menus, but not disabled MenuBar items, in
             contrast with none such at all for any and all disabled items under GTK. 
+-->
 <!-- yeah, but why bother saying it here, really?
             Bright ideas to minimise the impact of any such backend discrepancies would be warmly welcomed.
 -->
             <br>
             <br>
-            Returns of <a href>TG_CLOSE</a> are honoured for a menu attached to a dialog (closing it), but 
-            simply ignored from a popup menu handler. The handler may as well be a procedure should no dialog need closing, and for all
-            pop-up menus, not that it actually has to be.
-            <br>
-            <br>
-            There is also a HANDLER on a <a href="gMsgBox.htm#HANDLER">gMsgBox</a>, were you looking for that.
+            When bHover is <a href>false</a>, a return of <a href>TG_CLOSE</a> from a radio or checked item closes the menu rather than 
+            anything else, on other items on a menu attached to a dialog closes that dialog, but is simply ignored from a popup menu handler. 
+            The handler may as well be a procedure should no dialog need closing, and there are no should-close toggles, aka it never
+            returns or wants to return <a href>TG_CLOSE</a> anyway.
           <br><a name=tech></a>
          </td>
         </tr>
@@ -558,26 +726,280 @@ DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d
           </a>
          </td>
          <td>
-            On the desktop, a plain Alt opens the app&apos;s menu, and causes any accelerator keys to be underlined,<br>
+            The nested form <a href="#EXAMPLE">above</a>, which I&apos;ll reproduce (reindented) here for clarity:
+            <br>
+            <br>
+           <small>
+<!--eucode>
+{{"&File",
+  {{"&New\t",M_CTRL+'N'},
+   {"&Open\t",M_CTRL+'O'},
+   {"&Recent Files",{}}, 
+   {"&Close\t",M_CTRL+VK_F4},
+   '|',
+   {"E&xit\t",M_ALT+VK_F4}}}, 
+ {"&Edit",M_NOT_KEY+'E',
+  {{"Copy",M_CTRL+'C'}}},
+ {"&Help",VK_F1}}
+</eucode-->
+<pre>
+<font color="#0000FF">{</font><font color="#800000">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font>
+<font color="#008080">  {</font><font color="#00FF00">{</font><font color="#008000">"&amp;New\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;N&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Open\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;O&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Recent Files"</font><font color="#0000FF">,</font><font color="#000080">{}</font><font color="#00FF00">}</font><font color="#0000FF">, </font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Close\t"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#008000">   &apos;|&apos;</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"E&amp;xit\t"</font><font color="#0000FF">,</font><font color="#004600">M_ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">, </font>
+<font color="#800000"> {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#004600">M_NOT_KEY</font><font color="#0000FF">+</font><font color="#008000">&apos;E&apos;</font><font color="#0000FF">,</font>
+<font color="#008080">  {</font><font color="#00FF00">{</font><font color="#008000">"Copy"</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;C&apos;</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000"> {</font><font color="#008000">"&amp;Help"</font><font color="#0000FF">,</font><font color="#004600">VK_F1</font><font color="#800000">}</font><font color="#0000FF">}</font>
+</pre>
+           </small>
+            <br>
+             is automatically converted into the equivalent internal form:
+            <br>
+            <br>
+           <small>
+<!--eucode>
+{{{{"&File",2,0,1,0},
+   {"&Edit",4,0,1,M_NOT_KEY+'E'},
+   {"&Help",0,0,1,VK_F1}},0,0,1,0},
+ {{{"&New\t",0,0,1,M_CTRL+'N'},
+   {"&Open\t",0,0,1,M_CTRL+'O'},
+   {"&Recent Files",3,0,0,0},
+   {"&Close\t",0,0,1,M_CTRL+VK_F4},
+   {"-",0,0,0,0},
+   {"E&xit\t",0,0,1,M_ALT+VK_F4}},1,0,1,0}, 
+ {{},2,0,1,0},
+ {{{"Copy",0,0,1,M_CTRL+'C'}},1,0,1,0}
+</eucode-->
+<pre>
+<font color="#0000FF">{</font><font color="#800000">{</font><font color="#008080">{</font><font color="#00FF00">{</font><font color="#008000">"&amp;File"</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Edit"</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_NOT_KEY</font><font color="#0000FF">+</font><font color="#008000">&apos;E&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Help"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">VK_F1</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000"> {</font><font color="#008080">{</font><font color="#00FF00">{</font><font color="#008000">"&amp;New\t"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;N&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Open\t"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;O&apos;</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Recent Files"</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"&amp;Close\t"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"-"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#00FF00">}</font><font color="#0000FF">,</font>
+<font color="#00FF00">   {</font><font color="#008000">"E&amp;xit\t"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_ALT</font><font color="#0000FF">+</font><font color="#004600">VK_F4</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">, </font>
+<font color="#800000"> {</font><font color="#008080">{}</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font><font color="#0000FF">,</font>
+<font color="#800000"> {</font><font color="#008080">{</font><font color="#00FF00">{</font><font color="#008000">"Copy"</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">M_CTRL</font><font color="#0000FF">+</font><font color="#008000">&apos;C&apos;</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">0</font><font color="#800000">}</font>
+</pre>
+           </small>
+            <br>
+            While not actually very difficult to follow, it is of course somewhat more tedious and error prone to specify it that way.<br>
+            The internal form here has four menus: main, file, recent, and edit respectively, each {items,parent,image,enabled,id}.<br>
+            Each element of the items sequences is {text,submenu,image,enabled,id[,chk]}, with a text of "-" (nb not "|", '-', or '|') making it a
+            separator, a submenu of 0 making it a leaf item, image a negative <a href>gdm</a> or NULL or "?"/"??" for checked/radio items with 
+            chk present and otherwise that absent, and id being the potentially keystroke-like thing mentioned above.<br>
+            The <a href="#DATA">DATA</a> attribute allows access to each (whole) menu one at a time, with "DATA" getting you a copy and "DATA+"
+            a temporarily nulled sole owner entry which can be modified without <a href>deep_copy</a>() and you are expected to replace asap.<br>
+            Also, "DATA*" which is intended solely for hMenu.exw, gets a read-only copy of the runtime extras stuff - formally undocumented, but 
+            a quick search for CX_MEXTRA in hGUI.e should tell you everything you need to know.<br>
+            In gMenu.exw new/open add an entry to the recent files menu and close removes one, kept as simple as possible.<br>
+<!--            Note that it locates the recent files menu not by anything clever or by id, but by following the 1-2-3 chain by title.<br>-->
+            While invoking gMenu() sets the whole thing, there is no way to do that later, or alter how many menus there are.<br>
+            Likewise modifying parent/submenu links is a whole ball of mud I&apos;m not going anywhere near or saying anything useful about,
+            except to suppose you could define a full set and swap them in/out depending on whatever was clicked on.<br>
+            Attempting to update menus while they are actually on-screen may or may not lead to undefined behaviour.<br>
+            There may very well be cases where building the internal form is in fact easier than constructing a <a href="#EXAMPLE">nested</a> form,
+            however certain niceties such as checking for duplicate ids or auto-checking the first item in a radio group only occur when converting 
+            the nested to internal form, and not when you provide the latter.
+.<!--           <small>[internally it uses the private enums MX_(ITEMS | PARENT) and MX_(TEXT | SUBMENU | IMAGE | ENABLED | ID | CHECKED)]</small>-->
+            <br>
+            <br>
+            The point being made here is that menus are designed to be dirt-simple to define and use in the way mother nature intended, but
+            there is significant complexity hidden behind the scenes, that any clever/fancy/custom stuff inevitably exposes, and equally
+            <i>if</i> prepared to roll up your sleeves and get your hands (very) dirty there is nothing to stop you.
+            <br>
+            <br>
+            Obviously <a href>gPopupMenu</a>() always displays the first entry in the structure/table, before any of its submenus.<br>
+            Likewise said appears as a barmenu when incorporated into a dialog, but there is no difference in their specification.<br>
+            You can in theory (aka not fully/formally tested) use <a href>gGetAttribute</a>(menu,`<a href>VISIBLE</a>`) to determine whether a popup 
+            is (still) on-screen, however that will always return <a href>true</a> for a menubar, unless you have deliberately hidden it - which, 
+            incidentally, is the (main) reason why a barmenu cannot be reused as a popup, although theGUI itself uses much more convoluted and lower
+            level methods which also determine the lowest-level submenu visible.
+            <br><a name=MX_XXX></a>
+            
+            <h3>Exposed enums</h3>
+            The following (hopefully intuitive) constants are exposed by theGUI for advanced use, see hMenu.exw for examples.<br>
+            I am not about to try and further document these, and there is no formal support for messing things up!
+            <br>
+            <br>
+<small>
+<!--eucode>
+global constant TG_MENUITEM_HEIGHT = 21,
+                TG_MENU_FONT = `Segoe UI, 9`,
+                TG_MENU_KEY_FONT = `Segoe UI, 7`
+
+-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MENUS][i]:
+global enum MX_ITEMS,   -- sequence of items
+            MX_PARENT   -- parent menu index, or 0
+--          MX_IMAGE,   --  \
+--          MX_ENABLED, --  } same enum as below
+--          MX_ID       -- /
+
+-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MENUS][MX_ITEMS][i]:
+global enum MX_TEXT,    -- if "-", it's a separtator
+            MX_SUBMENU, -- index into menus, or 0
+            MX_IMAGE,   -- "?[?]" for checkbox/radio
+            MX_ENABLED, -- t/f, false on separators
+            MX_ID,      -- can be 0 on submenus
+            MX_CHECKED  -- t/f [checkbox/radio only]
+
+-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MEXTRA][i]:
+-- - must o/c match menu_attr[CX_MEXTRA] statement in gMenu()
+global enum MX_WIDTH,   -- widest+gutters
+            MX_HEIGHT,  -- 4+sum(7|ITEMH)+4
+            MX_KEYMODE, -- if keyboard used
+            MX_HOT,     -- hot item
+            MX_SEL,     -- selected item
+            MX_OWNER,   -- a gdx
+            MX_POPUP,   -- HWND or GtkWidget*, or NULL
+            MX_WIDGET,  -- (GTK only)
+            MX_X,       -- last x position
+            MX_Y,       -- last y position
+            MX_TGTIMG,  -- the gImage to draw on
+            MX_WIDTHS   -- (for the menubar, esp hover)
+
+-- set to backend-specific values in tg_Init():
+global atom TG_POPMENU_BGCLR,
+            TG_MENUBAR_BGCLR,
+            TG_MENUHOV_BGCLR,
+            TG_MBARHOV_FGCLR,
+            TG_MENUHOV_FGCLR,
+            TG_MENUSEP_FGCLR = #00B2B2B2
+</eucode-->
+<pre>
+<font color="#008080">global constant</font><font color="#004600"> TG_MENUITEM_HEIGHT</font><font color="#0000FF"> =</font><font color="#000000"> 21</font><font color="#0000FF">,</font>
+<font color="#004600">                TG_MENU_FONT</font><font color="#0000FF"> =</font><font color="#008000"> `Segoe UI, 9`</font><font color="#0000FF">,</font>
+<font color="#004600">                TG_MENU_KEY_FONT</font><font color="#0000FF"> =</font><font color="#008000"> `Segoe UI, 7`
+</font>
+<font color="#000080"><i>-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MENUS][i]:</i></font>
+<font color="#008080">global enum</font><font color="#004600"> MX_ITEMS</font><font color="#0000FF">,  </font><font color="#000080"><i> -- sequence of items</i></font>
+<font color="#004600">            MX_PARENT  </font><font color="#000080"><i> -- parent menu index, or 0
+--          MX_IMAGE,   --  \
+--          MX_ENABLED, --  } same enum as below
+--          MX_ID       -- /
+
+-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MENUS][MX_ITEMS][i]:</i></font>
+<font color="#008080">global enum</font><font color="#004600"> MX_TEXT</font><font color="#0000FF">,   </font><font color="#000080"><i> -- if "-", it&apos;s a separtator</i></font>
+<font color="#004600">            MX_SUBMENU</font><font color="#0000FF">,</font><font color="#000080"><i> -- index into menus, or 0</i></font>
+<font color="#004600">            MX_IMAGE</font><font color="#0000FF">,  </font><font color="#000080"><i> -- "?[?]" for checkbox/radio</i></font>
+<font color="#004600">            MX_ENABLED</font><font color="#0000FF">,</font><font color="#000080"><i> -- t/f, false on separators</i></font>
+<font color="#004600">            MX_ID</font><font color="#0000FF">,     </font><font color="#000080"><i> -- can be 0 on submenus</i></font>
+<font color="#004600">            MX_CHECKED </font><font color="#000080"><i> -- t/f [checkbox/radio only]
+
+-- contents of each ctrl_xtra[menu][CX_GTL_ATTRS][CX_MEXTRA][i]:
+-- - must o/c match menu_attr[CX_MEXTRA] statement in gMenu()</i></font>
+<font color="#008080">global enum</font><font color="#004600"> MX_WIDTH</font><font color="#0000FF">,  </font><font color="#000080"><i> -- widest+gutters</i></font>
+<font color="#004600">            MX_HEIGHT</font><font color="#0000FF">, </font><font color="#000080"><i> -- 4+sum(7|ITEMH)+4</i></font>
+<font color="#004600">            MX_KEYMODE</font><font color="#0000FF">,</font><font color="#000080"><i> -- if keyboard used</i></font>
+<font color="#004600">            MX_HOT</font><font color="#0000FF">,    </font><font color="#000080"><i> -- hot item</i></font>
+<font color="#004600">            MX_SEL</font><font color="#0000FF">,    </font><font color="#000080"><i> -- selected item</i></font>
+<font color="#004600">            MX_OWNER</font><font color="#0000FF">,  </font><font color="#000080"><i> -- a gdx</i></font>
+<font color="#004600">            MX_POPUP</font><font color="#0000FF">,  </font><font color="#000080"><i> -- HWND or GtkWidget*, or NULL</i></font>
+<font color="#004600">            MX_WIDGET</font><font color="#0000FF">, </font><font color="#000080"><i> -- (GTK only)</i></font>
+<font color="#004600">            MX_X</font><font color="#0000FF">,      </font><font color="#000080"><i> -- last x position</i></font>
+<font color="#004600">            MX_Y</font><font color="#0000FF">,      </font><font color="#000080"><i> -- last y position</i></font>
+<font color="#004600">            MX_TGTIMG</font><font color="#0000FF">, </font><font color="#000080"><i> -- the gImage to draw on</i></font>
+<font color="#004600">            MX_WIDTHS  </font><font color="#000080"><i> -- (for the menubar, esp hover)
+
+-- set to backend-specific values in tg_Init():</i></font>
+<font color="#008080">global</font><font color="#004080"> atom</font><font color="#004600"> TG_POPMENU_BGCLR</font><font color="#0000FF">,</font>
+<font color="#004600">            TG_MENUBAR_BGCLR</font><font color="#0000FF">,</font>
+<font color="#004600">            TG_MENUHOV_BGCLR</font><font color="#0000FF">,</font>
+<font color="#004600">            TG_MBARHOV_FGCLR</font><font color="#0000FF">,</font>
+<font color="#004600">            TG_MENUHOV_FGCLR</font><font color="#0000FF">,</font>
+<font color="#004600">            TG_MENUSEP_FGCLR</font><font color="#0000FF"> =</font><font color="#000000"> #00B2B2B2</font>
+</pre>
+</small>
+            <!--br--><a name=shorthand></a>
+
+            <h3>Shorthand interpretation</h3>
+            The most important rule (in the nested form) is whether item[$] is <a href>integer</a> (leaf) or <a href>sequence</a> (submenu).<br>
+            With that, when menu entries are defined as length 5 there can be no misinterpretation of their meaning.<br>
+            The following (hopefully intuitive) shorter definitions of menu entries are all valid and interpreted as shown:
+            <br>
+            <br>
+<small>
+<!--eucode>
+                {"leaf", id}                                -- (nb: id>0)
+                {"leaf", enabled, id}                       -- (enabled>=0)
+                {"leaf", image, id}                         -- (image<0)
+                {"leaf", image, enabled, id}                -- (  ""   )
+                {"leaf", image, enabled, ignored, id}       -- (chk ignored)
+                {"leaf", "?[?]", checked, id}
+                {"leaf", "?[?]", enabled, checked, id}      -- (unambiguous)
+                {"submenu", children}
+                {"submenu", id, children}                   -- (id>0)
+                {"submenu", enabled, id, children}          -- (enabled>=0)
+                {"submenu", image, children}                -- (image<0)
+                {"submenu", image, id, children}            -- (image<0)
+                {"submenu", image, enabled, id, children}   -- (unambiguous)
+</eucode-->
+<pre>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}                               </font><font color="#000080"><i> -- (nb: id&gt;0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}                      </font><font color="#000080"><i> -- (enabled&gt;=0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}                        </font><font color="#000080"><i> -- (image&lt;0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}               </font><font color="#000080"><i> -- (  ""   )</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> ignored</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}      </font><font color="#000080"><i> -- (chk ignored)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#008000"> "?[?]"</font><font color="#0000FF">,</font><font color="#000000"> checked</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}
+                {</font><font color="#008000">"leaf"</font><font color="#0000FF">,</font><font color="#008000"> "?[?]"</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> checked</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">}     </font><font color="#000080"><i> -- (unambiguous)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}
+                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}                  </font><font color="#000080"><i> -- (id&gt;0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}         </font><font color="#000080"><i> -- (enabled&gt;=0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}               </font><font color="#000080"><i> -- (image&lt;0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}           </font><font color="#000080"><i> -- (image&lt;0)</i></font>
+<font color="#0000FF">                {</font><font color="#008000">"submenu"</font><font color="#0000FF">,</font><font color="#000000"> image</font><font color="#0000FF">,</font><font color="#000000"> enabled</font><font color="#0000FF">,</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#000000"> children</font><font color="#0000FF">}  </font><font color="#000080"><i> -- (unambiguous)</i></font>
+</pre>
+</small>
+            <br>
+            For instance, {"submenu",image,children} is distinguished from {"submenu",id,children} by images being &lt;0.<br>
+            As stated above, checked and radio items use their own images (if you wanted to override them, maybe one day but not yet,
+            that would obviously be at the system level rather than the menu line level anyway, or maybe, again one day, {on,off}} 
+            would be ok for checked items but not radios), with checked only meaningful after "?"|"??".<br>
+            <small>[Technically/pedantically speaking the <a href="#formalspec">formal specification given above</a> slightly misses the
+            point on enabled/checked, that much I already know.]</small><br>
+            Incidentally, an id of 0 is only valid in the very last case, and similar to the handling of 
+            <a href="g_paranormal.htm">paranormalised functions</a> additional checks are performed post-reshuffling, specifically
+            image&lt;=0 or (leaf only) "?[?]", enabled,checked in [0,1], id&gt;0 on leaf entries or &gt;=0 on submenus, plus a few
+            extra-paranoid sanity checks such as <a href>integer</a>(id) and not <a href>string</a>(children).<!--br>
+            Be warned when given the internal form (initially or via <a href="#DATA">DATA</a>) it performs almost no validation,
+            except length 5|6.-->
+
+<!--
+            <br>
+            <br>
+DEV needs re-testing/re-wording (once ported to theGUI.e <i>and</i> theGUI.js):<br>
+            On the desktop, a plain Alt <i>x</i> opens the relevant app&apos;s menu, and causes any accelerator keys to be underlined,<br>
             but in a browser that opens the browser&apos;s menu, not the app-within-the-browser&apos;s menu.<br>
             In the browser, you can use Alt Gr or Ctrl+Alt, but they don&apos;t work on the desktop.<br>
             However, Shift+Alt works consistently in the browser and on the desktop, at least in my tests,<br>
             so it might be sensible to get into the habit of using that.
+-->
+<!--
             <br>
             <br>
             The "look and feel" under pwa/p2js is currently 100% windows-based, should you want something else send me
             a screenshot or two (<a href="gTabs.htm#hImages">eg</a>).
+-->
 <!-- [DEV seem to have lost these... not on J: either I probably made them up...]
             but I&apos;d certainly take a look at a modified
             pwa/js/poc/menus.css (and maybe .html/js) or similar, especially should it manage to match the beneath-browser os...
 -->
             <br>
             <br>
-            The standard practice of popping up left of the cursor occurs when using TG_MOUSPOS and clicking too near the right hand
-            edge of the screen (on all, GTK2 too), and similarly above/too near the bottom, except for GTK2 (which is a law unto itself) 
+            The standard practice of popping up/left of the cursor occurs when using TG_MOUSPOS and clicking too near the right hand
+            or bottom edge of the screen, and thankfully, since I re-implemented menus from scratch, the horror of tiny almost unusable 
+            menus with silly scrollbars on GTK2 all goes away (not that anyone should still be using that).
+<!--
+             (on all, GTK2 too), and similarly above/too near the bottom, except for GTK2 (which is a law unto itself) 
             whereby menus first get scrollbars then become too small to be usable, sadly not much I can realistically do about that, even
             if I used a GtkMenuPositionFunc, there is a gboolean *push_in but not a gboolean *push_up, though at least it works fine on 
             GTK3+, when they added gtk_menu_popup_at_pointer(), and other than for testing no-one should still be using GTK2 anyway.
+-->
 <!--        Note that unlike <a href>IupPopup</a>() this never interrupts processing (mainly for js compatibility reasons)0-->
 <!--            <a href>IupDestroy</a> should be called only for popup menus.
             Menu bars associated with dialogs are automatically destroyed when the dialog is destroyed. 
@@ -596,25 +1018,53 @@ DEV: pwa/p2js is going to need unique ids, unless we can make them say "mid%d_%d
 -->
             <br>
             <br>
+            Minor point: gdk_screen_get_monitor_workarea() is not available in GTK2, so gdk_screen_get_monitor_geometry() used instead, 
+            which means some menus may overlap the taskbar slightly. I could easily make GTK3 use the better one.
+            <br>
+            <br>
+            Note that should you initiate custom drag, it becomes your responsibility to hide any menus,
+            which of course you can safely ignore if you don&apos;t know what custom drag is, and to
+            be fair, I haven&apos;t added any way to do that in theGUI, yet.
+            <br>
+            <br>
             I was at one point very pleased with how well I&apos;d implemented (native) menus, until Win11 did this:
             <br>
             <br>
-            <img alt="gMenuWin11Alt" style="padding-left:10px;" src="images/gMenuWin11Alt.png" width="149" height="59"/>
+            <img src="images/gMenuWin11Alt.png" alt="gMenuWin11Alt" style="padding-left:10px;" width="149" height="59"/>
             <br>
             <br>
             The above is taken from Notepad, when toggling the Alt key, and trust me it gets a whole lot worse. I can half-accept that sort of 
             in-your-face-ugliness is kinda OK when toggling Alt means that pressing a letter is going to do something rather different to what
             Notepad normally does when pressing a key, but requiring the user to go through that rigmarole just to see what the mnemonics are,
-            and then find out alt-toggling messes up, say, arrow handling, is just a terrible UX. So it&apos;ll be the last thing, but I shall
-            eventually replace native menus with hand-crafted fakes too, even though it risks having to (optionally) replicate that crud and 
-            require apps to have an "Imitate ugly native alt key handling on menus?" option.
+            and then find out alt-toggling messes up, say, arrow handling, is just a terrible UX. So out went native menus and in came lovingly
+            hand-crafted fake ones - but be warned things get pretty convoluted, to say the least, see win_menus.exw (690 lines), gtk_menus.exw 
+            (750 lines), and pwa\js\poc\menus.html (450 lines) for what I consider the absolute bare minimum needed <small>[to properly support 
+            focus and alt-tab subtleties more than anything else]</small>.
             <br><a name=hImages></a>
             <br>
-            The following images were taken for possible use in demo\theGUI\hMenu.exw (WinAPI/GTK2/GTK3, not yet started):
+            The following images were taken for use in demo\theGUI\hMenu.exw (WinAPI/GTK2/GTK3):
             <br>
             <br>
-            <p align="center"><img alt="hMenu" src="images/hMenu.png" width="326" height="455"/></p>
-            <p align="center"><img alt="hMenu2" src="images/hMenu2.png" width="544" height="455"/></p>
+            <p align="center"><img src="images/hMenu.png" alt="hMenu" width="326" height="455"/></p>
+            <p align="center"><img src="images/hMenu2.png" alt="hMenu2" width="544" height="455"/></p>
+            <br>
+            I went with the square menus and full width highlightng of GTK3, whilst keeping the platform-specific colours.<br>
+            Should you desire something different, send me some similar screenshots and I&apos;ll see what I can do.<br>
+            Note that menus and other pop-ups have, esp on WinAPI, rather weird/carefully crafted/finely tuned focus and alt-tab behaviour,
+            and theGUI.e (aka desktop/Phix) relies on the low-level API to achieve that and handle all mouse and keyboard events, leaving
+            only the actual drawing to hll, whereas theGUI.js or more specifically an application running inside a browser doesn&apos;t 
+            have to worry quite so much about all that so is much simpler.<br>
+            Someone somewhere once thought a dramatic pause between hovering on a submenu and showing it was nicer, and there may be some 
+            truth to that when you&apos;re just playing with some random menus to see how lovely they look, but when actually trying to get 
+            stuff done that &frac14;, &frac13;, &frac12;, &frac23; &frac34;s, or whatever is just downright annoying, so it don&apos;t do
+            dat, and without the slightest shadow of doubt when your nose is to the grindstone you ain&apos;t gonna notice or complain, 
+            even should aesthetically speaking some things be somewhat more jerky and janky than silky and smooth.
+            <br>
+            <br>
+            ChatGPT offered me multiple methods to set the menu item height (as 19) on WinAPI, but only offered the constant 24 on GTK and 
+            JS (not that I pushed it), so for expediency settled on a fixed value of 21 across the board. I could make it configurable and 
+            am open to better ways to set it, presumably based on screen resolution and/or system settings or similar. Likewise everything 
+            is shown in the font `Segoe UI, 9`.
             <br>
          </td>
         </tr>

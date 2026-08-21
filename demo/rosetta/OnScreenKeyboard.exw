@@ -1,0 +1,244 @@
+﻿--
+-- demo\rosetta\OnScreenKeyboard.exw
+-- =================================
+--
+with javascript_semantics
+requires("1.0.6")
+include theGUI.e
+constant TITLE = "On screen keyboard"
+
+-- Aside: afaik, "PrtScrSysReq" is dealt with by the OS and never passed on to the app with keyboard focus.
+constant KEYS = {{VK_ESC,-1,VK_F1,VK_F2,VK_F3,VK_F4,-0.5,VK_F5,VK_F6,VK_F7,VK_F8,-0.5,VK_F9,VK_F10,VK_F11,VK_F12,-1.25,VK_SCROLL,VK_PAUSE},
+                 {"`1234567890-=",VK_BS,-1/4,VK_INS,VK_HOME,VK_PGUP,-1/4,VK_NUMLOCK,"/*-"},
+                 {VK_TAB,"QWERTYUIOP[]",VK_CR,-1/4,VK_DEL,VK_END,VK_PGDN,-1/4,"789",'+'},
+                 {VK_CAPSLOCK,"ASDFGHJKL;'#",-4.75,"456"},
+                 {VK_LSHIFT,"\\ZXCVBNM,./",VK_RSHIFT,-1.25,VK_UP,-1.25,"123",VK_CR},
+                 {VK_LCTRL,VK_LWIN,VK_LALT,VK_SP,VK_RALT,VK_RWIN,VK_APPS,VK_RCTRL,-1/4,VK_LEFT,VK_DOWN,VK_RIGHT,-1/4,"0."}}
+constant SHIFTK = "`1234567890-=[];'#,./\\"
+constant SHIFTS = `¬!"£$%^&*()_+{}:@~<>?|`
+constant NPSHFT = "789461230."
+constant NPSHFS = {VK_HOME,VK_UP,VK_PGUP,VK_LEFT,VK_RIGHT,VK_END,VK_DOWN,VK_PGDN,VK_INS,VK_DEL}
+constant AltGR = "`¦4€aáeéiíoóuúAÁEÉIÍOÓUÚ"
+
+sequence key_tops = {} -- where we last drew everything
+integer hov = 0 -- mouse hover, idx to ""
+-- Aside: The virtual display is initialised to match the physical keyboard, and updated/overridden
+--        when real keys are pressed, but pressing virtual keys cannot update the physical keylocks!
+--        Likewise, (plus) unlike the real thing, virtual ctrl/shift/alt want to be sticky/toggles.
+bool bNumLock = gGetGlobal(`NUMLOCK`),
+     bCapsLock = gGetGlobal(`CAPLOCK`),
+     bScrollLock = gGetGlobal(`SCRLOCK`),
+     -- note: not distinguishing left/rights here
+     bCtrl = false,
+     bShift = false,
+     bAlt = false,
+     bWin = false
+
+procedure key_rect(gdx canvas,atom kl,kt,kr,kb,key)
+    key_tops = append(key_tops,{kl,kt,kr,kb,key})
+    integer l = length(key_tops)
+    bool bHov = hov=l or (l>1 and hov=l-1 and key_tops[hov][$]=key)
+    atom clr = iff(bHov?TG_DARK_GRAY:TG_SLATE)
+    gDrawRect(canvas,kl,kt,kr,kb,true,colour:=clr)
+end procedure
+
+atom xNumPad = 0 -- (saved in redraw for click testing)
+
+procedure redraw(gdx canvas, integer w,h)
+    -- largest 4:15 rectange we can:
+    atom keysize = min(h/4,w/15)/1.5,
+         width = keysize*22.5,
+         height = keysize*6
+    integer ox = floor((w-width)/2),    -- top right coords
+            oy = floor((h-height)/2)
+    gDrawRect(canvas,ox,oy,ox+width,oy+height,true,colour:=TG_BLACK)
+    atom kl = ox+2, 
+         kt = oy+2,
+         kx = ox+keysize/2+1,
+         ky = oy+keysize/2+1
+    string normal_font = sprintf("Sans, %d",keysize/3.5),
+            small_font = sprintf("Sans, %d",keysize/4.5)
+    gSetAttribute(canvas,`FGCLR`,TG_WHITE)
+    key_tops = {}
+    for i,row in KEYS do
+        bool pasta_gap = false
+        for key in row do       
+            if key<0 then
+                pasta_gap = true
+                kl += keysize*-key
+                kx += keysize*-key
+            elsif string(key) then
+                for ch in key do
+                    atom kr = kl+keysize-3
+                    if ch='0' and i=6 then
+                        kr += keysize
+                    end if
+                    key_rect(canvas,kl,kt,kr,kt+keysize-2,ch)
+                    string txt = gGetKeyName(ch) -- or sprintf("%c",ch)
+                    integer sdx = find(ch,SHIFTK)
+                    if sdx and (not find(ch,"/-") or not pasta_gap) then
+                        gSetAttribute(canvas,`FONT`,small_font)
+                        if pasta_gap then -- numpad
+                            gDrawText(canvas,kx,ky,txt,{},TG_NW)
+                            if ch!='5' then
+                                sdx = find(ch,NPSHFT)
+                                txt = proper(gGetKeyName(NPSHFS[sdx]))
+                                gDrawText(canvas,kx,ky,txt,{},TG_S)
+                            end if
+                        else
+                            gDrawText(canvas,kx,ky,txt,{},TG_S)
+                            txt = utf32_to_utf8({utf8_to_utf32(SHIFTS)[sdx]})
+                            gDrawText(canvas,kx,ky,txt,{},TG_N)
+                        end if
+                    else
+                        if length(txt)=1 and bCapsLock=bShift then
+                            txt = lower(txt)
+                        end if
+                        gDrawText(canvas,kx,ky,txt,{},TG_C,style:=normal_font)
+                    end if
+                    sdx = find(ch,utf8_to_utf32(AltGR)[1..iff(bAlt?-1:4)])
+                    if sdx and (ch!='4' or not pasta_gap) then
+                        txt = "   "&utf32_to_utf8({utf8_to_utf32(AltGR)[sdx+1]})
+                        gDrawText(canvas,kx,ky,txt,{},TG_SE)
+                    end if
+                    kx += kr+3-kl
+                    kl = kr+3
+                end for
+            else
+                atom kr = kl+keysize-3
+                if key=VK_BS then
+                    kr += keysize
+                elsif key=VK_TAB or (key=VK_CR and i=3) then
+                    kr += keysize/2
+                    if key=VK_CR then
+                        key_rect(canvas,kl+keysize/4,kt+keysize-1,kr,kt+keysize*2-2,key)
+                    end if
+                elsif key='+' or (key=VK_CR and i=5) then
+                    key_rect(canvas,kl,kt+keysize-1,kr,kt+keysize*2-2,key)
+                elsif key=VK_CAPSLOCK then
+                    kr += keysize*3/4
+                elsif find(key,{VK_LSHIFT,VK_LCTRL,VK_LWIN,VK_LALT,VK_RALT,VK_RWIN,VK_APPS,VK_RCTRL}) then
+                    kr += keysize/4
+                elsif key=VK_RSHIFT then
+                    kr += keysize*1.75
+                elsif key=VK_SP then
+                    kr += keysize*5.25
+                elsif key-VK_NUMLOCK then
+                    xNumPad = kl -- save for testing in click()
+                end if
+                atom kb = kt+iff(i=1?keysize*3/4:keysize)-2
+                key_rect(canvas,kl,kt,kr,kb,key)
+                string txt = proper(gGetKeyName(key))
+                txt = substitute(txt,"lock","\nLock")
+--              if txt="Bs" then txt = "< ==" end if
+                if txt="Bs" then txt = "backspace" end if
+                if i>=5 and not pasta_gap and find(txt[1],"LR") then txt = proper(txt[2..$]) end if
+                if txt!="Space" then
+                    bool bSmall = find(key,{VK_SCROLL,VK_PAUSE,VK_HOME,VK_DOWN})
+                    string font = iff(bSmall?small_font:normal_font)
+                    gDrawText(canvas,(kl+kr)/2,(kt+kb)/2,txt,{},TG_C,style:=font)
+                end if
+                kx += kr+3-kl
+                kl = kr+3
+            end if
+        end for
+        kl = ox+2
+        kx = ox+keysize/2-1
+        kt += keysize
+        ky += keysize
+    end for
+    for i,b in {bNumLock,bCapsLock,bScrollLock} do
+        if b then
+            atom x = ox+(82/3+i-2)*keysize*3/4
+            string txt = {"Num","Caps","Scroll"}[i]
+            gDrawCircle(canvas,x,oy+keysize/3,3,true,TG_GREEN)
+            gDrawText(canvas,x,oy+keysize/2,txt,{},TG_S,style:=small_font)
+        end if
+    end for
+end procedure
+
+local procedure mousemove(gdx canvas, integer x,y)
+    integer was_hov = hov
+    hov = 0
+    for i,rect in key_tops do
+        if x>=rect[1] and y>=rect[2]
+        and x<=rect[3] and y<=rect[4] then
+            hov = i
+            if i>1 and key_tops[i-1][$]=key_tops[i][$] then
+                hov = i-1
+            end if
+            exit
+        end if
+    end for
+    if hov!=was_hov then
+        gRedraw(canvas)
+    end if
+end procedure
+
+local procedure mouseleave(gdx canvas)
+    hov = 0
+    gRedraw(canvas)
+end procedure
+
+procedure log_key(gdx canvas, integer c)
+    -- do something more useful with it here... 
+    -- (you'll probably want to ignore lone Ctrl/Shift/Alt/Win)
+    gdx dlg = gGetDialog(canvas)
+    string key = proper(gGetKeyName(c))
+    if bCtrl or bAlt or bWin or length(key)!=1 then
+        if bWin then key = "Win "&key end if
+        if bAlt then key = "Alt "&key end if
+        if bShift then key = "Shift "&key end if
+        if bCtrl then key = "Ctrl "&key end if
+    elsif bCapsLock=bShift then
+        key = lower(key)
+    end if
+    string title = sprintf("%s : %s",{TITLE,key})
+    gSetAttribute(dlg,`TITLE`,title)
+end procedure
+
+function key_handler(gdx canvas, integer c, bool ctrl, shift, alt, up)
+    bNumLock = gGetGlobal(`NUMLOCK`)
+    bCapsLock = gGetGlobal(`CAPLOCK`)
+    bScrollLock = gGetGlobal(`SCRLOCK`)
+    log_key(canvas,c)
+    return TG_DEFAULT
+end function
+
+local procedure click(gdx canvas, sequence status, integer x,/*y*/)
+    if hov and status[1..2]=`LS` then
+        integer key = key_tops[hov][$] 
+        if key=VK_NUMLOCK then bNumLock = not bNumLock end if
+        if key=VK_CAPSLOCK then bCapsLock = not bCapsLock end if
+        if key=VK_SCROLL then bScrollLock = not bScrollLock end if
+        if key=VK_LSHIFT or key=VK_RSHIFT then bShift = not bShift end if
+        if key=VK_LCTRL or key=VK_RCTRL then bCtrl = not bCtrl end if
+        if key=VK_LALT or key=VK_RALT then bAlt = not bAlt end if
+        if key=VK_LWIN or key=VK_RWIN then bWin = not bWin end if
+        if bShift then
+            integer sdx = find(key,SHIFTK)
+            if sdx then key = SHIFTS[sdx] end if
+        end if
+        if not bNumLock and x>=xNumPad then
+            integer ndx = find(key,NPSHFT)
+            if ndx then key = NPSHFS[ndx] end if
+        end if
+        log_key(canvas,key)
+        gRedraw(canvas)
+        if not find(key,{VK_LSHIFT,VK_RSHIFT,
+                         VK_LCTRL,VK_RCTRL,
+                         VK_LALT,VK_RALT,
+                         VK_LWIN,VK_RWIN}) then
+            {bCtrl,bShift,bAlt,bWin} = {false,false,false,false}
+        end if
+    end if
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
+    dialog = gDialog(canvas,TITLE,"SIZE=875x265,MINSIZE=285x107")
+gSetHandler(canvas,`KEY`,key_handler);
+gSetHandler(canvas,`CLICK`,click);
+gSetHandler(canvas,`MOUSEMOVE`,mousemove);
+gSetHandler(canvas,`MOUSELEAVE`,mouseleave);
+gMainLoop(dialog)
+

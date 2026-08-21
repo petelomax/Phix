@@ -14,6 +14,7 @@
 -- Technical note: As per pfileioN.e, append guarantees to have all content in place
 --                  before the ref is updated. Similar does NOT apply to prepend or
 --                  concat. (see "Multithreading issues" in pfileioN.e)
+without debug
 
 include VM\pHeap.e  -- :%pDealloc/:%pAllocSeq/:%pAllocStr/:%pFreePool
 

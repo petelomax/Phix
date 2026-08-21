@@ -1,4 +1,4 @@
-<head>
+﻿<head>
  <body>
   <toc>
    <these>
@@ -27,7 +27,7 @@
         <ul>
         <li>To make the code more readable and easier to follow</li>
         <li>To make smaller programs, and get rid of code duplication</li>
-        <li>Implementing multi-level break and continue from nested loops and condition.</li>
+        <li>Implementing multi-level break and continue from nested loops and conditions.</li>
         <li>Error handling, and particularly cleanup code such as resource deallocation.</li>
         </ul>
         The first of those is several orders of magnitude more compelling than the last three combined together.<br>
@@ -35,11 +35,12 @@
         <br>
         <br>
         Phix imposes the following limitations on the use of goto statements:<br>
-        A goto statement must be in the same function as the label it is referring.<br>
-        The goto statement is not supported in top level code, outside of a routine definition.<br>
+        A goto statement must be in the same routine as the label to which it is referring.<br>
+        The goto statement is <i>not</i> supported in top level code, outside of a routine definition.<br>
         There are no computed, assigned, or multiple target forms of the goto statement.<br>
         Goto may not be used and labels may not be defined anywhere inside a try/catch statement.<br>
-        Jumping over variable initialisation will, naturally, leave the variable unassigned.<br>
+        Jumping over variable initialisation will naturally leave the variable unassigned, except for<br>
+        &nbsp the occasional fixed-integer-only assignment which has been optimised away by the comiler.<br>
         A goto can optionally refer to <code>label</code> or <code>:label</code> - they mean the same thing.<br>
         (Technically the colon-less variant is shorthand for the formal with-colon label reference.)<br>
         A label, which adheres to the usual identifier rules, is defined by preceding it with a double colon.
@@ -48,7 +49,7 @@
         Example:<br>
 <!--eucode>
 procedure p()
-    goto label
+    goto :label
     puts(1,"This will not be printed...\n")
 ::label
     puts(1,"...but this will\n")
@@ -64,11 +65,10 @@ p()
 <font color="#008080">end procedure</font>
 <font color="#000000">p</font><font color="#0000FF">()</font>
 </pre>
-        Obviously a more meaningful name than <code>label</code> is strongly recommended, and anything like a 1970&apos;s style <code>L01</code> should be <br>
-        cruelly and relentlessly mocked and ridiculed, unless the programmer is under six years old or recently suffered a stroke.
+        Obviously a more meaningful name than <code>label</code> is strongly recommended <small>(ditto a 1980&apos;s style <code>L01</code>)</small>.
         <br>
         <br>
-        For hopefully obvious reasons goto rarely makes normal code faster and can actually make things bigger and slower:<br>
+        In practice goto rarely makes normal code faster and can actually make things bigger and slower:<br>
 <!--eucode>
         if condition then                       -- faster and smaller
             goto endif                          -- ==================
@@ -93,7 +93,10 @@ p()
         Bear in mind that all the optimisations the compiler tries to make are based on standard structured programming
         constructs, and are disabled as soon as it encounters a low-level statement such as goto or inline assembly.
         For instance, after <code>object o = 1</code> the compiler <i>knows</i> that o is an integer - toss in a goto
-        and it has to say "right, I have no idea what o might be or even whether or not it is still unassigned".
+        and it has to say "right, I have no idea what o might be or even whether or not it is still unassigned". Worse,
+        the compiler can often deduce, say, that a specific variable is always a sequence of length 10, and skip some
+        type and bounds checks: reference it with inline assembly, however innocently and even in a read-only manner, 
+        and all that flies straight out the window.
         <br>
         <br>
         <a href="p2js.htm"><span class="pwap2js">pwa/p2js</span></a>: JavaScript does not support the goto statement,

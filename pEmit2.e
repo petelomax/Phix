@@ -1392,9 +1392,12 @@ if newEmit then ?9/0 end if -- (we still might want this, one day...)
 if c!=isData
 and c!=isJmpG
 and c!=isGaddr then
+--6/6/26:
+                    if vno=0 then
+printf(1,"pemit2.e line %d in blurph(): vno=0, lineno=%d?\n",{source_line(),lineno})
 --24/4/15:
-                    if atom(symtab[vno]) then
-printf(1,"pemit2.e line 1395: symtab[%d]=%d\n",{vno,symtab[vno]})
+                    elsif atom(symtab[vno]) then
+printf(1,"pemit2.e line %d: symtab[%d]=%d\n",{source_line(),vno,symtab[vno]})
                         sv = {-1,S_GVar2,0,0,0,-1}
                     else
                         sv = symtab[vno]
@@ -3274,8 +3277,8 @@ end if
         {libidx,s} = APINames[i]
         if not norun or not bind then
 --5/10/21 (safe_mode)
---          thunk = get_proc_address(APIerrlib[libidx],s)
-            {thunk} = get_proc_address(APIerrlib[libidx],s)
+            thunk = get_proc_address(APIerrlib[libidx],s)
+--          {thunk} = get_proc_address(APIerrlib[libidx],s)
 --object thunksq = get_proc_address(APIerrlib[libidx],s)
 --thunk = iff(sequence(thunksq)?thunksq[1]:thunksq)
 --thunk = thunksq
@@ -3897,6 +3900,7 @@ end if
                 if opName=0 then
                     opName = "<spare>"
                 end if
+--?{i,opName}
                 printf(dilfn,"%4d:%s\n",{i,opName})
             end for
 --end if

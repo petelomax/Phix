@@ -28,9 +28,9 @@
             <br>
             <br>
             id: identifier of the interface element(s), can be a single integer or a (flat, null-free) sequence of them.<br>
-            name: a string identifying the handler, eg <a href="#KEY">"KEY"</a>, or an even-length sequence of string,rtn pairs.<br>
+            name: a string identifying the handler, eg <a href="#KEY">"KEY"</a>, a list of them, or an even-length sequence of string,rtn pairs.<br>
             handler: a (bare) function or procedure, or <a href>NULL</a>. 
-                     Must be -1 (/omitted) if name is pairs and not a string.
+                     Must be -1 (/omitted) if name is pairs and not a string or list of strings.
             <br>
             <br>
             A <a href>NULL</a> rtn when name is a string, or any <a href>NULL</a> even element 
@@ -91,20 +91,37 @@
             Most handlers (except those defined as procedures) must return one of the following values:
             <ul>
             <li>TG_CONTINUE (-4): Pass the treatment of the event to the parent element.</li>
-            <li>TG_DEFAULT (-3): Proceed normally with user interaction (but see <a href>KEY</a>, esp wrt menus).</li>
+            <li>TG_DEFAULT (-3): As TG_CONTINUE except for <a href="#KEYret">KEY</a> and <a href>IDLE_ACTION</a>.</li>
             <li>TG_IGNORE (-2): Perform no further processing of this event.</li>
             <li>TG_CLOSE (-1): Close the parent window and in some cases exit the application.</li>
             </ul>
-            Only some handlers support the last 3 return values, check each handler documentation.<br>
+            Check the specific handler documentation to see which are suppoprted, some times theGUI may trigger a fatal error
+            to match, other times it may just quietly ignore anything it does not understand.
+<!--
+            Not all handles Only some handlers support the last 3 return values, check each handler documentation.<br>
             TG_CONTINUE and TG_DEFAULT only really differ for a <a href>KEY</a> handler: TG_CONTINUE is 
             "if anyone asks, I was never here" whereas TG_DEFAULT is more "propagate only unhandled Alt-keys",
             <small>(it isn&apos;t always immediately obvious which of those is needed in any given circumstance, and
             in fact the precise behaviour of TG_DEFAULT is subject to change, since it is really just a shorthand to 
             help avoid needing the exact same code in every single KEY handler)</small>.
+-->
             <br>
             <br>
-            <b>NB</b>: returning TG_CLOSE does <i>not</i> automatically invoke <a href>CLOSE</a> handlers. 
-            <small>[DEV maybe it should...]</small>
+            <b>NB</b>: returning TG_CLOSE does <i>not</i> automatically invoke <a href>CLOSE</a> handlers, and likewise other handlers
+            are <i>not</i> invoked when the programmer (say) invokes <a href>gSetAttribute</a>() - fairly obviously it would quickly
+            become intolerable if theGUI tried to recompute the layout and redisplay everything ten times because you were setting ten
+            attributes, and far worse should it attempt that <i>before</i> you had even completed constructing the layout. Of course 
+            some things, especially <a href>gShow</a> and <a href>gRedraw</a>, <i>do</i> trigger handlers, but in general that only
+            occurs as a consequence of physical mouse/keyboard interaction. That said, there can be no guarantee that a handler will
+            not be invoked twice (or more) in quick succession for essentially the same event, possibly only on some backends, and you
+            should always program defensively against that. For instance it would be perfectly normal for a programmer to explicitly
+            invoke a <a href>CLOSE</a> handler because otherwise that is not happening on a particular backend, but it might when run
+            on a different one, so said handler should guard against going belly up by (say) trying to close the same file twice.
+            Where possible, the GUI does the best it can to invoke handlers consistently across different backends, but that is simply
+            not a promise it can make.
+<!--            <small>[DEV maybe it should...]</small>-->
+<!--
+            <br>
             <br>
             <br>
             Note: Avoid using TG_IGNORE (and TG_CLOSE) unless it is specifically documented for that handler. <br>
@@ -117,6 +134,7 @@
             In particular, a handler is <i>not</i> invoked when the programmer sets a value via <a href>gSetAttribute</a>().<br>
             For instance: should the code change the selected item on a list, no handler is called and it is up to the programmer to ensure any 
             additional appropriate processing occurs, by some more direct means.
+-->
 <!--
             <br>
             <br>
@@ -253,11 +271,11 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
           CLICK
          </td>
          <td>
-            Event generated when any mouse button is pressed or released.
+            (leaf elements only) Event generated when any mouse button is pressed or released.
             <br>
             <br>
             function/procedure click(<a href>gdx</a> id, <a href>sequence</a> status[,
-                                                                   <a href>integer</a> x, y])
+                                                         <a href>integer</a> x, y])
             <br>
             <br>
             id: identifies the interface element that activated the event.<br>
@@ -277,7 +295,7 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             The <a href="gCheckbox.htm#VALUE_CHANGED">VALUE_CHANGED</a> event is usually much more suitable for a <a href>gCheckbox</a>.<br>
             The <a href>HANDLER</a> event is <i>always</i> much more suitable for a <a href>gMenu</a>.<br>
 <!--            The <a href="gList.htm#LISTCLICK">LISTCLICK</a> handler must be used instead on a <a href>gList</a> control.<br>-->
-            The <a href>TABCLICK</a> handler must be used instead on a <a href>gTabs</a> control.<br>
+            Used internally and should not be overidden on a <a href>gSplit</a>+++[DEV, see MOUSExxx].<br>
             Scrollbars were initially implemented using CLICK, riding roughshod over attempts to use it for anything else (anywhere else on the entire
             canvas), however that has since been replaced with an explicit local call (with clicks on the scrollbar itself not forwarded to any other
             handler). Similar tweaks may yet be required for similar gaffes.
@@ -287,6 +305,8 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             if the handler is declared as a procedure it is treated the same as a function which always returns TG_IGNORE.<br>
             Returning <a href>TG_IGNORE</a> prevents the event from being propagated, all other values do not,
             though it is probably best to use <a href>TG_CONTINUE</a> to implicitly imply that propagation.
+            Additionally, click() can return (the strings) "CAPTURE" to capture mouse input for id, typically when status[1..2]="LS", 
+            and "RELEASE" to release it, typically when status[1..2]="LR", with processing then continuing as per TG_IGNORE.
             <br>
             <br>
             Note that for a double click <small>(and for clarity showing only the second character of 5/4 consecutive status codes)</small>, <br>
@@ -364,7 +384,7 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             Affects: <a href>gCanvas</a>, ...
 -->
-            Affects: All, except <a href="gTabs.htm#TABCLICK">gTabs</a> and menus.
+            Affects: All, except menus.
 <!--
                      <a href>gButton</a>, 
                      <a href>gText</a>, 
@@ -389,8 +409,16 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             id: the interface element that had focus when the key event occurred, or maybe its parent.<br>
             c: the typed key. Some possible (special) values are listed below.<br>
             ctrl, shift, alt: (optional) any key modifiers that were also pressed.<br>
-            up: (optional) required should you wish to receive key release events.
-            <br>
+          <div class="param">
+           <div class="paraname">up:&nbsp;</div>
+           <div class="paradesc">
+            (optional) required should you wish to receive key release events.<br>
+            Omission of the last four parameters limits what messages you receive, so unlike (say) <a href>MOUSEMOVE</a>
+            attempts to use <a href>gGetGlobal</a>(`<a href>CTRLKEY</a>|<a href>SHIFTKEY</a>|<a href>ALTKEY</a>`) instead of
+            these parameters simply won&apos;t work.<br>
+           </div>
+          </div>
+
             <br>
             A key handler can also invoke <a href>gGetOpenFileName</a>().
             <br>
@@ -473,7 +501,10 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br><a name=gGetKeyName></a>
             <br>
             <a href>string</a> res = <b>gGetKeyName</b>(<a href="integer,htm">integer</a> c) converts key codes into 
-            something more human-readable, but you are expected to cope with/prefix ctrl/shift/alt/up yourself.
+            something more human-readable. Technically it honors <a href>M_CTRL</a>, <a href>M_SHIFT</a>, and <a href>M_ALT</a> 
+            as used by a <a href>gMenu</a>, but the key handler is not normally passed those so you would either have to use 
+            <code>c+ctrl*M_CTRL+shift*M_SHIFT+alt*M_ALT</code> or prefix ctrl/shift/alt, and deal with up yourself.
+
 <!-- DEV, nah, just do it right!
             Also, while theGUI.e maps keystrokes from WinAPI and GTK to consistent values, there is no correlation whatsoever
             between those and the values used in theGUI.js (no problem unless you&apos;re using literal constants or bit-tricks,
@@ -525,10 +556,14 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             Note that <a href>get_routine_info</a>() returns exactly the same thing for traditional
             named params as <a href="procedures.htm#unnamedparams">un-named</a>, hence theGUI.e treats such identically.
             Caps lock and Num lock do not of course alter which physical keys are relayed, just some of their values.
-            <br>
+            <br><a name=KEYret></a>
             <br>
             Returns: <br>
             If <a href>TG_CONTINUE</a> is returned the key is propagated to anything that might handle it. <br>
+            If <a href>TG_DEFAULT</a> is returned then alt-keys are <i>not</i> propagated (NB may effectively disable menus). <br>
+<!--
+            Historically there was a subtle difference between <a href>IUP_CONTINUE</a> and <a href>IUP_DEFAULT</a>, but theGUI uses
+            a different inheritance model
             If <a href>TG_DEFAULT</a> is returned or it is a procedure VK_ESC (close window as per <a href="gDialog.htm#bEsc">bEsc</a>) 
             and VK_F5 (refresh browser when under pwa/p2js) <i>are</i> propagated, but other keys are not. <b>NB</b> if your handler accepts the
             alt key, aka has five or more params, then TG_DEFAULT disables the alt key on menus and everything else - this "feature" allows you 
@@ -536,9 +571,10 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             ones you let through. As stated above, when the alt param is absent your handler is not invoked when that key is down anyway, since 
             it cannot possibly cope correctly and would be guaranteed to mis-interpret things.<br>
             <small>[<b>Warning</b>: subject to change, something tells me TG_IGNORE should/can already be used to achieve that menu thing...]</small><br>
+-->
 <!-- DEV/SUG there may be a case for an explicit "UNHANDLED_KEY" handler! -->
 <!--???         Take care not to overdo that... -->
-            If <a href>TG_IGNORE</a> is returned the key is ignored and not processed by the control and not propagated. <br>
+            If <a href>TG_IGNORE</a> is returned the key is ignored and not further processed by the control and not propagated. <br>
 <!--
             I should perhaps point out that my main focus is on achieving "success" correctly, such as &lt;Alt G&gt; opening a goto line
             pop-up without sounding the bell, and have no real interest whatsoever in prohibiting a user from closing an application, at 
@@ -546,10 +582,13 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 erm, do you want to save your work it sunshine? ...
 -->
             Warning: your defence may suffer if you (accidentally) disable any keys that you later rely on in court.<br>
+            It is quite common for a <a href>KEY</a> handler to return <a href>TG_DEFAULT</a> for those alt-keys it handled and
+            <a href>TG_CONTINUE</a> for those it did not.<br>
             There are cases where <a href>TG_IGNORE</a> may start disabling generic OS/backend-specific behaviour, and cases where
             it simply doesn&apos;t get that chance, such as &lt;Alt F4&gt;, ymmv. There is of course a whole slew of keyboard-handling code
             scattered throughout the various backends (windows/linux/gtk/browsers) that neither you nor I have any control over whatsoever.
-            That said, 95% or more of the things you might want should all work just fine.<br>
+            That said, 95% or more of the things you might want should all work just fine, but, for instance, should GTK2 decide not to
+            send us a VK_CAPSLOCK, not much I can do about that.<br>
 <!--
             If <a href>TG_CONTINUE</a> is returned the key is processed and the event propagated to the parent of the element receiving it. (default behavior)<br>
             If <a href>TG_DEFAULT</a> is returned the key is processed but it is not propagated. <br>
@@ -607,9 +646,9 @@ erm, do you want to save your work it sunshine? ...
             and some (hopefully) matching definitions/manual mapping in theGUI.js. <small>(obvs. just search for VK_F1)</small>
             <br>
             <br>
-            An error occurs if c is defined as an <a href>atom</a>: the original <a href="pGUI.htm">pGUI</a> went 
-            to great lengths to enforce that and prevent a "time-bomb" routine signature error as I then dubbed it. Should 
-            such occur you would be advised to review and update the (legacy) code as necessary, at the same time as changing 
+            An error occurs if c is defined as an <a href>atom</a>: the original <a href="pGUI.htm">pGUI</a> went to great lengths 
+            to enforce that and prevent a "<a href=callbacks.htm#timebomb>time-bomb</a>" routine signature error as I then dubbed it. 
+            Should such occur you would be advised to review and update the (legacy) code as necessary, at the same time as changing 
             the c parameter to be an integer.
             <br><a name=KEYDIFFS></a>
             <br>
@@ -657,59 +696,103 @@ erm, do you want to save your work it sunshine? ...
           MOUSEMOVE
          </td>
          <td>
-            Event generated when the mouse moves.
+            (leaf elements <small>[and <a href>gSplit</a>]</small> only) Event generated when the mouse moves. 
+            Used internally and should not be overridden (aka automatically taken care of) on a <a href>gButton</a>, <a href>gCalendar</a>, 
+            <a href>gList</a>, <a href>gMenu</a>, <a href>gSplit</a>, <!--small>[albeit the middle 
+            sizer you don&apos;t have direct access to]</small>,--> <a href>gTable</a>, <a href>gTabs</a>, <a href>gText</a>, and <a href>gTree</a>. 
+            In truth it is probably only a <a href>gCanvas</a> where you might feel inclined to use this yourself.
             <br>
             <br>
-            procedure mousemove([<a href>gdx</a> id, [<a href>integer</a> x, y[, 
-                                                               [<a href="bool.htm">bool</a>] left,middle,right[,
-                                                                                             ctrl,shift,alt]]]])
+            function/procedure mousemove([<a href>gdx</a> id, [<a href>integer</a> x,[ y[, 
+                                            [<a href="bool.htm">bool</a>] left[,middle[,right[, ctrl[,shift[,alt]]]]]]]]])
             <br>
             <br>
             id: (optional) identifier of the interface element that activated the event.<br>
-            x, y: (optional) position in the canvas where the event has occurred, in pixels.<br>
+          <div class="param">
+           <div class="paraname">x, y:&nbsp;</div>
+           <div class="paradesc">
+            (optional) position in the canvas where the event has occurred, in pixels.<br>
+            Equivalent to <a href="gGetAttribute.htm#MOUSEPOS">MOUSEPOS</a>, alternatively you could use 
+            <a href>gGetGlobal</a>(`<a href>MOUSEPOS</a>`) to get screen coordinates.<br>
+           </div>
+          </div>
             left,middle,right: (optional) status of the mouse buttons, <a href>true</a> for down and <a href>false</a> for up.<br>
-            ctrl,shift,alt: (optional) status of the modifier keys, <a href>true</a> for down and <a href>false</a> for up.
+          <div class="param">
+           <div class="paraname">ctrl,shift,alt:&nbsp;</div>
+           <div class="paradesc">
+            (optional) status of the modifier keys, <a href>true</a> for down and <a href>false</a> for up.<br>
+            Alternatively you can use <a href>gGetGlobal</a>(`<a href>CTRLKEY</a>|<a href>SHIFTKEY</a>|<a href>ALTKEY</a>`).<br>
+            Unlike <a href>KEY</a>, you <i>still</i> get messages when the last six parameters are absent, on the
+            assumption you don&apos;t care or actually want [l|m|r](normal|ctrl|shift|alt) mousemove to behave identically,
+            but of course you are perfectly capable of making them do something different when wanted.<br>
+           </div>
+          </div>
+
+            <br>
+            A return of <a href>true</a> prevents further propagation to parent controls, which proves critical for a 
+            <a href>gSplit</a> since that sets <a href>CURSOR</a> when on a sizer, which a containing gSplit w/could clobber.
             <br>
             <br>
-            In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling of the
-            parameters, you can assume that all of the following are potentially perfectly valid (ie "0, 1, or in sets of 3"):
+            In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling,
+            all of the following are perfectly valid:
             <br>
             <br>
-<!--
-                mousemove(gdx id, integer x, y, left, middle, right)
-                mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift, alt)
--->
 <small>
 <!--eucode>
-                mousemove()
-                mousemove(gdx id)
-                mousemove(gdx id, integer x, y)
-                mousemove(gdx id, integer x, y, bool left, middle, right)
-                mousemove(gdx id, integer x, y, bool left, middle, right, ctrl, shift, alt)
+            mousemove()
+            mousemove(gdx id)
+            mousemove(gdx id, integer x)
+            mousemove(gdx id, integer x, y)
+            mousemove(gdx id, integer x, y, left)
+            mousemove(gdx id, integer x, y, left, middle)
+            mousemove(gdx id, integer x, y, left, middle, right)
+            mousemove(gdx id, integer x, y, left, middle, right, ctrl)
+            mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift)
+            mousemove(gdx id, integer x, y, left, middle, right, ctrl, shift, alt)
+            mousemove(gdx id, integer x, y, bool left)
+            mousemove(gdx id, integer x, y, bool left, middle)
+            mousemove(gdx id, integer x, y, bool left, middle, right)
+            mousemove(gdx id, integer x, y, bool left, middle, right, ctrl)
+            mousemove(gdx id, integer x, y, bool left, middle, right, ctrl, shift)
+            mousemove(gdx id, integer x, y, bool left, middle, right, ctrl, shift, alt)
 </eucode-->
 <pre>
-<font color="#000000">                mousemove</font><font color="#0000FF">()</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">)</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
-<font color="#000000">                mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">()</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">            mousemove</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> x</font><font color="#0000FF">,</font><font color="#000000"> y</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> left</font><font color="#0000FF">,</font><font color="#000000"> middle</font><font color="#0000FF">,</font><font color="#000000"> right</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
 </pre>
 </small>
             <br>
-            An error occurs if the handler does not have 0, 1, 3, 6, or 9 parameters, or the last 2..8 are not integer/bool.<br>
-            Since bool is a subset of integer, and in fact <a href>get_routine_info</a>() returns 'I' 
-            for parameters of both, it doesn&apos;t actually make any difference should the "bool" type specifier be omitted.
+            An error occurs if the handler does not have 0..9 parameters, or the last 8 are not integer/bool.
+            <small>[Since bool is a subset of integer, and in fact <a href>get_routine_info</a>() returns 'I' for parameters of both, 
+                    it actually makes no difference should "bool" be omitted.]</small>
             <br>
             <br>
             On Windows, as similarly noted in <a href="#KEYDIFFS">KEY</a> above, if you dab on the Alt key, <i>then</i> try moving the mouse,
             you may find it is effectively disabled until you tap the Alt key again. Holding the Alt key while moving however works fine.
             <br>
             <br>
-            Affects: <a href>gCanvas</a>, and by implication all the canvas-based controls: 
+            Used internally and should not be overidden on a <a href>gSplit</a>.
+            Affects: all.
+<!--
+            <a href>gCanvas</a>, and by implication all the canvas-based controls: 
             <a href>gGraph</a>,
             <a href>gList</a>,
             <a href>gTable</a>
-<!--
+[!--
             <a href>gButton</a>, 
             <a href>gDatePick</a>,
             <a href>gSlider</a>,
@@ -729,8 +812,7 @@ erm, do you want to save your work it sunshine? ...
           MOUSELEAVE
          </td>
          <td>
-            Event generated when the mouse leaves - automatically taken care of on several/most controls, and in truth this 
-            is more for documenting how that is done, not that I would try to stop you from using it.
+            (leaf elements only) Event generated when the mouse leaves. Same internal use as <a href>MOUSEMOVE</a>.
             <br>
             <br>
             procedure mouseleave([<a href>gdx</a> canvas])
@@ -739,18 +821,18 @@ erm, do you want to save your work it sunshine? ...
             canvas: (optional) identifier of the canvas (or canvas-based control) being left.
             <br>
             <br>
-            Controls often need to be redrawn when the mouse leaves, for instance to remove hover effects on scrollbars or the hover line on a 
-            <a href>gList</a>. This handler is invoked before the redraw handler, and in all honesty was implemented for the benefit 
+            Controls often need to be redrawn when the mouse leaves to remove hover effects.
+<!--
+            This handler is invoked before the redraw handler, and in all honesty was implemented for the benefit 
             of the demo\theGUI\<a href="tgelements.htm#hFake">h<i>&lt;Fake&gt;</i>.exw</a> programs, at least more than anything else.
             <small>[Note this handler post-dates demo\theGUI\hList.exw, and the internal scrollbar handling, so they do not actually use it, 
             but certainly would had things been written/implemented the other way round.]</small>
+-->
             <br>
             <br>
-            There is <i>no</i> corresponding MOUSENTER since that is expected to be perfectly/better catered for by 
-            <a href>MOUSEMOVE</a>, albeit triggered much more frequently than once/alternately.
-            <br>
-            <br>
-            Affects: <a href>gCanvas</a>, etc.
+            There is <i>no</i> corresponding MOUSENTER since that is expected to be perfectly/better catered for by <a href>MOUSEMOVE</a>, 
+            albeit triggered much more frequently than once/alternately.
+            Affects: all.
             <br><a name=MOUSEWHEEL></a>
          </td>
         </tr>
@@ -759,8 +841,9 @@ erm, do you want to save your work it sunshine? ...
           MOUSEWHEEL
          </td>
          <td>
-            Event generated when the mouse wheel is used - automatically taken care of on several/most controls, and in truth this is more 
-            for documenting how that is done, not that I would try to stop you from using it.
+            (leaf elements only) Event generated when the mouse wheel is used. As per <a href>MOUSEMOVE</a> automatically taken care of on a
+            <a href>gCalendar</a> and for any scrollbars, ie whenever <a href>SCROLLSIZE</a> and <a href>VIEWPORT</a> are in use - many
+            applications may find that suffices, but as a counter-example theEditor needs to change block selection under shift-wheel.
             <br>
             <br>
             procedure mouse_wheel(<a href>gdx</a> id, 
@@ -768,10 +851,44 @@ erm, do you want to save your work it sunshine? ...
                                   [<a href>bool</a>] ctrl[, shift[, alt]]])<br>
             ih: identifier of the element that activated the event.<br>
             direction: -1 when rolled toward the user/down, +1 when rolled away/up.<br>
-            ctrl, shift, alt: (optional) <a href>true</a> if that key is being held down, <a href>false</a> otherwise.<br>
-            If any of the last three are omitted, the handler simply does not receive any messages when those keys are down.<br>
-            <small><i>[Technically, they&apos;re bools, but since bool is just an alias of integer it doesn&apos; actually make any difference to the routine
-            signature, and on that basis "bool" is therefore optional, in that they would inherit the integer type from the direction parameter.]</i></small>
+          <div class="param">
+           <div class="paraname">ctrl,shift,alt:&nbsp;</div>
+           <div class="paradesc">
+            (optional) <a href>true</a> if that key is being held down, <a href>false</a> otherwise.<br>
+            Alternatively you can use <a href>gGetGlobal</a>(`<a href>CTRLKEY</a>|<a href>SHIFTKEY</a>|<a href>ALTKEY</a>`).<br>
+            Unlike <a href>KEY</a>, you <i>still</i> get messages when these parameters are absent, on the
+            assumption you don&apos;t care or actually want (normal|ctrl|shift|alt) mousewheel to behave identically,
+            but of course you are perfectly capable of making them do something different when wanted.<br>
+           </div>
+          </div>
+
+            <br>
+            In a similar fashion to <a href="g_paranormal.htm">paranormalised</a> functions, only without any reshuffling,
+            all of the following are perfectly valid:
+            <br>
+            <br>
+<small>
+<!--eucode>
+                mouse_wheel(gdx id, integer direction)
+                mouse_wheel(gdx id, integer direction, ctrl)
+                mouse_wheel(gdx id, integer direction, ctrl, shift)
+                mouse_wheel(gdx id, integer direction, ctrl, shift, alt)
+                mouse_wheel(gdx id, integer direction, bool ctrl)
+                mouse_wheel(gdx id, integer direction, bool ctrl, shift)
+                mouse_wheel(gdx id, integer direction, bool ctrl, shift, alt)
+</eucode-->
+<pre>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">)</font>
+<font color="#000000">                mouse_wheel</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> id</font><font color="#0000FF">,</font><font color="#004080"> integer</font><font color="#000000"> direction</font><font color="#0000FF">,</font><font color="#004080"> bool</font><font color="#000000"> ctrl</font><font color="#0000FF">,</font><font color="#000000"> shift</font><font color="#0000FF">,</font><font color="#000000"> alt</font><font color="#0000FF">)</font>
+</pre>
+</small>
+            <br>
+            An error occurs if the handler does not have 2..5 parameters, or the last 4 are not integer/bool.
             <br>
             <br>
 <!--
@@ -779,8 +896,8 @@ erm, do you want to save your work it sunshine? ...
 //          scrollbar implementation<del>, whereas <a href="gTreeView.htm">gTreeView</a> instead uses and relies on an implicit native scrollbar</del>.<br> [!--DEV-->
             The default builtin handler for a canvas, which automatically comes into effect when a <a href>SCROLLSIZE</a>
             larger than <a href="gSetHandler.htm#SIZE">SIZE</a> is specified, uses ctrl to scroll horizontally and/or shift to scroll faster.<br>
-            Be warned that as per <a href="#KEYDIFFS">KEY</a>, WinAPI does it&apos;s usual strange things with the Alt key (alone).<br>
-            The direction is kinda backwards, but it&apos;s the same sign as WinAPI, and simply replicated on the other backends.
+            Be warned that as per <a href="#KEYDIFFS">KEY</a>, WinAPI does the usual strange things with the Alt key (alone).<br>
+            The direction is kinda backwards, but matches WinAPI and simply replicated on other backends.
 <!--
             <br>
             <br>
@@ -800,7 +917,7 @@ erm, do you want to save your work it sunshine? ...
 -->
             <br>
             <br>
-            Affects: <a href>gCanvas</a>, and therefore (or will be) all controls except menus.
+            Affects: all except menus.
           <br><a name=VALUE_CHANGED></a>
          </td>
         </tr>
@@ -810,28 +927,29 @@ erm, do you want to save your work it sunshine? ...
           <img id="Timg" />
          </td>
          <td>
-            Event generated when the value of a control is changed.
+            (leaf elements only) Event generated when the value of a control is changed.
             <br>
             <br>
             function value_changed([<a href>gdx</a> id, ]<i>&lt;object&gt;</i> v)<br>
             ih: (optional) identifier of the element that activated the event.<br>
-          <div style="display:flex;">
-           <div>v: (non-optional)&nbsp;<br><br><br><br><br>
-            <span style="float:right">and&nbsp;</span>
-           </div>
-           <div>
+          <div class="param">
+           <div class="paraname">v: (non-optional)&nbsp;<br><br><br><br><br>
+            <span style="float:right">and&nbsp;</span></div>
+           <div class="paradesc">
             on a <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a>() v is (optional/) a bool bChecked,<br>
             on a <a href="gDatePick.htm#VALUE_CHANGED">gDatePick</a>() v is a timedate dt,<br>
             on a <a href="gDropDown.htm#VALUE_CHANGED">gDropDown</a>() v is a string/integer,<br>
-            on a <a href="gSlider.htm#VALUE_CHANGED">gSlider</a>() v is an integer,<br>
+            on a <a href="gSlider.htm#VALUE_CHANGED">gSlider</a>() v is an atom,<br>
             on a <a href="gSpin.htm#VALUE_CHANGED">gSpin</a>() v is an integer,<br>
             on a <a href="gText.htm#VALUE_CHANGED">gText</a>() v is a string.<br>
            </div>
           </div>
+    
+          <br>
           Note that should id be omitted, v must be the correct type, otherwise you&apos;ll either get a signature error trying to set the handler, 
-          or the id in a sole object parameter. Obviously when the handler provided only ever deals with one control you are unlikely to need the id, 
-          but when it deals with more than one, you will need it or perhaps better yet gGetAttribute(id,`<a href>USER_DATA</a>`) to understand what 
-          is actually happending.
+          or the id in a sole object parameter <small>[esp. relevant on a <a href="gCheckbox.htm#VALUE_CHANGED">gCheckbox</a>]</small>. 
+          Obviously when the handler provided only ever deals with one control you are unlikely to need the id, but when it deals with more than one, 
+          you will need it or perhaps better yet gGetAttribute(id,`<a href>USER_DATA</a>`) to know precisely what just happened.
 <!--
             <br>
             <br>
@@ -1020,12 +1138,11 @@ erm, do you want to save your work it sunshine? ...
 
             FWIW, here is a clickable alphabetic list of all handlers:
             <a href>ACTION</a>,
-<!--            <a href="gTreeView.htm#BRANCHOPEN">BRANCHOPEN</a>,--->
             <a href>CLICK</a>,
             <a href>CLOSE</a>,
             <a href>DATA</a> (<a href="gGraph.htm#DATA">gGraph</a>, 
-                                                <a href="gList.htm#DATA">gList</a>, and
-                                                <a href="gTree.htm#DEFERRED">gTree</a>),
+                              <a href="gList.htm#DATA">gList</a>, and
+                              <a href="gTree.htm#DEFERRED">gTree</a>),
             <a href>HANDLER</a>,
             <a href>IDLE_ACTION</a>,
             <a href>KEY</a>,
@@ -1034,11 +1151,9 @@ erm, do you want to save your work it sunshine? ...
             <a href>MOUSEWHEEL</a>,
             <a href>REDRAW</a>,
             <a href="gList.htm#SELHAND">SELECTED</a>,
-            <a href="gTabs.htm#TABCHANGED">TABCHANGED</a>,
+            <a href>TABCHANGED</a>,
             <a href>TABCLICK</a>,
-            <a href="gTabs.htm#TABCLOSED">TABCLOSED</a>,
             <a href>TABITEMS</a>,
-            <a href>TABMOUSE</a>,
             <a href>VALUE_CHANGED</a>,
             <a href>XRID</a>,
             <a href>YRID</a>
@@ -1050,6 +1165,11 @@ erm, do you want to save your work it sunshine? ...
           correct, since it does not apply to any particular <a href>gdx</a>, but in case you feel it delivers a clearer 
           statement of intent, gSetHandler(id,`IDLE_ACTION`,v) simply checks that id is indeed <a href>NULL</a> 
           and passes the message along.
+-->
+<!-- only it isn`t!
+            <br>
+            <br>
+            If nothing else, the above list is useful for testing my pygments plugin.
 -->
           <br>
          </td>

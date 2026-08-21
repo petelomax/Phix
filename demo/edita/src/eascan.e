@@ -399,25 +399,44 @@ integer nxtCh, lenTC
             nextCh()
             getToken()
             if toktype!=LETTER
-            or not find(token,{"ilasm","ilASM"}) then
-                Abort("ilASM expected")
+            or not find(token,{"ilasm","ilASM","ilJS"}) then
+                Abort("ilASM or ilJS expected")
             end if
+            bool bJS = token="ilJS"
             getToken()
             if toktype!=SYMBOL
             or not equal(token,"{") then
                 Abort("{ expected")
             end if
-            while 1 do
-                getToken()
-                if toktype=SYMBOL then
-                    if equal(token,"}") then exit end if
-                end if
-                while find(Ch,"%@") do
-                    col += 1
+            if bJS then
+                while 1 do
+?9/0 
+--/*
+                    bool was_hash = 
+                    getToken()
+                    if toktype=SYMBOL then
+                        if equal(token,"}") then exit end if
+                    end if
+                    while find(Ch,"%@") do
+                        col += 1
 --trace(1)
-                    nextCh()
+                        nextCh()
+                    end while
+--*/
                 end while
-            end while
+            else
+                while 1 do
+                    getToken()
+                    if toktype=SYMBOL then
+                        if equal(token,"}") then exit end if
+                    end if
+                    while find(Ch,"%@") do
+                        col += 1
+--trace(1)
+                        nextCh()
+                    end while
+                end while
+            end if
 --trace(1)
             getToken()
         else

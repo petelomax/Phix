@@ -14,6 +14,7 @@
 --  inlines these functions. In practice these routines are almost never used, however
 --  they need to be part of the VM so that pDiagN.e can test exception addresses.
 --
+without debug
 
 #ilASM{ jmp :!opCallOnceYeNot
 --#ilASM{ jmp :%opRetf

@@ -35,9 +35,9 @@ global integer ext
 --global string text
 global string src
 global integer lt   -- ==length(src)
-global sequence textlines   -- (temp/debug)
 sequence TOKTYPES
 global sequence tokens
+global sequence textlines   -- (temp/debug)
 global integer src_offset   -- (for js embeddded in html)
 global integer tdx -- index to tokens[]/terminate parser
 global sequence clines
@@ -535,3 +535,6 @@ global constant TYPES = {{TYPI := 0b00000001,   "TYPI"},    -- 1: integer (aka i
                          {TYPK := 0b00010011,   "TYPK"},    -- 19: keyword       (0b10011)
                          {BADT := 0b00010100,   "BADT"}}    -- >=20 or <=0: bad type
 --*/
+
+global bool bAuto_theGUI = false
+

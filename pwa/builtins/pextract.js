@@ -16,7 +16,8 @@
         indexes = inverse;
         invert -= 1;
     }
-    let /*sequence*/ res = repeat((((invert===0) && string(source)) ? 0X20 : 0),l);
+//  sequence res = repeat(iff(invert=0 and string(source)?' ':0),l)
+    let /*sequence*/ res = repeat(((invert<=1 && string(source)) ? 0X20 : 0),l);
     for (let i=1, i$lim=l; i<=i$lim; i+=1) {
         ii = $subse(indexes,i);
         res = $repe(res,i,$subse(source,ii));

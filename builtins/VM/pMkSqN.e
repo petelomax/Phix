@@ -3,6 +3,7 @@
 -- ========
 --  Make Sequence opcode
 --
+without debug
 
 include builtins\VM\pHeap.e     -- (needed for :%pDealloc, :%pAllocSeq)
 

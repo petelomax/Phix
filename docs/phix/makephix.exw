@@ -18,10 +18,12 @@
 --      unreferenced files in \src
 --      unreferenced "<a name=" (nah)
 --      files with no entries in the toc/index
---gCanvas gMsgBox gGraph gGetTextExtent gPixbuf gTabs gTree gMenu gList gTable printf theGUI gDrawPolygon gDrawText
+--gCanvas gMsgBox gGraph gGetTextExtent gPixbuf gTabs gTree gList gTable printf theGUI gDrawPolygon gDrawText gCheckbox 
 --gSetGlobal IDLE_ACTION DATA gGreyscale_XPM gSetHandler WU_BLEND OOP CURSOR VK_ESC get_struct_field get_routine_info 
 --test_equal gGetOpenFileName get_text gSetAttribute s largest gDialog MIN mpfr_get_str gDatePick gCanvasClip gSplit
---gNormalise CLX source_line REDRAW glSimpleA7texcoords gButton gCheckbox gDrawLine
+--gNormalise CLX source_line REDRAW glSimpleA7texcoords gButton gDrawLine gMenu TITLE LINESTYLE gVbox gSpin gCalendar
+--MOUSEMOVE EXPAND TABCLICK gDrawArc sin gLabel rand source_line routine_id ilJS ilASM FONT CLIPIMG gQuit
+-- SUG: gdx old = gSetChildren(gdx id, new)... [old/new can be null/single gdx/flat sequence of gdx]
 -- map qu to ? (already done!!)
 -- make it more forgiving if src has a tailing blank line... (nah)
 --*** create html directory if it does not exist.
@@ -41,6 +43,29 @@
 --  &shy; (soft hyphen)
 --  &#8226; (bullet)
 --  <b>, <i>, <u>, <del> for bold, italic, underline, strikethrough
+-- panic over, but it still might not be the worst idea to double-check these, and error out when invalid, eg "&frac96;"...:
+--One third             &frac13; &#8531; &#x2153;
+--One Half      ½       &frac12;        &#189;  &#xBD;
+--Two Thirds        ⅔       &frac23;    &#8532; &#x2154;
+--Three Quarters    ¾       &frac34;        &#190;
+--&frac13;
+--&frac15;
+--C:\Program Files (x86)\Phix\docs\phix\src\accuracy.htm:19       system <b>cannot</b> hold &frac13; (one third) exactly, neither can base 2, which also <b>cannot</b> hold 
+--C:\Program Files (x86)\Phix\docs\phix\src\accuracy.htm:20       &frac15; (one fifth) exactly. It may only be out by the tiniest of amounts, less than, say, the width of a 
+--C:\Program Files (x86)\Phix\docs\phix\src\gCalendar.htm:279           At the top is a Windows SysDateTimePick32 control with the calendar drop-down in four title-click-states <small>(&frac12
+--C:\Program Files (x86)\Phix\docs\phix\src\glossary.htm:298               I&apos;ll start to care should a startup difference exceed &frac12;s, and certainly not when &lt; 0.01s.<br>
+--C:\Program Files (x86)\Phix\docs\phix\src\glossary.htm:299 <!-- nope &frac1100;<br> -->
+--C:\Program Files (x86)\Phix\docs\phix\src\glossary.htm:300 <!-- nope &frac100;<br> -->
+--C:\Program Files (x86)\Phix\docs\phix\src\glossary.htm:301 <!-- nope &frac10;<br> -->
+--C:\Program Files (x86)\Phix\docs\phix\src\glossary.htm:302 <!-- nope &frac110;<br> -->
+--                                                      ===> makephix.exw crashes when it spots a &fracNM; it's not happy with/confident about.
+--C:\Program Files (x86)\Phix\docs\phix\src\gMenu.htm:668           get something done that &frac13;s, frac12;s, frac34;s, or whatever, is just downright annoying, so it don&apos;t do that
+--C:\Program Files (x86)\Phix\docs\phix\src\gPixbuf.htm:74           expect such conversions to take about &frac18;s, or at most four image&hArr;pixbuf round trips per second.
+--C:\Program Files (x86)\Phix\docs\phix\src\gPixbuf.htm:185           Supported, but note from/take pixels is rather slow, ~&frac18;s vs. &lt;1e-6s on desktop/Phix.
+--C:\Program Files (x86)\Phix\docs\phix\src\mpfr.htm:909               take about 3&frac12; days(!!) whereas the version in that file gets the same job done in 
+--C:\Program Files (x86)\Phix\docs\phix\src\tgtypes.htm:191           with 400-950 new every year, or 7&frac12;-17 a week. Seriously.)</small>
+--C:\Program Files (x86)\Phix\docs\phix\src\tgtypes.htm:340           I make that a total of just 144, or 130 if not counting aliases <small><i>(so ~0.5% or &frac13; of annual additions to W
+--C:\Program Files (x86)\Phix\docs\phix\src\theGUI.htm:62               OpenGL, and not all of which is going to be GUI related, though fwiw my gut instincts say maybe around &frac23; is. 
 free_console()
 
 constant justcompile = 0,   -- (occasionally helpful if you need to manually edit something)
@@ -406,9 +431,39 @@ function word_options(string word)
     return res
 end function
 
+sequence img_dirs = {},
+         img_names = {}
+
+procedure check_images()
+    --
+    -- There's a copy of \images in html\, primarily for viewing files 
+    -- in the latter in a web browser (mainly only for debugging), but
+    -- should they fall out of date HtmlHelp.exe uses them, that is in
+    -- preference to ..\images where it should look|looks next anyway.
+    --
+    img_names = apply(img_names,unique)
+    for i,d in img_dirs do
+        sequence master = dir(d),
+                 htmlcopy = dir(`html\`&d),
+                 mnames = vslice(master,D_NAME),
+                 hnames = vslice(htmlcopy,D_NAME)
+        for img_name in img_names[i] do
+            integer mdx = find(img_name,mnames),
+                    hdx = find(img_name,hnames)
+            -- aside: check upper/lowercase carefully should this fail!!
+            if mdx=0 then ?9/0 end if
+            if hdx=0 or htmlcopy[hdx]!=master[mdx] then
+                bool bOK = copy_file(d&img_name,`html\`&d&img_name,true)
+                printf(1,"%s%s update%sd\n",{d,img_name,iff(bOK?"":" faile")})
+            end if
+        end for
+    end for
+end procedure
+
 integer fns, ulc = 0 // file and count
 
 function update_links(string content, filename, filepath)
+--?filename
     sequence hrefs = match_all(`<a href`,content)
     if length(hrefs) then
         sequence chunks = {}
@@ -448,6 +503,22 @@ function update_links(string content, filename, filepath)
         end for
         content &= join(reverse(chunks),"")
     end if
+    sequence images = match_all(`<img src="`,content)
+    for i in images do
+        i += 10
+        integer l = find('"',content,i),
+                d = rfind('/',content,l)
+        assert(d>i)
+        string img_dir = content[i..d],
+               img_name = content[d+1..l-1]
+        integer k = find(img_dir,img_dirs)
+        if k=0 then
+            img_dirs &= {img_dir}
+            img_names &= {{}}
+            k = length(img_names)
+        end if
+        img_names[k] &= {img_name}
+    end for
     return content
 end function
 
@@ -650,6 +721,8 @@ end if
         end if
     end for
     close(fns)
+    check_images()
+
     if ulc then
         printf(1,"%d simplifications suggested, see simplify.txt/run simplify.exw\n",ulc)
     end if

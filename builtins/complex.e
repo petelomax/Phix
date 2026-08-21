@@ -261,11 +261,31 @@ global function complex_power2(complexn a, p)
 end function
 --*/
 
-global function complex_sqrt(complexn a)
---  return complex_exp(complex_mul(0.5,complex_log(a)))
-    complex res = complex_power(a,0.5)
-    return res
+--global function complex_sqrt(complexn a)
+----    return complex_exp(complex_mul(0.5,complex_log(a)))
+--  complex res = complex_power(a,0.5)
+--  return res
+--end function
+
+global function complex_sqrt(complexn c)
+    atom r = complex_real(c),
+         i = complex_imag(c),
+         p = sqrt(r*r+i*i),
+         t = sqrt((p+r)/2),
+         u = sqrt((p-r)/2)
+    if i<0 then u = -u end if
+    return {t, u}
 end function
+
+--/*
+function CCbrt(complex c)
+    atom r = sqrt(c[1]*c[1] + c[2]*c[2])
+    atom th = atan2(c[2], c[1])
+--  atom rt = r ** (1/3)
+    atom rt = power(r,1/3)
+    return {rt * cos(th/3), rt * sin(th/3)}
+end function
+--*/
 
 global function complex_sinh(complexn a)
     complex res = complex_mul(0.5,complex_sub(complex_exp(a),complex_exp(complex_neg(a))))
@@ -304,35 +324,34 @@ global function complex_round(complex a, atom inverted_precision=1)
     return a
 end function
 
-global function complex_sprint(complexn a, bool both=false)
+global function complex_sprint(complexn a, bool both=false, string fmt = "%g")
 --
 -- if both is true then 0 -> "0+0i"
 --                 else 0 -> "0", and 
 -- likewise {1,0} -> "1+0i" vs. "1",
 --          {0,1} -> "0+i" vs. "i"
 --
-sequence s = ""
-atom ar, ai
-    {ar, ai} = iff(atom(a)?{a,0}:a)
+    sequence s = ""
+    atom {ar, ai} = iff(atom(a)?{a,0}:a)
     if ar!=0 or both then
-        s = sprintf("%g",ar)
+        s = sprintf(fmt,ar)
     end if
  
-    if ai!=0 or both then
-        if ai=1 then
+    string is = sprintf(fmt,ai)
+    if is!="0" or both then
+        if is="1" then
             if length(s) then
                 s &= "+i"
             else
                 s = "i"
             end if
-        elsif ai=-1 then
+        elsif is="-1" then
             s &= "-i"
         else
-            if length(s) then
-                s &= sprintf("%+gi",ai)
-            else    
-                s = sprintf("%gi",ai)
+            if length(s) and is[1]!='-' then
+                s &= '+'
             end if
+            s &= is & 'i'
         end if
     end if
  

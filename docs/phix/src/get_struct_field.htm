@@ -17,8 +17,12 @@
           <a href>atom</a> v = get_struct_field(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>atom_string</a> field,
                                                            <small><a href>bool</a> bAsFlt=false</small>)
           <br><i>-- or --</i><br>
+          <a href>atom</a> a = get_struct_field_addr(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>atom_string</a> field)
+          <br><i>-- or --</i><br>
           <a href>string</a> s = get_struct_string(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>string</a> field,
                                                                 <a href>integer</a> len)
+          <br><i>-- or --</i><br>
+          <a href>sequence</a> res = get_struct_fields(<a href>integer</a> id, <a href>atom</a> pStruct, <a href>sequence</a> fields)
          </td>
         </tr>
         <tr>
@@ -26,15 +30,16 @@
           <b>Description:</b>
          </td>
          <td>
-            get a named field from some previously allocated structure, which (ie pStruct) is most likely to be the result of 
-            an earlier call to <a href>allocate_struct</a>().
+            get a named field, or it&apos;s address, or an embedded string, or several fields at once from some previously allocated structure, 
+            which (ie pStruct) is most likely to be the result of an earlier call to <a href>allocate_struct</a>().
             <br>
             <br>
             id: a result from <a href>define_struct</a>().<br>
             pStruct: a result from <a href>allocate_struct</a>().<br>
             field: a string name or, caveat emptor, a numeric index.<!-- (the latter mainly for the benefit of <a href="cstruct.htm">c-structs</a>).--><br>
-            <small>bAsFlt: fudge, see notes<br></small>
-            len: length in bytes, lesser fudge, see notes<br>
+            <small>bAsFlt: fudge, see notes.<br></small>
+            len: length in bytes, lesser fudge, see notes.<br>
+            fields: several names to retrieve in one call, noting there should not be any that need bAsFlt or len treatment.<br>
          </td>
         </tr>
         <tr>
@@ -51,8 +56,8 @@
          </td>
          <td>
             The get_struct_string() routine should (only) be used when the field is TCHAR[] or similar. Note that it is your responsibility to pass in the right length, 
-            since cffi.e cannot check that for you, and likewise trim trailing zeroes (or &apos;\0&apos;) or spaces where needed. Should some unknown C code replace say 
-            &quot;some long message&quot; with &quot;error 7\0g message&quot;, that&apos;s your problem not mine. <br>
+            since cffi.e cannot check that for you, and likewise trim trailing zeroes (or '\0') or spaces where needed. Should some unknown C code replace say 
+            "some long message" with "error 7\0g message", that&apos;s your problem not mine. <br>
             Under set_unicode(1), the retrieved widestring is converted to utf8 before being returned. Also, a TCHAR[128] should still get a len of 128 (characters/16-bit 
             unicode points), even though it occupies 256 bytes. <small>(no longer entirely sure about that last statement...)</small><br>
             In truth, there should perhaps be a default for len, say -1, which means "read the lot" [and crop at first '\0', perhaps], then again it <i>is</i> a bit of a 
@@ -66,7 +71,8 @@
 <!--            Lastly, since such fields are not supported by <a href="cstruct.htm">c-structs</a> the option to specify an integer field index has deliberately been removed.-->
             <br>
             <br>
-            You may need to use say <a href="peek_string.htm">peek_[w]string</a>() or even get_struct_field() itself again, on some atom results, eg an lpszText.
+            You may need to use say <a href="peek_string.htm">peek_[w]string</a>() or even get_struct_field() itself again, on some atom results, eg an lpszText.<br>
+            It is obviously neater to say integer {x,y} = get_struct_fields(idPOINT,pPOINT,{"x","y"}) than make two near-identical but separate calls.
          </td>
         </tr>
         <tr>

@@ -4,6 +4,8 @@
 --
 -- code responsible for writing the ex.err file
 --
+without debug
+
 constant diagdiag = 0   -- show progress messages for debugging this source.
                         --  (0=none, 1=all, 2=almost all, ... N=last only.)
 constant show_bad_era = 01
@@ -2057,15 +2059,19 @@ sequence msgs =
     --  for an easier life, I could easily do that if the 
     --  common consus suggests it would be better, though it
     --  seems to me more likely to catch bugs/typos this way.
- "invalid mem_copy length\n",                                   -- e22imcl
+-- "invalid mem_copy length\n",                                 -- e22imcl
     -- number of bytes to copy is negative
- "invalid mem_set length\n",                                    -- e23imsl
+  -1,
+-- "invalid mem_set length\n",                                  -- e23imsl
     -- number of bytes to set is negative
     --  (ditto)
- "invalid mem_copy memory address\n",                           -- e24imcma
+  -1,
+-- "invalid mem_copy memory address\n",                         -- e24imcma
     -- a machine exception occurred in a mem_copy operation
- "invalid mem_set memory address\n",                            -- e25imsma
+  -1,
+-- "invalid mem_set memory address\n",                          -- e25imsma
     -- a machine exception occurred in a mem_set operation
+  -1,
  "invalid argument type for integer := peek()\n",               -- e26iatfpi
     -- Occurs, for example, in integer i = peek(x), when x is
     --  assigned to something like {addr,4}.
@@ -2124,8 +2130,10 @@ sequence msgs =
  "argument to allocate() must be positive integer\n",           -- e37atambpi
 --DEV e38 no longer used?
  "argument to free() must be an atom\n",                        -- e38atfmba
- "arguments to mem_copy() must be atoms\n",                     -- e39atmcmba
- "arguments to mem_set() must be atoms\n",                      -- e40atmsmba
+-- "arguments to mem_copy() must be atoms\n",                   -- e39atmcmba
+ -1,
+-- "arguments to mem_set() must be atoms\n",                    -- e40atmsmba
+ -1,
  "first argument to poke() must be atom\n",                     -- e41fatpmba
 --no longer used:
 -- "first argument to poke4() must be atom\n",                  -- e42fatp4mba
@@ -4938,21 +4946,21 @@ end procedure -- (for Edita/CtrlQ)
                 call :%pStoreMint
                 mov al,107          -- e107ifma
                 jmp :setal
-          @@:
-            cmp edx,:!MemCopyIMA
-            jne @f
-            [32]
-                mov eax,[esp+4]
-                lea edi,[or_era]
-                sub eax,1
-            [64]
-                mov rax,[rsp+8]
-                lea rdi,[or_era]
-                sub rax,1
-            []
-                call :%pStoreMint
-                mov al,24           -- e24imcma
-                jmp :setal
+--        @@:
+--          cmp edx,:!MemCopyIMA
+--          jne @f
+--          [32]
+--              mov eax,[esp+4]
+--              lea edi,[or_era]
+--              sub eax,1
+--          [64]
+--              mov rax,[rsp+8]
+--              lea rdi,[or_era]
+--              sub rax,1
+--          []
+--              call :%pStoreMint
+--              mov al,24           -- e24imcma
+--              jmp :setal
           @@:
             mov al,30
     ::setal

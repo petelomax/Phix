@@ -1,0 +1,449 @@
+﻿<!DOCTYPE html>
+<html>
+ <head>
+  <meta charset="UTF-8"/>
+  <title>Canvas Menu</title>
+  <style>
+body { margin:0; background:#ddd; overflow:hidden; }
+canvas { display:block; }
+  </style>
+ </head>
+ <body>
+  <canvas id="c"></canvas>
+  <script>
+const canvas = document.getElementById("c"),
+         ctx = canvas.getContext("2d");
+
+canvas.width = window.innerWidth;
+canvas.height = window.innerHeight;
+
+const TG_MENUITEM_HEIGHT = 21;
+
+let menus = [0];
+
+// omitted: MX_IMAGE, MD_ID, MX_CHECKED, MX_OWNER, MX_POPUP, MX_WIDGET, MX_IMG, MX_WIDTHS...
+// also note MX_ENABLED may not be quite right...
+// .text
+
+// menu indices
+const MX_ITEMS = 0,
+      MX_PARENT = 1,
+      MX_VISIBLE = 2, // ??
+      MX_X = 3,
+      MX_Y = 4,
+      MX_WIDTH = 5,
+      MX_HEIGHT = 6,
+      MX_HOT = 7,
+      MX_SEL = 8,
+      MX_KEYMODE = 9;
+
+const MX_TEXT = 0,
+      MX_SUBMENU = 1,
+      MX_ENABLED = 2;
+
+function compute_menu_size(mdx) {
+    let m = menus[mdx];
+    ctx.font = "14px Segoe UI";
+
+    let w = 40, h = 8;
+    for (let it of m[MX_ITEMS]) {
+        let txt = it[MX_TEXT];
+        if (txt==="-" ) {
+            h += 7;
+        } else {
+            let tw = ctx.measureText(txt).width;
+            w = Math.max(w, tw);
+            h += TG_MENUITEM_HEIGHT;
+        }
+    }
+    m[MX_WIDTH] = w+40;
+    m[MX_HEIGHT] = h;
+}
+
+function build_menu(def, parent=0) {
+    let idx = menus.length;
+    menus.push(null);
+
+    let items = [];
+    for (let m of def) {
+        if (typeof m==="string") {
+            items.push([m, 0, m!=="-"]);
+        } else {
+            let s = build_menu(m[1], idx);
+            items.push([m[0], s, true]);
+        }
+    }
+
+    menus[idx] = [items,parent,false,0,0,0,0,-1,-1,false];
+    compute_menu_size(idx);
+    return idx;
+}
+
+function paint_menu(m) {
+    let x = m[MX_X], y = m[MX_Y];
+
+    ctx.fillStyle = "white";
+    ctx.fillRect(x,y,m[MX_WIDTH],m[MX_HEIGHT]);
+
+    ctx.strokeStyle = "#ccc";
+    ctx.strokeRect(x,y,m[MX_WIDTH],m[MX_HEIGHT]);
+
+    ctx.font = "14px Segoe UI";
+
+    let cy = y+4;
+
+    for (let i=0; i<m[MX_ITEMS].length; i++) {
+        let it = m[MX_ITEMS][i];
+
+        if (it[MX_TEXT]==="-" ) {
+            ctx.strokeStyle = "#aaa";
+            ctx.beginPath();
+            ctx.moveTo(x+4,cy+3);
+            ctx.lineTo(x+m[MX_WIDTH]-4,cy+3);
+            ctx.stroke();
+            cy += 7;
+        } else {
+            if (i===m[MX_HOT]) {
+                if (m[MX_KEYMODE]) {
+                    // focus rectangle (Windows style)
+                    ctx.strokeStyle = "black";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(x+2.5, cy+2.5, m[MX_WIDTH]-5,TG_MENUITEM_HEIGHT-4);
+                } else {
+                    // mouse hover highlight
+                    ctx.fillStyle="#e6f0ff";
+                    ctx.fillRect(x,cy,m[MX_WIDTH],TG_MENUITEM_HEIGHT);
+                }
+            }
+
+            let submenu = it[MX_SUBMENU];
+            let enabled = it[MX_ENABLED] && (submenu===0 || menus[submenu][MX_ITEMS].length>0);
+            ctx.fillStyle = enabled ? "black" : "gray";
+            ctx.fillText(it[MX_TEXT],x+10,cy+14);
+
+            cy += TG_MENUITEM_HEIGHT;
+        }
+    }
+}
+
+function get_menu_root() {
+    for (let i=0; i<menus.length; i++) {
+        if (menus[i][MX_VISIBLE] && menus[i][MX_PARENT]===0) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+function menu_visible_deepest(mdx) {
+    for (let i=0; i<menus.length; i++) {
+        if (menus[i][MX_PARENT]===mdx && menus[i][MX_VISIBLE]) {
+            return menu_visible_deepest(i);
+        }
+    }
+    return mdx;
+}
+
+function show_menu(mdx,x,y) {
+    let m = menus[mdx];
+    if (x+m[MX_WIDTH]>canvas.width) x-=m[MX_WIDTH];
+    if (y+m[MX_HEIGHT]>canvas.height) y-=m[MX_HEIGHT];
+    m[MX_X] = x;
+    m[MX_Y] = y;
+    m[MX_VISIBLE] = true;
+    m[MX_SEL] = -1;
+    m[MX_HOT] = -1;
+}
+
+function hide_submenus(mdx) {
+    for (let i=1; i<menus.length; i++) {
+        if (menus[i][MX_PARENT]===mdx && menus[i][MX_VISIBLE]) {
+            hide_submenus(i);
+            menus[i][MX_VISIBLE] = false;
+        }
+    }
+}
+
+function hit_test(m,x,y) {
+    let cy = m[MX_Y]+4;
+    for (let i=0; i<m[MX_ITEMS].length; i++) {
+        let it = m[MX_ITEMS][i];
+        let h = (it[MX_TEXT]==="-"?7:TG_MENUITEM_HEIGHT);
+
+        if (y>=cy && y<cy+h) {
+            return it[MX_ENABLED] ? i : -1;
+        }
+        cy += h;
+    }
+    return -1;
+}
+
+function hide_all() {
+    for(let m of menus) {
+        m[MX_VISIBLE] = false;
+        m[MX_KEYMODE] = false;
+    }
+}
+
+function open_child_menu(parent,hit) {
+    let m = menus[parent];
+    let it = m[MX_ITEMS][hit];
+    let submenu = it[MX_SUBMENU];
+    if (submenu && it[MX_ENABLED] && menus[submenu][MX_ITEMS].length>0) {
+
+        hide_submenus(parent);
+
+        let sub = menus[submenu];
+
+        let sy = m[MX_Y]+4;
+        for (let i=0; i<hit; i++) {
+            let t = m[MX_ITEMS][i];
+            sy += (t[MX_TEXT]==="-"?7:TG_MENUITEM_HEIGHT);
+        }
+
+        let sx = m[MX_X]+m[MX_WIDTH];
+        if (sx+sub[MX_WIDTH]>canvas.width) {
+            sx = m[MX_X]-sub[MX_WIDTH];
+        }
+
+        show_menu(submenu,sx,sy);
+    }
+}
+
+function update_recent(mdx,txt) {
+    let menu = menus[mdx];
+    let idx = menu[MX_ITEMS].findIndex(i=>i[MX_TEXT]==="Recent Files");
+    if (idx>=0) {
+        let sdx = menu[MX_ITEMS][idx][MX_SUBMENU],
+            sub = menus[sdx];
+
+        if (txt==="Close") {
+            sub[MX_ITEMS].pop();
+        } else {
+            sub[MX_ITEMS].push([txt.toLowerCase(),0,true]);
+        }
+    
+        compute_menu_size(sdx);
+    }
+}
+
+function next_enabled(items, i, d) {
+    let l = items.length;
+    for (let k=0; k<l; k++) {
+        i = (i+d+l) % l;
+        if (items[i][MX_ENABLED]) return i;
+    }
+    return -1;
+}
+
+function draw_main() {
+    let w = 500, h = 300,
+        x = canvas.width-w-20,
+        y = canvas.height-h-20;
+
+    ctx.fillStyle = "#fff8dc";
+    ctx.fillRect(x,y,w,h);
+
+    ctx.strokeStyle = "black";
+    ctx.strokeRect(x,y,w,h);
+
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+    ctx.lineTo(x+w,y+h);
+    ctx.moveTo(x+w,y);
+    ctx.lineTo(x,y+h);
+    ctx.stroke();
+
+    return {x,y,w,h};
+}
+
+function redraw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    let main = draw_main();
+    for (let m of menus) {
+        if (m[MX_VISIBLE]) {
+            paint_menu(m);
+        }
+    }
+}
+
+function in_menu(m,x,y) {
+    if (x<m[MX_X]||x>m[MX_X]+m[MX_WIDTH]) return false;
+    if (y<m[MX_Y]||y>m[MX_Y]+m[MX_HEIGHT]) return false;
+    return true;
+}
+
+function handle_key(e) {
+    let root = get_menu_root();
+    if (root>=0) {
+        let mdx = menu_visible_deepest(root);
+        let m = menus[mdx];
+        let items = m[MX_ITEMS];
+        let sel = m[MX_SEL];
+
+        if (e.key==="ArrowDown" || e.key==="ArrowUp"){
+            let d = (e.key==="ArrowUp")?-1:+1;
+            sel = next_enabled(items, sel, d);
+            m[MX_SEL] = sel;
+            m[MX_HOT] = sel;
+            m[MX_KEYMODE] = true;
+        } else if (e.key==="Enter") {
+            if (sel>=0) {
+                let it = items[sel];
+                if (it[MX_ENABLED]) {
+                    let submenu = it[MX_SUBMENU];
+                    if (submenu) {
+                        m[MX_KEYMODE] = false;
+                        open_child_menu(mdx, sel);
+                        let sub = menus[submenu];
+                        let first = next_enabled(sub[MX_ITEMS], -1, +1);
+
+                        sub[MX_SEL] = first;
+                        sub[MX_HOT] = first;
+                        sub[MX_KEYMODE] = true;
+                    } else {
+                        let txt = it[MX_TEXT];
+                        if (txt==="New" || txt==="Open" || txt==="Close") {
+                            update_recent(mdx,txt);
+                        }
+                        // reset selection safely BEFORE hiding
+                        m[MX_SEL] = -1;
+                        m[MX_HOT] = -1;
+                        hide_all();
+                    }
+                }
+            }
+        } else if (e.key==="ArrowRight") {
+            if (sel>=0) {
+                let it = items[sel];
+                let submenu = it[MX_SUBMENU];
+                if (submenu && it[MX_ENABLED]) {
+                    m[MX_KEYMODE] = false;
+                    open_child_menu(mdx, sel);
+                    let sub = menus[submenu],
+                        nsl = next_enabled(sub[MX_ITEMS], -1, +1);
+                    sub[MX_SEL] = nsl;
+                    sub[MX_HOT] = nsl;
+                    sub[MX_KEYMODE] = true;
+                }
+            }
+        } else if (e.key==="ArrowLeft") {
+            let parent = m[MX_PARENT];
+            if (parent>0) {
+                hide_submenus(parent);
+                menus[parent][MX_KEYMODE] = true;
+            }
+        } else if (e.key==="Escape") {
+            let parent = m[MX_PARENT];
+            if (parent>0) {
+                m[MX_VISIBLE] = false;
+            } else {
+                hide_all();
+            }
+        }
+        redraw();
+        e.preventDefault();
+    }
+}
+window.addEventListener("keydown", handle_key);
+
+function hide_context(e) {
+    let main = draw_main(),
+        x = e.offsetX,
+        y = e.offsetY;
+    // inside main canvas area?
+    if (e.button===2 &&
+        x>=main.x && x<=main.x+main.w &&
+        y>=main.y && y<=main.y+main.h) {
+        e.preventDefault();
+        redraw();
+    }
+}
+canvas.addEventListener("contextmenu",hide_context);
+
+function mousedown(e) {
+    let main = draw_main(),
+        x = e.offsetX,
+        y = e.offsetY;
+
+    for (let i=1; i<menus.length; i++) {
+        let m = menus[i];
+        if (m[MX_VISIBLE] && in_menu(m,x,y)) {
+            let hit = hit_test(m,x,y);
+            if (hit>=0) {
+                let it = m[MX_ITEMS][hit];
+                if ((!it[MX_SUBMENU]) && it[MX_ENABLED]) {
+                    let txt = it[MX_TEXT];
+                    if (txt==="New"||txt==="Open"||txt==="Close") {
+                        update_recent(i,txt);
+                    }
+                    hide_all();
+                }
+            }
+            redraw();
+            return;
+        }
+    }
+
+    // inside main canvas area?
+    if (e.button===2 &&
+        x>=main.x && x<=main.x+main.w &&
+        y>=main.y && y<=main.y+main.h) {
+        hide_all();
+        show_menu(main_menu,x,y);
+    } else {
+        hide_all();
+    }
+    redraw();
+}
+canvas.addEventListener("mousedown",mousedown);
+
+function mousemove(e) {
+    let x = e.offsetX,
+        y = e.offsetY;
+    for (let i=1; i<menus.length; i++) {
+        let m = menus[i];
+        if (m[MX_VISIBLE] && in_menu(m,x,y)) {
+
+            let hit = hit_test(m,x,y);
+
+            if (hit!==m[MX_HOT]) {
+                if (!m[MX_KEYMODE] || hit !== m[MX_SEL]) {
+                    m[MX_KEYMODE] = false;
+                    m[MX_HOT] = hit;
+                    m[MX_SEL] = hit;
+                }
+                if (hit>=0) {
+                    m[MX_KEYMODE] = false;
+                    let it = m[MX_ITEMS][hit];
+                    if (it[MX_SUBMENU]) {
+                        open_child_menu(i,hit);
+                    } else {
+                        hide_submenus(i);
+                    }
+                }
+            }
+            break;
+        }
+    }
+    redraw();
+}
+canvas.addEventListener("mousemove",mousemove);
+
+const FILE_MENU = ["New",
+                   "Open",
+                   "-",
+                   ["Recent Files",[]],
+                   "Close"],
+      EDIT_MENU = ["Cut","Copy","Paste"],
+      MAIN_MENU = [["File",FILE_MENU],
+                   ["Edit",EDIT_MENU],
+                   "Help","Exit"];
+
+let main_menu = build_menu(MAIN_MENU);
+
+// ---------- START ----------
+redraw();
+  </script>
+ </body>
+</html>

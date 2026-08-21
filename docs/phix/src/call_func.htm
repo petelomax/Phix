@@ -4,7 +4,7 @@
    <these>
     <get>
      <stripped>
-      <h1 class="title">call_func</h1>
+      <h1 class="title">call_func / proc</h1>
       <div id="mainSection">
        <table>
         <col style="width: 5%"/>
@@ -13,7 +13,11 @@
           <b>Definition:</b>
          </td>
          <td>
-          <a href>object</a> x = call_func(<a href>integer</a> rid, <a href>sequence</a> params)
+          <a href>object</a> x = call_func(<a href>integer</a> rid, <a href>sequence</a> args)
+          <br>
+          <i>-- or --</i>
+          <br>
+          call_proc(<a href>integer</a> rid, <a href>sequence</a> args)
          </td>
         </tr>
         <tr>
@@ -21,15 +25,18 @@
           <b>Description:</b>
          </td>
          <td>
-            Dynamically invoke a user-defined function. Partially depricated, in that rid(args) is equivalent, where args is the 
-            {}-less/longhand version of params, and rid is explicitly indicated to be an integer. Still valid/needed for all cases
-            where you want to keep/pass the params in a single sequence.
+            Dynamically invoke a user-defined function/procedure. 
+<!--
+            Partially deprecated, in that rid(args) is equivalent, where args 
+            is the {}-less/longhand version of params, and rid is explicitly indicated to be an integer. Still valid/needed for all 
+            cases where you want to keep/pass all the parameters in a single sequence.
+-->
             <br>
             <br>
-            rid: a valid result from <a href>routine_id</a>(), or (better yet) originating from some plain function identifier.<br>
-            params: a <a href>sequence</a> of argument values of length n, where n is compatible with rid, aka
+            rid: a valid result from <a href>routine_id</a>(), or (better yet) a plain routine identifier.<br>
+            args: a <a href>sequence</a> of arguments compatible with rid, both type-wise and with length(args)
                     in <a href="routine_id.htm#aux">minp</a>..<a href="routine_id.htm#aux">maxp</a>.<br>
-            x will be the result returned by the function specified by rid.
+<!--            x will be the result returned by the function specified by rid.-->
          </td>
         </tr>
         <tr>
@@ -45,17 +52,39 @@
           <b>Comments:</b>
          </td>
          <td>
+            When the compiler knows precisely which routine is being invoked it is known as a static call, conversely this is known
+            as a dynamic call, whereby some additional checks (and sequence-unpacking) occur at run-time. <br>
+            The ability to store tables of these things is often incredibly useful and flexible, especially for gui programming. <br>
+            When (and only when) the compiler <i>knows</i> that some variable r is an <a href>integer</a>, the more familiar-looking 
+            syntax r(a,..z) is in fact just shorthand for call_func/proc(r,{a,..z}), and of course when it <i>knows</i> that r has a 
+            specific value it reverts to emitting the more efficient static call code. <br>
+            Note that some programming languages have an explicit "unpack args" syntax such as r(s...), but there is no equivalent 
+            in Phix and you must invoke these routines explicitly instead. <br>
+            A run-time error occurs if you pass a function to call_proc(), or a procedure to call_func().
+<!--
             Calling a routine directly is known as a static call: it is determined at compile-time and cannot be changed at run-time. 
             Conversely, invoking a routine via a routine_id is known as a dynamic call: the value of the routine_id can be altered at 
             run-time and hence the routine being called can be altered at run-time. While the trivial example below shows no benefits, 
             the ability to store routine_ids in tables (etc) is much more flexible, and often quite necessary for (say) gui programming. 
             Historically, a routine_id was the only way to effect a <a href>forward</a> call, but that is no longer the case.
+-->
             <br>
             <br>
-            If function rid does not take any arguments then params should be {}.
+            If the routine has no parameters then args should/must be {}.
             <br>
             <br>
+<!--
             As of 0.8.1+, routine_ids are first class, ie callable directly as well as via call_func/proc, see example below.
+            <br>
+            <br>
+-->
+            <b>Warning</b>: call_func/proc() are known to pepperblast your data with refcount leakage (see below).<br>
+            That means you will occcasionally need a few <a href>deep_copy</a>() that logically you should not, but at
+            least said leaks are automatically repaired by subsequent calls and when the offending invisible temporary 
+            variables are reused, rather than being the kind that causes your program to slowly run out of memory.
+            Refactoring call_func/call_proc code into independent subroutines can often eliminate such issues entirely,
+            as said temps get cleaned up on exit.<br>
+            Plus of course when the contents of args is effectively read-only, you simply don&apos;t care about any of this.
          </td>
         </tr>
         <tr>
@@ -70,8 +99,8 @@ end function
 integer r_sum2 = sum2 -- [same as routine_id("sum2")]
 
 ?sum2(1,2)                  -- direct/static call
-?call_func(r_sum2,{1,2})    -- indirect/dynamic call (equivalent)
-?r_sum2(1,2)                --        ""                 ""      on 0.8.1+
+?call_func(r_sum2,{1,2})    -- indirect/dynamic call
+?r_sum2(1,2)                -- <compiler decides>
 </eucode-->
 <pre>
 <font color="#008080">function</font><font color="#000000"> sum2</font><font color="#0000FF">(</font><font color="#004080">integer</font><font color="#000000"> a</font><font color="#0000FF">,</font><font color="#000000"> inteber b</font><font color="#0000FF">)</font>
@@ -80,8 +109,8 @@ integer r_sum2 = sum2 -- [same as routine_id("sum2")]
 <font color="#004080">integer</font><font color="#000000"> r_sum2</font><font color="#0000FF"> =</font><font color="#000000"> sum2</font><font color="#000080"><i> -- [same as routine_id("sum2")]
 </i></font>
 <font color="#0000FF">?</font><font color="#000000">sum2</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)                 </font><font color="#000080"><i> -- direct/static call</i></font>
-<font color="#0000FF">?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_sum2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- indirect/dynamic call (equivalent)</i></font>
-<font color="#0000FF">?</font><font color="#000000">r_sum2</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)               </font><font color="#000080"><i> --        ""                 ""      on 0.8.1+</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">call_func</font><font color="#0000FF">(</font><font color="#000000">r_sum2</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#800000">}</font><font color="#0000FF">)   </font><font color="#000080"><i> -- indirect/dynamic call</i></font>
+<font color="#0000FF">?</font><font color="#000000">r_sum2</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">)               </font><font color="#000080"><i> -- &lt;compiler decides&gt;</i></font>
 </pre>
          </td>
         </tr>
@@ -90,10 +119,14 @@ integer r_sum2 = sum2 -- [same as routine_id("sum2")]
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opCallFunc in builtins\VM\pcallfunc.e (an autoinclude) - be warned however it is low-level complicated stuff you do not need to know.
-            While it works fine, it is inelegant and inefficient and sensible suggestions for improvement are welcome.<br>
+            via :%opCallFunc and %opCallProc in builtins\VM\pcallfunc.e (an autoinclude) - low-level complicated stuff!<br>
+            While it works fine, the frankly hideous and grotesquely inefficient existing code thoroughly deserves to be scrapped 
+            and replaced with something much better.
+            <small>[Using %opCallFunc and %opCallProc in an attempt to speed them up was probably a retrograde step: hll shims to
+            that sort of low level code might in fact significantly reduce refcount leakage - similar to, say, <a href>allocate</a>(),
+            which indeed turned out noticably better than using %pAlloc directly/everywhere.]</small><br>
             Some additional notes on first class routine_ids can be found in the technicalia drop-down of <a href>routine_id</a>.<br>
-            In a way, p2js.js cheats, since JavaScript can pass actual functions around and invoke them just as easily as Phix can do with these integers.
+            In a way, p2js.js cheats, since JavaScript can pass actual functions around and invoke them just as easily as Phix can do with these integers.<br>
          </td>
         </tr>
         <tr>
@@ -101,7 +134,7 @@ integer r_sum2 = sum2 -- [same as routine_id("sum2")]
           <b>See Also:</b>
          </td>
          <td>
-          <a href>call_proc</a>,
+<!--          <a href>call_proc</a>,-->
           <a href>routine_id</a>
          </td>
         </tr>

@@ -13,14 +13,14 @@
           <b>Definition:</b>
          </td>
          <td>
-          mem_copy(<a href>atom</a> dest, <a href>atom</a> source, <a href>integer</a> i)
+          mem_copy(<a href>atom</a> dst, <a href>atom</a> src, <a href>integer</a> len)
          </td>
         </tr>
         <tr>
          <td>
           <b>Description:</b>
          </td>
-         <td>  Copy a block of i bytes of memory from address source to address dest.
+         <td>  Copy a block of len bytes of memory from address src to address dst.
          </td>
         </tr>
         <tr>
@@ -35,13 +35,13 @@
          <td>
           <b>Comments:</b>
          </td>
-         <td> The bytes of memory will be copied correctly even if the block
-             of memory at source overlaps with the block of memory at dest.
+         <td>
+            The bytes of memory are copied correctly even if the block of memory at src overlaps with the block of memory at dst.
           <br>
           <br>
-            mem_copy(dest, source, i) is equivalent to
-           <a href>poke</a>(dest, <a href>peek</a>({source, i}))
-            but is much faster.
+            When they do no overlap, mem_copy(dst, src, len) is equivalent to <a href>poke</a>(dst, <a href>peek</a>({src,len})) but much faster.
+            When they do overlap it is equivalent to a loop re-fetching each byte shortly after it may have been overwritten, causing a ripple effect,
+            with said fetches almost always in the L1 cache (as in gap &lt; 8K), essentially free.
          </td>
         </tr>
         <tr>
@@ -68,7 +68,7 @@ mem_copy(dest, src, 9)
           <b>Implementation:</b>
          </td>
          <td>
-            via :%opMemCopy in builtins\VM\pMem.e (an autoinclude) - be warned however it is low-level complicated stuff that you do not need to know. 
+            see builtins\VM\mem_copy.e (an autoinclude). 
          </td>
         </tr>
         <tr>
