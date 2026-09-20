@@ -1,0 +1,213 @@
+﻿--
+-- demo/rosetta/win_Clipboard_manager.exw
+-- ======================================
+--
+-- for https://rosettacode.org/wiki/Clipboard_manager/display
+--
+--{{trans|FreeBASIC}}
+--requires(64,true)
+requires(WINDOWS) -- neither Lnx nor JS have clipboard hooks, afaik...
+--I've translated the FreeBASIC entry for Clipboard manager/display on rosettacode to Phix, 
+--but I think an AddClipboardFormatListener()-based approach would be much better.
+
+include ../theGUI/theGUI.WINAPI.e
+
+sequence copyList = {}
+bool isPinned = False
+HWND hMain, hList
+
+procedure UpdateDisplay()
+    string txt = ""
+    for i,c in copyList do
+        c = substitute_all(c,"\r\n\t","   ")
+        txt &= sprintf("[%d] %s\r\n\r\n",{i,shorten(c,"chars")})
+    end for
+    SetWindowText(hList, txt)
+end procedure
+
+procedure AddToClipboard(string text)
+    integer k = find(text,copyList),
+            l = length(copyList)
+    if text!="" and (k=0 or k!=l) then
+        if k then
+            copyList[k..k] = {}         -- remove old entry so it moves to top
+        elsif l>=10 then            
+            copyList = copyList[2..$]   -- keep only the 10 most recent
+        end if
+        copyList &= {text}
+        UpdateDisplay()
+    end if
+end procedure
+
+procedure TogglePin()
+    isPinned = not isPinned
+    atom hWndInsertAfter = iff(isPinned?HWND_TOPMOST:HWND_NOTOPMOST)
+    SetWindowPos(hMain, hWndInsertAfter, 0, 0, 0, 0, SWP_NOMOVE || SWP_NOSIZE)
+--  if isPinned then
+--      SetWindowPos(hMain, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE || SWP_NOSIZE)
+--  else
+--      SetWindowPos(hMain, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE || SWP_NOSIZE)
+--  end if
+end procedure
+
+--/*
+procedure ReadClipboardAndStore()
+    if OpenClipboard(0) then
+        atom hData = GetClipboardData(CF_TEXT)   -- ANSI text
+--      if hData=0 then hData = GetClipboardData(CF_UNICODETEXT) end if
+        if hData!=0 then
+            atom p = GlobalLock(hData)
+            if p!=0 then
+                string s
+--              if GetClipboardData(CF_UNICODETEXT)!=0 then
+                if false then
+                    sequence u = peek_wstring(p) -- Unicode
+                    s = utf16_to_utf8(u)         -- --> UTF-8
+--                  s = u        -- --> UTF-8
+                else
+                    s = peek_string(p)           -- ANSI
+                end if
+                AddToClipboard(s)
+                GlobalUnlock(hData)
+            end if
+        end if
+        CloseClipboard()
+    end if
+end procedure
+--*/
+--/!*
+procedure ReadClipboardAndStore()
+    -- (called from WM_CLIPBOARDUPDATE or the Copy button)
+    if OpenClipboard(0) then
+        -- Prefer Unicode when available
+        bool bUnicode = IsClipboardFormatAvailable(CF_UNICODETEXT)
+        if bUnicode or IsClipboardFormatAvailable(CF_TEXT) then
+            atom hData = GetClipboardData(iff(bUnicode?CF_UNICODETEXT:CF_TEXT))
+            if hData!=0 then
+                atom pData = GlobalLock(hData)
+                if pData!=0 then
+                    string s
+                    if bUnicode then
+                        sequence u = peek_wstring(pData)    -- Unicode
+                        s = utf16_to_utf8(u)                -- → UTF-8
+                    else
+                        s = peek_string(pData)              -- ANSI
+                    end if
+                    AddToClipboard(s)
+                    GlobalUnlock(hData)
+                end if
+            end if
+        end if
+        CloseClipboard()
+    end if
+end procedure
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+
+    switch msg do
+
+        case WM_COMMAND:
+
+            if LOWORD(wParam)=1001 then -- Copy btn
+                Sleep(100)
+--              if OpenClipboard(hWnd) then
+--                  copy()
+--              end if
+                ReadClipboardAndStore()
+
+            elsif LOWORD(wParam)=1002 then -- Pin/Unpin btn
+                TogglePin()
+    
+            elsif LOWORD(wParam)=1003 then -- Clear btn
+                copyList = {}
+                UpdateDisplay()
+            end if
+            
+--      case WM_HOTKEY:
+--          if wParam=1 then    -- Ctrl+C
+--              Sleep(100)
+--              if OpenClipboard(hWnd) then
+--                  copy()
+--              end if
+--              
+--          elsif wParam=2 then -- Ctrl+Space
+--              TogglePin()
+--              MessageBeep(iif(isPinned?MB_ICONASTERISK:MB_ICONHAND))
+--          end if
+            
+
+        case WM_CLIPBOARDUPDATE:
+            ReadClipboardAndStore()
+   
+        case WM_DESTROY:
+            PostQuitMessage(0)
+    end switch
+    
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+RegisterClassEx("ClipMgr",WndProc_cb,CS_HREDRAW || CS_VREDRAW)
+
+atom hInst = instance()
+hMain = CreateWindowEx(0,"ClipMgr","Clipboard Manager)",WS_OVERLAPPEDWINDOW,100,100,700,500,NULL,NULL,hInst,NULL)
+
+atom dwStyle = WS_CHILD || WS_VISIBLE || ES_MULTILINE || ES_READONLY || WS_VSCROLL
+hList = CreateWindowEx(WS_EX_CLIENTEDGE,"EDIT","",dwStyle,10,10,660,400,hMain,NULL,hInst,NULL)
+
+dwStyle = WS_CHILD || WS_VISIBLE
+{} = CreateWindowEx(0,"BUTTON","Copy (Ctrl+C)", dwStyle, 10,420,200,30,hMain,1001,hInst,NULL)
+--{} = CreateWindowEx(0,"BUTTON","Pin/Unpin (Ctrl+Space)",dwStyle,220,420,200,30,hMain,1002,hInst,NULL)
+{} = CreateWindowEx(0,"BUTTON","Pin/Unpin",     dwStyle,220,420,200,30,hMain,1002,hInst,NULL)
+{} = CreateWindowEx(0,"BUTTON","Clear All",     dwStyle,430,420,120,30,hMain,1003,hInst,NULL)
+
+ShowWindow(hMain,SW_SHOW)
+
+UpdateWindow(hMain)
+
+-- Register as a clipboard-format listener (must be done after the window exists)
+AddClipboardFormatListener(hMain)
+
+// Hotkeys
+--RegisterHotKey(hMain,1,MOD_CONTROL||MOD_ALT,'C')  // Ctrl+Alt+C
+--RegisterHotKey(hMain,2,MOD_CONTROL,       ' ')    // Ctrl+Space
+
+atom pMsg = allocate_struct(idMSG)
+while GetMessage(pMsg,NULL,0,0) do
+    TranslateMessage(pMsg)
+    DispatchMessage(pMsg)
+end while
+
+--/*
+I've translated the FreeBASIC entry for Clipboard manager/display on rosettacode to Phix, 
+but I think a AddClipboardFormatListener()-based approach would be much better.
+
+The relevant bits are:
+
+procedure copy()
+    HANDLE hData = GetClipboardData(CF_TEXT)
+    if hData!=0 then
+        atom pText = GlobalLock(hData)
+        if pText!=0 then
+            AddToClipboard(peek_string(pText))
+            GlobalUnlock(hData)
+        end if
+    end if
+    CloseClipboard()
+end procedure
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+
+    switch msg do
+        case WM_HOTKEY:
+--?{"WM_HOTKEY",wParam}
+            if wParam=1 then    -- Ctrl+C
+                Sleep(100)
+                if OpenClipboard(hWnd) then
+                    copy()
+                end if
+                
+RegisterHotKey(hMain,1,MOD_CONTROL||MOD_ALT,'C')    // Ctrl+Alt+C
+
+The problem is it gets the previous clipboard contents
+--*/
