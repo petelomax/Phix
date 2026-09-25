@@ -6,36 +6,22 @@
 --
 include builtins\ptypes.e
 include builtins\syswait.ew
-constant BUFSIZE = 4096
- 
-include cffi.e
-constant 
-tSA = """
-typedef struct _SECURITY_ATTRIBUTES {
-  DWORD  nLength;
-  LPVOID lpSecurityDescriptor;
-  BOOL   bInheritHandle;
-} SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;
-"""
-bool p_init = false
-atom kernel32, pSA, pRd, pWr, pAvail, chBuf = NULL,
-     libc, xerrno
-integer xGetExitCodeProcess, xWaitForSingleObject, 
-        xRead, xWrite,
-        xPipe, xPeekNamedPipe,
-        xSetHandleInformation, xClose, 
---      xGetLastError,
-        idSA
---      , xWaitpid
-constant HANDLE_FLAG_INHERIT = 0x00000001,
-         FORTYMS = 40,           -- Forty milliseconds, 1/25th of a second
-         STILL_ACTIVE = 259,
-         O_NONBLOCK = 0x0004 -- no delay
+include builtins\cffi.e
+local constant BUFSIZE = 4096
+local bool p_init = false
+local atom kernel32, pSA, pRd, pWr, pAvail, chBuf = NULL, libc, xerrno
+local integer xGetExitCodeProcess, xWaitForSingleObject, xRead, xWrite,
+              xPipe, xPeekNamedPipe, xSetHandleInformation, xClose, 
+              idSECURITY_ATTRIBUTES
+local constant HANDLE_FLAG_INHERIT = 0x00000001,
+               FORTYMS = 40,             -- Forty milliseconds, 1/25th of a second
+               STILL_ACTIVE = 259,
+               O_NONBLOCK = 0x0004 -- no delay
 
-global enum PIPEIN, PIPOUT, PIPERR
+global enum PIPE_IN, PIPE_OUT, PIPE_ERR
 global enum READ_PIPE, WRITE_PIPE
 
-procedure initpi()
+local procedure initpi()
     enter_cs()
     if platform()=WINDOWS then
         kernel32 = open_dll("kernel32.dll")
@@ -87,13 +73,19 @@ procedure initpi()
 --      xGetLastError = define_c_func(kernel32, "GetLastError",
 --          {},
 --          C_DWORD)    -- DWORD
+        string tSECURITY_ATTRIBUTES = `typedef struct _SECURITY_ATTRIBUTES {
+                                         DWORD  nLength;
+                                         LPVOID lpSecurityDescriptor;
+                                         BOOL    bInheritHandle;
+                                     } SECURITY_ATTRIBUTES, *PSECURITY_ATTRIBUTES, *LPSECURITY_ATTRIBUTES;`
+        idSECURITY_ATTRIBUTES = define_struct(tSECURITY_ATTRIBUTES)
+        pSA = allocate_struct(idSECURITY_ATTRIBUTES)
 --#with reformat
-        idSA = define_struct(tSA)
-        pSA = allocate_struct(idSA)
         -- Set the bInheritHandle flag so pipe handles are inherited. 
-        set_struct_field(idSA,pSA,"nLength",get_struct_size(idSA))
-        set_struct_field(idSA,pSA,"bInheritHandle",true)
-        set_struct_field(idSA,pSA,"lpSecurityDescriptor",NULL)
+        integer nLength = get_struct_size(idSECURITY_ATTRIBUTES)
+        set_struct_field(idSECURITY_ATTRIBUTES,pSA,"nLength",nLength)
+        set_struct_field(idSECURITY_ATTRIBUTES,pSA,"bInheritHandle",true)
+        set_struct_field(idSECURITY_ATTRIBUTES,pSA,"lpSecurityDescriptor",NULL)
     else -- LINUX
         libc = open_dll({"libc.so", "libc.dylib", ""})
 --      xPipe = define_c_func(libc, "pipe",
@@ -252,6 +244,28 @@ global function create_pipe(integer inherit=0)
         res = peek4u({pRd,2})
     end if
 --  return {hRd,hWr}
+    return res
+end function
+
+global function read_stdin_pipe(string cmd, object dflt="?9/0")
+    sequence pipes = {0,create_pipe(INHERIT_READ),0}
+    atom hProc = system_exec(cmd,12,pipes),
+         hPipe = pipes[PIPE_OUT][READ_PIPE]
+    if hProc=-1 then return iff(dflt="?9/0"?9/0:dflt) end if
+    object res = read_from_pipe(hPipe,hProc)
+    if string(res) then 
+        while true do
+            object buff = read_from_pipe(hPipe,hProc)
+            if buff=-1 then exit end if
+            res &= buff
+        end while
+    else
+        res = ""
+    end if
+    if platform()=WINDOWS then
+        hProc = close_handles(hProc)
+    end if
+    pipes = close_handles(pipes)
     return res
 end function
 
@@ -579,6 +593,8 @@ global function call_named_pipe(string szPipename, string msg)
     free(pBytesRead)
     return res
 end function
+
+
 
 -- <end of builtins\pipeio.e>
 

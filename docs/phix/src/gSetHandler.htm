@@ -233,7 +233,7 @@ gSetHandler(canvas,"REDRAW",redraw)
 -- set the same handler on two elements:
 gSetHandler({canvas1,canvas2},"REDRAW",redraw)
 -- set two handlers on both elements:
-gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
+gSetHandlers({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 </eucode-->
 <pre>
 <font color="#000080"><i>-- set one handler on one interface element:</i></font>
@@ -241,8 +241,10 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
 <font color="#000080"><i>-- set the same handler on two elements:</i></font>
 <font color="#7060A8">gSetHandler</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- set two handlers on both elements:</i></font>
-<font color="#7060A8">gSetHandler</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">,</font><font color="#008000">"CLICK"</font><font color="#0000FF">,</font><font color="#000000">click</font><font color="#800000">}</font><font color="#0000FF">)</font>
+<font color="#7060A8">gSetHandlers</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">canvas1</font><font color="#0000FF">,</font><font color="#000000">canvas2</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008000">"REDRAW"</font><font color="#0000FF">,</font><font color="#000000">redraw</font><font color="#0000FF">,</font><font color="#008000">"CLICK"</font><font color="#0000FF">,</font><font color="#000000">click</font><font color="#800000">}</font><font color="#0000FF">)</font>
 </pre>
+            <small>[Aside: not a fan of the latter: individual "name",rtn are easier to comment in/out for testing,
+            and in fact infestissimally cheaper.]</small>
          </td>
         </tr>
 <!--
@@ -408,19 +410,26 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             <br>
             id: the interface element that had focus when the key event occurred, or maybe its parent.<br>
             c: the typed key. Some possible (special) values are listed below.<br>
-            ctrl, shift, alt: (optional) any key modifiers that were also pressed.<br>
-          <div class="param">
-           <div class="paraname">up:&nbsp;</div>
-           <div class="paradesc">
-            (optional) required should you wish to receive key release events.<br>
-            Omission of the last four parameters limits what messages you receive, so unlike (say) <a href>MOUSEMOVE</a>
-            attempts to use <a href>gGetGlobal</a>(`<a href>CTRLKEY</a>|<a href>SHIFTKEY</a>|<a href>ALTKEY</a>`) instead of
-            these parameters simply won&apos;t work.<br>
-           </div>
-          </div>
+            <div class="param">
+             <div class="paraname">ctrl, shift, alt:</div>
+             <div class="paradesc">
+                (optional) any key modifiers that were also pressed.<br>
+                <small>[Aside: you can specify <a href>bool</a>, because that&apos;s what they are, or omit it so they<br>
+                        &nbsp;are integers, as inherited from <a href>integer</a> c, either way it&apos;ll behave identically.]</small><br>
+             </div>
+            </div>
+            <div class="param">
+             <div class="paraname">up:</div>
+             <div class="paradesc">
+                (optional) required should you wish to receive key release events.<br>
+                Omission of the last four parameters limits what messages you receive, so unlike (say) <a href>MOUSEMOVE</a>
+                attempts to use <a href>gGetGlobal</a>(`<a href>CTRLKEY</a>|<a href>SHIFTKEY</a>|<a href>ALTKEY</a>`) instead of
+                these parameters simply won&apos;t work.<br>
+             </div>
+            </div>
 
             <br>
-            A key handler can also invoke <a href>gGetOpenFileName</a>().
+            A key handler can also invoke <a href>gOpenFile</a>().
             <br>
             <br>
             Note that, unlike pGUI, a key such as &lt;Ctrl C&gt; is passed to key_handler as 'c' or 'C' with 
@@ -428,7 +437,8 @@ gSetHandler({canvas1,canvas2},{"REDRAW",redraw,"CLICK",click})
             While the latter is honoured, there is no forwarding of its state with every keypress, and
             absolutely no guarantee of any correlation at all between shift and 'C' or 'c'. In general you get 
             the key the system is going to act on, as opposed to something you might find a little easier to digest, 
-            not that an <a href>upper</a>()/<a href>lower</a>() will kill you.
+            not that an <a href>upper</a>()/<a href>lower</a>() will kill you. You&apos;ll also get (say) a VK_LCTRL
+            independently, before C + ctrl.
             <br>
             <br>
             The following key constants are defined, in particular for those that cannot intuitively be written as a normal character 
@@ -681,7 +691,8 @@ erm, do you want to save your work it sunshine? ...
 -->
             <br><a name=VK_CSA></a>
             <br>
-            Also there are no VK_CTRL, VK_SHIFT, or VK_ALT keys without an L/R, and some legacy code may need "L or R" changes.
+            Also there are no VK_CTRL, VK_SHIFT, or VK_ALT keys without an L/R, and some legacy code may need "L or R" changes, however the ctrl,
+            shift, alt of this routine and <a href>MOUSEMOVE</a>/<a href>MOUSEWHEEL</a> are all "either".
             <br>
             <br>
             Finally, I own/use a UK keyboard, and haven&apos;t done <i>any</i> testing of non-latin-alphabet input, but I strongly doubt changes
@@ -1143,6 +1154,7 @@ erm, do you want to save your work it sunshine? ...
             <a href>DATA</a> (<a href="gGraph.htm#DATA">gGraph</a>, 
                               <a href="gList.htm#DATA">gList</a>, and
                               <a href="gTree.htm#DEFERRED">gTree</a>),
+            <a href>DROP</a>,
             <a href>HANDLER</a>,
             <a href>IDLE_ACTION</a>,
             <a href>KEY</a>,
@@ -1153,6 +1165,7 @@ erm, do you want to save your work it sunshine? ...
             <a href="gList.htm#SELHAND">SELECTED</a>,
             <a href>TABCHANGED</a>,
             <a href>TABCLICK</a>,
+            <a href>TABKEY</a>,
             <a href>TABITEMS</a>,
             <a href>VALUE_CHANGED</a>,
             <a href>XRID</a>,

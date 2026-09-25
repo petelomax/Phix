@@ -2,6 +2,13 @@
 -- builtins\glmath.e
 -- =================
 --
+global function m4_identity()
+    return deep_copy({1,0,0,0,
+                      0,1,0,0,
+                      0,0,1,0,
+                      0,0,0,1})
+end function
+
  /**
    * Computes a 4-by-4 perspective transformation matrix given the angular height
    * of the frustum, the aspect ratio, and the near and far clipping planes.  The
@@ -31,6 +38,43 @@ global function m4_perspective(atom fieldOfViewInRadians, aspect, near, far)
                     0,0,c,0}
     return dst
 end function
+
+global function m4_translate(sequence m, v)
+    /* res = m * translate(v)    (column-major) */
+    -- m is a 4x4 matrix represented as a flat 16-element sequene
+    -- v is a vextor, a 3-element sequence
+    atom {x,y,z} = v,
+         {m11,m12,m13,m14,
+          m21,m22,m23,m24,
+          m31,m32,m33,m34,
+          m41,m42,m43,m44} = m
+    m41 += m11*x + m21*y + m31*z
+    m42 += m12*x + m22*y + m32*z
+    m43 += m13*x + m23*y + m33*z
+    m44 += m14*x + m24*y + m34*z
+    sequence res = {m11, m12, m13, m14,
+                    m21, m22, m23, m24,
+                    m31, m32, m33, m34,
+                    m41, m42, m43, m44}
+    return res
+end function
+
+global function m4_scale(sequence m, v)
+    /** out = m * scale(v)  (column-major) */
+    -- m is a 4x4 matrix represented as a flat 16-element sequene
+    -- v is a vextor, a 3-element sequence
+    atom {x,y,z} = v,
+         {m11,m12,m13,m14,
+          m21,m22,m23,m24,
+          m31,m32,m33,m34,
+          m41,m42,m43,m44} = m
+    sequence res = {m11*x, m12*x, m13*x, m14*x,
+                    m21*y, m22*y, m23*y, m24*y,
+                    m31*z, m32*z, m33*z, m34*z,
+                    m41  , m42  , m43  , m44   }
+    return res
+end function
+
 
   /**
    * normalizes a vector.

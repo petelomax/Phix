@@ -1,0 +1,323 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Holey Menger Sponge (Cantor Dust) – Fixed</title>
+<style>
+  body {margin:0;overflow:hidden;background:#111;}
+  canvas {display:block;width:100vw;height:100vh;}
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script type="module">
+/* ==============================================================
+   0️⃣  Load gl-matrix (column-major, WebGL-friendly) from CDN
+   ============================================================== */
+import { mat4 } from 'https://cdn.jsdelivr.net/npm/gl-matrix@3.4.3/+esm';
+
+/* ==============================================================
+   1️⃣  Shaders (GLSL ES 3.00 – WebGL2)
+   ============================================================== */
+const vsSource = `#version 300 es
+layout(location = 0) in vec3 aPos;
+uniform mat4 uMVP;
+uniform vec3 uColor;
+out vec3 vColor;
+void main() {
+    vColor = uColor;
+    gl_Position = uMVP * vec4(aPos, 1.0);
+}
+`;
+
+const fsSource = `#version 300 es
+precision mediump float;
+in vec3 vColor;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(vColor, 1.0);
+}
+`;
+
+/* ==============================================================
+   2️⃣  WebGL setup
+   ============================================================== */
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2');
+if (!gl) {
+    alert('WebGL2 not supported – this demo requires a WebGL2 capable browser.');
+    throw new Error('Unable to obtain WebGL2 rendering context');
+}
+//console.log('[0] WebGL2 context obtained');
+
+/* ----- shader helpers ------------------------------------------------ */
+function compileShader(src, type) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    const ok = gl.getShaderParameter(sh, gl.COMPILE_STATUS);
+    if (!ok) {
+        console.error('[1] Shader compile error:', gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh);
+        throw new Error('Shader compilation failed');
+//      return null;
+    }
+//  console.log('[1] Shader compiled successfully (type', type, ')');
+    return sh;
+}
+function linkProgram(vs, fs) {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    const ok = gl.getProgramParameter(prog, gl.LINK_STATUS);
+    if (!ok) {
+        console.error('[2] Program link error:', gl.getProgramInfoLog(prog));
+        throw new Error('Program link failed');
+//      return null;
+    }
+//  console.log('[2] Program linked successfully');
+    return prog;
+}
+const vert = compileShader(vsSource, gl.VERTEX_SHADER);
+const frag = compileShader(fsSource, gl.FRAGMENT_SHADER);
+if (!vert || !frag) throw new Error('Shader compilation failed');
+const program = linkProgram(vert, frag);
+if (!program) throw new Error('Program linking failed');
+gl.useProgram(program);
+//console.log('[3] Using program', program);
+
+/* ----- attribute & uniform locations --------------------------------- */
+const posLoc   = gl.getAttribLocation(program, 'aPos');
+const mvpLoc   = gl.getUniformLocation(program, 'uMVP');
+const colorLoc = gl.getUniformLocation(program, 'uColor');
+//console.log('[4] Attribute locations – aPos:', posLoc);
+//console.log('[4] Uniform locations   – uMVP:', mvpLoc, '   uColor:', colorLoc);
+if (posLoc < 0) throw new Error('aPos not found!');
+if (mvpLoc < 0) throw new Error('uMVP not found!');
+if (colorLoc < 0) throw new Error('uColor not found!');
+
+/* =============================================
+    Simple red triangle – pipeline sanity check
+   ============================================= */
+//const trianglePos = new Float32Array([
+//   0.0,  0.5, 0.0,
+//  -0.5, -0.5, 0.0,
+//   0.5, -0.5, 0.0
+//]);
+//const triBuf = gl.createBuffer();
+//gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+//gl.bufferData(gl.ARRAY_BUFFER, trianglePos, gl.STATIC_DRAW);
+//gl.enableVertexAttribArray(posLoc);
+//gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+//console.log('[5] Triangle buffer created and attribute pointer set');
+
+/* ==============================================================
+   4️⃣  Cube geometry (unit cube centred at origin, half-size = 0.5)
+   ============================================================== */
+const cubePositions = new Float32Array([
+  // 8 corners
+  -0.5, -0.5, -0.5,
+   0.5, -0.5, -0.5,
+   0.5,  0.5, -0.5,
+  -0.5,  0.5, -0.5,
+  -0.5, -0.5,  0.5,
+   0.5, -0.5,  0.5,
+   0.5,  0.5,  0.5,
+  -0.5,  0.5,  0.5
+]);
+
+/* ----- CORRECTED SOLID INDICES (CCW winding for every face) ----- */
+const solidIndices = new Uint16Array([
+  // front  (+z) – outward normal points -z
+  0,2,1, 0,3,2,
+  // back   (-z) – outward normal points +z
+  4,6,7, 4,5,6,
+  // left   (-x) – outward normal points -x
+  0,4,7, 0,7,3,
+  // right  (+x) – outward normal points +x
+  1,2,6, 1,6,5,
+  // bottom (-y) – outward normal points -y
+  0,1,5, 0,5,4,
+  // top    (+y) – outward normal points +y
+  7,6,2, 7,2,3
+]);
+
+// wireframe → 12 edges (24 indices) – unchanged, still correct
+const wireIndices = new Uint16Array([
+  0,1, 1,2, 2,3, 3,0,   // front square
+  4,5, 5,6, 6,7, 7,4,   // back square
+  0,4, 1,5, 2,6, 3,7    // connecting edges
+]);
+
+function createBuffer(data, usage) {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+    return buf;
+}
+function createIndexBuffer(data) {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    return buf;
+}
+const posBuf   = createBuffer(cubePositions, gl.STATIC_DRAW);
+const solidIdx = createIndexBuffer(solidIndices);
+const wireIdx  = createIndexBuffer(wireIndices);
+//console.log('[6] Cube geometry buffers created');
+
+/* ==============================================================
+   5️⃣  Matrix helpers (set MVP uniform)
+   ============================================================== */
+let currentProj = mat4.create(); // will be set each frame
+let currentView = mat4.create();
+
+function setMatrices(model) {
+    const mvp = mat4.create();
+    mat4.multiply(mvp, currentProj, currentView); // proj * view
+    mat4.multiply(mvp, mvp, model);               // * model
+//  console.log('[7] ---- MATRIX DEBUG ----');
+//  console.log('[7]   Projection:', Array.from(currentProj));
+//  console.log('[7]   View:       ', Array.from(currentView));
+//  console.log('[7]   Model:      ', Array.from(model));
+//  console.log('[7]   MVP:        ', Array.from(mvp));
+    gl.uniformMatrix4fv(mvpLoc, false, mvp);
+    const err = gl.getError();
+//  if (err !== gl.NO_ERROR) console.error('[7] glError after uniformMatrix4fv:', err);
+    if (err !== gl.NO_ERROR) throw new Error('glError after uniformMatrix4fv:' + err);
+}
+
+/* ==============================================================
+   6️⃣  Drawing helpers (no VAO – bind buffers each time)
+   ============================================================== */
+function drawCube(modelMatrix, solid) {
+    gl.useProgram(program);
+    // ----- vertex buffer -----
+    gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+    gl.enableVertexAttribArray(posLoc);
+    gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+    const err1 = gl.getError();
+    if (err1 !== gl.NO_ERROR) throw new Error('glError after vertexAttribPointer:' + err1);
+
+    // ----- set MVP -----
+    setMatrices(modelMatrix);
+
+    // ----- index buffer & colour -----
+    if (solid) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, solidIdx);
+        gl.uniform3fv(colorLoc, new Float32Array([1.0, 1.0, 1.0])); // white
+        const count = solidIndices.length;
+//      console.log('[8] Drawing SOLID cube – index count:', count);
+        gl.drawElements(gl.TRIANGLES, count, gl.UNSIGNED_SHORT, 0);
+    } else {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, wireIdx);
+        gl.uniform3fv(colorLoc, new Float32Array([160/255, 170/255, 185/255])); // wire colour
+        const count = wireIndices.length;
+//      console.log('[8] Drawing WIRE cube – index count:', count);
+        gl.drawElements(gl.LINES, count, gl.UNSIGNED_SHORT, 0);
+    }
+    const err2 = gl.getError();
+//  if (err2 !== gl.NO_ERROR) console.error('[8] glError after drawElements:', err2);
+    if (err2 !== gl.NO_ERROR) throw new Error('glError after drawElements:' + err2);
+}
+
+/* ==============================================================
+   7️⃣  Recursive sponge drawer (same rule as the FreeBASIC code)
+   ============================================================== */
+function drawHoleySponge(x, y, z, size, level) {
+    if (level === 0) {
+        const model = mat4.create();
+        mat4.translate(model, model, [x, y, z]);
+        mat4.scale(model, model, [size, size, size]);
+//      console.log('[9] Level-0 cube: translate (',x,y,z,')  scale',size);
+        drawCube(model, true);  // solid
+        drawCube(model, false); // wire
+    } else {
+        const newSize = size / 3;
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    // keep only the 8 corners (dx,dy,dz all non-zero)
+                    if (dx !== 0 && dy !== 0 && dz !== 0) {
+                        drawHoleySponge(
+                            x + dx * newSize,
+                            y + dy * newSize,
+                            z + dz * newSize,
+                            newSize,
+                            level - 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* ==============================================================
+   8️⃣  Animation loop
+   ============================================================== */
+let angle = 0;
+function resize() {
+    canvas.width  = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+//  console.log('[10] Resize – canvas size:', canvas.width, 'x', canvas.height);
+}
+window.addEventListener('resize', resize);
+resize(); // initial size
+
+function animate() {
+    angle += 0.01;
+
+    // ----- clear -----
+    gl.clearColor(245/255, 247/255, 250/255, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    const clearErr = gl.getError();
+//  if (clearErr !== gl.NO_ERROR) console.error('[11] glError after clear/enable:', clearErr);
+    if (clearErr !== gl.NO_ERROR) throw new Error('glError after clear/enable:' + clearErr);
+
+
+    // ----- draw a simple red triangle (pipeline test) -----
+//  gl.useProgram(program);
+//  gl.bindBuffer(gl.ARRAY_BUFFER, triBuf);
+//  gl.enableVertexAttribArray(posLoc);
+//  gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+//  const identity = mat4.create();
+//  gl.uniformMatrix4fv(mvpLoc, false, identity);
+//  gl.uniform3fv(colorLoc, new Float32Array([1.0, 0.2, 0.2])); // reddish
+//  gl.drawArrays(gl.TRIANGLES, 0, 3);
+//  const triErr = gl.getError();
+////    if (triErr !== gl.NO_ERROR) console.error('[11] glError after triangle draw:', triErr);
+//  if (triErr !== gl.NO_ERROR) throw new Error('glError after triangle draw:' + triErr);
+
+    // ----- 2️⃣ draw the sponge -----
+    const camX = 6.5 * Math.cos(angle);
+    const camZ = 6.5 * Math.sin(angle);
+    const eye   = [camX, 6.5, camZ];
+    const center = [0, 0, 0];
+    const up    = [0, 1, 0];
+
+    // update view and projection matrices (used by setMatrices)
+    mat4.lookAt(currentView, eye, center, up);
+    const aspect = canvas.width / canvas.height;
+    mat4.perspective(currentProj, 45 * Math.PI/180, aspect, 0.1, 100.0);
+
+//  console.log('[12] Frame start – angle:', angle.toFixed(3));
+//  console.log('[12]   Camera position:', eye);
+//  console.log('[12]   LookAt target:', center);
+//  console.log('[12]   Up vector:', up);
+//  console.log('[12]   Aspect ratio:', aspect);
+
+    drawHoleySponge(0, 0, 0, 4.2, 2); // level-2 sponge
+
+    requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
+

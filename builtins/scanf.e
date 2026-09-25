@@ -58,7 +58,8 @@ constant NONE    = 0,
          HEXADEC = 16,
          OCTAL   = 18,
          ROMAN   = 20,  -- ( ie %R )
-         ROMAL   = 21   -- ( ie %r )
+         ROMAL   = 21,  -- ( ie %r )
+         BOOL    = 22   -- ( ie %t )
 
 function parse_fmt(string fmt)
 --
@@ -67,12 +68,12 @@ function parse_fmt(string fmt)
 --                    =~ {LITERAL,     STRING,LITERAL,   STRING,LITERAL, INTEGER}
 -- invalid formats cause a fatal runtime error
 --
-integer fmtdx = 1, 
-        litstart = 1
-integer scan_ch, 
-        ftyp, 
-        last = NONE
-sequence res = {}
+    integer fmtdx = 1, 
+            litstart = 1
+    integer scan_ch, 
+            ftyp, 
+            last = NONE
+    sequence res = {}
 
     if length(fmt)=0 then crash("length(fmt) is 0") end if
     while fmtdx<=length(fmt) do
@@ -105,8 +106,9 @@ sequence res = {}
                 case 'x':               ftyp = HEXADEC
                 case 'f','g','e':       ftyp = ATOM
                 case 'r':               ftyp = iff(scan_ch='R'?ROMAN:ROMAL)
+                case 't':               ftyp = BOOL
                 case '%':               ftyp = LITERAL
-                default:                crash("bad format")
+                default:                crash("bad format") -- %a/A, %O, %q/Q, %n, %v/V
             end switch
             if ftyp=LITERAL then
                 if last=LITERAL then
@@ -164,16 +166,13 @@ integer scan_ch
 --NB code from ptok.e relies on there being a \n at the end.
 
 function completeFloat(string s, integer sidx, atom N, integer msign, inbase=10)
-integer tokvalid
-atom dec
-integer exponent
-integer esigned
-atom fraction
+    integer tokvalid, exponent, esigned
+    atom dp, fraction
 
     if scan_ch='.' then
         tokvalid = 0
---      dec = 10
-        dec = 1
+--      dp = 10
+        dp = 1
         fraction = 0
         while 1 do
 --          sidx += 1
@@ -192,14 +191,14 @@ atom fraction
 --              N += (scan_ch-'0') / dec
 --              fraction = fraction*10 + (scan_ch-'0')
                 fraction = fraction*inbase + (scan_ch-'0')
---              dec *= 10
-                dec *= inbase
+--              dp *= 10
+                dp *= inbase
                 tokvalid = 1
             end if
             sidx += 1
         end while
         if tokvalid=0 then return {} end if
-        N += fraction/dec
+        N += fraction/dp
     else
         sidx -= 1
     end if
@@ -264,10 +263,7 @@ atom fraction
 end function
 
 function get_number(string s, integer sidx, inbase=10)
-integer scan_ch2
-integer msign, base = 0, tokvalid = 1
-
---  sidx += 1
+    integer scan_ch2, msign, base = 0, tokvalid = 1
     if sidx>length(s) then return {} end if
     scan_ch = s[sidx]
     msign = 1
@@ -466,6 +462,21 @@ local function get_roman(string s, integer sidx, ffi)
     return iff(sidx>r1?{from_roman(s[r1..sidx-1]),sidx}:{})
 end function
 
+local function get_bool(string s, integer sidx)
+    integer tf = -1, l = length(s)
+    if sidx<l then
+        scan_ch = lower(s[sidx])
+        if scan_ch='t' and sidx+3<=l and lower(s[sidx..sidx+3])=="true" then
+            tf = true
+            sidx += 4
+        elsif scan_ch='f' and sidx+4<=l and lower(s[sidx..sidx+4])=="false" then
+            tf = false
+            sidx += 5
+        end if  
+    end if
+    return iff(tf!=-1?{tf,sidx}:{})
+end function
+
 global function to_number(string s, object failure={}, integer inbase=10)
     atom N
     integer sidx = 1
@@ -486,12 +497,11 @@ global function to_number(string s, object failure={}, integer inbase=10)
     return failure
 end function
 
-
 local function scanff(sequence res, string s, integer sidx, sequence fmts, integer fidx)
-object ffi, tries
-integer start
-sequence resset = {}
-atom N
+    object ffi, tries
+    integer start
+    sequence resset = {}
+    atom N
 --integer goodres
     if fidx<=length(fmts) then
         if not binit then initb() end if
@@ -531,6 +541,12 @@ atom N
         elsif ffi=ROMAN
            or ffi=ROMAL then
             tries = get_roman(s,sidx,ffi)
+            if length(tries)=0 then return {} end if
+            {N, sidx} = tries
+            res = append(res,N)
+            res = scanff(res,s,sidx,fmts,fidx+1)
+        elsif ffi=BOOL then
+            tries = get_bool(s,sidx)
             if length(tries)=0 then return {} end if
             {N, sidx} = tries
             res = append(res,N)

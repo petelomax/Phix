@@ -1,0 +1,242 @@
+﻿--
+-- demo\theGUI\gDrawText.exw
+-- =========================
+-- 
+--  When run using 32 bit, opens up two/four windows which are... well, you'll see.
+--  Obviously the aim here is (reasonable but not quite perfect) backend consistency.
+--  Note that I don't expect gUseGTK() to work anywhere other than on *MY* machine...
+--   (maybe I should factor out the gInit code to load/find GTK dlls -> gGetGlobal?)
+--
+--{} = sprint(0,9)
+with javascript_semantics
+--requires(64,true)
+include theGUI.e
+sequence cl = command_line()
+bool bGTK = find(`-GTK`,cl) or platform()!=WINDOWS,
+     b32 = machine_bits()=32
+string title = sprintf("gDrawText (%s, %d bit)",{iff(bGTK?"GTK":"WinAPI"),machine_bits()})
+if bGTK then
+    gUseGTK()
+end if
+if b32 and not find(`-GTK`,cl) then
+    string i64 = get_interpreter(false,{64})
+    if i64!="" then
+        {} = system_exec(sprintf(`"%s" "%s"`,{i64,cl[2]}),8)
+        sleep(0.1)
+    end if
+end if
+if not bGTK and gVersion(-1)=TG_WINAPI then -- nb only test this /after/ invoking gUseGTK()!
+    string d = join_path({get_proper_dir(cl[1]),sprintf(`demo\theGUI\win_gtk%d`,machine_bits())})
+    if file_exists(d) then
+        string gtk32cmd = sprintf(`"%s" "%s" -GTK`,cl)
+        {} = system_exec(gtk32cmd,8)
+    end if
+end if
+
+constant degrees = utf32_to_utf8({#00B0}),
+         {sw,sh} = gGetGlobal(`SCREENSIZE`),
+--       dw = 240, dh = 156
+         dw = 540, dh = 456,
+         dx = floor(sw/2)-iff(bGTK?0:dw),
+         dy = floor(sh/2)-iff(b32?dh,0),
+         style = TG_NORMAL,
+--       style = TG_ITALIC,
+         bNorm = true
+
+if degrees then end if -- (avoid pointless warning if/when we temporarily comment use out)
+
+procedure redraw(gdx canvas, integer w, h)
+    integer cx = floor(w/2),
+            cy = floor(h/2), tw, th
+
+    -- aside: creating our own image now makes almost no difference, just a wee bit slower
+    gdn image = gImage(w,h,TG_PARCHMENT)
+--  gdx image = canvas
+--gSetAttribute(image,`FONT`,`Meiryo, 9`)
+--gSetAttribute(image,`FONT`,`Yu Gothic, 9`)
+--gSetAttribute(image,`FONT`,`MS Gothic, 9`)
+--gSetAttribute(image,`FONT`,`Noto Sans CJK JP, 9`)
+--gSetAttribute(image,`FONT`,`Helvetica, italic 9`)
+--gSetAttribute(image,`FONT`,`Helvetica, italic 19`)
+--  gdn image = gImage(w,h,TG_BLUE)
+    gDrawLine(image,0,cy,w-1,cy,TG_GREEN)
+    gDrawLine(image,cx,0,cx,h-1,TG_GREEN)
+
+--/!*
+    gDrawText(image,1,1,`&New`,{},TG_SE,0,{TG_BLUE,TG_RED},{style,bNorm})
+    gDrawText(image,1,17,`&New`,{},TG_SE,0,{TG_BLUE,TG_GREEN},{style,false})
+    {tw,th} = gGetTextExtent(`&New`,image,bNorm:=true)
+    gDrawText(image,tw+5,1,`{%d,%d}`,{tw,th},TG_SE)
+    {tw,th} = gGetTextExtent(`&New`,image,bNorm:=false)
+    gDrawText(image,tw+5,17,`{%d,%d}`,{tw,th},TG_SE)
+
+    gDrawText(image,cx,1,`&lt;`,{},TG_S,0,{TG_BLUE,TG_RED},{style,bNorm})
+    gDrawText(image,cx,17,`&lt;`,{},TG_S,0,{TG_BLUE,TG_GREEN},{style,false})
+
+    gDrawText(image,w-1,1,`curl_dll__name`,{},TG_SW,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,w-1,17,`curl_dll__name`,{},TG_SW,0,{TG_BLUE,TG_GREEN},{style,false})
+
+    gDrawText(image,1,cy-1,`&Ångström`,{},TG_NE,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,1,cy-17,`&Ångström`,{},TG_NE,0,{TG_BLUE,TG_GREEN},{style,false})
+--*!/
+--/!*
+    -- Note: `x日本語`, ` 日本語`, and `日本語 ` all work much better, 
+    --        which points the finger of suspicion squarely at GTK
+    -- AH: we should be using a cached height (for GTK in particular, but may as well for WINAPI too)
+    gDrawText(image,1,cy+2,`日本語`,{},TG_SE,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,1,cy+18,`日本語`,{},TG_SE,0,{TG_BLUE,TG_GREEN},{style,false})
+
+
+    gDrawText(image,w-1,cy-1,`Файл`,{},TG_NW,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,w-1,cy-17,`Файл`,{},TG_NW,0,{TG_BLUE,TG_GREEN},{style,false})
+
+    gDrawText(image,w-1,cy+2,`É&dit`,{},TG_SW,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,w-1,cy+18,`É&dit`,{},TG_SW,0,{TG_BLUE,TG_GREEN},{style,false})
+--*!/
+--/!*
+    gDrawText(image,1,h-1,`Save && E&xit <now>`,{},TG_NE,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,1,h-17,`Save && E&xit <now>`,{},TG_NE,0,{TG_BLUE,TG_GREEN},{style,false})
+
+    gDrawText(image,cx,h-1,`AT&&T &lt;tag&gt;`,{},TG_N,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,cx,h-17,`AT&&T &lt;tag&gt;`,{},TG_N,0,{TG_BLUE,TG_GREEN},{style,false})
+
+    gDrawText(image,w-1,h-1,`Rock && Roll &More`,{},TG_NW,0,{TG_BLUE,TG_GREEN},{style,bNorm})
+    gDrawText(image,w-1,h-17,`Rock && Roll &More`,{},TG_NW,0,{TG_BLUE,TG_GREEN},{style,false})
+--*!/
+
+    integer tx = floor(w/4), ty = 10
+    for t in {`E&xit`,`Save &As`,`(&Help)`,`&&`,`&&Foo`,`Fish && Chips`,`A&&B`,`&`,`Foo&`,`&&&`,
+              `<`,`>`,`<&>`,`AT&T`,`&lt;`,`&amp;`,`Fish & Chips`,`_File`,`__init__`,`A_B_C`} do
+--  for t in {`&`,`Foo&`,`&&&`} do
+--  for t in {`<`} do
+        gDrawText(image,tx,ty,t,{},TG_SE,style:={style,bNorm})
+        {tw,th} = gGetTextExtent(t,image,bNorm:=true)       
+        gDrawRect(image,tx,ty,tx+tw+2,ty+th,style:=TG_DOTTED)
+        ty += 17
+        gDrawText(image,tx,ty,t,{},TG_SE,style:={style,false})
+        {tw,th} = gGetTextExtent(t,image,bNorm:=false)      
+        gDrawRect(image,tx,ty,tx+tw+2,ty+th,style:=TG_DOTTED)
+        ty += 17
+        if t=`&&&` then
+            tx = tx*3-35
+            ty = 10
+        end if
+    end for
+
+    gDrawText(image,40,50,`error`,{},style:=TG_SQUIGGLE)
+--  gDrawText(image,40,50,`error`,{},style:={TG_ITALIC,bNorm,TG_SQUIGGLE})
+    gDrawText(image,40,70,`deleted`,{},style:=TG_STRIKEOUT)
+    gDrawText(image,40,90,`important`,{},style:={TG_ITALIC,bNorm,TG_UNDERLINE})
+--  gDrawText(image,40,90,`important`,{},style:=TG_ITALIC)
+
+--DEV as noted in the docs, rotation point merits improvement...
+--  gDrawText(image,cx,cy,`NW`,{},TG_NW,{TG_SE,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx,cy,`NE`,{},TG_NE,{TG_SW,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx,cy,`SW`,{},TG_SW,{TG_NE,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx,cy,`SE`,{},TG_SE,{TG_NW,90},{TG_BLUE,TG_GREEN})
+
+-- THere is also a strange underline thing going on with GTK3, also the
+-- following repositions bg but you may want to reposition fg, for GTK.
+    integer G = gVersion(-1)==TG_GTK,
+            G2 = G and gVersion(-2)==2
+--  gDrawText(image,cx-1,cy-1,`NW`,{},TG_NW,0,{TG_BLUE,TG_GREEN})
+    gDrawText(image,cx+4+2*G,cy-2,`NW`,{},TG_NW,{TG_SE,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx+2,cy-1,`NE`,{},TG_NE,0,{TG_BLUE,TG_GREEN})
+    gDrawText(image,cx+2+G,cy+2+2*G,`NE`,{},TG_NE,{TG_SW,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx-1,cy+2,`SW`,{},TG_SW,0,{TG_BLUE,TG_GREEN})
+    gDrawText(image,cx-1+2*G+G2,cy-2-G,`SW`,{},TG_SW,{TG_NE,90},{TG_BLUE,TG_GREEN})
+--  gDrawText(image,cx+2,cy+2,`SE`,{},TG_SE,0,{TG_BLUE,TG_GREEN})
+    gDrawText(image,cx-3+2*G,cy+2+G,`SE`,{},TG_SE,{TG_NW,90},{TG_BLUE,TG_GREEN})
+
+
+    if image!=canvas then
+        gDrawImage(image,canvas)
+        image = gImageDestroy(image)
+    end if
+end procedure
+
+gdx canvas = gCanvas(redraw,`BGCLR=PARCHMENT`),
+    dialog = gDialog(canvas,title)
+gSetAttribute(dialog,`SIZE`,{dw,dh})
+gShow(dialog,dx,dy)
+gMainLoop()
+
+-- Some previous tests, which would quite probably by now need careful reworking:
+--  constant tests = {{``,``,``},
+--                    {`&&`,`&`,`&`},
+--                    {`&x`,`_x`,`x`},
+--                    {`_x`,`__x`,`_x`},
+--                    {`x_&y`,`x___y`,`x_y`},
+--                    {`&&&&&&`,`&&&`,`&&&`},
+--                    {`&1&2&3`,`_1_2_3`,`123`},
+--                    {`&&&2&&`,`&_2&`,`&2&`},
+--                    {`&1&&&3`,`_1&_3`,`1&3`}}
+--  --trace(1)
+--  for t in tests from 3 do
+--      string {m,l,x} = t, r = tg_gtk_mnemonicalize(m),
+--              lu = tg_demnemonicalize(l,TG_GTK),
+--              mu = tg_demnemonicalize(m,TG_WINAPI)
+--  --          mu = tg_WinAPI_demnemonicalize(m)
+--      if r!=l then
+--          printf(1,"%s: wanted %s but got %s\n",{m,l,r})
+--      end if
+--      if lu!=mu or mu!=x then
+--          printf(1,"mu:%s, lu:%s, x:%s\n",{mu,lu,x})
+--      end if
+--  end for
+
+--  constant dtest = {{TG_GTK,{{``,``},
+--                              {`__`,`_`},
+--                              {`_x`,`x`},
+--                              {`&x`,`&x`},
+--                              {`x&_y`,`x&y`},
+--                              {`______`,`___`},
+--                              {`_1_2_3`,`123`},
+--                              {`___2__`,`_2_`},
+--                              {`_1___3`,`1_3`},
+--                              {`_Help`,`Help`}}},
+--                    {TG_WINAPI,{{``,``},
+--                                 {`&&`,`&`},
+--                                 {`&x`,`x`},
+--                                 {`_x`,`_x`},
+--                                 {`x_&y`,`x_y`},
+--                                 {`&&&&&&`,`&&&`},
+--                                 {`&1&2&3`,`123`},
+--                                 {`&&&2&&`,`&2&`},
+--                                 {`&1&&&3`,`1&3`},
+--                                 {`&Help`,`Help`}}}}
+--
+--  procedure d_test()
+--      for b in dtest do
+--          backend = b[1]
+--          for t in b[2] do
+--              string {p,q} = t, r = tg_demnemonicalize(p)
+--              if r!=q then
+--                  string b = gVersion(true)
+--                  printf(1,"%s: wanted %s but got %s (%s)\n",{p,q,r,b})
+--              end if
+--          end for
+--      end for
+--  --Xstring dNULL = tg_demnemonicalize(NULL)
+--  --Xif dNULL!=`` then
+--  --X printf(1,"NULL: wanted `` but got %s\n",{dNULL})
+--  --Xend if
+--      backend = find(platform(),SPLAT)
+--  end procedure
+--  d_test()
+
+--/*
+procedure gmt_test(string s, er)
+    string r = tg_gtk_mnemonicalize(s)
+    bool ok = r==er
+    if not ok then r &= " -- not "&er end if 
+    printf(1,"%s -> %s (%t)\n",{s,r,ok})
+end procedure
+if 0 then
+gmt_test("&Foo","_Foo")
+--gmt_test("&&Foo","&Foo")
+gmt_test("&&Foo","&amp;Foo")
+end if
+>>> much testing rqd... (see gDrawText.exw)
+--*/
+

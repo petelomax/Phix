@@ -7,6 +7,38 @@
 -- Write some element of that array, and then output that element. 
 -- Finally destroy the array if not done by the language itself.
 --
+with javascript_semantics
+include theGUI.e
+
+procedure value_changed(gdx txt, string s)
+    sequence r = scanf(s,"%d %d")
+    if length(r)=1 then
+        integer {height,width} = r[1],
+                i = floor(height/2+0.5),
+                j = floor(width/2+0.5)
+        if i>0 and j>0 then
+
+            sequence array = repeat(repeat(0,width),height)
+
+            array[i][j] = height + width
+ 
+            -- eg input of 222 444 => array[111][222] is 666
+            s = sprintf("array[%d][%d] is %d", {i,j,array[i][j]})
+
+            gSetAttribute(gGetAttribute(txt,`USER_DATA`),"TITLE",s)
+        end if
+    end if
+end procedure
+
+gdx lbl = gLabel("Enter two numbers (>0) separated by a space"),
+    txt = gText(value_changed,"SIZE=80x"),
+    res = gLabel("","EXPAND=HORIZONTAL"),
+    dlg = gDialog(gVbox({gHbox({lbl,txt},"GAP=10,NORMALIZE=HEIGHT"),
+                         gHbox({res})},"MARGIN=5x5"),`Create 2D array`)
+gSetAttribute(txt,`USER_DATA`,res)
+gMainLoop(dlg)
+
+--/*
 with javascript_semantics -- (layout/spacing leaves a little to be desired...)
 include pGUI.e
 Ihandle lab, tab, res, dlg
@@ -48,6 +80,7 @@ procedure main()
 end procedure
  
 main()
+--*/
 
 --/* previous console version
 sequence array

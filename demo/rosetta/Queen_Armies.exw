@@ -2,10 +2,182 @@
 -- demo\rosetta\Queen_Armies.exw
 -- =============================
 --
+-- I had rather hoped this would be much faster than it is and the following
+--  would not be required, but at least it's a nifty little golfed algorithm.
+--
+sequence LIMITS = repeat(9999,20)
+-- comment these out if you like:
+LIMITS[8] = 9 -- saves 3:31
+LIMITS[9] = 12 -- exceeded my patience
+LIMITS[10] = 13 -- (there is one more...)
+LIMITS[11] = 16 -- (there is one more...)
+LIMITS[12] = 18 -- (there are three more...)
+
+sequence rack, cack, dack, back, board, soln
+
+string html = ""
+constant as_html = true
+
+bool solved
+procedure solve(integer m, n, wb, r, c, i, j)
+    integer brc = board[r][c]
+    board[r][c] = "BMW"[wb+2]
+    if -wb>m then
+        {soln,solved} = {deep_copy(board),true}
+    else
+        integer {d,b} = {n-r+c,r+c-1}
+        rack[r] += wb
+        cack[c] += wb
+        dack[d] += wb
+        back[b] += wb
+        wb *= -1
+        while i<=n and not solved do
+            if compare(rack[i]+wb,0)=wb then
+                while j<n do
+                    j += 1
+                    if rmdr(board[i][j],5)=0
+                    and compare(cack[j]+wb,0)=wb
+                    and compare(dack[n-i+j]+wb,0)=wb
+                    and compare(back[i+j-1]+wb,0)=wb then
+                        solve(m-(wb<0),n,wb,i,j,r,c)
+                        if solved then exit end if
+                    end if
+                end while
+            end if
+            i += 1
+            j = 0
+        end while
+        rack[r] += wb
+        cack[c] += wb
+        dack[d] += wb
+        back[b] += wb
+    end if
+    board[r][c] = brc
+end procedure
+
+constant queens = {``,`&#x265b;`,`<font color="green">&#x2655;</font>`,`<span style="color:red">?</span>`}
+
+procedure showboard(integer n, m, sequence board)
+    if length(board)=1 and length(board[1])>1 then
+        html &= sprintf("<b># %s</b><br><br>\n\n",{board[1]})
+        return
+    end if
+    string out = sprintf("<br><b>## %d black and %d white queens on a %d-by-%d board</b><br>\n",
+                             {m,m,n,n}),
+           tbl = ""
+    out &= "<table style=\"font-weight:bold\">\n  "
+    for x=1 to n do
+        for y=1 to n do
+            if y=1 then tbl &= "  </tr>\n  <tr valign=\"middle\" align=\"center\">\n" end if
+            integer xw = board[x][y]='B',
+                    xb = board[x][y]='W',
+                    dx = xw+xb*2+1
+            string ch = queens[dx],
+                   bg = iff(mod(x+y,2)?"":` bgcolor="silver"`)
+            tbl &= sprintf("    <td style=\"width:14pt; height:14pt;\"%s>%s</td>\n",{bg,ch})
+        end for
+    end for
+    out &= tbl[11..$]
+    out &= "  </tr>\n</table>\n<br>\n"
+    html &= out
+end procedure 
+
+integer m = 1
+for n = 1 to 12 do
+    rack = repeat(0,n)      -- rows attacked (-ve=black, +ve=white)
+    cack = repeat(0,n)      -- columns attacked
+    dack = repeat(0,2*n-1)  -- diagonals attacked
+    back = repeat(0,2*n-1)  -- back diagonals attacked
+    integer h = ceil(n/2)
+    string line = join(columnize({repeat('_',h),repeat('#',h)},{},' '),"")
+    line &= iff(even(n)?"_":"#")
+    board = {}
+    if n then
+        board = {line[1..n]}
+        if n>1 then
+            board &= {line[2..n+1]}
+            for i=3 to n do
+                board &= {board[i-2]}
+            end for
+        end if
+    end if
+    soln = {sprintf("No solutions found for %dx%d",n)}
+    integer mq = m, crRqd = 0
+    atom tl = time()
+    do
+        solved = false
+        for i=1 to h do
+            solve(m,n,+1,1,i,1,i+1)
+            if solved then
+                {mq,crRqd} = {m,1}
+                if not as_html then
+                    atom t = time()-tl
+                    string e = iff(t>0.1?elapsed(t,fmt:=" (%s)"):"")
+                    printf(1,"\rFound a solution for %d on %dx%d%s",{mq,n,n,e})
+                end if
+                tl = time()
+                exit
+            end if
+        end for
+        m += solved
+    until not solved or m>LIMITS[n]
+    m = mq -- reset to last solved
+    if crRqd and not as_html then puts(1,"\n") end if
+    if not solved and time()>tl+0.01 then
+        string no = sprintf("Proved there is no solution for %d on %dx%d in %s\n",
+                                                    {mq+1,n,n,elapsed(time()-tl)})
+        if as_html then
+            html &= sprintf("<b># %s</b><br><br>\n\n",{no})
+        else
+            printf(1,"%s.\n", {no})
+        end if
+    end if
+    if as_html then
+        showboard(n,m,soln)
+    else
+        printf(1,"%s\n",{join(soln,"\n")})
+    end if
+end for
+
+constant html_header = """
+<!DOCTYPE html>
+<html lang="en">
+ <head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Queen Armies</title>
+ </head>
+ <body>
+  <h2>queen armies</h2>
+""", -- or <div style="overflow:scroll; height:250px;">
+         html_footer = """
+ </body>
+</html>
+""" -- or </div>
+
+if as_html then
+    if platform()=JS then
+        puts(1,html,false)
+    else
+        integer fn = open("queen_armies.html","w")
+        puts(fn,html_header)
+        puts(fn,html)
+        puts(fn,html_footer)
+        close(fn)
+        printf(1,"See queen_armies.html\n")
+    end if
+end if
+
+
+--/*
+--Ainley's values for n = 1 through 30 are {0, 0, 1, 2, 4, 5, 7, 9, 12, 14, 17, 21, 24, 28, 32, 37, 42, 47, 52, 58, 64, 70, 77, 84, 91, 98, 105, 114, 122, 131}
+--                                          1  2  3  4  5  6  7  8   9  10  11  12  13  14  15  16  17  18  19  20  21  22  23  24  25  26   27   28   29   30
+
 with javascript_semantics
 requires("1.0.2") -- (puts(fn,x,false) for p2js.js)
 string html = ""
-constant as_html = true
+--constant as_html = true
+constant as_html = false
 constant queens = {``,
                    `&#x265b;`, 
                    `<font color="green">&#x2655;</font>`,
@@ -91,8 +263,9 @@ function place(integer m, n, sequence blackqueens = {}, whitequeens = {})
     return false
 end function
 
-for n=2 to 7 do
-    for m=1 to n-(n<5) do
+for n=2 to 9 do
+--  for m=1 to n-(n<5) do
+    for m=n-2 to 999 do
         if not place(m,n) then
             string no = sprintf("Cannot place %d+ queen armies on a %d-by-%d board",{m,n,n})
             if as_html then
@@ -100,39 +273,173 @@ for n=2 to 7 do
             else
                 printf(1,"%s.\n", {no})
             end if
+            exit
         end if
     end for
 end for
 
-constant html_header = """
-<!DOCTYPE html>
-<html lang="en">
- <head>
-  <meta charset="utf-8" />
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <title>Queen Armies</title>
- </head>
- <body>
-  <h2>queen armies</h2>
-""", -- or <div style="overflow:scroll; height:250px;">
-         html_footer = """
- </body>
-</html>
-""" -- or </div>
-
-if as_html then
-    if platform()=JS then
-        puts(1,html,false)
-    else
-        integer fn = open("queen_armies.html","w")
-        puts(fn,html_header)
-        puts(fn,html)
-        puts(fn,html_footer)
-        close(fn)
-        printf(1,"See queen_armies.html\n")
-    end if
-end if
-
+--*/
 ?"done"
 {} = wait_key()
 
+--/*
+0 black and 0 white queens on a 2 x 2 board:
+--
+--
+Cannot place 1+ queen armies on a 2-by-2 board.
+1 black and 1 white queens on a 3 x 3 board:
+B--
+--W
+---
+Cannot place 2+ queen armies on a 3-by-3 board.
+2 black and 2 white queens on a 4 x 4 board:
+B---
+--W-
+B---
+--W-
+Cannot place 3+ queen armies on a 4-by-4 board.
+3 black and 3 white queens on a 5 x 5 board:
+B---B
+--W--
+-W---
+---B-
+-W---
+4 black and 4 white queens on a 5 x 5 board:
+-B-B-
+----B
+W-W--
+----B
+W-W--
+Cannot place 5+ queen armies on a 5-by-5 board.
+4 black and 4 white queens on a 6 x 6 board:
+B---BB
+--W---
+-W----
+-----B
+--WW--
+------
+5 black and 5 white queens on a 6 x 6 board:
+-B--B-
+---B-B
+W-----
+W-W---
+-----B
+W-W---
+Cannot place 6+ queen armies on a 6-by-6 board.
+5 black and 5 white queens on a 7 x 7 board:
+B---B--
+--W---W
+B---B--
+--W---W
+B------
+--W----
+-------
+6 black and 6 white queens on a 7 x 7 board:
+B---B--
+--W---W
+B---B--
+--W---W
+B---B--
+--W---W
+-------
+7 black and 7 white queens on a 7 x 7 board:
+-B---B-
+-B--B--
+-B---B-
+----B--
+W-W---W
+---W---
+W-WW---
+Cannot place 8+ queen armies on a 7-by-7 board.
+6 black and 6 white queens on a 8 x 8 board:
+B---B---
+--W---W-
+B---B---
+--W---W-
+B---B---
+--W---W-
+--------
+--------
+7 black and 7 white queens on a 8 x 8 board:
+B---B---
+--W---W-
+B---B---
+--W---W-
+B---B---
+--W---W-
+B-------
+--W-----
+8 black and 8 white queens on a 8 x 8 board:
+B---B---
+--W---W-
+B---B---
+--W---W-
+B---B---
+--W---W-
+B---B---
+--W---W-
+Cannot place 9+ queen armies on a 8-by-8 board.
+7 black and 7 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+-W-------
+---B-B---
+-W-----W-
+---B-B---
+-W-----W-
+---------
+---------
+8 black and 8 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+-W-------
+---B-B---
+-W-----W-
+---B-B---
+-W-----W-
+---B-----
+-W-------
+9 black and 9 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+-W-------
+---B-B---
+-W-----W-
+---B-B---
+-W-----W-
+---B-B---
+-W-----W-
+10 black and 10 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+-W-W-----
+-----B-B-
+-W-W-----
+-----B-B-
+-W-W-----
+11 black and 11 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+B---B----
+--W---W--
+-W-W-W---
+12 black and 12 white queens on a 9 x 9 board:
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+B---B---B
+--W---W--
+-W-W-W-W-
+Cannot place 13+ queen armies on a 9-by-9 board.
+"done"
+
+--*/

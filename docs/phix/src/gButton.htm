@@ -413,55 +413,50 @@ gMainLoop(dlg)
             Of course, should you want to perform any additional processing when such a button is clicked, then as per
             action() above just write a similar (renamed) routine containing the required code and use that instead.
 -->
-            <!--br--><a name=gGetOpenFileName></a>
+            <br><a name=gOpenFile></a>
          </td>
         </tr>
         <tr>
          <td>
-          Choose File:<br>
+          gOpenFile:<br>
           <small><center>(ACTION)</center></small>
           <br>
          </td>
          <td>
+            Despite apparent complexity, the use in gVidCut.exw is as exquisitely simple as anything could ever possibly be.
+            <br>
+            <br>
             A button handler can also invoke, as can <a href>KEY</a> and menu <a href>HANDLER</a>, the JavaScript-compatible procedure
             <br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<b>gGetOpenFileName</b>(<a href>gdx</a> parent, 
-                                                            <a href>rtnn</a> got, 
-                                                            <a href>object</a> arg2=<a href>NULL</a>,
-                                                                               filters=<a href>NULL</a>,
-                                                                               title=<a href>NULL</a>, 
-                                                            <a href>bool</a> bMulti=<a href>false</a>)
+            &nbsp;&nbsp;&nbsp;&nbsp;<b>gOpenFile</b>(<a href>gdx</a> parent, 
+                                                     <a href>rtnn</a> got, 
+                                                     <a href>object</a> arg2=<a href>NULL</a>,
+                                                                      folder=<a href>NULL</a>,
+                                                                     filters=<a href>NULL</a>,
+                                                                       title=<a href>NULL</a>, 
+                                                     <a href>bool</a> bMulti=<a href>false</a>)
             <br>
             &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- however invoking that from anywhere else is prohibited by the browser security model.<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<small>[should probably be renamed as gOpenFile, as Get/Name are a misleading hangover
-                                                              from the way a legacy <br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp; desktop/Windows-only routine works, doubly so because it is kinda half-true, but
-                                                              more critically encourages <br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp; the wrong mindset. It should also have a matching gSaveFile, 
-                                                              but that hasn&apos;t been written yet.]</small><br>
             It causes a standard file open dialog to be displayed, allowing the user to select a file or <small>(if bMulti=<a href>true</a>)</small> files.<br>
             &nbsp;&nbsp;<small>[My browser, at least, kicks things off with a little clipboard/current directory popup, but there&apos;s a button 
                                 on the rhs to open the real deal.]</small><br>
             parent: specify the window that should act in that capacity, and regain focus when the pop-up closes. 
             <small>(can be <a href>NULL</a>)</small><br>
-            <div style="display: table;">
-              <div style="display: table-row;">
-                <div style="display: table-cell;">
-                  got:&nbsp;
-                </div>
-                <div style="display: table-cell;">
+            <div class="param">
+             <div class="paraname">got:</div>
+             <div class="paradesc">
                  a procedure that accepts a file[s] result, and optionally arg2.<br>
                  It recieves a single file when bMulti is false, or a sequence of them when not. See gGetFileText() below.
-                </div>
-              </div>
+             </div>
             </div>
             arg2: (optional) whatever else got[_txt]() needs, packed into a sequence if necessary.<br>
+            folder: ("") Override the starting directory <small>(when so doing adds value only)</small>. Completely ignored under p2js.<br>
             filters: ("") In the form {{"Text Document (*.txt)","*.txt;*.text"}, {"All Files (*.*)","*.*"}} <small>(or as below)</small>.<br>
             title: (WinAPI only) optional override of the default "Open" for the pop-up window.<br>
             bMulti: if true then got() is passed a list of files (even if only one selected), otherwise a single file.<br>
             <br>
             In almost the lightest possible form of <a href="g_paranormal.htm">paranormalisation</a>, when subsequent parameter[s] still have 
-            their standard default[s] and title/filters is <a href>true</a>, it is assumed that was meant for bMulti.
+            their standard default[s] and title/filters/folder is <a href>true</a>, it is assumed that was meant for bMulti.
 <!--
              - I shall put some thought and effort into doing and documenting it properly once it
             starts to annoy me, but not before, though since personally I always want a parent, almost always filters, and very rarely a
@@ -470,6 +465,7 @@ plus it is rather unlikely my use of this will ever reach double figures
 -->
             <br>
             <br>
+            Avoid specifying a folder when the system default is likely to be useful and clobbering it will only aggravate your users.<br>
             The filters are pairs of string {friendly_name, pattern} in the WinAPI format, and assumes they perfectly match the GTK 
             requirements, though of course they are case sensitive on Linux and may be using/need slightly different file extensions. 
             They are automatically converted by theGUI.js/convert_filters() to an HTML-compatible &lt;input type="file"&gt; accept attribute: 
@@ -489,38 +485,33 @@ plus it is rather unlikely my use of this will ever reach double figures
                                                         <a href>integer</a> gtopt, 
                                                         <a href>rtnn</a> got_txt, 
                                                         <a href>object</a> arg3=<a href>NULL</a>)<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- which should only be invoked from the got routine as passed to gGetOpenFileName.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- which should only be invoked from the got routine as passed to gOpenFile.<br>
             It bears much similarity to <a href>get_text</a>(), except for the file and call-back parts.<br>
-            <div style="display: table;">
-              <div style="display: table-row;">
-                <div style="display: table-cell;">
-                  file<span>:</span>&nbsp;
-                </div>
-                <div style="display: table-cell;">
+            <a name=gGetFileName></a>
+            <div class="param">
+             <div class="paraname">file:</div>
+             <div class="paradesc">
                  on desktop/Phix this is [validated as] a string, however under js it is actually a somewhat opaque structure with, among 
-                 other things, a fake directory in it. Note that if bMulti was true, so the first argument received by got() was a sequence 
-                 of files, they need to be forwarded to gGetFileText() one-at-a-time. Also there isn&apos;t any formal(/js-compatible) support 
-                 for getting some file[name][s] but not actually reading them, due to the aforementioned structure-opaqueness.
+                 other things, a fake directory in it. Use <a href>string</a> name = <b>gGetFileName</b>(<a href>object</a> file) to get the 
+                 actual string, whichever of those it is. Note that if bMulti was true, so the first argument received by got() was a 
+                 sequence of files, they need to be forwarded to gGetFileText() (and gGetFileName) one-at-a-time. 
+<!--
                  <small>[By opaque, I mean to transpiled-Phix-code: expect little luck trying to do anything with it in a got() routine 
                  under pwa/p2js other than forward it on. It may look perfectly reasonable in the Browser Development Tools, but it&apos;s
                  just simply not Phix data.]</small>
+-->
 <!--                 just simply not (desktop/)Phix-compatible data.]</small>-->
-                </div>
-              </div>
+             </div>
             </div>
             gtopt: see the options parameter of <a href>get_text</a>() <small>[manually replicated in theGUI.js/gtify()]</small>.<br>
-            <div style="display: table;">
-              <div style="display: table-row;">
-                <div style="display: table-cell;">
-                  got_txt:&nbsp;
-                </div>
-                <div style="display: table-cell;">
+            <div class="param">
+             <div class="paraname">got_txt:</div>
+             <div class="paradesc">
                  the afore-mentioned callback, in this case a regular Phix procedure that accepts two or three parameters,
                  being the filename, contents (potentially including -1 failures) and optionally an arg3.
-                </div>
-              </div>
+             </div>
             </div>
-            arg3: (optional) can be identical to the arg2 as passed to gGetOpenFileName() and forwarded to got(), or part of it.
+            arg3: (optional) can be identical to the arg2 as passed to gOpenFile() and forwarded to got(), or part of it.
 <!--
             <br>
             <small>[Aside: I cannot think of any good reason to use GT_KEEP_BOM in a browser, hence wasted zero time testing it.]</small>
@@ -552,7 +543,7 @@ plus it is rather unlikely my use of this will ever reach double figures
               <div id="CodeSnippetContainerCode_18b74j93-qx54-6374-123h-8b2483c92846" class="codeSnippetContainerCode" dir="ltr">
                <div style="color:Black;">
 <!--eucode>
--- demo\theGUI\file_open.exw - Simple use of gGetOpenFileName()
+-- demo\theGUI\file_open.exw - Simple use of gOpenFile()
 include theGUI.e
 
 -- <some bog-standard gList stuff:>
@@ -581,7 +572,7 @@ end procedure
 procedure action(gdx btn)
     gdx dlg = gGetDialog(btn),
         lbl = gGetAttribute(btn,"USER_DATA")
-    gGetOpenFileName(dlg,got,lbl)
+    gOpenFile(dlg,got,lbl)
 end procedure
 
 gdx lbl = gLabel(" ","EXPAND=H"),
@@ -593,7 +584,7 @@ gdx lbl = gLabel(" ","EXPAND=H"),
 gMainLoop(dlg)
 </eucode-->
 <pre>
-<font color="#000080"><i>-- demo\theGUI\file_open.exw - Simple use of gGetOpenFileName()</i></font>
+<font color="#000080"><i>-- demo\theGUI\file_open.exw - Simple use of gOpenFile()</i></font>
 <font color="#008080">include</font><font color="#000000"> theGUI.e
 </font>
 <font color="#000080"><i>-- &lt;some bog-standard gList stuff:&gt;</i></font>
@@ -622,7 +613,7 @@ gMainLoop(dlg)
 procedure</font><font color="#000000"> action</font><font color="#0000FF">(</font><font color="#7060A8">gdx</font><font color="#000000"> btn</font><font color="#0000FF">)</font>
 <font color="#7060A8">    gdx</font><font color="#000000"> dlg</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetDialog</font><font color="#0000FF">(</font><font color="#000000">btn</font><font color="#0000FF">),</font>
 <font color="#000000">        lbl</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">btn</font><font color="#0000FF">,</font><font color="#008000">"USER_DATA"</font><font color="#0000FF">)</font>
-<font color="#7060A8">    gGetOpenFileName</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#000000">got</font><font color="#0000FF">,</font><font color="#000000">lbl</font><font color="#0000FF">)</font>
+<font color="#7060A8">    gOpenFile</font><font color="#0000FF">(</font><font color="#000000">dlg</font><font color="#0000FF">,</font><font color="#000000">got</font><font color="#0000FF">,</font><font color="#000000">lbl</font><font color="#0000FF">)</font>
 <font color="#008080">end procedure
 </font>
 <font color="#7060A8">gdx</font><font color="#000000"> lbl</font><font color="#0000FF"> =</font><font color="#7060A8"> gLabel</font><font color="#0000FF">(</font><font color="#008000">" "</font><font color="#0000FF">,</font><font color="#008000">"EXPAND=H"</font><font color="#0000FF">),</font>
@@ -642,12 +633,91 @@ procedure</font><font color="#000000"> action</font><font color="#0000FF">(</fon
             <br>
             <p align="center"><img src="images/file_open.png" alt="file_open" style="padding-left:10px;" width="435" height="171"/></p>
             <br>
-            It is important to note the slightly fiddly action-&gt;gGetOpenFileName-&gt;got-&gt;gGetFileText-&gt;got_txt is critical to achieving 
+            It is important to note the slightly fiddly action-&gt;gOpenFile-&gt;got-&gt;gGetFileText-&gt;got_txt is critical to achieving 
             JavaScript compatibility - just be relieved such ridiculous rigmarole is rarely required!
             <br>
             <br>
             Fairly obviously as-is the above does not support anything fancy like syntax colouring, edit/paste, drag/drop, or save.
 <!-- DEV/SUG: but the actual and much longer file_open.exw as shipped <i>does</i>. -->
+            <br><a name=gSaveFile></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          gSaveFile:<br>
+          <small><center>(ACTION)</center></small>
+          <br>
+         </td>
+         <td>
+            Likewise the use in gVidCut.exw is pretty straightforward, albeit doing <a href>move_file</a>() instead of gSaveFileText().
+            <br>
+            <br>
+            A button handler can also invoke, as can <a href>KEY</a> and menu <a href>HANDLER</a>, the JavaScript-compatible procedure
+            <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<b>gSaveFile</b>(<a href>gdx</a> parent, 
+                                                     <a href>rtnn</a> got, 
+                                                     <a href>object</a> arg2=<a href>NULL</a>,
+                                                                      folder=<a href>NULL</a>,
+                                                                     filters=<a href>NULL</a>,
+                                                                       title="Save As",
+                                                                        name=<a href>NULL</a>)
+            <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- however invoking that from anywhere else is prohibited by the browser security model.<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- in this case only supported on https.<br>
+            It causes a standard file save as dialog to be displayed, allowing the user to select/overwrite a [single] file.<br>
+            parent: specify the window that should act in that capacity, and regain focus when the pop-up closes. 
+            <small>(can be <a href>NULL</a>)</small><br>
+            <div style="display: table;">
+              <div style="display: table-row;">
+                <div style="display: table-cell;">
+                  got:&nbsp;
+                </div>
+                <div style="display: table-cell;">
+                 a procedure that accepts a [single] file result, and optionally arg2. See gSaveFileText() below.
+                </div>
+              </div>
+            </div>
+            arg2: (optional) whatever else save[_txt]() needs, packed into a sequence if necessary.<br>
+            folder: ("") see above.<br>
+            filters: ("") see above.<br>
+            title: (WinAPI only) optional override of the default "Save As" for the pop-up window.<br>
+            name: (optional) suggested name for the output file.
+            <br><a name=gSaveFileText></a>
+            <br>
+            Again we tend to use a callback since <a href>open</a>()/<a href>close()</a> and everything inbetween are not JS-compatible:
+            <br>
+            &nbsp;&nbsp;&nbsp;&nbsp;<b>gSaveFileText</b>(<a href>object</a> file, contents
+                                                         <a href>bool</a> bBinary=false, bAddCR=true)<br>
+<!--            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;- which should only be invoked from the got routine as passed to gSaveFile.<br>-->
+            It should also be possible to use an opaque file handle as saved from an earlier gOpenFile, to overwrite it.<br>
+            Assumes any confirmation dialog has already happened or is not wanted.<br>
+            <div class="param">
+             <div class="paraname">file:</div>
+             <div class="paradesc">
+                as above, but in this case got() always receives just a single string/opaque structure.
+             </div>
+            </div>
+            contents: a single [binary] string or sequence of them.<br>
+            <div class="param">
+             <div class="paraname">bBinary:</div>
+             <div class="paradesc">
+                When false '\r' are inserted before '\n' characters, matching eg <a href>puts</a>(). NB not used in JavaScript. 
+             </div>
+            </div>
+            <div class="param">
+             <div class="paraname">bAddCR:</div>
+             <div class="paradesc">
+                When contents is a sequence of strings, whether to output "\n" after each (including the last).<br>
+                <small>[Altogether far more sensible than trying to guess your intent by checking each line for a trailing \n.]</small>
+             </div>
+            </div>
+            <br>
+            Naturally on desktop/Phix this is a trivial wrapper to <a href>open</a>()/<a href>puts</a>()/<a href="close.htm">close</a>(), whereas
+            under pwa/p2js it wraps FileSystemFileHandle.createWritable() and friends.
+            <br>
+            <br>
+            Again the slightly fiddly action-&gt;gSaveFile-&gt;got-&gt;gSaveFileText is critical to achieving JavaScript compatibility.
+            <br>
          </td>
         </tr>
         <tr>

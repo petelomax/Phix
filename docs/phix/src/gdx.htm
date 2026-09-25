@@ -25,15 +25,25 @@
          </td>
          <td>
             Type. On desktop/Phix, a non-negative <a href>integer</a>, being 0/<a href>NULL</a> 
-            or a positive integer index into the private control tables of theGUIe, or HtmlElement in theGUI.js, or a flat 
+            or a positive integer index into the private control tables of theGUIe, <!--or HtmlElement in theGUI.js,--> or a flat 
             <a href>sequence</a> of them (which may sometimes contain embedded nulls).
             <br>
             <br>
-            Use this to define interface element variables. It is probably <a href="usingtypes.htm#can">unwise</a> to use this to determine 
+            Use this to define interface element variables. As per <a href="usingtypes.htm#can">unwise</a>, an 
+            <code>if gdx(<i>some_integer</i>) then</code>, whether on desktop/Phix or in a web browser, is just begging 
+            to go wrong, and hence (as below) in fact theGUI.js does not actually bother to define the gdx type at all. 
+<!--
+y code in an application that relies on 
+a gdx is a plain integer, 
+          which just happens to be an index into the private tables of theGUI, hence theGUI.js does not even have a fake version, which 
+          <i>you should never want <small>(or trust)</small> anyway</i> -
+          I suppose you could deliberately set some high bit[s], say #10000 and above to differentiate things but even then you would 
+          almost certainly be better off relying on <code>if <i>some_integer</i>&gt;=#10000 then</code>.It is probably <a href="usingtypes.htm#can">unwise</a> to use this to determine 
             whether an object is in fact such, as many things which are clearly not (eg 0, 1, '2', {3,4,5}, {'6'}) may pass, the latter only 
             when 54(==#36=='6') or more interface elements have been defined, it does however check [each element] is a non-negative integer 
-            between zero (inclusive) and the table length, at least on desktop/Phix. Some <i>uses</i> of a gdx may prohibit [embedded] nulls, 
-            but it is never an inherent error for a variable declared as type gdx to hold such.
+            between zero (inclusive) and the table length, at least on desktop/Phix. -->
+            Some <i>uses</i> of a gdx may prohibit [embedded] nulls, but it is never an inherent error for a variable declared as type 
+            gdx to hold such.
 <!--
             <br>
             <br>
@@ -44,7 +54,7 @@
 
             <br><a name=gdm></a>
             <br>
-            Additionally, <small><i>(feel free to fallback to plain integers rather than fret about memorising this lot)</i></small><br>
+            Additionally, <small><i>(feel free to fallback to plain integers/objects rather than fret about memorising this lot)</i></small><br>
             A <b><a href="gImage.htm">gdm</a></b> is a <a href>gImage</a> (not a gdx/odd
               -ve<small><sup><a href="#negative" onclick="opentech()">1</a></sup></small>).
               A <b><a href="gImage.htm">gdn</a></b> is the nullable/sequence version of that.<br>
@@ -58,7 +68,7 @@
             These six additional types are primarily intended for internal/documentation/clarity purposes, but can freely be used anywhere 
             else they might help. Also, but private, a <b><a href="gGetAttribute.htm">gcx</a></b> is a non-null single gdx or gdm or gdp, 
             with <b><a href="gSetAttribute.htm">gcxs</a></b> the sequence-able version of that, those two intended only for use within
-            theGUI.e itself <small>(and incidentally <i>no</i> equivalents in theGUI.js)</small>.<br>
+            theGUI.e itself <small>(and incidentally/again <i>no</i> equivalents in theGUI.js)</small>.<br>
             See the <a href="gPixbuf.htm#fsum">feature summary</a> of gPixbuf, and the <a href="gCanvas.htm#func">gCanvas drawing functions</a> 
             where these are most used. <!--These are all (solely) designed to improve error detection and clarify the documentation,0--> 
 <!--
@@ -74,20 +84,26 @@
          </td>
          <td>
           Supported, or at least understood by pwa/p2js and mapped to "let /*gdx*/" aka (almost) completely ignored, since JavaScript is a 
-          <a href="glossary.htm#typeless">typeless</a> language.
-          As per <a href="usingtypes.htm#can">unwise</a>, theGUI.js does not even have a fake version, which <i>you should never want anyway</i>.
-          Applications should refrain from test/print of gdx variables, except during debugging on desktop/Phix.<br>
-          <small>[Equality tests and find() are in fact fine, but <code>gdxvar1 &lt; gdxvar2</code> and similar are potentially problematical.]</small>
+          <a href="glossary.htm#typeless">typeless</a> language. As per above, theGUI.js does not even have fake versions of these types.
+<!--        , which 
+          <i>you should never want <small>(or trust)</small> anyway</i> - any code in an application that relies on 
+          <code>if gdx(<i>some_integer</i>) then</code>, whether on desktop/Phix or in a web browser, is just begging to go wrong. 
+          I suppose you could deliberately set some high bit[s], say #10000 and above to differentiate things but even then you would 
+          almost certainly be better off relying on <code>if <i>some_integer</i>&gt;=#10000 then</code>.
+-->
 <!--
-            
-          A statement such as ?{"clicked",id} might print {"clicked",5} on the desktop but {"clicked","&lt;HtmlElement&gt;"} in a browser,<br>
-          however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.
-            <br><a name=gdxp2jsuse></a>
-          To be blunt, application code has no real business doing much with a gdx other than passing it back to theGUI, or comparing it for  
-          equality against other known gdx, using = or != or <a href>find</a>() and similar, which all work just as they should 
-          under p2js, but not &lt;[=] or &gt[=], etc. It may also be possible to use a gdx as a key to a <a href="dict.htm">dictionary</a> 
-          (for instance) and that will certainly work on desktop/Phix, but unfortunately I simply cannot guarantee that will work consistently 
-          on all browsers and/or operating systems, due to the implicit use of &lt; and &gt;.
+//        Applications should refrain from test/print of gdx variables, except during debugging on desktop/Phix.<br>
+//        <small>[Equality tests and find() are in fact fine, but <code>gdxvar1 &lt; gdxvar2</code> and similar are potentially problematical.]</small>
+-->
+<!--
+//        A statement such as ?{"clicked",id} might print {"clicked",5} on the desktop but {"clicked","&lt;HtmlElement&gt;"} in a browser,<br>
+//        however getting "&lt;HtmlElement&gt;" rather than crashing is in no way guaranteed for the many different browsers, (s)printf(), etc.
+//          <br><a name=gdxp2jsuse></a>
+//        To be blunt, application code has no real business doing much with a gdx other than passing it back to theGUI, or comparing it for  
+//        equality against other known gdx, using = or != or <a href>find</a>() and similar, which all work just as they should 
+//        under p2js, but not &lt;[=] or &gt[=], etc. It may also be possible to use a gdx as a key to a <a href="dict.htm">dictionary</a> 
+//        (for instance) and that will certainly work on desktop/Phix, but unfortunately I simply cannot guarantee that will work consistently 
+//        on all browsers and/or operating systems, due to the implicit use of &lt; and &gt;.
 -->
 <!--
 //      <br>
@@ -148,7 +164,7 @@ gdx quit_btn = gButton("Quit",gQuit)
 //          <br>
 //          <br>
 //          I could fairly easily be persuaded to (re-)introduce some optional types, and may well quietly do so anyway, such as<br>
-//          &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gFrame, gGetDialog..gGetParent, and gGetAttribute),<br>
+//          &nbsp;&nbsp;gdi - must be a non-null integer (gDialog, gGetDialog..gGetParent, and gGetAttribute),<br>
 //          &nbsp;&nbsp;gds - must be a <a href>sequence</a> (eg gH/Vbox and gTabs), and<br>
 //          &nbsp;&nbsp;gdn - may contain nulls (no specific internal use springs to mind),<br>
 //          however they would probably be more useful within an application than internally by theGUI.e, and these documents are
@@ -174,6 +190,8 @@ gdx quit_btn = gButton("Quit",gQuit)
             gdm odd, as -id*2+1 aka -1, -3, -5, .. and using [(-gdm+1)/2] internally, and <br>
             gdp even, as -id*2 aka -2, -4, -6, .. and using [-gdp/2] internally, or a 2d <a href>sequence</a>. <br>
             Under pwa/p2js a gdm is a HtmlElement and although a plain -ve would do, integer gdp follow the same convention.<br>
+            Note that gcp is "weak", in that everything from <a href>gButton</a> to <a href>gTree</a> passes, including a potentially
+            unused menubar canvas.<br>
             A gdp being <a href>integer</a> or <a href>sequence</a> determines ownership by theGUI
             or the application proper, but in all cases it means precisely one <a href>gPixbuf</a>, not several. 
             <br>

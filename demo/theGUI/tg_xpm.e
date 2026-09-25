@@ -12,60 +12,26 @@
 --
 local constant BI_RGB = 0
 
-local integer idBITMAPINFOHEADER = 0,
-              idRGBQUAD
+local integer idBITMAPINFOHEADER = define_struct("""typedef struct tagBITMAPINFOHEADER {
+                                                      DWORD biSize;
+                                                      LONG  biWidth;
+                                                      LONG  biHeight;
+                                                      WORD  biPlanes;
+                                                      WORD  biBitCount;
+                                                      DWORD biCompression;
+                                                      DWORD biSizeImage;
+                                                      LONG  biXPelsPerMeter;
+                                                      LONG  biYPelsPerMeter;
+                                                      DWORD biClrUsed;
+                                                      DWORD biClrImportant;
+                                                    } BITMAPINFOHEADER, *PBITMAPINFOHEADER;"""),
 
-local procedure set_idBITMAPINFOHEADER()
-    idBITMAPINFOHEADER = define_struct("""typedef struct tagBITMAPINFOHEADER {
-                                            DWORD   biSize;
-                                            LONG    biWidth;
-                                            LONG    biHeight;
-                                            WORD    biPlanes;
-                                            WORD    biBitCount;
-                                            DWORD   biCompression;
-                                            DWORD   biSizeImage;
-                                            LONG    biXPelsPerMeter;
-                                            LONG    biYPelsPerMeter;
-                                            DWORD   biClrUsed;
-                                            DWORD   biClrImportant;
-                                           } BITMAPINFOHEADER, *PBITMAPINFOHEADER;""")
---/* or maybe [DEV]
-
-typedef struct {
-  DWORD        bV5Size;
-  LONG         bV5Width;
-  LONG         bV5Height;
-  WORD         bV5Planes;
-  WORD         bV5BitCount;
-  DWORD        bV5Compression;
-  DWORD        bV5SizeImage;
-  LONG         bV5XPelsPerMeter;
-  LONG         bV5YPelsPerMeter;
-  DWORD        bV5ClrUsed;
-  DWORD        bV5ClrImportant;
-  DWORD        bV5RedMask;
-  DWORD        bV5GreenMask;
-  DWORD        bV5BlueMask;
-  DWORD        bV5AlphaMask;
-  DWORD        bV5CSType;
-  CIEXYZTRIPLE bV5Endpoints;
-  DWORD        bV5GammaRed;
-  DWORD        bV5GammaGreen;
-  DWORD        bV5GammaBlue;
-  DWORD        bV5Intent;
-  DWORD        bV5ProfileData;
-  DWORD        bV5ProfileSize;
-  DWORD        bV5Reserved;
-} BITMAPV5HEADER, *PBITMAPV5HEADER;
-           
---*/
-    idRGBQUAD = define_struct("""typedef struct tagRGBQUAD {
-                                  BYTE rgbBlue;
-                                  BYTE rgbGreen;
-                                  BYTE rgbRed;
-                                  BYTE rgbReserved;
-                                 } RGBQUAD;""")
-end procedure
+                idRGBQUAD = define_struct("""typedef struct tagRGBQUAD {
+                                              BYTE rgbBlue;
+                                              BYTE rgbGreen;
+                                              BYTE rgbRed;
+                                              BYTE rgbReserved;
+                                             } RGBQUAD;""")
 
 -- first line is columns rows colors chars-per-pixel [hotx hoty]?
 -- The next "colors" lines are, well colours ('c').
@@ -209,18 +175,28 @@ local function tg_get_colour_table(sequence xpm, integer nFrames=1)
         assert(bOK)
         -- convert to an {r,g,b} code
         if data[1]='#' then
-            assert(length(data)=7)
-            -- hex tuple: #rrggbb
-            integer rr = tg_hexstr_to_int(data[2..3]),
-                    gg = tg_hexstr_to_int(data[4..5]),
-                    bb = tg_hexstr_to_int(data[6..7])
---          if bGreyScale then 
+            if length(data)=7 then
+                -- hex tuple: #rrggbb
+                integer rr = tg_hexstr_to_int(data[2..3]),
+                        gg = tg_hexstr_to_int(data[4..5]),
+                        bb = tg_hexstr_to_int(data[6..7])
+--              if bGreyScale then 
 ----                rr = floor((rr+gg+bb)/3)
---              rr = floor(sqrt((rr+gg+bb)/765)*255)
---              gg = rr
---              bb = rr
---          end if
-            cused &= rr*#10000+gg*#100+bb
+--                  rr = floor(sqrt((rr+gg+bb)/765)*255)
+--                  gg = rr
+--                  bb = rr
+--              end if
+                cused &= rr*#10000+gg*#100+bb
+            elsif length(data)=9 then
+                -- #aarrggbb
+                integer aa = tg_hexstr_to_int(data[2..3]),
+                        rr = tg_hexstr_to_int(data[4..5]),
+                        gg = tg_hexstr_to_int(data[6..7]),
+                        bb = tg_hexstr_to_int(data[8..9])
+                    cused &= aa*#1000000+rr*#10000+gg*#100+bb
+            else
+                ?9/0
+            end if
         elsif data="none" then
             assert(nTrans=0)
             assert(i=1) -- (added 16/11/23, for )
@@ -239,13 +215,13 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
 --
 -- xpm is a [local constant] sequence of the form:
 --      constant xpm = {"5 5 2 1",
---                      "  c None",
+--                      ". c None",
 --                      "x c #000000",
---                      "     ",
---                      " x x ",
---                      "  x  ",
---                      " x x ",
---                      "     "}
+--                      ".....",
+--                      ".x.x.",
+--                      "..x..",
+--                      ".x.x.",
+--                      "....."}
 --  Obviously the one passed can be any size and number of colours, but
 --  the one shown describes a 5x5 bitmap with 2 colours, one char per pixel,
 --  and as you can hopefully see above is a small 'X'.
@@ -277,7 +253,7 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
 --?{"palSize",2,"bpp",bpp,"colours",colours}
 
     -- calculate the size of the BITMAPINFO header
-    if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
+--  if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
     integer headerSize = get_struct_size(idBITMAPINFOHEADER) + 
 --DEV tryme... (change made 12/12/24 w/o testing, see what happens... remove palSize if ok)
 --                      (get_struct_size(idRGBQUAD) * palSize)
@@ -328,7 +304,8 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
     -- build the bitmap info header
     set_struct_field(idBITMAPINFOHEADER,pBIH,"biSize",get_struct_size(idBITMAPINFOHEADER))
     set_struct_field(idBITMAPINFOHEADER,pBIH,"biWidth",width)           -- Width in pixels.
-    set_struct_field(idBITMAPINFOHEADER,pBIH,"biHeight",-height)        -- Height in pixels (-ve=topdown).
+--  set_struct_field(idBITMAPINFOHEADER,pBIH,"biHeight",-height)        -- Height in pixels (-ve=topdown).
+    set_struct_field(idBITMAPINFOHEADER,pBIH,"biHeight",height)     -- Height in pixels (-ve=topdown).
     set_struct_field(idBITMAPINFOHEADER,pBIH,"biPlanes",1)          -- 1 colour plane. (always)
     set_struct_field(idBITMAPINFOHEADER,pBIH,"biBitCount",bpp)      -- no. of bits per pixel (0, 1, 4, 8, 16, 24, 32)
     set_struct_field(idBITMAPINFOHEADER,pBIH,"biCompression",BI_RGB)    -- compression format - none in this case
@@ -381,7 +358,8 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
 
     mbPtr = pBIH+headerSize
 
-    atom hDIB, pMem=NULL
+--  atom hDIB, pMem=NULL
+    atom hDIB, pMem=mbPtr
     if bSection then
         {hDIB,pMem} = callback({"NEWSECT",{pBIH,headerSize}})
         mbPtr = pMem
@@ -389,7 +367,8 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
     end if
 
     -- convert the text into indexes
-    for i=1 to height do
+--  for i=1 to height do
+    for i=height to 1 by -1 do
         string data = xpm[i+1+colours]  -- get a line
         assert(length(data)=width*codeWide)
         --
@@ -459,18 +438,15 @@ local function tg_winAPI_create_DIB_from_xpm(sequence xpm, integer callback, cTr
             pMem,       -- TG_IMG_PIXEL_MEM = 3,
             width,      -- TG_IMG_WIDTH = 4,
             height,     -- TG_IMG_HEIGHT = 5,
-            bSection,   -- TG_IMG_FLAGS = 6,
-            0,          -- TG_IMG_NEXT = 7,
-            TG_WHITE,   -- TG_IMG_BGCLR = 8,
-            TG_BLACK,   -- TG_IMG_FGCLR = 9,
-            NULL,       -- TG_IMG_DRAW_FONT = 10,
-            1,          -- TG_IMG_LINESTYLE = 11,
-            1,          -- TG_IMG_LINEWIDTH = 12,
-            NULL,       -- TG_IMG_USER_DATA = 13,
-            NULL,       -- TG_IMG_LAYOUT = 14,
-            0}          -- TG_IMG_IID = 15
---          0,          -- TG_IMG_DRAW_HANDLE = 9,
---          0}          -- TG_IMG_DRAW_SPECS = 10
+            0,          -- TG_IMG_NEXT = 6,
+            TG_WHITE,   -- TG_IMG_BGCLR = 7,
+            TG_BLACK,   -- TG_IMG_FGCLR = 8,
+            NULL,       -- TG_IMG_DRAW_FONT = 9,
+            1,          -- TG_IMG_LINESTYLE = 10,
+            1,          -- TG_IMG_LINEWIDTH = 11,
+            NULL,       -- TG_IMG_USER_DATA = 12,
+            NULL,       -- TG_IMG_LAYOUT = 13,
+            NULL}       -- TG_IMG_CLIP = 14
 --  return {hDIB,width,height,cTrans,pBIH}
 end function
 
@@ -485,7 +461,7 @@ local function tg_create_image_list(string plat, integer callback)
         end for
         return tree_images
     elsif plat="WinAPI" then
-        if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
+--      if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
         atom tree_himl = callback({"NEWLIST"})
         for i,xpm in {dir_closed_xpm,dir_open_xpm,dot_xpm} do
 --          atom icon = tg_winAPI_create_DIB_from_xpm(xpm,callback)
@@ -535,7 +511,7 @@ local function tg_winAPI_create_DIB(integer width, height)
 
 --  atom bitmapInfo = allocate(sizeofstruct(BITMAPINFOHEADER))
 
-    if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
+--  if idBITMAPINFOHEADER=0 then set_idBITMAPINFOHEADER() end if
     integer headerSize = get_struct_size(idBITMAPINFOHEADER)
     atom pBIH = allocate(headerSize+width*height*4)
 --  atom pBIH = allocate_struct(idBITMAPINFOHEADER)
@@ -747,8 +723,8 @@ end function
 
 local constant ucb = """
 13 13 7 1
-. c #f0f0f0
-a c #a9a9a9
+. c None
+a c #40a9a9a9
 b c #6a6a6a
 c c #626262
 d c #999999
@@ -770,8 +746,8 @@ ade_______eda
 
 local constant ccb = """
 13 13 12 1
-. c #f0f0f0
-a c #699fd1
+. c None
+a c #40699fd1
 b c #0f68bc
 c c #5f9bd3
 d c #a0c3e5
@@ -799,12 +775,12 @@ a___________a
 -- unchecked radio button
 local constant urb = """
 13 13 11 1
-. c #f0f0f0
-a c #cccccc
+. c None
+a c #20cccccc
 b c #8f8f8f
 c c #6a6a6a
 d c #626262
-e c #a0a0a0
+e c #40a0a0a0
 f c #747474
 g c #b4b4b4
 h c #e0e0e0
@@ -827,11 +803,11 @@ afh_______hfa
 -- checked radio button (active)
 local constant crb = """
 13 13 8 1
-. c #f0f0f0
-a c #b4cce2
+. c None
+a c #20b4cce2
 b c #4b8cca
 c c #0060b0
-d c #689ed0
+d c #40689ed0
 e c #2068b0
 f c #c8d8f0
 _ c #ffffff
@@ -852,9 +828,9 @@ accccccccccca
 -- checked radio button (inactive)
 local constant irb = """
 13 13 6 1
-. c #f0f0f0
-a c #b4cce2
-b c #689ed0
+. c None
+a c #40b4cce2
+b c #40689ed0
 c c #989898
 d c #c8d8f0
 _ c #ffffff
@@ -871,7 +847,6 @@ accccccccccca
 .bcccccccccb.
 ..bcccccccb..
 ...accccca..."""
-
 
 local constant cal_ltxt = `
 6 9 2 1
@@ -900,6 +875,73 @@ x c #313131
 .x....
 ......`
 
+-- for gSlider:
+local constant slider_thumb_txt = """
+11 19 3 1
+. c None
+# c #0078D7
++ c #78B4E4
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
+###########
++#########+
+.+#######+.
+..+#####+..
+...+###+...
+....+#+....
+"""
+
+local constant slider_vthumb_txt = """
+19 11 3 1
+. c None
+# c #0078D7
++ c #78B4E4
+##############+....
+###############+...
+################+..
+#################+.
+##################+
+###################
+##################+
+#################+.
+################+..
+###############+...
+##############+....
+"""
+
+-- for gProgressBar:
+local constant stripes_txt = """
+15 15 2 1
+# c #3184fd
++ c #0d6efd
+########+++++++
++########++++++
+++########+++++
++++########++++
+++++########+++
++++++########++
+++++++########+
++++++++########
+#+++++++#######
+##+++++++######
+###+++++++#####
+####+++++++####
+#####+++++++###
+######+++++++##
+#######+++++++#
+"""
+
 local function tg_XPM_from_shorthand(string name)
 --DEV/SUG apply gImage_from_XPM here?
     if name="dp_xpm" then return dp_xpm_txt end if
@@ -907,6 +949,8 @@ local function tg_XPM_from_shorthand(string name)
     if name="scroll_arrows" then return tg_create_scroll_arrows() end if
     if name="chk_xpm" then return {ucb,ccb,urb,crb,irb} end if
     if name="calendar_arrows" then return {cal_ltxt,cal_rtxt} end if
+    if name="slider_thumb" then return {slider_thumb_txt,slider_vthumb_txt} end if
+    if name="stripes" then return stripes_txt end if
     ?9/0
 end function
 
@@ -917,7 +961,8 @@ gSetGlobal("XPM_INIT",{tg_create_image_list,
                        tg_XPM_from_shorthand,
                        tg_winAPI_create_DIB,
                        tg_winAPI_create_DIB_from_xpm,
-                       tg_get_colour_table})
+                       tg_get_colour_table,
+                       idBITMAPINFOHEADER})
 
 -- I found this...:
 --;(function($){

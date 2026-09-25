@@ -22,6 +22,629 @@
 --  all of that. Nevertheless it was all done and dusted in about half an hour I would guess, that is for
 --  running without p2js violations on desktop/Phix - (re)size issues may yet take quite a bit longer.
 --
+--/!*
+with javascript_semantics -- nb lots of (re)size issues..., 500Kx900K pixel canvii, MINMAX
+--without debug
+with trace
+requires(`1.0.6`)
+include theGUI.e
+include builtins\VM\pprntfN.e
+include builtins\VM\pcfunc.e
+include builtins\pfile.e
+include builtins\scanf.e
+include builtins\pdir.e
+include builtins\penv.e
+with debug
+
+constant title = `Hexapawn`
+
+-- A board is held as eg {"WWW","...","BBB"} (nb displayed upside down)
+-- A move is held as {{{y1,x1},{y2,x2}},colour} where x/y are 1..3.
+
+enum BOARD, MOVES, BLACKS, WHITES 
+-- nb the above correspond to board_canvas .. white_canvas.
+-- nb BOARD|MOVES also apply within each of the above, that is
+--    data[BOARD][BOARD], data[BOARD][MOVES], data[MOVES][BOARD],
+--    etc are all valid uses, however data[BOARD][BLACKS] isn't.
+
+sequence data = {{{},{}},   -- BOARD    -- (current)
+                 {{},{}},   -- MOVES    -- (game log)
+                 {{},{}},   -- BLACKS   -- (training data)
+                 {{},{}}}   -- WHITES   -- (training data)
+
+-- data[BOARD][BOARD] is always a sequence of length 1, for consistency,
+--                    whereas [other][BOARD] can contain 0..19 of them,
+--                    where that 19 is just from the highest yet seen.
+-- data[BOARD][MOVES] is {} or one move, depending on the mouse hover.
+-- data[MOVES][MOVES] has one move per board, except last which is {}.
+-- data[BLACKS/WHITES][MOVES] can contain 0-3 possible moves, obviously.
+
+bool game_over = false
+integer bw = 0, ww = 0  -- win counts
+
+enum HUMAN, COMPUTER
+
+-- The next five values flip on every move:
+integer player, opponent,           -- 'W' <==> 'B'
+        player_type, opponent_type, -- HUMAN/COMPUTER
+        traindx = WHITES            -- or BLACKS, top-level index to data
+
+function possible_moves(sequence board)
+    sequence moves = {}
+    integer height = length(board),
+            width = length(board[1]),
+            direction = iff(player='W'?+1:-1)
+    for row=1 to height do
+        for col=1 to width do
+            if board[row][col]=player then
+                integer rd = row+direction
+                if rd<1 or rd>height then ?9/0 end if -- game_over??
+                for tgt=max(1,col-1) to min(col+1,width) do
+                    if board[rd][tgt]==iff(tgt==col?'.':opponent) then
+                        moves = append(moves,{{{row,col},{rd,tgt}},TG_DARK_GREY})
+                    end if
+                end for
+            end if
+        end for
+    end for
+    return moves
+end function
+
+-- We use mirroring to approximately halve the training data set sizes.
+-- (every possible board/move has an equivalent mirror, some idential)
+
+function mirror(sequence board)
+-- flip each row, eg {".WW","W..","BBB"} <=> {"WW.","..W","BBB"}
+    for i=1 to length(board) do
+        board[i] = reverse(board[i])
+    end for
+    return board
+end function
+
+function mirror_move(sequence move)
+-- from/to x := 4-x; y's and colour unchanged.
+    integer {{{y1,x1},{y2,x2}},colour} = move
+    move = {{{y1,4-x1},{y2,4-x2}},colour}
+    return move
+end function
+
+function find_board(sequence board)
+--
+-- retrieve an index to the training data (created if rqd)
+-- also returns bools flip (move must flip too then), and
+-- is_mirror (ie the training data deserves two updates)
+--
+-- (Also used to init training data, ie show the 
+--  starting board, with all moves valid/grey.)
+--
+--  sequence mb = mirror(board)
+    sequence mb = mirror(deep_copy(board))
+    bool is_mirror = (mb==board), flip = false
+    if mb<board then
+        board = mb
+        flip = true
+    end if
+    integer k = find(board,data[traindx][BOARD])
+    if k=0 then
+        sequence moves = possible_moves(board)
+--      data[traindx][BOARD] &= {board}
+--      data[traindx][BOARD] &= {deep_copy(board)}
+        data[traindx][BOARD] = deep_copy(data[traindx][BOARD]) & {deep_copy(board)}
+--      data[traindx][MOVES] &= {moves}
+        data[traindx][MOVES] = deep_copy(data[traindx][MOVES]) & {moves}
+        k = length(data[traindx][BOARD])
+    end if
+    return {k,flip,is_mirror}
+end function
+
+procedure train(integer mdx)
+--
+-- Learn something from losing a game.
+-- player, traindx should already be set.
+--
+-- nb learn both/propagate are technically not in the original spec,
+--    which confiscates max one bead per round. Obviously you could
+--    instead hunt for one earlier move when moves[m][2]==TG_RED,
+--    and simply play more games to complete the training.
+--
+    data[MOVES][MOVES][mdx][1][2] = TG_RED  -- (just the game log)
+--  sequence board = data[MOVES][BOARD][mdx],
+    sequence board = deep_copy(data[MOVES][BOARD][mdx]),
+--           move = data[MOVES][MOVES][mdx][1]
+             move = deep_copy(data[MOVES][MOVES][mdx][1])
+    {integer k, bool flip, bool is_mirror} = find_board(board)
+--  sequence moves = data[traindx][MOVES][k]
+    sequence moves = deep_copy(data[traindx][MOVES][k])
+    if flip then move = mirror_move(move) end if
+    integer m = find(move[1],vslice(moves,1))
+    if moves[m][2]!=TG_RED then
+        moves[m][2] = TG_RED
+        if is_mirror then -- (learn both)
+            m = find(mirror_move(move)[1],vslice(moves,1))
+            moves[m][2] = TG_RED
+        end if
+        data[traindx][MOVES][k] = moves
+        if mdx>2 and sum(sq_ne(vslice(moves,2),TG_RED))=0 then
+            train(mdx-2) -- (propagate)
+        end if
+    end if
+end procedure
+
+procedure play_move(sequence move)
+    if length(move) then
+        move[2] = TG_DARK_GREY
+        integer {{{y1,x1},{y2,x2}}/*,colour*/} = move
+        data[BOARD][BOARD][1][y1][x1] = '.'
+        data[BOARD][BOARD][1][y2][x2] = player
+//DEV (??)
+--data[MOVES][MOVES] = deep_copy(data[MOVES][MOVES])
+data[MOVES] = deep_copy(data[MOVES])
+        data[MOVES][MOVES][$] = {move}  -- (fill in game log)
+--      data[MOVES][BOARD] &= data[BOARD][BOARD]
+--      data[MOVES][BOARD] &= deep_copy(data[BOARD][BOARD])
+        data[MOVES][BOARD] = deep_copy(data[MOVES][BOARD]) & deep_copy(data[BOARD][BOARD])
+--      data[MOVES][MOVES] &= {{{}}}
+        data[MOVES][MOVES] = deep_copy(data[MOVES][MOVES]) & {{{}}}
+        {player, opponent} = {opponent, player}
+        {player_type, opponent_type} = {opponent_type, player_type}
+        traindx = WHITES+BLACKS - traindx -- (toggle b/w)
+--      sequence board = data[BOARD][BOARD][1]
+        sequence board = deep_copy(data[BOARD][BOARD][1])
+        if y2!=2 -- (must be "third row" then, ie 1|3)
+        or not find(player,flatten(board))
+        or possible_moves(board)={} then
+            game_over = true
+            if player='W' then bw += 1 else ww +=1 end if
+            train(length(data[MOVES][MOVES])-2)
+        else
+            {} = find_board(board)
+        end if
+    end if
+end procedure
+
+procedure opponent_play()
+--
+-- does nothing if opponent is HUMAN
+-- (nb: implements one move per mouse click behaviour, when both COMPUTER)
+--
+    if not game_over
+    and player_type=COMPUTER then
+--      sequence board = data[BOARD][BOARD][1]
+        sequence board = deep_copy(data[BOARD][BOARD][1])
+        {integer k, bool flip, bool is_mirror} = find_board(board)
+--      sequence moves = data[traindx][MOVES][k], not_red = {}
+        sequence moves = deep_copy(data[traindx][MOVES][k]), not_red = {}
+        for m=1 to length(moves) do
+            if moves[m][2]!=TG_RED then
+                not_red = append(not_red,moves[m])
+            end if
+        end for
+        if length(not_red) then moves = not_red end if
+--      sequence move = moves[rand(length(moves))]
+        sequence move = deep_copy(moves[rand(length(moves))])
+        if flip then move = mirror_move(move) end if
+--      play_move(move)
+        play_move(deep_copy(move))
+    end if
+end procedure
+
+procedure new_game()
+    data[BOARD] = {{{"WWW","...","BBB"}},{{}}}
+--  data[MOVES] = data[BOARD]
+    data[MOVES] = deep_copy(data[BOARD])
+    game_over = false
+--  {player,opponent} = "WB"
+    {player,opponent} = {'W','B'}
+    {player_type,opponent_type} = {HUMAN,COMPUTER} -- (or any)
+--  {player_type,opponent_type} = {COMPUTER,COMPUTER} -- (or any)
+--  {player_type,opponent_type} = {HUMAN,HUMAN} -- (or any)
+    traindx = WHITES
+    {} = find_board(data[BOARD][BOARD][1])  -- (init training data)
+--  {} = find_board(deep_copy(data[BOARD][BOARD][1]))   -- (init training data)
+end procedure
+
+procedure train_rec()
+--
+-- Note this might require some more looping if train() is changed
+-- to respect max-one-per-round original rules, as mentioned above
+--
+--  sequence board = data[BOARD][BOARD][1],
+    sequence board = deep_copy(data[BOARD][BOARD][1]),
+             moves = possible_moves(board),
+--           plopt = {player, opponent, traindx, data[MOVES]},
+             plopt = {player, opponent, traindx, deep_copy(data[MOVES])},
+             bwww = {bw,ww}
+    for i=1 to length(moves) do
+--      play_move(moves[i])
+        play_move(deep_copy(moves[i]))
+        if not game_over then train_rec() end if
+        game_over = false
+--      data[BOARD][BOARD][1] = board
+        data[BOARD][BOARD][1] = deep_copy(board)
+--      {player, opponent, traindx, data[MOVES]} = plopt
+        {player, opponent, traindx, data[MOVES]} = deep_copy(plopt)
+    end for
+    {bw,ww} = bwww
+end procedure
+
+-- === ott gui version ===
+-- Displays full training data (for blacks and whites), and last game history.
+-- Mouse-operated gameplay (hover for arrow then click).
+
+-- To do: Show a little more enthusiasm when someone wins, and say who did.
+--       Keep a running tally of games won, as part of "".
+
+gdx dlg
+
+-- saved from draw for mouse hover checks:
+sequence board_centres = {}
+integer board_radius2 = 0
+
+procedure draw_board(gdx canvas, integer dx, idx, px, py, mx, h)
+    sequence board = data[dx][BOARD][idx],
+--           centres = board    -- (fully overwritten in draw pieces step)
+             centres = deep_copy(board) -- (fully overwritten in draw pieces step)
+    integer diameter = floor(mx/5),
+            gap = floor(mx/8),  -- (squares are twice the gap)
+            rhs = 7*gap         -- (lhs==gap, rhs/lhs==top/btm)
+    --
+    -- draw grid lines
+    --
+    gSetAttribute(canvas,`FGCLR`,TG_GREY)
+    gSetAttribute(canvas,`LINEWIDTH`,1)
+    for l=1 to 7 by 2 do
+        integer l3 = l*gap
+        gDrawLine(canvas, px+gap, py+l3, px+rhs, py+l3)
+        gDrawLine(canvas, px+l3, py+gap, px+l3, py+rhs)
+    end for
+    --
+    -- draw pieces
+    --
+    for r=1 to length(board) do
+        for c=1 to length(board[r]) do
+            integer cx = px+2*c*gap,
+                    cy = py+2*r*gap
+            centres[r][c] = {cx,cy}
+            integer piece = board[r][c]
+            if piece!='.' then
+                cy = h-cy
+                gSetAttribute(canvas,`FGCLR`,iff(piece='B'?TG_BLACK:TG_WHITE))
+--              gDrawArc(canvas, cx, cy, diameter, diameter, 0, 360,0,TG_FILLED+TG_SECTOR)
+                gDrawArc(canvas, cx, cy, diameter, diameter, 0, 360,0,TG_FILLED)
+                gSetAttribute(canvas,`FGCLR`,TG_BLACK)
+                gDrawArc(canvas, cx, cy, diameter, diameter, 0, 360)
+            end if
+        end for
+    end for
+    if dx=BOARD then
+        -- save for mouse_move()
+        board_centres = centres
+        board_radius2 = gap*gap
+    end if
+    --
+    -- draw arrows
+    --
+--  gSetAttribute(canvas,`LINEWIDTH`,2)
+--  gSetAttribute(canvas,`LINEWIDTH`,3)
+    sequence arrows = data[dx][MOVES][idx]
+    for i=1 to length(arrows) do
+        if length(arrows[i])=0 then exit end if
+        integer {{{x1,y1},{x2,y2}},colour} = arrows[i]
+        {x1,y1} = centres[x1][y1]
+        {x2,y2} = centres[x2][y2]
+        if y1=y2 then ?9/0 end if   -- horizontal??
+        integer ax = iff(x1<x2?-1:+1),
+                ay = iff(y1<y2?-1:+1)
+        gSetAttribute(canvas,`FGCLR`,colour)
+y1 = h-y1
+y2 = h-y2
+        if x1!=x2 then -- diagonal:
+--          gDrawLine(canvas,x1,y1,x2+ax,y2+ay)
+            gDrawLine(canvas,x1,y1,x2-ax,y2-ay)
+--          gDrawLine(canvas,x2+ax,y2,x2+ax,y2+ay*6)
+            gDrawLine(canvas,x2+ax,y2,x2+ax,y2-ay*6)
+--          gDrawLine(canvas,x2,y2+ay,x2+ax*6,y2+ay)
+            gDrawLine(canvas,x2,y2-ay,x2+ax*6,y2-ay)
+        else          -- vertical:
+--          gDrawLine(canvas,x1,y1,x2,y2+ay)
+            gDrawLine(canvas,x1,y1,x2,y2-ay)
+--x2 -= 1
+--          gDrawLine(canvas,x2-ax,y2+ay,x2+ax*4,y2+ay*6)
+            gDrawLine(canvas,x2-ax,y2-ay,x2+ax*4,y2-ay*6)
+--          gDrawLine(canvas,x2+ax,y2+ay,x2-ax*4,y2+ay*6)
+            gDrawLine(canvas,x2+ax,y2-ay,x2-ax*4,y2-ay*6)
+        end if
+    end for
+end procedure
+ 
+procedure redraw(gdx canvas, integer cw,ch)
+    integer dx = gGetInt(canvas,"USER_DATA")
+    assert(dx!=0) -- (for p2js)
+    --
+    -- first, calculate the best nw*nh way to fit them all in:
+    --
+    integer nw = 1, nh = 1
+    while nw*nh<length(data[dx][1]) do
+        if (cw/(nw+1))>(ch/(nh+1)) then
+            nw += 1
+        else
+            nh += 1
+        end if
+    end while
+    integer mx = min(floor(cw/nw), floor(ch/nh))
+    --
+    -- now draw all the boards
+    --
+--  IupGLMakeCurrent(ih)
+--  cdCanvas cddbuffer = gGetAttribute(ih,"DBUFFER")
+    --cdCanvasActivate(cddbuffer)
+    --cdCanvasClear(cddbuffer)
+    integer px = floor((cw-nw*mx)/2), -- (set margin)
+            py = floor((ch-nh*mx)/2), --      ""
+            this_row = 0
+    py = ch-mx-py -- (start at the top)
+--  py = mx+py -- (start at the top)
+    for i=1 to length(data[dx][1]) do
+--?{px,py}
+        draw_board(canvas,dx,i,px,py,mx,ch)
+--      draw_board(canvas,dx,i,px,ch-py,mx)
+        px += mx
+        this_row += 1
+        if this_row>=nw then
+            this_row = 0
+            px = floor((cw-nw*mx)/2)
+            py -= mx
+--          py += mx
+        end if
+    end for
+end procedure
+
+function check_position(integer px, py)
+--
+-- check if x,y is on (a 45 degree sector of player's piece of) a legal move.
+-- notes: a result of {{1,1},{2,2},TG_GREEN} means bottom left takes centre.
+--        perfectly fine to invoke for either the black or white player.
+--        this can get invoked when board_centres still=={} (returns {}).
+--
+    if not game_over 
+    and player_type=HUMAN
+    and board_centres!={} then -- (when started with mouse cursor on-board)
+        integer height = length(board_centres),
+                width = length(board_centres[1]),
+                direction = iff(player='W'?+1:-1)
+        for y=1 to height do
+            integer yd = y+direction
+            if yd>=1 and yd<=height then
+                for x=1 to width do
+                    sequence c = sq_sub(board_centres[4-y][x],{px,py})
+                    integer {cx,cy} = sq_mul(c,{1,direction})
+                    if cy>0 and (cx*cx+cy*cy)<=board_radius2 then
+                        atom angle = -arctan(cx/cy)*TG_RAD2DEG
+                        if angle>=-67.5 and angle<=67.5 then
+                            -- within one of three 45 degree sectors:
+                            -- >22.5 is a move right,
+                            -- 22.5..-22.5 is a move up,
+                            -- <-22.5 is a move left
+                            sequence board = data[BOARD][BOARD][1]
+                            integer move = floor((angle+22.5)/45), -- (-1/0/+1)
+                                    tgt = iff(move=0?'.':opponent),
+                                    xm = x+move
+                            if xm>=1 and xm<=width
+                            and board[y][x]=player
+                            and board[yd][xm]==tgt then
+                                return {{{y,x},{yd,xm}},TG_GREEN}
+                            end if
+                        end if
+                        return {}   -- (we may as well quit now)
+                    end if
+                end for
+            end if
+        end for
+    end if
+    return {}
+end function
+
+procedure mouse_move(gdx board_canvas, integer x, y)
+    data[BOARD][MOVES][1] = {check_position(x,y)}
+    gRedraw(board_canvas) 
+end procedure
+
+procedure redraw_all()
+--  gdx frame = gGetAttribute(dlg,"BOARD_FRAME")
+    gdx frame = gGetAttribute(dlg,"USER_DATA")
+    string title = iff(game_over?sprintf("%c wins (Black:%d, White:%d)",{opponent,bw,ww}):"Board")
+    gSetAttribute(frame, "TITLE", title)
+--  gRedraw(gGetAttribute(dlg,"BOARD_CANVAS"))
+--  gRedraw(gGetAttribute(dlg,"MOVES_CANVAS"))
+--  gRedraw(gGetAttribute(dlg,"WHITE_CANVAS"))
+--  gRedraw(gGetAttribute(dlg,"BLACK_CANVAS"))
+end procedure
+
+--function button_cb(gdx /*board_canvas*/, integer button, pressed, x, y, atom /*pStatus*/)
+procedure canvas_click(gdx /*board_canvas*/, sequence status, integer x, y)
+    if status[1..2]=`LR` then    -- (left button released)
+        play_move(check_position(x,y))
+        opponent_play()
+        redraw_all()
+    end if
+end procedure
+
+--function new_game_cb(gdx /*ih*/)
+--  new_game()
+--dev??
+--  redraw_all()
+--  return TG_DEFAULT
+--end function
+
+procedure train_cb()
+    sequence pott = {player_type, opponent_type}
+    new_game()
+    train_rec()
+    {player_type, opponent_type} = pott -- (restore)
+    redraw_all()
+end procedure
+
+--function exit_cb(gdx /*ih*/)
+--  return TG_CLOSE
+--end function
+
+constant help_text = """
+Hexapawn may be the simplest game for which a self-learning game AI 
+is not completely and utterly trivial, or at least non-obvious.
+(and yes, even simpler than noughts and crosses in that regard)
+
+Pieces can move forward into an empty square or diagonally to take
+an opponent's piece (no initial double or en passant moves). 
+The game is over if a piece reaches the third row, all opponent 
+pieces are captured, or the opponent has no valid move. 
+White always goes first.
+
+Hover the mouse over a (45 degree sector of) a piece until an arrow 
+appears (if that's valid), then click.
+
+Either or both players can be computer or human (the machine learns
+from both). Note that when both are computer, mouse clicks (anywhere
+on the board canvas) are still needed before it makes a move.
+
+The "Train" option performs an exhaustive search of all possible moves.
+Note the results may turn out slightly different if you manually 
+teach it a few moves first. Once fully trained, white cannot possibly win.
+Interestingly, it never learns anything about winning moves, it just 
+avoids losing moves, which is enough to make it (/black) unbeatable.
+
+In the training data, red arrows indicate losing moves, and grey ones
+still potential winners. Red arrows in the game log indicate what has
+just been learnt from playing(/losing) the last game.
+
+The human-player games quickly become a test to see how fast you 
+can decipher/fill the training data, which is made slightly more 
+difficult (for a human) by board/move mirroring. How many games can
+you win, and how few to prove that white will (eventually) always 
+lose? My records are 14 and 3 respectively, however on the latter
+you will get/need a few more wins on the way to finishing the full
+training of it.
+
+Enhancing this game to handle larger boards and other games such as 
+noughts and crosses/tic-tac-toe and/or checkers/draughts (etc) is 
+left as an exercise for the reader.
+"""
+
+gdx mbx = NULL
+
+function help(gdx dlg)
+    if mbx=NULL then
+        gdx lbl = gLabel(help_text),
+            bok = gButton(`OK`,gQuit),
+            hbx = gHbox({bok},`SPACE=LEFT`),
+            vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+        mbx = gDialog(vbx,dlg,title)
+        gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+    end if
+    gShow(mbx)
+    return TG_IGNORE -- (don't open browser help!)
+--  gMsgBox(?parent?,"Hexapawn",help_text)
+end function
+
+-- Other possible keys:
+-- T - perform full self-training, for both black and white.
+-- Q - quit (end program) [==X?]
+-- C - concede (start new game)
+-- U - undo (??) [nb no effect on learning / not post-defeat]
+function key_handler(gdx dlg, integer c)
+--  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
+--  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+    if c=VK_F1 then return help(dlg) end if
+    return TG_CONTINUE
+end function
+
+local constant MENU = {{"&New game",'N'},
+                       {"&Train",'T'},
+                       {"&Help\t",VK_F1},
+                       {"E&xit\t",M_ALT+VK_F4}}
+
+local function menu_handler(gdx menu, integer id)
+--  gdx text = gGetAttribute(gtext_menu,`USER_DATA`)
+--  integer {ch,ctrl,shift} = gMenuCcsa(id)
+--  {} = tg_gtext_key_handler(gGetDialog(menu),ch,ctrl,shift) 
+    switch id
+        case 'N': new_game()
+        case 'T': train_cb()
+        case VK_F1: return help(gGetDialog(menu))
+        case M_ALT+VK_F4: return TG_CLOSE
+        default: ?9/0
+    end switch
+    return TG_DEFAULT
+end function
+
+--function crash_cb(gdx /*ih*/)
+--  ?9/0
+--  return TG_DEFAULT
+--end function
+
+procedure main()
+    
+    gdx board_canvas = gCanvas(redraw,"USER_DATA=%d,SIZE=50x50",{BOARD}),
+        moves_canvas = gCanvas(redraw,"USER_DATA=%d,SIZE=50x50",{MOVES}),
+        black_canvas = gCanvas(redraw,"USER_DATA=%d,SIZE=50x50",{BLACKS}),
+        white_canvas = gCanvas(redraw,"USER_DATA=%d,SIZE=50x50",{WHITES}),
+        board_frame = gHbox(board_canvas,`Board`),
+        moves_frame = gHbox(moves_canvas,`Game log`),
+        black_frame = gHbox(black_canvas,`Black`),
+        white_frame = gHbox(white_canvas,`White`),
+--      left = gSplit(board_frame,moves_frame,"ORIENTATION=HORIZONTAL,MINMAX=100:900"),
+--$
+--trace(1)
+--gdx
+        left = gSplit(board_frame,moves_frame,"VERTICAL"),
+        right = gVbox({black_frame,white_frame}),
+--      full = gSplit(left,right,"ORIENTATION=VERTICAL,MINMAX=100:900"),
+        full = gSplit(left,right,`HORZONTAL`),--,MINMAX=100:900"),
+        menu = gMenu(MENU,menu_handler)
+    gSetHandlers(board_canvas,{`MOUSEMOVE`,mouse_move,
+                                   `CLICK`,canvas_click})
+    dlg = gDialog(gVbox({menu,full}),title,`SIZE=800x800,MINSIZE=228x215`)
+    gSetAttribute(dlg,"USER_DATA",board_frame)
+    gSetHandler(dlg,`KEY`,key_handler)
+--  gSetAttributePtr(dlg,"BOARD_FRAME",board_frame)
+--  gSetAttributePtr(dlg,"BOARD_CANVAS",board_canvas)
+--  gSetAttributePtr(dlg,"MOVES_CANVAS",moves_canvas)
+--  gSetAttributePtr(dlg,"WHITE_CANVAS",white_canvas)
+--  gSetAttributePtr(dlg,"BLACK_CANVAS",black_canvas)
+    gdx c4 = {board_canvas, moves_canvas, black_canvas, white_canvas}
+    gdx f4 = {board_frame, moves_frame, black_frame, white_frame}
+--,"MARGIN=3"   
+    gSetAttribute(c4,`MARGIN`,3)
+    gSetAttribute(f4,`MARGIN`,3)
+--          gSetAttribute(gtext_menu,`USER_DATA`,text)
+
+--  gdx main_menu = IupMenu({IupMenuItem("&New game",new_game_cb),
+----                                 IupMenuItem("&Options",options_cb),
+--                               IupMenuItem("&Train",train_cb),
+--                               IupMenuItem("&Help (F1)",help_cb),
+----                                 IupMenuItem("&Crash",crash_cb),
+--                               IupMenuItem("E&xit", exit_cb)})
+--  gSetAttributeHandle(dlg,"MENU",main_menu)
+
+--/*
+    canvas = gCanvas(NULL)
+    gSetAttribute(canvas, "SIZE", "1250x300")
+    gSetHandler(canvas, ?MAP_CB?[DEAD], map_cb)
+ 
+    dlg = gDialog(canvas,"DIALOGFRAME=YES")
+    gSetAttribute(dlg, "TITLE", "Triangle overlap")
+    gSetHandler(canvas, "ACTION", redraw_cb)
+--*/
+--  gSetAttributeHandle(NULL,?PARENTDIALOG?[DEAD],dlg)      -- WOW!!
+
+    new_game()
+
+    gMainLoop(dlg)
+end procedure
+ 
+main()
+--*!/
+
+--/*
 --with javascript_semantics -- nb lots of (re)size issues..., 500Kx900K pixel canvii, MINMAX
 without debug
 include pGUI.e
@@ -613,7 +1236,7 @@ procedure main()
 end procedure
  
 main()
-
+--*/
 
 --There is also a straightforward translation of Go in demo\rosetta\heaxpawn_go.exw if anyone is interested...
 

@@ -17,6 +17,10 @@
           <br>
           <br>
           glBufferData(<a href>integer</a> target, size, <a href>atom</a> pData, integer usage)
+          <br>
+          <i>-- or --</i>
+          <br>
+          glBufferData(<a href>integer</a> target, {<a href>atom</a> pData, integer size}, integer usage)
          </td>
         </tr>
         <tr>
@@ -24,12 +28,14 @@
           <b>Description:</b>
          </td>
          <td>
-            create and initialize a buffer object's data store
+            create and initialize a buffer object&apos;s data store
           <br>
           <br>
-            target: Specifies the target buffer object. The symbolic constant must be GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER.<br>
-            size, pData: Specifies the size in bytes of and a pointer the buffer object&apos;s new data store. See glFloat32Array() below.<br>
-            usage: Specifies the expected usage pattern of the data store. The symbolic constant must be GL_STREAM_DRAW, GL_STATIC_DRAW, or GL_DYNAMIC_DRAW.
+            target: eg GL_ARRAY_BUFFER or GL_ELEMENT_ARRAY_BUFFER.<br>
+            size: <small>(actually an <a href>object</a>)</small> size in bytes of the following<br>
+            pData: a memory pointer from which to initialise the buffer object&apos;s new data store. Can be NULL.<br>
+            When the above two are passed as a pair, from eg <a href>glFloat32Array</a>(), pData is automatically <a href>free</a>()&apos;d.<br>
+            usage: expected usage pattern of the data store, eg GL_STATIC_DRAW.
          </td>
         </tr>
         <tr>
@@ -48,12 +54,20 @@
             glBufferData creates a new data store for the buffer object currently bound to target. <br>
             Any pre-existing data store is deleted. The new data store is created with the specified size in bytes and usage. <br>
             If data is not <a href>NULL</a>, the data store is initialized with data from this pointer.
+<!--
             <br>
             <br>
-            usage is a hint to the GL implementation as to how a buffer object's data store will be accessed. <br>
-            This enables the GL implementation to make more intelligent decisions that may significantly impact buffer object performance. <br>
+            Note this is a cut-down and somewhat cripppled version of the real deal, only supporting necessary and tested target/usage
+            that have been proved to work on all backends. It may be extended in the future, when genuinely needed and not before.
+-->
+            <br>
+            <br>
+            usage is a hint to the GL implementation as to how a buffer object&apos;s data store will be accessed, <br>
+            which enables it to make more intelligent decisions that may significantly impact buffer object performance. <br>
             It does not, however, constrain the actual usage of the data store. <br>
-            usage can be broken down into two parts: first, the frequency of access (modification and usage), and second, the nature of that access. <br>
+            usage can be broken down into two parts: first, the frequency of access (modification and usage), and second, the nature of that access.
+            <br>
+            <br>
             The frequency of access may be one of these:<br>
             STREAM The data store contents will be modified once and used at most a few times.<br>
             STATIC The data store contents will be modified once and used many times.<br>
@@ -82,17 +96,25 @@
          </td>
          <td>
 <!--            {<a href>integer</a> size, <a href>atom</a> pData} = <b>glFloat32Array</b>(<a href>sequence</a> data)<br>-->
-            <a href>atom</a> pData = <b>glFloat32Array</b>(<a href>sequence</a> data)<br>
-            While in the C api it is natural to use the (address of) an array, opengl.e must explicitly allocate, poke, and eventually
-            free memory, whereas WebGL specifies that "new Float32Array" should be used, so that&apos;s what opengl.js does. <br>
-            This Phix-specific routine abstracts away any such differences, except on desktop/Phix you may (rarely) want to explicitly
-            <a href>free</a>(pData), whereas in a browser you should just trust that the JavaScript garbage collector will cope. <br>
-            The data parameter can be a flat column-major order sequence, or a 2D array, which may well feel more natural.<br>
+            [&lcub;]<a href>atom</a> pData [,<a href>integer</a> size&rcub;] = <b>glFloat32Array</b>(<a href>sequence</a> data, <a href>bool</a> bRetSize=false)<br>
+            [&lcub;]<a href>atom</a> pData [,<a href>integer</a> size&rcub;] = <b>glInt32Array</b>(<a href>sequence</a> data, <a href>bool</a> bRetSize=false)<br>
+            [&lcub;]<a href>atom</a> pData [,<a href>integer</a> size&rcub;] = <b>glInt16Array</b>(<a href>sequence</a> data, <a href>bool</a> bRetSize=false)<br>
+            [&lcub;]<a href>atom</a> pData [,<a href>integer</a> size&rcub;] = <b>glUint16Array</b>(<a href>sequence</a> data, <a href>bool</a> bRetSize=false)<br>
+            <br>            
+            While in the C api it is natural to use the (address of) an array, desktop/Phix must explicitly allocate, poke, and eventually
+            free memory, whereas WebGL specifies that (eg) "new Float32Array" should be used, so that&apos;s what theGUI does. <br>
+            These Phix-specific routines abstract away any such differences.<br>
+            The data parameter can be a flat column-major order sequence, or a 2D array, which might feel more natural.<br>
             The size of the result in bytes (which you will need) is length(data)*4 for a flat array and length(data)*length(data[1])*4 
-            for a 2D array.
-            A need for further variations for non-float32 arrays may yet arise. 
+            for a 2D array. A flat array must be in column-major order, eg {{1,2},{3,4}} == {1,3,2,4}
+            <br>
+            <br>
+            You can use Float32Array_BYTES_PER_ELEMENT in place of Float32Array.BYTES_PER_ELEMENT, or just the literal 4.
+
+
+<!--            A need for further variations for non-float32 arrays may yet arise.
             The possibility of a <a href>NULL</a> pData mentioned above does not extend to this routine (and in any case has not been 
-            needed or tested).
+            needed or tested).-->
             <br><a name=glSimpleA7texcoords></a>
             <br>
             <a href>sequence</a> res = <b>glSimpleA7texcoords</b>(<a href>integer</a> faces)<br>
@@ -130,6 +152,31 @@
             they might never be needed. Note that glSimpleA7texcoords() is exclusively designed for use with GL_TRIANGLES whereas 
             GL_TRIANGLE_STRIP and GL_TRIANGLE_FAN offer more compact representations.
             <br>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+-- the following are equivalent (at keast for a flat vertices sequence):
+    integer size = length(vertices)*4 -- (non"" wd be l(v)*l(v[1])*4)
+    atom pData = glFloat32Array(vertices)
+    glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
+    free(pData)
+-- and
+    glBufferData(GL_ARRAY_BUFFER, glFloat32Array(vertices,true), GL_STATIC_DRAW)
+</eucode-->
+<pre>
+<font color="#000080"><i>-- the following are equivalent (at keast for a flat vertices sequence):</i></font>
+<font color="#004080">    integer</font><font color="#000000"> size</font><font color="#0000FF"> =</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">vertices</font><font color="#0000FF">)*</font><font color="#000000">4</font><font color="#000080"><i> -- (non"" wd be l(v)*l(v[1])*4)</i></font>
+<font color="#004080">    atom</font><font color="#000000"> pData</font><font color="#0000FF"> =</font><font color="#7060A8"> glFloat32Array</font><font color="#0000FF">(</font><font color="#000000">vertices</font><font color="#0000FF">)</font>
+<font color="#7060A8">    glBufferData</font><font color="#0000FF">(</font><font color="#004600">GL_ARRAY_BUFFER</font><font color="#0000FF">,</font><font color="#000000"> size</font><font color="#0000FF">,</font><font color="#000000"> pData</font><font color="#0000FF">,</font><font color="#004600"> GL_STATIC_DRAW</font><font color="#0000FF">)</font>
+<font color="#7060A8">    free</font><font color="#0000FF">(</font><font color="#000000">pData</font><font color="#0000FF">)</font>
+<font color="#000080"><i>-- and</i></font>
+<font color="#7060A8">    glBufferData</font><font color="#0000FF">(</font><font color="#004600">GL_ARRAY_BUFFER</font><font color="#0000FF">,</font><font color="#7060A8"> glFloat32Array</font><font color="#800000">(</font><font color="#000000">vertices</font><font color="#0000FF">,</font><font color="#004600">true</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#004600"> GL_STATIC_DRAW</font><font color="#0000FF">)</font>
+</pre>
          </td>
         </tr>
         <tr>

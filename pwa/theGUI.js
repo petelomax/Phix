@@ -16633,7 +16633,7 @@ function $tg_get_tree_attribute(/*gdx*/ tree, /*string*/ name, /*integer*/ nFram
     return files;
 } $tg_gtk_gslist_to_strings.$sig="FN";
 
-/*global*/ function gGetOpenFileName(/*gdx*/ parent, /*rtn*/ got, /*object*/ arg2=NULL, filters=NULL, title=NULL, /*bool*/ bMulti=false) {
+/*global*/ function gOpenFile(/*gdx*/ parent, /*rtn*/ got, /*object*/ arg2=NULL, filters=NULL, title=NULL, /*bool*/ bMulti=false) {
     if (bMulti===false) { // (some micro-paranormalisation:)
         if (equal(title,true)) {
             [,title,bMulti] = ["sequence",NULL,true];
@@ -16645,7 +16645,7 @@ function $tg_get_tree_attribute(/*gdx*/ tree, /*string*/ name, /*integer*/ nFram
         /*
         crash(`JS`);
         */
-} gGetOpenFileName.$sig="POIOOOI,1";
+} gOpenFile.$sig="POIOOOI,1";
 
 /*global*/ function gGetFileText(/*string*/ file, /*integer*/ gtopt, /*rtn*/ got_txt, /*object*/ arg3=NULL) {
     // aside: file is documented as type object, since it's not a string under

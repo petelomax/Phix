@@ -10,8 +10,8 @@ with javascript_semantics
 --without debug
 --requires("1.0.5")
 puts(1,"")
---include theGUI.e
-include ..\theGUI\hGUI.e -- fine... but wrong size on GTK...
+include theGUI.e
+--include ..\theGUI\hGUI.e -- fine... but wrong size on GTK...
 --include builtins\VM\pprntfN.e
 --include builtins\VM\pcfunc.e
 --include builtins\pfile.e
@@ -26,6 +26,7 @@ sequence board = repeat(' ',9)  -- {' '/'X'/'O'}
 bool human = false  -- (flipped in new_game)
 bool game_over = false
 constant play_dumb = false
+--constant play_dumb = true
 gdx dlg
 
 -- saved in redraw() for check_position():
@@ -178,21 +179,34 @@ Tic Tac Toe, also known as Noughts and Crosses.
 
 The aim is to get three Os (or Xs) in a row.
 
-Human(O) plays first, as does loser. After a draw first player alternates.
+Human(O) or last loser plays first. After a draw first player alternates.
 Computer(X) plays a random move first, to make it more interesting.
 Setting the constant play_dumb to true disables the internal AI.
 
 Once a game is over click anywhere on the board to start a new game.
 """
 
+gdx mbx = NULL
+
 -- Other possible keys:
 -- Q - quit (end program) [==X?]
 -- C - concede (start new game)
-procedure key(gdx /*dlg*/, integer c)
+function key(gdx dlg, integer c)
     if c=VK_F1 then 
-        ?"gMsgBox(dlg,title,help_text)"
+--      ?"gMsgBox(dlg,title,help_text)"
+        if mbx=NULL then
+            gdx lbl = gLabel(help_text),
+                bok = gButton(`OK`,gQuit),
+                hbx = gHbox({bok},`SPACE=LEFT`),
+                vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+            mbx = gDialog(vbx,dlg,title)
+            gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+        end if
+        gShow(mbx)
+        return TG_IGNORE -- (don't open browser help!)
     end if
-end procedure
+    return TG_CONTINUE
+end function
 
 gdx canvas = gCanvas(redraw,"SIZE=800x800")
 --gdx canvas = gCanvas(redraw)

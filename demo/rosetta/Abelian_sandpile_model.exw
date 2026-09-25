@@ -14,7 +14,8 @@
 --
 --/!*
 with javascript_semantics
-constant help_text = """
+constant title = "Abelian sandpile model",
+     help_text = """
 Any "pile" that has 4 or more sand particles on it collapses, 
 resulting in four particles being subtracted from the pile and 
 distributed among it's neighbors. This animates that process,
@@ -22,12 +23,13 @@ producing some unexpected patterns, even after randomising.
 
 Press +/- to increase/decrease moves per second, P to toggle 
 pixel mode, R to toggle random dropping, and T to toggle text 
-display (while each pile is >=20 pixels).
+display (while each pile is 20 or more pixels).
 """
 
 --without debug
 requires("1.0.3")
 include theGUI.e
+--gSetGlobal("DIAGNOSTICS",true)
 --include builtins\VM\pprntfN.e
 --include builtins\VM\pcfunc.e
 --include builtins\pfile.e
@@ -39,9 +41,6 @@ include theGUI.e
 --include builtins\VM\pTime.e
 --with debug
 
-gdx dlg, canvas, timer
---cdCanvas cddbuffer
-
 sequence board = {{0,0,0},
                   {0,0,0},
                   {0,0,0}}
@@ -51,21 +50,16 @@ bool pixel_mode = false,    -- key 'P' to toggle
      random_drop = false,   -- key 'R' to toggle
      show_text = true       -- key 'T' to toggle
 
-procedure redraw(gdx canvas)
---  integer {cw,ch} = gGetIntInt(canvas, "DRAWSIZE[*charsize]"),
-    integer {cw,ch} = gGetIntInt(canvas, "SIZE"),
-            bw = length(board[1]),
-            bh = length(board)
-    
-    --cdCanvasActivate(cddbuffer)
-    --cdCanvasClear(cddbuffer)
-    integer mx = min(floor(cw/bw),floor(ch/bh)),
-            r = floor(mx/2),
-            r2 = r*r
-    mx = r*2    -- (prevent drift)
-    integer t = r+floor(r/3),
+procedure redraw(gdx canvas, integer cw, ch)
+    integer bw = length(board[1]),
+            bh = length(board),
+            mx = min(floor(cw/bw),floor(ch/bh)),
+             r = floor(mx/2),
+            r2 = r*r,
+             t = r+floor(r/3),
             cy = ch-r, cx = r,
             hr = floor(r/2)
+    mx = r*2    -- (prevent drift)
     if not pixel_mode then
         if mx>8 then
             -- draw grid
@@ -76,9 +70,6 @@ procedure redraw(gdx canvas)
                 cx += mx
                 cy -= mx
             end while
---          if show_text and mx>=20 then    
---              gCanvasSetTextAlignment?[use gDrawText(align:=x) instead](canvas, TG_CENTRE) 
---          end if
         else
             t += 1
         end if
@@ -94,9 +85,8 @@ procedure redraw(gdx canvas)
 --              integer colour = {TG_YELLOW,TG_ORANGE,TG_RED}[c]
                 integer colour = {TG_VIOLET,TG_RED,TG_BLUE}[c]
                 if pixel_mode then
-                    gCanvasPixel(canvas, cx, cy, colour)
+                    gDrawPixel(canvas, cx, cy, colour)
                 else
---                  gSetAttribute(canvas,"FGCLR",colour)
                     gDrawCircle(canvas, cx, cy, t/2, true, colour:=colour)
                     if show_text and mx>=20 then
                         gSetAttribute(canvas,"FGCLR",TG_DARK_GREY)
@@ -109,28 +99,8 @@ procedure redraw(gdx canvas)
         end for
         cy -= mx
     end for
-    --cdCanvasFlush(cddbuffer)
 --  return TG_DEFAULT
 end procedure
-
---function map_cb(gdx /*canvas*/)
---  IupGLMakeCurrent(canvas)
---  if platform()=JS then
---      cddbuffer = cdCreateCanvas(CD_IUP, canvas)
---  else
---      atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---      cddbuffer = cdCreateCanvas(CD_GL, "10x10 %g", {res})
---  end if
---  gCanvasSetBackground(cddbuffer, TG_PARCHMENT)
---  return TG_DEFAULT
---end function
---
---function canvas_resize_cb(gdx canvas)
---  integer {canvas_width, canvas_height} = gGetIntInt(canvas, "DRAWSIZE[*charsize]")
---  atom res = IupGetDouble(NULL, "SCREENDPI")/25.4
---  cdCanvasSetAttribute(cddbuffer, "SIZE[*charsize]", "%dx%d %g", {canvas_width, canvas_height, res})
---  return TG_DEFAULT
---end function
 
 --integer maxmlen = 100
 --constant nd = {{0,-1},{0,+1},{-1,0},{+1,0}}
@@ -196,12 +166,11 @@ end if
         moves = moves[1..$-1]
 --      mlen -= 1
     end while   
-    gRedraw(canvas)
 end procedure
 
 integer drops = 0
 
-procedure timer_action(gdx /*ih*/)
+procedure timer_action(gdx timer)
     for i=1 to mps do
         integer {x,y} = {length(board[1]),length(board)}
         {x,y} = iff(random_drop?{rand(x-2)+1,rand(y-2)+1}
@@ -209,17 +178,24 @@ procedure timer_action(gdx /*ih*/)
         drop(x,y)
         drops += 1
     end for
---  string title = sprintf("Abelian sandpile model (%d, %d moves/s)",{drops,mps})
-    gSetAttribute(dlg,"TITLE","Abelian sandpile model (%d, %d moves/s)",{drops,mps})
---  gSetAttribute(dlg,"TITLE",title)
---  return TG_DEFAULT
+    gdx dlg = gGetAttribute(timer,`USER_DATA`)
+    gSetAttribute(dlg,"TITLE","%s (%d, %d moves/s)",{title,drops,mps})
 end procedure
 
-function key_cb(gdx /*dlg*/, integer c)
---  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
---  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
+gdx mbx = NULL
+
+function key_handler(gdx dlg, integer c)
     if c=VK_F1 then
-        gMsgBox(dlg,"Abelian sandpile model",help_text)
+--      gMsgBox(dlg,"Abelian sandpile model",help_text)
+        if mbx=NULL then
+            gdx lbl = gLabel(help_text),
+                bok = gButton(`OK`,gQuit),
+                hbx = gHbox({bok},`SPACE=LEFT`),
+                vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+            mbx = gDialog(vbx,dlg,title)
+            gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+        end if
+        gShow(mbx)
         return TG_IGNORE -- (don't open browser help!)
     elsif find(c,"+-") then
         if c='-' and mps>1 then
@@ -238,26 +214,12 @@ function key_cb(gdx /*dlg*/, integer c)
     return TG_DEFAULT
 end function
 
-procedure main()
- 
-    canvas = gCanvas(redraw,"SIZE=800x800,BGCLR=PARCHMENT")
---  gSetHandlers({canvas}, {"ACTION", redraw_cb,
---                             ?MAP_CB?[DEAD], map_cb,
---                             "RESIZE[*charsize]_CB", canvas_resize_cb})
---  gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
-    dlg = gDialog(canvas,`Abelian sandpile model`)
-    gSetHandler(dlg,`KEY`,key_cb)
---  gSetAttributeHandle(NULL,?PARENTDIALOG?[DEAD],dlg)
-    gShow(dlg,TG_CENTER,TG_CENTER)
---  gSetAttribute(dlg, "SIZE", NULL)
---  gSetAttribute(dlg, "MINSIZE[*charsize]", gGetAttribute(dlg,"SIZE"))
--- Qu: does not the size on the canvas force this?? DEV:NO
-    gSetAttribute(dlg, "MINSIZE", gGetAttribute(dlg,"SIZE"))
-    timer = gTimer(timer_action, 1000)
-    gMainLoop()
-end procedure
- 
-main()
+gdx canvas = gCanvas(redraw,"BGCLR=PARCHMENT"),
+    dlg = gDialog(canvas,title,`SIZE=800x800`),
+    timer = gTimer(timer_action,1000,true,dlg)
+gSetHandler(dlg,`KEY`,key_handler)
+gMainLoop(dlg)
+
 --*!/
 
 --/*

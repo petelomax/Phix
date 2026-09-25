@@ -287,6 +287,10 @@ gButton, gDatePick, gDropdown, gList, gMenu, gProgressBar, gSpin, or gText, any 
           they are not regularly blanked, it is not actually used anywhere, unless you fetch/use it yourself.
           <br>
           <br>
+          Setting BGCLR to <a href>TG_MAGENTA</a> (directly, as opposed to inherited, and only supported on a plain <a href>gCanvas</a>)
+          marks it as <a href>OpenGL</a>-drawn.
+          <br>
+          <br>
           <!--            Affects: All controls that have visual representation, but with some restrictions. <br>-->
 <!--          Affects: Currently only <a href>gCanvas</a> and <a href>gText</a>.-->
 <!--
@@ -375,73 +379,6 @@ gButton, gDatePick, gDropdown, gList, gMenu, gProgressBar, gSpin, or gText, any 
           <br>
 -->
           This setting has no influence whatsoever on an explicit <a href>gSetFocus</a>() call.
-          <br><a name=CLIPIMG></a>
-         </td>
-        </tr>
-        <tr>
-         <td>
-          CLIPIMG
-         </td>
-         <td>
-          <span class="illegal">(not implemented)</span>
-          (read only) Retrieves the internal <a href>gImage</a> as last used to display the control. Said image on a <a href>gDialog</a>
-          covers the client area only, without any window decorations. The resulting image does not necessarily have anything to do with 
-          the clipboard, it&apos;s just so named because that is the most obvious use. Note that such images are destroyed and recreated
-          as needed to accomodate resizing, so the result may over time become invalid or attached to a different control. 
-          The following snippet shows how to capture a control without any <a href>FLOATING</a> controls:
-          <br>
-          <br>
-          <small>
-<!--eucode>
-    object floating
-    bool bCapture = false
-
-    function idle_routine()
-        if bCapture then
-            gdm img = gGetAttribute(ctrl,"CLIPIMG")
-            gSetGlobal("CLIPIMG",img) -- or gDrawImage() onto your own image
-            gSetAttribute(ctrl,"FLOATING",floating)
-            bCapture = false
-            gRedraw(ctrl)
-            return TG_IGNORE -- (if nothing else in progress)
-        end if
-        ...
-    end function    
-    ...
-        floating = gGetAttribute(ctrl,"FLOATING")
-        gSetAttribute(ctrl,"FLOATING",NULL)
-        bCapture = true
-        gSetGlobal(`IDLE_ACTION`,idle_routine) -- start it up
-        gRedraw(ctrl)
-    ...
-</eucode-->
-<pre>
-<font color="#004080">    object</font><font color="#000000"> floating</font>
-<font color="#004080">    bool</font><font color="#000000"> bCapture</font><font color="#0000FF"> =</font><font color="#004600"> false
-</font>
-<font color="#008080">    function</font><font color="#000000"> idle_routine</font><font color="#0000FF">()</font>
-<font color="#008080">        if</font><font color="#000000"> bCapture</font><font color="#008080"> then</font>
-<font color="#7060A8">            gdm</font><font color="#000000"> img</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">,</font><font color="#008000">"CLIPIMG"</font><font color="#0000FF">)</font>
-<font color="#7060A8">            gSetGlobal</font><font color="#0000FF">(</font><font color="#008000">"CLIPIMG"</font><font color="#0000FF">,</font><font color="#000000">img</font><font color="#0000FF">)</font><font color="#000080"><i> -- or gDrawImage() onto your own image</i></font>
-<font color="#7060A8">            gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">,</font><font color="#008000">"FLOATING"</font><font color="#0000FF">,</font><font color="#000000">floating</font><font color="#0000FF">)</font>
-<font color="#000000">            bCapture</font><font color="#0000FF"> =</font><font color="#004600"> false</font>
-<font color="#7060A8">            gRedraw</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">)</font>
-<font color="#008080">            return</font><font color="#004600"> TG_IGNORE</font><font color="#000080"><i> -- (if nothing else in progress)</i></font>
-<font color="#008080">        end if</font>
-<font color="#0000FF">        ...</font>
-<font color="#008080">    end function    </font>
-<font color="#0000FF">    ...</font>
-<font color="#000000">        floating</font><font color="#0000FF"> =</font><font color="#7060A8"> gGetAttribute</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">,</font><font color="#008000">"FLOATING"</font><font color="#0000FF">)</font>
-<font color="#7060A8">        gSetAttribute</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">,</font><font color="#008000">"FLOATING"</font><font color="#0000FF">,</font><font color="#004600">NULL</font><font color="#0000FF">)</font>
-<font color="#000000">        bCapture</font><font color="#0000FF"> =</font><font color="#004600"> true</font>
-<font color="#7060A8">        gSetGlobal</font><font color="#0000FF">(</font><font color="#008000">`IDLE_ACTION`</font><font color="#0000FF">,</font><font color="#000000">idle_routine</font><font color="#0000FF">)</font><font color="#000080"><i> -- start it up</i></font>
-<font color="#7060A8">        gRedraw</font><font color="#0000FF">(</font><font color="#000000">ctrl</font><font color="#0000FF">)
-    ...</font>
-</pre>
-          </small>
-          <br>
-          which could be used to implement a "copy to clipbard" overlay button, without itself appearing there on.<br>
-          See also: the real/global <a href>CLIPIMG</a>.
           <br><a name=CURSOR></a>
          </td>
         </tr>
@@ -676,7 +613,9 @@ gButton, gDatePick, gDropdown, gList, gMenu, gProgressBar, gSpin, or gText, any 
           The application resetting this attribute or changing <a href>VISIBLE</a> on individual ids within it should cause the
             same overall effect, barring overlay container <a href>SIZE</a> implications which may need explicit adjustments.<br>
           Be warned that since the layout manager does not generally get involved with floating controls, any floating containers 
-            may simply not work as expected, perhaps a <a href>gCbox</a> might come to your rescue.
+            may [TBC] simply not work as expected, perhaps a <a href>gCbox</a> might come to your rescue, or [TBD] explicitly 
+            including all child controls in the above [flat] list, after their container[s] to control draw order, each with an 
+            explicit x,y. The immediate/most critical need is a <a href>gText</a> on a <a href>gTable</a>/<a href>gTree</a>.
           <br>
           <br>
           Affects: <a href>gDialog</a>, <a href>gHbox</a>, <a href>gVbox</a> (those two generally deserving a title/frame), 
@@ -1402,8 +1341,13 @@ DEV we's gona need this... or something much simpler... (erm, what did I do for 
             <a href>CARET</a>,
             <a href>CBXY</a>,
             <a href="gMenu.htm#CHECKED">CHECKED (<a href="gMenu.htm#CHECKED">gMenu</a> and <a href="gTree.htm#CHECKED">gTree</a>)</a>,
+            <a href>CHECKED_DRICON</a>,
+            <a href>CHECKED_ICON</a>,
+            <a href>CHECKED_ICONS</a>,
+            <a href>CHECKED_RICON</a>,
             <a href>CLASSNAME</a>,
             <a href>CLIPIMG</a>,
+            <a href>CLIPIMGFILE</a>,
             <a href>CLIPTEXT</a>,
             <a href>CLIPTXT</a>,
             <a href>CLOSE_ON_ESCAPE</a>,
@@ -1453,6 +1397,7 @@ DEV we's gona need this... or something much simpler... (erm, what did I do for 
             <a href>MODAL</a>,
             <a href>MODE</a>,
             <a href="gGetAttribute.htm#MOUSEPOS">MOUSEPOS</a> (also <a href="gGetGlobal.htm#MOUSEPOS">gGetGlobal</a>),
+            <a href>MPV_INIT</a>,
             <a href>MSECS</a>,
             <a href>MULTIPLE</a>,
             <a href>NORMALISE</a>(/<a href>NORMALIZE</a>),
@@ -1480,6 +1425,8 @@ DEV we's gona need this... or something much simpler... (erm, what did I do for 
             <a href>TIP</a>,
             <a href>TITLE</a>,
             <a href>TOPLINE</a>,
+            <a href>UNCHECKED_ICON</a>,
+            <a href>UNCHECKED_RICON</a>,
             <a href>USER_DATA</a>,
             <a href>USER_SIZE</a>(/<a href>USERSIZE</a>),
             <a href>VALUE</a>,
@@ -1506,7 +1453,7 @@ DEV we's gona need this... or something much simpler... (erm, what did I do for 
 <!--            <a href="gSetGlobal.htm#IDLE_ARGS">IDLE_ARGS</a>,-->
             <br>
             <br>
-            I make that 110 (not counting aliases), and even I don&apos;t bother to learn them all by heart,
+            I make that 118 (not counting aliases), and even I don&apos;t bother to learn them all by heart,
             relying instead on F1 lookup from the editor, on either the attribute name or the control element it applies to.
             <br>
             <br>

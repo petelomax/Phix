@@ -105,7 +105,7 @@
 --
 --
 -- The following are not supported:
---  #pragma pack(). This only works for standard alignment.
+--X #pragma pack(). This only works for standard alignment.
 --  __attribute__((packed));    ditto
 --  #if             Preprocessing directives must be manually edited away or commented out.
 --  int flags:3;    Bitfields (well, bitfield alignments) are not supported.
@@ -327,7 +327,8 @@ integer as_char,  -- = find("char",SizeNames)
         as_float, -- = find("float",SizeNames)
         as_double,-- = find("double",SizeNames)
         as_int64, -- = find("int64",SizeNames)
-        as_uint64 -- = find("uint64",SizeNames)
+        as_uint64, -- = find("uint64",SizeNames)
+        as_GUID   -- = find("GUID",SizeNames)
 
 sequence AltNames,AltSize
 
@@ -390,13 +391,13 @@ function add_struct(sequence res)
 -- returns an integer id
     string name
     sequence members, ptrnames
-    integer sizeofS, widest, id
-    {name,sizeofS,widest,members,ptrnames} = res
+    integer sizeofS, align, id
+    {name,sizeofS,align,members,ptrnames} = res
     if length(name) then
         structs = append(structs,name)
         id = length(structs)
         stsizes = append(stsizes,sizeofS)
-        saligns = append(saligns,widest)
+        saligns = append(saligns,align)
         smembers = append(smembers,members)
         for i=1 to length(ptrnames) do
             AltNames = append(AltNames,ptrnames[i])
@@ -568,7 +569,7 @@ end function
 
 --26/9/23
 --function parse_c_struct(bool bStruct, integer machine, base)
-function parse_c_struct(bool bStruct, integer machine, base, bool pack1=false)
+function parse_c_struct(bool bStruct, integer machine, base, packto=0)
 --
 -- internal routine:
 --  bStruct is 1 for struct, 0 for union
@@ -607,6 +608,7 @@ sequence submembers, sm2i, submembernames
 sequence res
     if ch!='{' then
         name = stoken()
+--?name
     end if
     if ch!='{' then cffi_error("{ expected") end if
     {} = stoken()
@@ -618,17 +620,19 @@ sequence res
         isstruct = (equal(mtype,"struct") and ch='{')
         if isstruct or equal(mtype,"union") then
 --          res = parse_c_struct(isstruct,machine,base+sizeofS)
-            res = parse_c_struct(isstruct,machine,base+sizeofS,pack1)
+            res = parse_c_struct(isstruct,machine,base+sizeofS,packto)
             {subname,subsize,align,submembers} = res
-
+--?subname
 --DEV pad to align?
-            if not pack1 then
+            if packto then align = packto end if
+--          if packto=0 then
                 k = remainder(sizeofS,align)
-                if k then ?9/0 end if
+                if k then
+                    ?9/0
 --                  padding = align-k
 --                  sizeofS += padding
---              end if
-            end if
+                end if
+--          end if
             for i=1 to length(submembers[1]) do
                 mname = submembers[1][i]
                 if length(subname) then
@@ -645,12 +649,14 @@ sequence res
                 members = append(members,{mname,sm2i})
 --              members = append(members,{mname,{mtype,size,offset,signed}})
             end for
-            widest = subsize
+--          widest = subsize
+            widest = max(widest,align)
             sizeofS += subsize
         else
 --9/5/18 support eg "int x,y;" (not just/vs only "int x;")
             while 1 do
                 {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
+                if packto then align = packto end if
 
 --if mname="FAR" then ?9/0 end if
                 if equal(mname,";") then
@@ -668,6 +674,7 @@ sequence res
 --                          {} = stoken()
 --                      else
                             mult = toInt(stoken())
+--if name="tagBITMAPINFO" then ?{"mult",mult,size} end if
 --                      end if
                     end if
                     if ch!=']' then cffi_error("] expected") end if
@@ -680,11 +687,14 @@ sequence res
                 end if
                 token = stoken()
 --              if not equal(token,";") then cffi_error("; expected") end if
-                if size>widest then
-                    widest = size
+--              if size>widest then
+                if align>widest then
+--                  widest = size
+                    widest = align
                 end if
 --              if bStruct then
-                if bStruct and not pack1 then
+--              if bStruct and not packto then
+                if bStruct and align>1 then
                     k = remainder(sizeofS,align)
                     if k then
                         sizeofS += align-k
@@ -702,7 +712,9 @@ sequence res
                     members = append(members,{mname,{mtype,size,base+sizeofS,signed}})
                 end if
                 if bStruct then
+--if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS,mult,size} end if
                     sizeofS += size*mult
+--if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS} end if
                 end if
                 if not equal(token,",") then exit end if
             end while
@@ -710,12 +722,14 @@ sequence res
         end if
         if ch='}' then exit end if
     end while
-    if not pack1 then
+--  if not packto then
         k = remainder(sizeofS,widest)
         if k then
+--if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS,widest,k} end if
             sizeofS += widest-k
+--if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS} end if
         end if
-    end if
+--  end if
     {} = stoken()   -- discard '}'
     if ch!=-1 then
         if ch!=';' then
@@ -741,6 +755,7 @@ sequence res
         end if
     end if
     res = {name,sizeofS,widest,columnize(members),ptrnames}
+--if name="BITMAPINFO" then ?res end if
     return res
 end function
 
@@ -770,6 +785,7 @@ procedure init_cffi()
                                                   {"double",    1,{8,8}},       -- (4-byte aligned on 32-bit linux, unless -malign-double specified)
                                                   {"int64",     1,{8,8}},       -- aka long long (windows only?)
                                                   {"uint64",    0,{8,8}},
+                                                  {"GUID",      0,{16,16}},
 --                                                {"longdouble",1,{8,8}},       -- ambiguous!!!, see below
 --                                                {"flt80",     1,{10,10}},     -- maybe?
 -- made signed 28/12/16 (*2):
@@ -808,6 +824,7 @@ procedure init_cffi()
     as_double = find("double",SizeNames)
     as_int64 = find("int64",SizeNames)
     as_uint64 = find("uint64",SizeNames)
+    as_GUID = find("GUID",SizeNames)
 
 -- From MSDN. Suspect items are commented out, please check results carefully if you uncomment them.
 --              (not that there is any warranty that the others are all perfect!)
@@ -958,6 +975,7 @@ procedure init_cffi()
                                          {"WCHAR",          as_ushort},
                                          {"u_short",        as_ushort},
                                          {"BOOL",           as_int},
+                                         {"FXPT2DOT30",     as_int},
                                          {"HFILE",          as_int},        -- (obsolete)
                                          {"INT",            as_int},
                                          {"INT32",          as_int},
@@ -1013,6 +1031,7 @@ procedure init_cffi()
                                          {"byte",           as_char},
                                          {"ubyte",          as_uchar},
                                          {"ModifierType",   as_int},
+                                         {"CLSID",          as_GUID},
                                          $})
 
     {UnicodeNames,UnicodeAs} = columnize({
@@ -1121,17 +1140,20 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
     sidx = 1
     ch = s[1]
     skipspaces()
---26/9/23:
-    bool pack1 = false
+--26/9/23: updated 28/3/26
+    integer packto = 0
     if ch='#' then
-        string pp1 = "#pragma pack(1)"
+        string pp1 = "#pragma pack("
         assert(s[sidx..sidx+length(pp1)-1]==pp1)
         sidx += length(pp1)
+        packto = s[sidx]-'0'
+        assert(find(packto,{1,2,4,8}) and s[sidx+1]=')')
+        sidx += 2
         ch = s[sidx]
         skipspaces()
-        if machine=32 then -- as per docs
-            pack1 = true
-        end if
+--      if machine=32 then -- as per docs
+--          packto = true
+--      end if
     end if
     integer typedef = 0
     string token = stoken()
@@ -1145,7 +1167,7 @@ global function define_struct(string struct_str, integer machine=machine_bits(),
 --?"pcs"
 -- 19/2/21
 --  sequence res = parse_c_struct(1,machine,0)
-    sequence res = parse_c_struct(1,machine,0,pack1)
+    sequence res = parse_c_struct(1,machine,0,packto)
 --/*
     try
         res = parse_c_struct(1,machine,0)
@@ -1192,6 +1214,13 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
     if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
     integer k = iff(string(field)?find(field,membernames):field)
+    if k=0 and string(field) then
+        k = find(lower(field),lower(membernames))
+        if k then
+            crash("no such field:%s - did you mean %s?",{field,membernames[k]})
+        end if
+        crash("no such field:%s",{field})
+    end if
     integer {?,size,offset} = details[k]
 --  integer {?,size,offset,signed} = details[k]
     if atom(v) then
@@ -1200,8 +1229,19 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
         if not string(v) then ?9/0 end if
         -- (the following should never trigger, since something similar
         --  when defining the TCHAR[] should have already have happened.)
---?details[k]
         if unicode=-1 then ?9/0 end if
+
+--23/5/26: (getting this wrong in win_tip.exw led to a silent crash)
+        string field_type = details[k][1]
+        if not find(field_type,{`TCHAR`}) then
+            if find(field_type,{`LPTSTR`}) then -- (==> always, when ready/confident)
+                crash("set_struct_field(..,<string>) invalid for type %s",{field_type})
+            else -- (obviously, extend sets above as needed, till this stops annoying you)
+                printf(1,"Warning, cffi.e line %d: set_struct_feld(...,<string>) for type %s\n",{source_line(),field_type})
+            end if
+        end if
+--<23/5/26 ends>
+
         if unicode=0 then -- ansi
             poke(pStruct+offset,v)
         else
@@ -1210,10 +1250,39 @@ global procedure set_struct_field(integer id, atom pStruct, atom_string field, o
     end if
 end procedure
 
+--global function get_field_details(integer id, string fieldname)
+global function get_field_details(integer id, atom_string field)
+    if not cffi_init or id<0 then ?9/0 end if
+--  sequence {membernames,details} = smembers[id]
+    sequence {membernames,details} = get_smembers(id)
+    integer k = iff(string(field)?find(field,membernames):field)
+    --25/3/26: Allow eg rcPaint to match rcPaint.left 
+    --          (ie first thing beginning "rcPaint.")
+    if k=0 and string(field) then
+        string field_dot = field&"."
+        for i,m in membernames do
+            if begins(field_dot,m) then
+                k = i
+                exit
+            end if
+        end for
+    end if
+    assert(k!=0,"No such field: %v",{field})
+--  integer {?,size,offset,sgn} = details[k]
+    string mtype
+    integer size, offset, signed
+    {mtype,size,offset,signed} = details[k]
+--  return {offset,size,signed}
+    return {offset,size,signed,mtype}
+--  return details[k]
+end function
+
+
 --DEV 17/4/23 (!!) bAsFlt is a total fudge, this should already know all about that, maybe just use -ve sizes?.
 --                  If you do fix this, may I suggest you first test theGUI.e is getting bAsFlt correct, before ripping it out (from both).
 --global function get_struct_field(integer id, atom pStruct, string fieldname)
 global function get_struct_field(integer id, atom pStruct, atom_string field, bool bAsFlt=false)
+--/*
     if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
 --sequence membernames,details
@@ -1226,6 +1295,11 @@ global function get_struct_field(integer id, atom pStruct, atom_string field, bo
     integer {?,size,offset,signed} = details[k]
 --22/6/25: (make a start on using those we know)
     string field_type = details[k][1]
+--*/
+--  sequence details = get_field_details(id, pStruct, field)
+    integer size,offset,signed
+    string field_type
+    {offset,size,signed,field_type} = get_field_details(id, field)
 --  if bAsFlt then
     if bAsFlt or find(field_type,{"double","gdouble"}) then
         sequence f4or8 = peek({pStruct+offset,size})
@@ -1234,30 +1308,32 @@ global function get_struct_field(integer id, atom pStruct, atom_string field, bo
     return peekNS(pStruct+offset,size,signed)
 end function
 
+global function get_struct_fields(integer id, atom pStruct, sequence fields)
+    sequence res = repeat(0,length(fields))
+    for i,field in fields do
+        res[i] = get_struct_field(id,pStruct,field)
+    end for
+    return res
+end function
+
+global function get_struct_field_addr(integer id, atom pStruct, string field)
+    integer offset = get_field_details(id, field)[1]
+    atom pMem = pStruct+offset
+    return pMem
+end function
+
 global function get_struct_string(integer id, atom pStruct, string field, integer len)
+--/*
     if not cffi_init or pStruct=0 or id<0 then ?9/0 end if
     sequence {membernames,details} = get_smembers(id)
     integer k = find(field,membernames)
     integer {?,?,offset} = details[k]
+--*/
+    atom pMem = get_struct_field_addr(id,pStruct,field)
     if unicode=1 then -- widestring
-        return utf16_to_utf8(peek2u({pStruct+offset,len}))
+        return utf16_to_utf8(peek2u({pMem,len}))
     end if
-    return peek({pStruct+offset,len})
-end function
-
---global function get_field_details(integer id, string fieldname)
-global function get_field_details(integer id, atom_string field)
-    if not cffi_init or id<0 then ?9/0 end if
---  sequence {membernames,details} = smembers[id]
-    sequence {membernames,details} = get_smembers(id)
-    integer k = iff(string(field)?find(field,membernames):field)
---  integer {?,size,offset,sgn} = details[k]
-    string mtype
-    integer size, offset, signed
-    {mtype,size,offset,signed} = details[k]
---  return {offset,size,signed}
-    return {offset,size,signed,mtype}
---  return details[k]
+    return peek({pMem,len})
 end function
 
 function open_lib(object lib)

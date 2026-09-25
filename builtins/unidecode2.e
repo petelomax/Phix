@@ -10,7 +10,7 @@ without debug
 sequence characters
 include unidecoder-decodemap.e -- nb 441K (or about 300K on the binary)
 
-global function unidecode(string utf8)
+global function unidecode2(string utf8)
     if utf8!="" then
         sequence utf32 = utf8_to_utf32(utf8)
 --      if max(utf32)>#7F then
@@ -53,17 +53,17 @@ global function unidecode(string utf8)
                 characters = repeat(0,503)
 --              for line in dmt do
 --integer p1 = 0, pn = 0
-integer fn = open(`builtins\udtest.e`,"w")
+--integer fn = open(`builtins\udtest.e`,"w")
                 for line in unidecoder_decodemap do
                     assert(line[4]='\t')
                     integer idx = to_integer(trim(line[1..3]))
                     line = line[5..$]
                     sequence pieces = split(line,'\t')
                     assert(length(pieces)=256)
-string s = repeat('_',256)
+--string s = repeat('_',256)
                     for i,p in pieces do
                         p = p[2..$-1] -- strip '`"'
-if length(p)=1 then s[i] = p[1] end if
+--if length(p)=1 then s[i] = p[1] end if
                         -- unescape: nb written in a minimal/as-needed basis.
                         --           if copied, may want "*+?|[[()^^$.# \t\r"...
                         integer start = 1
@@ -88,10 +88,10 @@ if length(p)=1 then s[i] = p[1] end if
 --if length(p)=1 then p1 += 1 else pn += length(p) end if
                         pieces[i] = p
                     end for
-printf(fn,"%03d \"%s\",\n",{idx+1,s})
+--printf(fn,"%03d \"%s\",\n",{idx+1,s})
                     characters[idx+1] = pieces
                 end for
-close(fn)
+--close(fn)
 --?{p1,pn} -- {41383,7257} (pn==zero length)
 --?{p1,pn} -- {4402,44238}
 --?{p1,pn} -- {4402,152880} -- (actual lengths)

@@ -1,0 +1,433 @@
+﻿-- gtk_video.exw
+puts(1,"")
+--requires(64,true)
+--without debug
+include theGUI.GTK.e
+include libmpv.e
+--include std/console.e  -- For get_key() in main loop (optional)
+include pcfunc.e
+include pFloatN.e
+include pprntfN.e
+--include ptagset.e
+with debug
+--with trace
+--trace(3)
+--constant STDERR = 2
+--/*
+OK, I finally got it working (hoorah) by trimming things down to the bare bones. Right now I just need a few cosmetic changes.
+The window is not initially positioned correctly, but instead centred on the outer dimensions (not client area) of the main window,
+nor is it moved when the main window is dragged. Neither is it resized to match the main window being resized.
+A simple 10 pixel border on all four sides was what I was expecting.
+Also, Esc shuts down properly, but top right X clearly makes it struggle with something before eventually terminating.
+--*/
+
+constant VIDEO_FILE = `test_colorbars.mp4`
+
+atom mpv_ctx = 0
+atom main_window = 0
+
+atom video_child = 0
+atom draw_area = 0
+
+function key_handler(atom widget, event, /*user_data*/)
+    integer keyval = get_struct_field(idGdkEventKey, event, "keyval")
+?{"key_handler",keyval}
+    if keyval=GTK_ESC then
+        c_proc(x_gtk_main_quit)
+    end if
+    if mpv_ctx!=0 then
+        switch keyval do
+--{"key_handler",65453} - = #FFAD
+--{"key_handler",65451} + = #FFAB
+
+            case GDK_KEY_space: mpv_command_string(mpv_ctx, "cycle pause")
+            case GDK_KEY_Left: mpv_command_string(mpv_ctx, "seek -5 relative")
+--Nope. I changed my key handler to:
+--          case GDK_KEY_Left: gtk_widget_hide(video_child)
+--          case GDK_KEY_Right: gtk_widget_show(video_child)
+--and right arrow does not restore the video.
+            case GDK_KEY_Right: mpv_command_string(mpv_ctx, "seek +5 relative")
+            case GDK_KEY_Home: mpv_command_string(mpv_ctx, "seek 0 absolute")
+            case GDK_KEY_End: 
+                    atom duration = mpv_get_property(mpv_ctx, "duration", MPV_FORMAT_DOUBLE)
+                    mpv_command_string(mpv_ctx, sprintf("seek %f absolute", {duration}))
+        end switch
+    end if
+    return true
+end function
+global constant key_handler_cb = call_back({'+',key_handler})
+
+--/*
+procedure main()
+    gtk_init()
+    
+    -- CREATE MAIN WINDOW
+    main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(main_window, "Phix + GTK + libmpv Player")
+    gtk_window_set_default_size(main_window, 900, 600)
+    g_signal_connect_data(main_window, "destroy", gtk_main_quit, 0)
+
+    -- SHOW MAIN WINDOW
+    gtk_widget_show_all(main_window)
+--gtk_window_move(main_window,10,20)
+
+    video_child = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_transient_for(video_child, main_window)
+    gtk_window_set_decorated(video_child, FALSE)
+    gtk_window_set_resizable(video_child, FALSE)
+
+    -- drawing area
+    draw_area = gtk_drawing_area_new()
+    integer w = 880, h = 580
+--  integer w = 780, h = 480
+--  integer w = 890, h = 590
+    gtk_widget_set_size_request(draw_area, w, h)
+--/!*
+    set_struct_field(idGdkRectangle,gtkRECT,"x",0)
+    set_struct_field(idGdkRectangle,gtkRECT,"y",50) -- no effect
+    set_struct_field(idGdkRectangle,gtkRECT,"width",w)
+    set_struct_field(idGdkRectangle,gtkRECT,"height",h)
+    gtk_widget_size_allocate(draw_area,gtkRECT)
+    gtk_widget_size_allocate(video_child,gtkRECT)
+--*!/
+    gtk_container_add(video_child, draw_area)
+    gtk_widget_show_all(video_child)
+
+    atom gdk_video_win = gtk_widget_get_window(draw_area);
+    if gdk_video_win = 0 then ?9/0 end if
+--guint32 xid = GDK_WINDOW_XID(gdk_video_win); // GTK2: returns guint32 (XID on X11, HWND on Win32)
+--gdk_x11_window_get_xid(window)??
+    if platform()!=WINDOWS then ?9/0 end if -- placeholder...
+    atom handle = gdk_win32_window_get_handle(gdk_video_win)
+
+    mpv_ctx = mpv_create()
+
+    -- EMBEDDING OPTIONS (SET BEFORE INITIALIZE)
+    mpv_set_option_string(mpv_ctx, "wid", sprintf("%d", handle))
+    mpv_set_option_string(mpv_ctx, "vo", "gpu")  -- or "direct3d" on Windows
+    mpv_set_option_string(mpv_ctx, "keep-open", "yes")
+    mpv_set_option_string(mpv_ctx, "pause", "yes")  -- Start paused
+
+    mpv_initialize(mpv_ctx)
+    
+    -- Load file (with duration retry logic from earlier)
+    mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE}))
+
+    
+    -- OPTIONAL: Add keyboard controls (like your WinAPI version)
+    g_signal_connect_data(main_window, "key-press-event", key_handler_cb, 0)
+    g_signal_connect_data(video_child, "key-press-event", key_handler_cb, 0)
+    
+    -- START GTK MAIN LOOP
+    gtk_main()
+    
+    -- CLEANUP
+    mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+end procedure
+main()
+--*/
+--/*
+local function main_realize(atom video_area, user_data)
+    -- GET MAIN WINDOW'S POSITION AND SIZE (AFTER REALIZATION)
+    integer {x,y} = gtk_window_get_position(main_window),
+            {w,h} = gtk_window_get_size(main_window)
+            
+    -- CALCULATE VIDEO WINDOW POSITION (MAIN WINDOW'S CLIENT AREA OFFSET)
+    --    Assuming 10px border: video starts at (x+10, y+10)
+    -- SET VIDEO WINDOW POSITION AND SIZE
+--  gtk_window_move(video_child, x+10, y+10)
+--  gtk_window_resize(video_child, w-20, h-20)
+    return true
+end function
+global constant main_realize_cb = call_back({'+',main_realize})
+--*/
+
+local function main_configure(atom widget, event, user_data)
+--atom vcw = gtk_widget_get_window(video_child)
+--printf(1,"video_child_state(mc):%0b\n",gdk_window_get_state(vcw))
+
+    integer {x,y} = gtk_window_get_position(main_window),
+            {w,h} = gtk_window_get_size(main_window)
+    -- client area:
+    x += 7
+    y += 32 
+    -- MAINTAIN 10px BORDER RELATIVE TO MAIN WINDOW
+    w -= 20
+    h -= 20
+    gtk_window_move(video_child,x+10,y+10)
+    gtk_window_resize(video_child,w,h)
+    gtk_widget_set_size_request(draw_area,w,h)
+--  gtk_window_present(video_child)
+--gtk_widget_show_all(video_child)
+--  return false -- Propagate event
+    return true
+end function
+global constant main_configure_cb = call_back({'+',main_configure})
+
+local function draw_area_focus(atom /*widget*/, /*event*/, main_window)
+    gtk_window_present(main_window)
+    return false -- Allow event to propagate (so clicks still register, but focus moves)
+end function
+global constant draw_area_focus_cb = call_back({'+',draw_area_focus})
+
+procedure main()
+    gtk_init()
+    
+    -- CREATE MAIN WINDOW (UNCHANGED)
+    main_window = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(main_window, "Phix + GTK + libmpv Player")
+    gtk_window_set_default_size(main_window, 900, 600)
+    g_signal_connect_data(main_window, "destroy", gtk_main_quit_cb, 0)
+
+    video_child = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_transient_for(video_child, main_window)
+    gtk_window_set_decorated(video_child, FALSE)
+    gtk_window_set_resizable(video_child, FALSE)
+    draw_area = gtk_drawing_area_new()
+    integer initial_w = 880, initial_h = 580  -- Your desired video size
+    gtk_widget_set_size_request(draw_area, initial_w, initial_h)
+    gtk_container_add(video_child, draw_area)
+    gtk_widget_show_all(video_child)
+--When video_child or draw_area get focus, can we put it back to the main_window?
+--  g_signal_connect_data(draw_area, "focus-in-event",draw_area_focus_cb,0)
+    g_signal_connect_data(video_child,"focus-in-event",draw_area_focus_cb,main_window)
+    
+    -- 🔑 INITIAL POSITIONING: SET VIDEO WINDOW TO MAIN WINDOW'S CLIENT AREA OFFSET
+    --    (This replaces the missing child window positioning)
+--  g_signal_connect_data(main_window, "realize",main_realize_cb, 0)
+    
+    -- 🔑 SYNCHRONIZE VIDEO WINDOW WHEN MAIN WINDOW MOVES/RESIZES
+    g_signal_connect_data(main_window, "configure-event", main_configure_cb, 0)
+
+    -- 🔑 GET WINDOW HANDLE FOR MPV (FROM VIDEO WINDOW'S DRAWING AREA)
+    atom gdk_video_win = gtk_widget_get_window(draw_area)
+--  if gdk_video_win = 0 then abort(1) end if
+    if gdk_video_win = 0 then ?9/0 end if
+    atom handle = gdk_win32_window_get_handle(gdk_video_win)  -- Windows-specific
+--?handle
+    
+    -- MPV SETUP (IDENTICAL TO YOUR WINAPI CODE)
+    mpv_ctx = mpv_create()
+    mpv_set_option_string(mpv_ctx, "wid", sprintf("%d", handle))
+    mpv_set_option_string(mpv_ctx, "vo", "gpu")
+--  mpv_set_option_string(mpv_ctx, "vo", "angle")
+--  mpv_set_option_string(mpv_ctx, "vo", "libmpv")
+--  mpv_set_option_string(mpv_ctx, "vo", "opengl")
+--  mpv_set_option_string(mpv_ctx, "vo", "opengl-hq")
+--  mpv_set_option_string(mpv_ctx, "vo", "direct3d")
+    mpv_set_option_string(mpv_ctx, "keep-open", "yes")
+    mpv_set_option_string(mpv_ctx, "pause", "yes")  -- Start paused
+    mpv_initialize(mpv_ctx)
+    mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE}))
+    
+    -- 🔑 KEYBOARD CONTROLS (ON MAIN WINDOW - IDENTICAL TO WINAPI)
+    g_signal_connect_data(main_window, "key-press-event", key_handler_cb, 0)
+    g_signal_connect_data(video_child, "key-press-event", key_handler_cb, 0)
+    
+--/*
+    -- 🔑 DRAW CALLBACK: DRAW GUI CONTROLS OVER MAIN WINDOW (INCLUDING OVER VIDEO AREA)
+    --    (IDENTICAL LOGIC TO YOUR WINAPI WM_PAINT - YOUR EXISTING CODE GOES HERE)
+    g_signal_connect_data(main_window, "draw",
+        lambda(widget, cr, user_data) do
+            -- YOUR EXISTING GUI DRAWING LOGIC (UNTouched!)
+            cairo_set_source_rgb(cr, 1.0, 1.0, 0.875); // TG_PARCHMENT
+            cairo_rectangle(cr, 0, 0, width, height);
+            cairo_fill(cr);
+            
+            cairo_set_source_rgb(cr, 0, 0, 0); // black
+            cairo_set_line_width(cr, 0.5);
+            cairo_move_to(cr, 0, 0);
+            cairo_line_to(cr, width, height);
+            cairo_stroke(cr);
+            cairo_move_to(cr, width, 0);
+            cairo_line_to(cr, 0, height);
+            cairo_stroke(cr);
+            
+            return FALSE
+        end, 0)
+--*/    
+
+    -- SHOW WINDOWS (MAIN FIRST, THEN VIDEO)
+    gtk_widget_show_all(main_window)
+    gtk_window_present(video_child)  -- Ensures video window appears
+    
+    gtk_main()
+--?"main_back"
+    
+    -- 🔑 CLEANUP: MPV CONTEXT DESTROYED WITH MAIN WINDOW
+    mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+end procedure
+main()
+--?"done"
+--sleep(1)
+
+--constant VIDEO_TOP_PCT = 0.1  -- 10% from top of window
+--constant VIDEO_HEIGHT_PCT = 0.6 -- 60% of window height
+--constant VIDEO_H_MARGIN_PCT = 0.15 -- 15% horizontal margin each side
+--Warning: C:\Program Files (x86)\Phix\demo\theGUI\gtk_video.exw:22 constant VIDEO_H_MARGIN_PCT is not used.
+--Warning: C:\Program Files (x86)\Phix\demo\theGUI\gtk_video.exw:21 constant VIDEO_HEIGHT_PCT is not used.
+--Warning: C:\Program Files (x86)\Phix\demo\theGUI\gtk_video.exw:20 constant VIDEO_TOP_PCT is not used.
+--Warning: C:\Program Files (x86)\Phix\demo\theGUI\gtk_video.exw:14 constant STDERR is not used.
+--integer bGTK2 = 0  -- Set by theGUI.GTK.e (0=GTK3, 1=GTK2)
+
+--/*
+atom video_area = 0  -- Our GtkDrawingArea for video
+
+function get_video_window_handle(atom video_area)
+    atom gdk_window = gtk_widget_get_window(video_area)
+    if gdk_window = 0 then ?9/0 end if
+--gdk_x11_window_get_xid(window)??
+    if platform()!=WINDOWS then ?9/0 end if -- placeholder...
+    atom handle = gdk_win32_window_get_handle(gdk_window)
+    return handle
+end function
+--*/
+--/*
+local function video_size_allocate(atom video_area, atom allocation, user_data)
+--?"video_size_allocate"
+    -- Update mpv's video output when video_area resizes/moves
+--  if mpv_ctx!=0 then
+    if false then
+    
+--      integer x = get_struct_field(idGdkRectangle, allocation, "x")
+--      integer y = get_struct_field(idGdkRectangle, allocation, "y")
+--      integer w = get_struct_field(idGdkRectangle, allocation, "width")
+--      integer h = get_struct_field(idGdkRectangle, allocation, "height")
+    
+        -- NOTIFY MPV OF NEW SIZE/position (critical for embedded mode)
+        mpv_set_option_string(mpv_ctx, "video-zoom", "0")
+        mpv_set_option_string(mpv_ctx, "video-pan-x", "0")
+        mpv_set_option_string(mpv_ctx, "video-pan-y", "0")
+        mpv_set_option_string(mpv_ctx, "video-unscaled", "no")
+        mpv_command_string(mpv_ctx, "set video-zoom 0")  -- Triggers resize handling
+    end if
+--  return false --??
+    return true
+end function
+global constant video_size_allocate_cb = call_back({'+',video_size_allocate})
+--*/
+
+--/*
+local function video_realize(atom video_area, user_data)
+    -- CRITICAL: Only safe to get handle AFTER video_area is realized
+    atom vid_handle = get_video_window_handle(video_area)
+--?{"win_handle",win_handle,"video_area",video_area}
+    if vid_handle = 0 then
+--      puts(STDERR, "Failed to get video window handle\n")
+        crash("Failed to get video window handle")
+--      return 0
+    end if
+
+    -- Initialize mpv WITH THIS WINDOW HANDLE
+    mpv_ctx = mpv_create()
+--  if mpv_ctx = 0 then
+--      puts(STDERR, "mpv_create() failed\n")
+--      return
+--  end if
+
+    -- EMBEDDING OPTIONS (SET BEFORE INITIALIZE)
+--  mpv_set_option_string(mpv_ctx, "wid", sprintf("%p", vid_handle))
+    mpv_set_option_string(mpv_ctx, "wid", sprintf("%d", vid_handle))
+--  mpv_set_option_string(mpv_ctx, "wid", sprintf("%d", video_area)) -- nope!
+    mpv_set_option_string(mpv_ctx, "vo", "gpu")  -- or "direct3d" on Windows
+    mpv_set_option_string(mpv_ctx, "keep-open", "yes")
+    mpv_set_option_string(mpv_ctx, "pause", "yes")  -- Start paused
+
+    mpv_initialize(mpv_ctx)
+    
+    -- Load file (with duration retry logic from earlier)
+    mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE}))
+--  if mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE})) < 0 then
+--      puts(STDERR, sprintf("Failed to load: %s\n", {VIDEO_FILE}))
+--      mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+--      mpv_ctx = 0
+--      return
+--  end if
+
+    -- Wait for valid duration (same logic as WinAPI version)
+    atom duration = -1
+    integer retries = 0
+    while retries < 50 do
+        duration = mpv_get_property(mpv_ctx, "duration", MPV_FORMAT_DOUBLE, -1)
+--?duration
+        if duration >= 0 then exit end if
+--      sleep(100)
+        sleep(0.100)
+        retries += 1
+    end while
+    if retries >= 50 then
+        printf(1, "Warning: Duration unavailable (using 0)\n")
+    else
+        printf(1, "Duration: %.2fs\n", {duration})
+    end if
+--  return false --??
+    return true
+end function
+global constant video_realize_cb = call_back({'+',video_realize})
+--*/
+
+--/*
+    -- CREATE VERTICAL BOX LAYOUT (matches your WinAPI margin logic)
+    -- **NB** sizes are off vs. win_video.exw, but I don't care. (see gVidCut.exw)
+--  atom vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, 0)
+    atom vbox = gtk_box_new(GTK_ORIENTATION_VERTICAL, false,70)
+--  gtk_container_add(GTK_CONTAINER(main_window), vbox)
+    gtk_container_add(main_window, vbox)
+    gtk_widget_show(vbox)
+    
+    -- TOP SPACER (for VIDEO_TOP_PCT margin)
+    atom top_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)
+--  atom top_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0,70)
+--/*
+    gtk_widget_set_hexpand(top_spacer, TRUE)
+    gtk_widget_set_vexpand(top_spacer, FALSE)
+--*/
+--  gtk_box_pack_start(GTK_BOX(vbox), top_spacer, FALSE, FALSE, 0)
+    gtk_box_pack_start(vbox, top_spacer, FALSE, FALSE, 0)
+    gtk_widget_show(top_spacer)
+    
+    -- VIDEO AREA (GtkDrawingArea as mpv sink)
+    video_area = gtk_drawing_area_new()
+--?{"video_area",video_area}
+--/*
+    gtk_widget_set_hexpand(video_area, TRUE)
+    gtk_widget_set_vexpand(video_area, TRUE)
+--*/
+--  gtk_box_pack_start(GTK_BOX(vbox), video_area, TRUE, TRUE, 0)
+    gtk_box_pack_start(vbox, video_area, TRUE, TRUE, 0)
+    gtk_widget_show(video_area)
+    
+    -- CONNECT VIDEO AREA SIGNALS (REALIZE + SIZE-ALLOCATE)
+    g_signal_connect_data(video_area, "realize", video_realize_cb, 0)
+    g_signal_connect_data(video_area, "size-allocate", video_size_allocate_cb, 0)
+    
+    -- BOTTOM SPACER + CONTROLS AREA (for your UI controls)
+    atom controls_box = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)
+--/*
+    gtk_widget_set_hexpand(controls_box, TRUE)
+    gtk_widget_set_vexpand(controls_box, FALSE)
+--  gtk_box_set_homogeneous(GTK_BOX(controls_box), FALSE)
+    gtk_box_set_homogeneous(controls_box, FALSE)
+--*/
+    
+    -- Example controls (replace with your actual UI)
+    atom play_btn = gtk_button_new_with_label("¶ Play/Pause")
+--(GTK3 only)
+--  atom timeline = gtk_scale_new[_with_range](GTK_ORIENTATION_HORIZONTAL, 0, 100, 1)
+--  gtk_box_pack_start(GTK_BOX(controls_box), play_btn, FALSE, FALSE, 5)
+    gtk_box_pack_start(controls_box, play_btn, FALSE, FALSE, 5)
+--  gtk_box_pack_start(GTK_BOX(controls_box), timeline, TRUE, TRUE, 5)
+--  gtk_box_pack_start(controls_box, timeline, TRUE, TRUE, 5)
+    gtk_widget_show_all(controls_box)
+    
+    -- BOTTOM SPACER (for VIDEO_TOP_PCT equivalent at bottom)
+    atom bottom_spacer = gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0)
+--/*
+    gtk_widget_set_hexpand(bottom_spacer, TRUE)
+    gtk_widget_set_vexpand(bottom_spacer, FALSE)
+--*/
+--  gtk_box_pack_start(GTK_BOX(vbox), bottom_spacer, FALSE, FALSE, 0)
+    gtk_box_pack_start(vbox, bottom_spacer, FALSE, FALSE, 0)
+    gtk_widget_show(bottom_spacer)
+--*/
+

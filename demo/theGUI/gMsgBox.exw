@@ -1,0 +1,92 @@
+--
+-- demo\theGUI\gMsgBox.exw
+-- =======================
+-- 
+-- Shows how straightforward it is to "roll your own" message box.
+--
+-- Copying this or writing something similar (in every app) is deemed trivial,  
+-- whereas a "generic" routine would inevitably impose limitations such as 
+-- where it gets shown, how many/positioning of buttons, various input fields 
+-- or progress bars not being possible - the list is literally endless.
+-- Using gQuit as shown would allow you to make this eight lines shorter!
+--
+-- In other words: sure I could slap this as-is into theGUI.e, but immediately
+-- someone would no doubt ask about an image, a cancel button, and all the rest.
+--
+-- Should you want to use dlg's USER_DATA for something else, feel free to
+--      figure out somewhere else to store a message box handle per dialog.
+--
+-- Also shows some methods of playing about with dlg/mbx position for a more
+-- natural/less wrist-stressing mouse-driven experience, but you'd probably
+-- want to disable all that when things are being keyboard-driven, which of
+-- course means theGUI should have/maintain a LAST_INPUT_TYPE global, being
+-- (say) 1 for keyboard and 2 for mouse (and obviously read-only). LMKIYNT.
+--
+--requires(64,true)
+with javascript_semantics
+--with trace
+include theGUI.e
+--gSetGlobal("DIAGNOSTICS",true)
+--gUseGTK()
+
+function okc(gdx bok)
+    -- message box ok button: close it (or use gQuit)
+    gdx dlg = gGetParent(gGetDialog(bok))
+    gSetAttribute(dlg,`TITLE`,"closed")
+    return TG_CLOSE
+end function
+
+local procedure gMsgBox(gdx parent, string title, msg)--, integer x, y)
+    -- app-specific: tailor this to your precise needs
+    --  (nowt wrong with using x,y as shown by the way)
+    --  (as noted, mbx in USER_DATA is just one option)
+    -- aside: technically the caller should have done this,
+    --  but it's no trouble whatsoever to sort it out here,
+    --  and let that (eg) btn click handler be 1% simpler:
+    parent = gGetDialog(parent) -- ensure it's a gDialog
+    gdx lbl, mbx = gGetAttribute(parent,`USER_DATA`) -- (or equiv)
+    if mbx=NULL then
+        lbl = gLabel(msg)
+        gdx bok = gButton("OK",okc),
+--      gdx bok = gButton("OK",gQuit), -- fine too!
+            hbx = gHbox({bok},"SPACE=LEFT"),
+            vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+        mbx = gDialog(vbx,parent)
+        gSetAttribute(mbx,`DEFAULTENTER`,bok)
+--      gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+--      gSetAttribute(mbx,`DEFAULTENTER`,gQuit) -- ""
+        gSetAttribute(mbx,`USER_DATA`,lbl)
+        gSetAttribute(parent,`USER_DATA`,mbx) -- (or equiv)
+    else
+        lbl = gGetAttribute(mbx,`USER_DATA`)
+--      lbl = gGetChild(gGetChild(mbx,1),1) -- (ok as well)
+        gSetAttribute(lbl,`TITLE`,msg)
+    end if
+    gSetAttribute(mbx,`TITLE`,title)
+    gShow(mbx)--,x,y)
+-- (only good for mouse clicks) position the popup so that 
+--  the OK button is already directly under mouse pointer:
+--  gShow(mbx,10,10) -- (force SIZE recalc)
+--  integer {x,y} = gGetGlobal(`MOUSEPOS`),
+--          {w,h} = gGetAttribute(mbx,`SIZE`)
+--  gShow(mbx,x-w+15,y-h+23)
+end procedure
+
+procedure main_button_click(gdx btn)
+--  gMsgBox(gGetDialog(btn),"Message","A multi-\nline label")--,150,150)
+    gMsgBox(btn,"Message","A multi-\nline label") -- (that 1% easier)
+end procedure
+
+gdx btn = gButton("click me",main_button_click),
+    box = gHbox({btn},`SPACE=AROUND,MARGIN=10`),
+    dlg = gDialog(box,"gMsgBox")
+--gShow(dlg,100,100)
+-- or offset dlg to not get blatted by mbx:
+integer {sw,sh} = gGetGlobal(`SCREENSIZE`)
+gShow(dlg,sw/2-150,sh/2-150)
+gMainLoop()
+-- or just centre and be blatted (mbx should rarely
+--  be bigger than/enough to hide the parent anyway)
+--gMainLoop(dlg)
+--?"done"
+--wait_key()

@@ -4,6 +4,273 @@
 --
 with javascript_semantics
 requires("1.0.2") -- (do until, and a switch <atom> bugfix)
+requires(`1.0.6`)
+include theGUI.e
+--gUseGTK()
+gdx dlg, canvas
+
+bool bOverlap = true, -- (debug aids)
+     bSpat = false -- (show space as '@')
+
+integer N = 8 -- board size (nb must be even)
+constant title = "Wave Function Collapse", 
+         help_text = """
+Press 'o' to toggle overlap (see note below).
+Press '@' to toggle display spaces as '@'.
+Press '-' to decrease board size (min 2x2).
+Press '+' to increase board size (max 40x40).
+Press ' ' to start afresh.
+
+Note that it is not really possible to visually verify 
+that a pattern is correct unless overlap is turned off.
+"""
+                -- space,     T,    -|,    iT,    |-    
+constant tilem = {0b0000,0b0111,0b1011,0b1101,0b1110},
+                --       L,      R,      U,      D
+         valid = {{0b00101,0b10001,0b01001,0b00011},
+                  {0b11010,0b01110,0b01001,0b11100},
+                  {0b11010,0b10001,0b10110,0b11100},
+                  {0b11010,0b01110,0b10110,0b00011},
+                  {0b00101,0b01110,0b10110,0b11100}}
+-- eg valid[1=space][4=D] means space or T can go below it,
+--    with bits of each valid[][] being read right-to-left.
+
+sequence grid,      -- -1 if unknown, else one of tilem
+         allowed,   -- initially 0b11111 (all possible) -> 1 bit set
+         entropy    -- count matching allowed (speedwise/simplicity)
+
+integer left    -- N*N..0, with 0=finished, -1=FAIL, -2=REDO
+
+function lowest_entropy()
+    -- returns a random tile from those with the lowest entropy
+    integer row, col, me = 5, count = 0
+    for r=1 to N do
+        for c=1 to N do
+            if grid[r][c]=-1 then -- ignoring any already done
+                integer e = entropy[r][c]
+                if e<=me then
+                    if e<me then
+                        me = e
+                        count = 0
+                    end if
+                    count += 1
+                    -- first=me, 1 in 1 chance,
+                    -- second 1 in 2 chance,
+                    -- third 1 in 3 chance, etc.
+                    -- ===collect[rand(length)].
+                    if rand(count)=1 then
+                        {row,col} = {r,c}
+                    end if
+                end if
+            end if
+        end for
+    end for
+    return {row,col}
+end function
+
+function pop_count(integer p)
+    integer e = 0
+    while p do
+-- naieve, slower:
+--      e += odd(p)
+--      p = floor(p/2)
+-- Kernigans bit counter:
+-- eg p = 0b10101 && p-1=0b10100 => 0b10100
+--    p = 0b10100 && p-1=0b10011 => 0b10000
+--    p = 0b10000 && p-1=0b01111 => 0b00000
+--      p = and_bits(p,p-1)
+        p &&= p-1
+        e += 1
+    end while
+    return e
+end function
+
+function permitted(integer p, d)
+    --
+    -- Given p, 0b00001..0b11111, a 1-5 bitmask,
+    -- calculate the permitted tiles in direction
+    -- d (1..4 for LRUD), eg a T(2) can have 2|3|4
+    -- on the right, and a 3 can have 1|5, so if
+    -- p is 0b01100 the result is 0b11111 (all),
+    -- that is, when d is 2 (ie right).
+    --
+    integer nm = 0
+    for i=1 to 5 do
+        integer m = power(2,i-1)
+        if and_bits(p,m) then
+            nm = or_bits(nm,valid[i][d])
+        end if
+    end for
+    return nm
+end function
+
+function propagate(integer r,c,p)
+    --
+    -- Propagate the permitted tiles, given that only
+    -- those in p (0b00001..0b11111, a 1..5 bitmask)
+    -- are now allowed at [r][c]. Note this can fail,
+    -- especially for some ~2x3 enclosed spaces, and
+    -- in that case you want to undo everything, and
+    -- clear some initial permitted bit setting.
+    --
+    for j,d in {{0,-1},{0,1},{-1,0},{1,0}} do --LRUD
+        integer {dr,dc} = d,
+                 nr = r+dr,
+                 nc = c+dc
+        if nr>=1 and nr<=N and nc>=1 and nc<=N then
+            integer nm = permitted(p,j),
+                    op = allowed[nr][nc],
+                    np = and_bits(op,nm)
+            if np=0 then return false end if
+            if op!=np then
+                allowed[nr][nc] = np
+                entropy[nr][nc] = pop_count(np)
+                if not propagate(nr,nc,np) then return false end if
+            end if
+        end if
+    end for
+    return true
+end function
+
+procedure wfc()
+    --
+    -- wave function collapse: (iterative/one cell at a time, because
+    --      this was once on a timer, but now wfc_init() just loops.)
+    --
+    -- There is, I guess, around a 1 in 8000 chance of this failing,
+    -- which means 1 in 10 40x40 boards fail, presumbably because it
+    -- has surrounded an area and none of the edges will work out.
+    -- Setting left to -2 triggers the outer retry in wfc_init().
+    --
+    integer {r,c} = lowest_entropy(),
+            g = grid[r][c],
+            p = allowed[r][c]
+    assert(g=-1)
+    assert(p!=0)
+    -- pick a random but valid tile:
+    for i in shuffle(tagset(5)) do
+        integer m = power(2,i-1)
+        if and_bits(p,m) then
+            -- in case propagation fails, make a backup
+            sequence saveae = deep_copy({allowed,entropy})
+            grid[r][c] = tilem[i]
+            allowed[r][c] = m
+            entropy[r][c] = 1
+            left -= 1
+            if not propagate(r,c,m) then
+                grid[r][c] = g
+                {allowed,entropy} = saveae
+                saveae = {} -- kill refcounts
+                p -= m -- don't try this again!
+                if p=0 then
+--                  printf(1,"panic: allowed[%d][%d] := 0!\n",{r,c})
+                    left = -2   -- trigger a restart
+                    return
+                end if
+                integer e = pop_count(p)
+                assert(p!=0 and e!=0 and e==entropy[r][c]-1)
+                allowed[r][c] = p
+                entropy[r][c] = e
+                left += 1
+            end if
+            return
+        end if
+    end for
+end procedure
+
+procedure wfc_init() 
+    do
+        grid = repeat(repeat(-1,N),N)
+        allowed = repeat(repeat(0b11111,N),N)
+        entropy = repeat(repeat(5,N),N)
+        left = N*N
+        do
+            wfc()
+        until left<=0
+    until left!=-2
+end procedure
+
+-- (the rest of this is all fairly standard code)
+
+procedure redraw(gdx ih, integer cw,ch)
+    integer N2 = N/2,   -- (nb forces N to be even)
+            N3 = N2+1,
+            d = floor(min(cw,ch)/N),
+            d9 = floor(min(cw,ch)/(2*N+1)),
+            d2 = floor(d/2), d4 = N2*d
+    cw = floor(cw/2)
+    ch = floor(ch/2)
+
+    gSetAttribute(canvas,`FGCLR`,TG_BLUE)
+    gSetAttribute(canvas,`LINEWIDTH`,3)
+    for row=1 to N do
+        integer ry = iff(bOverlap?ch-(row*2-N-1)*d9
+                                 :ch-(row-N3)*d-d2)
+        for col=1 to N do
+            integer rx = iff(bOverlap?cw+(col*2-N-1)*d9
+                                     :cw+(col-N3)*d+d2)
+            integer g = grid[row][col],
+                    e = entropy[row][col]
+            if g=0b1111 then
+                gDrawText(canvas,rx,ry,"?",{},TG_C,colour:=TG_RED)
+            elsif bSpat and g=0b0000 then
+                gDrawText(canvas,rx,ry,"@",{},TG_C)
+            elsif g!=-1 then
+                assert(e=1)
+                -- Erm, ain't tilem in LDRU order... (wth, it works)
+                for i,dxy in {{0,-1},{-1,0},{0,1},{1,0}} do -- LURD
+--              for i,dxy in {{-1,0},{0,1},{1,0},{0,-1}} do -- **BUG**
+                    if and_bits(g,power(2,i-1)) then
+                        integer {dr,dc} = sq_mul(dxy,iff(bOverlap?d9*2:d2))
+                        gDrawLine(canvas,rx,ry,rx+dc,ry+dr)
+                    end if
+                end for
+            end if
+        end for
+    end for
+    string o = iff(bOverlap?"":" (no overlap)"),
+           f = iff(left!=-1?"":" FAIL")
+    gSetAttribute(dlg,"TITLE","%s [%dx%d] %s%s",{title,N,N,o,f})
+end procedure
+
+gdx mbx = NULL
+
+function key_handler(gdx dlg, integer c)
+    if c=VK_F1 then
+        if mbx=NULL then
+            gdx lbl = gLabel(help_text),
+                bok = gButton(`OK`,gQuit),
+                hbx = gHbox({bok},`SPACE=LEFT`),
+                vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+            mbx = gDialog(vbx,dlg,title)
+            gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+        end if
+        gShow(mbx)
+        return TG_IGNORE -- (don't open browser help!)
+    end if
+    switch lower(c)
+        case 'c': wfc() 
+        case 'o': bOverlap = not bOverlap
+        case '-': N = max(N-4,0)
+                  fallthrough
+        case '+': N = min(N+2,40)
+                  fallthrough
+        case ' ': wfc_init()
+        case '@': bSpat = not bSpat
+    end switch
+    gRedraw(canvas)
+    return TG_CONTINUE
+end function
+
+canvas = gCanvas(redraw,"SIZE=440x440")
+dlg = gDialog(canvas,title)
+gSetHandler(dlg,`KEY`,key_handler)
+wfc_init()
+gMainLoop(dlg)
+
+--/*
+with javascript_semantics
+requires("1.0.2") -- (do until, and a switch <atom> bugfix)
 include pGUI.e
 Ihandle dlg, canvas
 cdCanvas cddbuffer
@@ -288,6 +555,7 @@ procedure main()
 end procedure
  
 main()
+--*/
 
 --/*
 -- Translation of the Python ditty on the talk page:

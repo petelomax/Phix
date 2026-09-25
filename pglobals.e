@@ -1158,3 +1158,4 @@ global integer safe_mode = 1    -- 1: assume everything (ie file i/o, c_func) is
                                 -- Note this is the compiler's copy, there is also a
                                 -- runtime version of this living in pHeap.e (sans _)
 
+

@@ -1,0 +1,348 @@
+﻿--
+-- demo\theGUI\gtk_clip.exw
+-- ========================
+--
+--  Clipboard demo, auto-crops the four corners of all me doc images for me.
+--  Also supports drag and drop, with full image loading support (png,jpg,etc).
+--
+--  Note: Clears clipboard on program termination: I fought GTK tooth and 
+--        nail over that, and lost - let me know if you can do any better.
+--  As a partial workaround, load_from_clipboard() loads from /tmp/clip.png
+--  which would have been left by a prior run, but that's not a general fix.
+--
+--requires(64,true)
+include theGUI.GTK.e
+
+atom pixbuf = NULL
+atom pixels = NULL
+integer imgW = 240, imgH = 80, stride = 0, n_chan = 0
+
+atom area, w1
+
+constant BORDER = 10
+
+procedure toggle_corners()
+    if pixbuf!=NULL then
+        integer white = peek({pixels,3})={255,255,255}
+        sequence v = repeat(iff(white?0:255),3)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for y,w in {5,3,2,1,1} do
+            integer yt = (y-1)*stride, yb = (imgH-y)*stride
+            for x=1 to w do
+                int xl = (x-1)*n_chan, xr = (imgW-x)*n_chan
+                poke(pixels + yt + xl,v) -- TL
+                poke(pixels + yt + xr,v) -- TR
+                poke(pixels + yb + xl,v) -- BL
+                poke(pixels + yb + xr,v) -- BR
+            end for
+        end for
+    end if
+end procedure
+
+procedure update_globals()
+    imgW   = gdk_pixbuf_get_width(pixbuf)
+    imgH   = gdk_pixbuf_get_height(pixbuf)
+    stride = gdk_pixbuf_get_rowstride(pixbuf)
+    n_chan = gdk_pixbuf_get_n_channels(pixbuf)
+    pixels = gdk_pixbuf_get_pixels(pixbuf)
+end procedure
+
+procedure set_area_size(bool bAndWindow=false)
+    integer w = max(imgW,232)
+    gtk_widget_set_size_request(area, w, imgH)
+    set_struct_field(idGdkRectangle,pRECT,"x",0)
+    set_struct_field(idGdkRectangle,pRECT,"y",0)
+    set_struct_field(idGdkRectangle,pRECT,"width",w)
+    set_struct_field(idGdkRectangle,pRECT,"height",imgH)
+    gtk_widget_size_allocate(area,pRECT)
+    if bAndWindow then
+        gtk_window_resize(w1, w+BORDER*2, imgH+BORDER*2)
+    end if
+end procedure
+
+procedure load_image_file(string filename)
+    atom err = NULL
+    pixbuf = gdk_pixbuf_new_from_file(filename, err)
+    if pixbuf=NULL then
+        ?{"load failed",filename}
+    else
+--      pixbuf = gdk_pixbuf_copy(pixbuf)
+        update_globals()
+        toggle_corners()
+        set_area_size(true)
+        gtk_widget_queue_draw(area)
+    end if
+end procedure
+
+procedure load_from_clipboard()
+    atom clip = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD)
+    pixbuf = gtk_clipboard_wait_for_image(clip)
+    if pixbuf=NULL then
+        string filename = `/tmp/clip.png`
+        atom err = NULL
+        pixbuf = gdk_pixbuf_new_from_file(filename, err)
+        if pixbuf!=NULL then
+            ?"loaded from "&filename
+        end if
+    end if
+    if pixbuf!=NULL then
+--      pixbuf = gdk_pixbuf_copy(pixbuf)
+        update_globals()
+        toggle_corners()
+        set_area_size(true)
+    end if
+    gtk_widget_queue_draw(area)
+end procedure
+
+atom png_data = NULL
+integer png_len = 0
+
+--/* valid, but no tmp file...
+procedure build_png_in_buffer()
+
+    atom pBuffer = allocate(machine_word())
+    atom pSize   = allocate(machine_word())
+
+    poken(pBuffer, 0)
+    poken(pSize,   0)
+
+    integer ok = gdk_pixbuf_save_to_buffer(pixbuf,pBuffer,pSize,"png",NULL)
+    if not ok then
+        ? "PNG encode failed"
+    else
+
+        atom buf = peeknu(pBuffer)   -- char*
+        integer len = peeknu(pSize)  -- size_t
+
+        -- free previous if any
+        if png_data!=NULL then
+            free(png_data)
+        end if
+
+        png_data = allocate(len)
+        png_len = len
+
+        mem_copy(png_data, buf, len)
+
+        -- free GTK buffer
+        g_free(buf)
+    end if
+
+    free(pBuffer)
+    free(pSize)
+end procedure
+--*/
+
+--procedure build_png()
+--  string tmp = "/tmp/clip.png"
+--
+--  gdk_pixbuf_save(pixbuf, tmp, "png", NULL)
+--
+--  string data = get_text(tmp)
+--
+--  png_len = length(data)
+--  if png_data then free(png_data) end if
+--  png_data = allocate(png_len)
+--  poke(png_data, data)
+--end procedure
+
+--constant atom_png = gdk_atom_intern("image/png", FALSE),
+--       atom_targets = gdk_atom_intern("TARGETS", FALSE),
+--       pAtoms = allocate_word(atom_png),
+--       ATOMS = 32, BYTES = 8
+--
+--function clipboard_get(atom clipboard, atom seldata, integer info, atom user_data)
+----?"clipboard_get" -- only triggers on 64 bit??? (yet still works on 32 bit...)
+--  atom target = gtk_selection_data_get_target(seldata)
+--  if target = atom_targets then -- return list of supported targets (just PNG)
+--      gtk_selection_data_set(seldata,atom_targets,ATOMS,pAtoms,1)
+--      return TRUE
+--  elsif target = atom_png then
+--      gtk_selection_data_set(seldata,atom_png,BYTES,png_data,png_len)
+--      return TRUE
+--  end if
+--  return FALSE
+--end function
+--constant clipboard_get_cb = call_back({'+',clipboard_get})
+
+--constant clip_targets = {{"TARGETS", 0, 0},
+--                       {"image/png", 0, 1}
+--                      },
+--       nCT = length(clip_targets),
+--       pClipTargets = gtk_target_table(clip_targets)
+
+procedure save_to_clipboard()
+    if pixbuf!=NULL and gdk_pixbuf_get_width(pixbuf) then
+--      build_png()
+        gdk_pixbuf_save(pixbuf, "/tmp/clip.png", "png", NULL) -- (optional!)
+        atom clip = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD)
+        c_proc(x_gtk_clipboard_set_image,{clip,pixbuf})
+--      gtk_clipboard_set_with_data(clip,pClipTargets,nCT,clipboard_get_cb,NULL,NULL)
+    end if
+end procedure
+
+function draw(atom widget, cairo, integer id)
+    -- GTK3 version, invoked from GTK2 version
+    if pixbuf=NULL then
+        -- draw message
+        cairo_move_to(cairo, 20, 40)
+        cairo_show_text(cairo, "No image in clipboard")
+    else
+        gdk_cairo_set_source_pixbuf(cairo, pixbuf, BORDER, BORDER)
+        cairo_paint(cairo)
+    end if
+    return FALSE
+end function
+constant draw_cb = call_back({'+',draw})
+
+function expose_event(atom widget, event, integer id)
+    -- GTK2 version
+    atom win = gtk_widget_get_window(widget),
+         cairo = gdk_cairo_create(win)
+    integer res = draw(widget, cairo, id)
+    cairo_destroy(cairo)
+    return res
+end function
+constant expose_event_cb = call_back({'+',expose_event})
+
+function button_press(atom widget, event, integer id)
+    if pixbuf=NULL then return FALSE end if
+    toggle_corners()
+    save_to_clipboard()
+    gtk_widget_queue_draw(widget)
+    return TRUE
+end function
+constant button_press_cb = call_back({'+',button_press})
+
+function drag_data_received(atom widget, context, x, y, seldata, info, time_, id)
+    atom data = gtk_selection_data_get_data(seldata)
+    if data=NULL then return false end if
+    for uri in split(peek_string(data),'\n') do
+        -- crude URI -> filename
+--      if length(uri)>=7 and uri[1..7]="file://" then
+        if length(uri)>=8 and uri[1..8]="file:///" then
+-- (or maybe the kength 7 version and a secondary check for eg "/C:"->strip leading /)
+            string filename = trim_tail(uri[9..$],'\r')
+            filename = substitute(filename,"%20"," ")
+            load_image_file(filename)
+            exit
+        end if
+    end for
+    return true
+end function
+constant drag_data_received_cb = call_back({'+',drag_data_received})
+
+function key_press(atom widget, event, integer id)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+--      {} = gtk_main_quit(w1,NULL)
+--NO:       c_proc(gtk_main_quit)
+        gtk_main_quit()
+        return TRUE
+    elsif keyval='v' then
+        load_from_clipboard()
+        return TRUE
+    end if
+    return FALSE
+end function
+constant key_press_cb = call_back({'+',key_press})
+
+constant pText = allocate_string("text/uri-list"),
+         pTargets = allocate(24)
+mem_set(pTargets,0,24)
+poken(pTargets,pText)
+
+constant drag_sources = {{"text/uri-list", 0, 0}},
+         nDS = length(drag_sources),
+         pDragSources = gtk_target_table(drag_sources)
+
+
+procedure main()
+    gtk_init()
+
+    w1 = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(w1, "GTK Image Tool")
+
+    area = gtk_drawing_area_new()
+    gtk_container_add(w1, area)
+
+--  gtk_widget_set_size_request(area, 240, 80)
+    set_area_size()
+
+    -- signals
+    integer id = NULL
+
+    {string sig, atom cb} = iff(bGTK2?{"expose_event",expose_event_cb}:{"draw",draw_cb})
+    g_signal_connect_data(area, sig, cb, id)
+    g_signal_connect_data(area, "button-press-event", button_press_cb, id)
+    g_signal_connect_data(w1, "key-press-event", key_press_cb, id)
+    g_signal_connect_data(w1, "destroy", gtk_main_quit_cb, id)
+
+    -- enable mouse + DnD
+    gtk_widget_add_events(area, GDK_BUTTON_PRESS_MASK)
+--  gtk_drag_dest_set(area,GTK_DEST_DEFAULT_ALL,pTargets,1,GDK_ACTION_COPY)
+    gtk_drag_dest_set(area,GTK_DEST_DEFAULT_ALL,pDragSources,nDS,GDK_ACTION_COPY)
+    g_signal_connect_data(area,"drag-data-received",drag_data_received_cb,id)
+
+    gtk_widget_show_all(w1)
+
+    -- initial clipboard load
+    load_from_clipboard()
+
+    gtk_main()
+end procedure
+
+main()
+--?"done"
+--wait_key()
+--/*
+Drag image OUT (harder) OLE drag/drop / IDataObject / GTK DnD source
+
+🔴 3) Drag image OUT (the “you might regret this” bit 😄)
+
+🎯 Minimal viable approach
+
+Instead of full custom COM:
+
+👉 Use CF_DIB via OleSetClipboard + simulated drag
+
+…but proper drag requires interfaces.
+
+🧠 Reality check
+
+Full implementation means:
+
+implementing vtables in Phix
+
+reference counting
+
+format negotiation
+
+👉 doable, but chunky
+
+✅ Practical shortcut (recommended)
+
+👉 Fake drag-out via temporary file + file drag
+
+Steps:
+
+Save image to temp BMP/PNG
+
+Start drag with "CF_HDROP"
+
+Sketch:
+string tmp = "C:\\temp\\drag.bmp"
+save_image_to_file(tmp)
+
+-- create DROPFILES struct
+-- call DoDragDrop with CF_HDROP
+
+👉 Much easier than full COM
+
+--*/

@@ -1,0 +1,80 @@
+--
+-- demo\rosetta\Draw_the_Empire_State_Building.exw
+-- ===============================================
+--
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant title = "Empire State Building"
+
+atom rot = 0.024, tilt = 0.35
+sequence xyz = {}, segs = {}
+
+procedure add_window(sequence p1, p2)
+    xyz &= {p1,p2}
+    integer n = length(xyz)
+    segs &= {{n-1,n}}
+end procedure
+
+procedure block(atom cy, w, h, d, xS=0, ys=0)
+    integer b = length(xyz)+1
+    for i=0 to 7 do
+        xyz &= {{iff(i&&1?w:-w),
+                 iff(i&&2?h:-h)+cy,
+                 iff(i&&4?d:-d)}}
+        for j in {1,2,4} do
+            if (i&&j)=0 then
+                segs &= {{b+i,b+i+j}}
+            end if
+        end for
+    end for
+    if xS then
+        atom y0 = cy-h+10
+        while y0<cy+h-5 do
+            atom x0 = -w+9
+            while x0<w-5 do
+                add_window({x0, y0, -d},{x0, y0+4, -d})
+                add_window({x0, y0,  d},{x0, y0+4,  d})
+                add_window({-w, y0, x0},{-w, y0+4, x0})
+                add_window({ w, y0, x0},{ w, y0+4, x0})
+                x0 += xS
+            end while
+            y0 += ys
+        end while
+    end if
+end procedure
+
+block(-180, 75, 35, 75)         -- base
+block( -90, 55, 55, 55, 15, 18) -- lower tower
+block(  80, 33, 115,33,  8, 12) -- main skyscraper
+block( 210, 21, 15, 21)         -- art deco observation
+block( 235, 10, 10, 10)         -- spire base
+block( 285,  1, 40,  1)         -- spire
+
+procedure redraw(gdx canvas, integer w, h)
+    gSetAttribute(canvas,`FGCLR`,TG_GREY)
+    for seg in segs do
+        integer {j,k} = seg
+        atom {xj,yj,zj} = xyz[j],
+             {xk,yk,zk} = xyz[k]
+        gDrawLine(canvas,250+xj,340-yj-zj*tilt,250+xk,340-yk-zk*tilt)
+    end for
+end procedure
+
+procedure action(gdx timer)
+    for i,pt in xyz do
+        atom {x,y,z} = pt
+        x = x + z*rot
+        z = z - x*rot
+        xyz[i] = {x,y,z}
+    end for
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(canvas)
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=BLACK"),
+    dialog = gDialog(canvas,title,"SIZE=500x640"),
+    timer = gTimer(action,200,user_data:=canvas)
+gMainLoop(dialog)
+

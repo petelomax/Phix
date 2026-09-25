@@ -17,11 +17,11 @@ local procedure crash_hat(string msg, txt, integer carat, nFrames=1)
     crash(msg,nFrames:=nFrames)
 end procedure
 
-local constant XPGLEX_TK_END    = 0,
-               XPGLEX_TK_SET    = 1,
-               XPGLEX_TK_COMMA  = 2,
-               XPGLEX_TK_NAME   = 3,
-               XPGLEX_TK_HEX    = 4;
+local constant TG_LEX_TK_END    = 0,
+               TG_LEX_TK_SET    = 1,
+               TG_LEX_TK_COMMA  = 2,
+               TG_LEX_TK_NAME   = 3,
+               TG_LEX_TK_HEX    = 4;
 
 local function tg_parse_attributes(string attributes, sequence args, integer nFrames=1)
     // (manually translated from iup_attrib.c)
@@ -34,7 +34,7 @@ local function tg_parse_attributes(string attributes, sequence args, integer nFr
             val = null
     bool get_name = true // (else get_value)
     while true do
-        integer toktype = XPGLEX_TK_END
+        integer toktype = TG_LEX_TK_END
         while i<=l do
             integer ch = attributes[i]
             i += 1
@@ -47,15 +47,15 @@ local function tg_parse_attributes(string attributes, sequence args, integer nFr
                         if ch=='\n' then exit end if
                     end while
                 case '#':   // Hex constant
-                    toktype = XPGLEX_TK_HEX
+                    toktype = TG_LEX_TK_HEX
                     i -= 1;                     // unget first character
                     delims = ", \n\r\t"         // get until delimiter
                 case ' ', '\n', '\r':
                     break
                 case '=':
-                    toktype = XPGLEX_TK_SET
+                    toktype = TG_LEX_TK_SET
                 case ',':
-                    toktype = XPGLEX_TK_COMMA
+                    toktype = TG_LEX_TK_COMMA
                 case '"':                       // string
                     delims = `"`
                 case '{':
@@ -72,7 +72,7 @@ local function tg_parse_attributes(string attributes, sequence args, integer nFr
                     ch = attributes[i]
                     i += 1
                     if find(ch,delims) then exit end if
-                    if toktype=XPGLEX_TK_HEX then
+                    if toktype=TG_LEX_TK_HEX then
                         --DEV/SUG "source line with ^"-style error, if we can:
                         -- maybe crash_hat(`bad hex char`,attributes,i,1,nFrames)
                         --   ==>    gSetAttributes(dlg,`BGCLR=#1234J678`)
@@ -104,20 +104,20 @@ local function tg_parse_attributes(string attributes, sequence args, integer nFr
                 if length(delims)>1 and find(ch,delims) then
                     i -= 1  // unget delimiter
                 end if
-                if toktype!=XPGLEX_TK_HEX then
-                    toktype = XPGLEX_TK_NAME
+                if toktype!=TG_LEX_TK_HEX then
+                    toktype = TG_LEX_TK_NAME
                 end if
             end if
-            if toktype!=XPGLEX_TK_END then exit end if
+            if toktype!=TG_LEX_TK_END then exit end if
         end while
         switch toktype do
 --DEV compiler error... (with nFrames:=nFrames+1)
---          case XPGLEX_TK_END:
+--          case TG_LEX_TK_END:
 --              bEnd = true
 --              fallthrough
---          case XPGLEX_TK_COMMA:
-            case XPGLEX_TK_END,
-                 XPGLEX_TK_COMMA:
+--          case TG_LEX_TK_COMMA:
+            case TG_LEX_TK_END,
+                 TG_LEX_TK_COMMA:
                 if name!=NULL then
 --                  gSetAttribute(id,name,val,nFrames:=nFrames+1)
                     args = append(args,{name,val})
@@ -126,25 +126,25 @@ local function tg_parse_attributes(string attributes, sequence args, integer nFr
 --                  vals = append(vals,name)
                 end if
 --              if bEnd then return end if
-                if toktype=XPGLEX_TK_END then return args end if
+                if toktype=TG_LEX_TK_END then return args end if
                 name = null
                 val = null
                 get_name = true
-            case XPGLEX_TK_SET:
+            case TG_LEX_TK_SET:
                 get_name = false
-            case XPGLEX_TK_NAME:
+            case TG_LEX_TK_NAME:
                 if get_name then
                     name = token
                 else
                     val = token
                 end if
-            case XPGLEX_TK_HEX:
+            case TG_LEX_TK_HEX:
                 assert(not get_name)
                 val = token
         end switch
     end while
     return args
 end function
-gSetGlobal(`tg_parse_attr`,tg_parse_attributes)
+gSetGlobal(`tg_parse_attr`,tg_parse_attributes) -- (undoc/internal)
 --</include>
 

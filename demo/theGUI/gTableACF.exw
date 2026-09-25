@@ -1,0 +1,146 @@
+--
+-- demo/theGUI/gTableACF.exw
+-- =========================
+--
+--  initial imnplementation of auto cycliic filters
+--
+--/*
+DOCS: (but implement first!!) - the test set is 9,968 all-z lines that play no part other than slow it down,
+    abc, bcd, cde, def, and hij, [ie 5] plus "m " & {"an","and","end"} x {"on","one","net"} x {"1","2","12"}, 
+    [ie 27], spread over two columns in a cyclic fashion (2nd column is blank for the other 9,973 entries).
+    see gTableACF.exw for progress...
+Ctrl R or File/Recent opens up a simple sortable table with an auto cyclic filter, for instance if 
+you have "abc.mp4", "bcd.mp4", and "hermit.mp4" and enter "abc" it shows that in the header and the
+one file match, a 'd' crops starting chars until >=1 matches, getting you the second and "bcd" in
+the header, a 'h' crops it all the way down to "h", any char with 0 matches gets you the full list, [ERM, NO!!]
+and pressing backspace uncrops leading chars until >=1. Spaces are treated as search term breaks,  [ERM, while?]
+so eg "sin con no" matches "Sinead O'Connor - Nothing Compares 2U", and you can use terms such as 
+"26/05" or "11:50" to match against dates and durations. Multiple search terms undergo a similar
+whole-term cropping mechanism to individual characters on the last term, for instance "sin con noo"
+might (assuming no matches) try "con noo" before passing just "noo" to the char-cropping section. 
+--NOT NEEDED:
+--Filtering occurs in an idle task and may sometimes take a couple of seconds before having the full 
+--and final effect, that is in preference to attempting it in the main/gui thread and risking making 
+--the application unresponsive.
+--*/
+with javascript_semantics
+include theGUI.e
+--gSetGlobal(`DIAGNOSTICS`,`SB_INFO`)
+--gSetGlobal(`DIAGNOSTICS`,`DF_SET_WH`)
+gUseGTK()
+
+constant TITLE = `auto cyclic filter`
+
+function make_test_data()
+--  sequence res = repeat({`zzz`,``},9968)
+    sequence res = repeat({`zzz`,``},10000)
+    res[1..5] = {{`abc`,``},
+                 {`bcd`,``},
+                 {`cde`,``},
+                 {`def`,``},
+                 {`hij`,``}}
+    integer i = 6
+    for a in {"an","and","end"} do
+        for b in {"on","one","net"} do
+            for c in {"1","2","12"} do
+                string lc, rc
+                switch rmdr(i-5,4) do
+                    case 1: lc = join({"m",a,b,c}); rc = ""
+                    case 2: lc = join({"m",a,b}); rc = c
+                    case 3: lc = join({"m",a}); rc = join({b,c})
+                    case 0: lc = join({"m"}); rc = join({a,b,c})
+                end switch
+                res[i] = {lc,rc}
+                i += 1
+            end for
+        end for
+    end for
+    res[$] = {"last","one"}
+    return res
+end function
+
+constant columns = {`one`,`two`},
+         data = make_test_data()
+
+sequence filter_dx = tagset(length(data))
+
+function get_data(integer line)
+    if line=0 then return length(filter_dx) end if
+    return data[filter_dx[line]]
+end function
+
+string ac_filter = ""
+
+procedure apply_filter(gdx dlg)
+    integer ld = length(data)
+    filter_dx = tagset(ld)
+    sequence terms = split(ac_filter)
+    string title = TITLE
+    if length(terms) then
+        integer terms_ok = 0
+        for t in reverse(terms) do
+            sequence f2 = {}
+            for f in filter_dx do
+                for column in data[f] do
+                    if match(t,column) then
+                        f2 &= f
+                        exit
+                    end if
+                end for
+            end for
+            if length(f2)=0 then exit end if
+            filter_dx = f2
+            terms_ok += 1
+        end for
+        string term
+        if terms_ok=0 then
+            term = terms[$]
+            integer chars_ok = 1
+            for l=1 to length(term) do
+                sequence f2 = {}
+                string t = term[-l..-1]
+                for f in filter_dx do
+                    for column in data[f] do
+                        if match(t,column) then
+                            f2 &= f
+                            exit
+                        end if
+                    end for
+                end for
+                if length(f2)=0 then exit end if
+                filter_dx = f2
+                chars_ok = l
+            end for
+            term = term[-chars_ok..-1]
+        else
+            term = join(terms[-terms_ok..$])
+        end if
+        integer n = length(filter_dx)
+        if n!=ld then
+            title = sprintf(`%s [%s, %d/%d]`,{TITLE,term,n,ld})
+        else
+            title = sprintf(`%s [%s, (none)]`,{TITLE,term})
+        end if
+    end if
+    gSetAttribute(dlg,`TITLE`,title)
+end procedure
+
+procedure key_handler(gdx table, integer c)
+    if c=VK_DEL or c=VK_BS then
+        if length(ac_filter) then
+            ac_filter = ac_filter[1..$-1]
+        end if
+    elsif c>=' ' and c<#7F then
+        ac_filter &= lower(c)
+    end if
+    apply_filter(gGetDialog(table))
+end procedure
+
+
+--gdx table = gTable(columns,data,0), -- (0 needed to not clobber size)
+--gdx table = gTable(columns,{data,{0,0}},0), -- (0 needed to not clobber size)
+gdx table = gTable(columns,{get_data,{0,0}},0), -- (0 needed to not clobber size)
+      dlg = gDialog(table,TITLE,`SIZE=800x600`)
+gSetHandler(table,`TABKEY`,key_handler)
+gMainLoop(dlg)
+

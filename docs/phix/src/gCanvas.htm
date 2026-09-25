@@ -716,10 +716,12 @@ See also C:\Program Files (x86)\Phix\docs\phix\src\ecc.htm ...
             All the standard colours are fully opaque, ie have an alpha channel of #00 <small>(which may get flipped to/from #FF 
             on some backends)</small>. *TG_MAGENTA is officially the transparent colour, set as BGCLR on any canvas intended to be
             drawn using <a href>OpenGL</a>, which effectively punches out a transparent hole all the way up the dialog hierarchy.
+<!--
             Should you want a gCanvas to show a border around some OpenGL content, my advice would be to set BGCLR for the border
             and punch your own transparent hole, that is within the standard <a href>REDRAW</a> routine, or rely on <a href>MARGIN</a>.
-            Use TG_MAGENTA-1 or #FE00FE for something indistinguishable to the naked eye but which isn&apos;t transparent. Note
-            that xpm use "None" instead, which is replaced by the first unused colour it can find, typically #000001, not that
+            Use TG_MAGENTA-1 or #FE00FE for something indistinguishable to the naked eye but which isn&apos;t transparent. 
+-->
+            Note that xpm use "None" instead, which is replaced by the first unused colour it can find, typically #000001, not that
             you can see that. Lastly, there has been no formal testing of alpha blending, but some of the drawing primitives may
             it seems have already incorporated most of what is needed.
 <!--
@@ -1568,6 +1570,17 @@ cdCanvasMark[Type|Size] => gDrawMark[Type|Size] (new)
          <td>
             As above, values other than 1 may cause line styles other than TG_CONTINUOUS to appear as rhomboids. Default: 1.<br>
             Implemented in JavaScript via <a href="javascript.htm#lineWidth"><i>ctx</i>.lineWidth</a>
+            <br><a name=MPV_INIT></a>
+         </td>
+        </tr>
+        <tr>
+         <td>
+            MPV_INIT
+         </td>
+         <td>
+            Make the entire canvas the output area for <a href>libmpv</a>. Set it to a procedure that accepts a platform-specific handle.<br>
+            The video automatically fills the [resized] canvas as best it can. See demo\theGUI\gVidCut.exw for an example.
+            <br>
          </td>
         </tr>
 <!--
@@ -1913,8 +1926,8 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             A procedure that is invoked when the canvas needs to be redrawn.
             <br>
             <br>
-            procedure redraw(<a href>gdx</a> canvas[,<a href>integer</a> w, h[, ox, oy]])<br>
-            canvas: identifier of the canvas element that needs drawing.<br>
+            procedure redraw([<a href>gdx</a> canvas,][<a href>integer</a> w, h[, ox, oy]])<br>
+            canvas: (optional) identifier of the canvas element that needs drawing.<br>
             w,h,ox,oy: (optional) same as <small><code>integer {ox,oy,w,h} = 
             <a href>gGetAttribute</a>(canvas,`<a href>VIEWPORT</a>`)</code></small> as 1st line of 1-arg proc.<br>
 <!--
@@ -1936,6 +1949,9 @@ could easily have 500K text lines which would be 2,500 * screen width... a canva
             <br>
             The routine is normally expected to be almost entirely composed of <a href>gDrawArc</a>()..<a href>gDrawText</a>() statements,<br>
             though (eg) <a href>gTree</a>() [also] uses it to populate width/widest and (quickly) perform deferred loading updates.<br>
+            When using <a href>OpenGL</a>, which always draws the entire dialog client area, with theGUI over-blitting with a transparent hole when it needs to,
+            ie when the canvas does not cover the entire client area, any canvas you got would be completely useless for drawing purposes, scrollbars are not 
+            supported (unless drawn using OpenGL and handled explicitly) and any ox,oy gets the top left canvas offset within the client area.<br>
             Originally theGUI would crash if you tried to display a canvas without a redraw routine, these days a redraw parameter on creation of NULL or "edge"
             is replaced by a (private) default drawing routine with the outcome as shown:<br>
             <br>
@@ -2493,7 +2509,7 @@ end procedure</font>
             <h3>Planned</h3>
             Integrate some or all of Arwen32dibdemo into theGUI. All would of course need tweaking to work on a gImage (ie GtkPixbuf as well as
             a DIBSection) and recoded from scratch in theGUI.js, all need brand new names, and maybe the file-based ones integrated with 
-            <a href>gGetOpenFileName</a>() and/or a new matching gGetSaveFileName() - perhaps a little tricky but certainly not impossible. 
+            <a href>gOpenFile</a>() and/or a new matching gSaveFile() - perhaps a little tricky but certainly not impossible. 
             I guess the big question is which one(s) should I have a go at first to get my foot in the door. Seventeen that most probably 
             won&apos;t be wanted are commented out, and in preparation I&apos;ve replaced the raw hex machine code bytes of the original with 
             much more readable/tweakable #ilASM{} code.

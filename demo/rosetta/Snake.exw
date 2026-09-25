@@ -16,6 +16,191 @@ Press +/- to speed up or slow down the game.
 Note this is (still) a character-based game, so eg
 resize may "judder" a bit, to fit whole characters.
 """
+requires(`1.0.6`)
+include theGUI.e
+gdx dlg, canvas, timer
+
+integer bh = 0, bw  -- board height and width (sans borders)
+sequence board = {},  -- bh+2 x length w+2 strings (ie a '+' border)
+         snakex, snakey
+integer direction = VK_RIGHT, points = 0, moves = 0, tick = 100,
+        max_len, hX, hY, hdx, tdx -- (more snake details)
+atom timeout
+bool alive = true
+constant RYG = {TG_RED,TG_YELLOW,TG_GREEN}
+
+procedure add_apple()
+    integer ay = rand(bh)+1,
+            ax = rand(bw)+1
+    if board[ay,ax]!=' ' then
+        --
+        -- OK, time to go hunting for one then...
+        --  (beats using an infinite loop, which
+        --   can become very slow on a big board
+        --   when only one or two spaces remain,
+        --   and/or o/c hang after some slip-up.)
+        --
+        integer prob = 1 -- pick first 1 in 1,
+                         -- second 1 in 2, etc.
+        for y=2 to bh+1 do -- (ignoring borders)
+            for x=2 to bw+1 do -- (ditto)
+                if board[y,x]=' ' then
+                    if rand(prob)=prob then
+                        {ay,ax} = {y,x}
+                    end if
+                    prob += 1
+                end if
+            end for
+        end for
+        if prob=1 then -- no space found!
+            alive = false
+            return
+        end if
+    end if
+    assert(board[ay,ax]=' ')
+    board[ay,ax] = '@'
+end procedure
+
+procedure move(integer d)
+    assert(alive)
+    moves += 1
+    integer wasY = hY,
+            wasX = hX
+    direction = d
+    switch direction do
+        case VK_UP:      hY -= 1
+        case VK_DOWN:    hY += 1
+        case VK_LEFT:    hX -= 1
+        case VK_RIGHT:   hX += 1
+    end switch
+    integer t = board[hY,hX],
+            tY = snakey[tdx],
+            tX = snakex[tdx]
+    if t!=' ' and t!='@' and (hY!=tY or hX!=tX) then
+        alive = false
+    else
+        board[wasY,wasX] = '#'
+        board[hY,hX] = 'O'
+        hdx = remainder(hdx,max_len)+1
+        snakex[hdx] = hX
+        snakey[hdx] = hY
+        if t=='@' then
+            points += 1
+            add_apple() -- (can set alive to false)
+        else
+            board[tY,tX] = ' '
+            tdx = remainder(tdx,max_len)+1
+        end if
+        timeout = time()+tick/1000
+    end if
+    if not alive then
+        gSetInt(timer,"RUN",false)
+        gRedraw(canvas)
+    end if
+end procedure
+
+procedure new_game(integer h, w)
+    {bh,bw} = {h,w}
+    board = repeat("+"&repeat(' ',w)&"+",h+2)
+    board[1] = repeat('+',w+2)
+    board[$] = repeat('+',w+2)
+    board[2][2] = 'O'
+    max_len = w*h
+    snakex = 2 & repeat(0,max_len-1)
+    snakey = 2 & repeat(0,max_len-1)
+    {direction,alive} = {VK_RIGHT,true}
+    {hdx,tdx,hY,hX} = {1,1,2,2}
+    {points,moves} = {0,0}
+    add_apple()
+    gSetInt(timer,"RUN",true)
+    timeout = time()+tick/100
+end procedure
+
+procedure redraw(gdx canvas, integer cw, ch)
+    integer {dx,dy} = gGetTextExtent("W",canvas),
+                  w = floor(cw/dx),
+                  h = floor(ch/dy)
+    if h!=bh or w!=bw then new_game(h,w) end if
+    integer marginx = floor((cw-w*dx)/2),
+            marginy = floor((ch-h*dy)/2),
+            py = marginy+floor(dy/2)
+    for y=1 to h do
+        integer px = marginx+floor(dx/2)
+        for x=1 to w do
+            integer byx = board[y+1][x+1]
+            if byx!=' ' then
+                atom fgclr = RYG[find(byx,"@O#")]
+                gDrawText(canvas,px,py,""&byx,align:=TG_C,colour:=fgclr)
+            end if
+            px += dx
+        end for
+        py += dy
+    end for
+    if not alive then
+        gDrawText(canvas,cw/2,ch/2,"GAME OVER",align:=TG_C,colour:=TG_RED)
+    end if
+    gSetAttribute(dlg,"TITLE","%s score:%d moves:%,d",{title,points,moves})
+end procedure
+
+procedure timer_handler(gdx /*timer*/)
+    if alive and time()>=timeout then
+        move(direction)
+    end if
+    gRedraw(canvas)
+end procedure
+
+gdx mbx = NULL
+
+function help(gdx dlg)
+    if mbx=NULL then
+        gdx lbl = gLabel(help_text),
+            bok = gButton(`OK`,gQuit),
+            hbx = gHbox({bok},`SPACE=LEFT`),
+            vbx = gVbox({lbl,hbx},`MARGIN=10,GAP=10`)
+        mbx = gDialog(vbx,dlg,title)
+        gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+    end if
+    gShow(mbx)
+    return TG_IGNORE -- (don't open browser help!)
+end function
+
+function key_handler(gdx dlg, integer c)
+    if c=VK_F1 then return help(dlg) end if
+    if find(c,{VK_UP,VK_LEFT,VK_RIGHT,VK_DOWN}) and alive then move(c)
+    elsif lower(c)='n' then new_game(bh,bw) 
+    elsif c=' ' then gToggleInt(timer,"RUN")
+    elsif find(c,"+-") then
+        c = compare(',',c) -- '+','-' ==> {-1,+1}
+        -- '+' => smaller tick, '-' => larger tick:
+        tick = max(gGetInt(timer,"TIME")+c*25,25)
+        timeout = time()+tick/1000
+        gSetInt(timer,"TIME",tick)
+        gSetInt(timer,"RUN",false)
+        gSetInt(timer,"RUN",true)
+    end if
+    gRedraw(canvas)
+    return TG_CONTINUE
+end function
+
+canvas = gCanvas(redraw,"BGCLR=BLACK,SIZE=339x195") -- 12x24
+timer = gTimer(timer_handler, 200)
+dlg = gDialog(canvas,`TITLE="%s",MINSIZE=250x90`,{title})
+gSetHandler(dlg,`KEY`,key_handler);
+gMainLoop(dlg)
+
+--/*
+with javascript_semantics
+constant title = "Snake Game",
+     help_text = """
+Use arrow keys to change the snake's direction.
+Avoid running into the walls, or your own tail.
+Eating the food (@pples) makes the snake grow.
+
+Press 'n' to start a new game.
+Press +/- to speed up or slow down the game.
+Note this is (still) a character-based game, so eg
+resize may "judder" a bit, to fit whole characters.
+"""
 include pGUI.e
 Ihandle dlg, canvas, timer
 cdCanvas cddbuffer, cdcanvas
@@ -209,4 +394,4 @@ if platform()!=JS then
     IupMainLoop()
     IupClose()
 end if
-
+--*/

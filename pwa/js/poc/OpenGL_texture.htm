@@ -1,0 +1,213 @@
+<!-- pwa\js\poc\OpenGL_texture.htm -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>WebGL + Canvas Border Demo</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: sans-serif; }
+        #container { 
+            position: relative; 
+            width: 800px; 
+            height: 600px; 
+            background: #000;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            resize: both; 
+            overflow: hidden;
+        }
+        canvas { 
+            position: absolute; 
+            top: 0; left: 0; 
+            width: 100%; height: 100%; 
+        }
+        #borderCanvas { pointer-events: none; }
+    </style>
+</head>
+<body>
+
+<div id="container">
+    <canvas id="glCanvas"></canvas>
+    <canvas id="borderCanvas"></canvas>
+</div>
+
+<script>
+/** SETTINGS **/
+const TEX_W = 100;
+const TEX_H = 26;
+const CREAM = "rgb(238, 128, 32)"; 
+const BLACK = "rgb(0, 0, 0)";
+
+const vsSource = `#version 300 es
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec2 aTex;
+uniform mat4 uMVP;
+out vec2 vTex;
+void main() {
+    vTex = aTex;
+    gl_Position = uMVP * vec4(aPos, 1.0);
+}`;
+
+const fsSource = `#version 300 es
+precision mediump float;
+in vec2 vTex;
+out vec4 fragColor;
+uniform sampler2D uTex;
+void main() {
+    fragColor = texture(uTex, vTex);
+}`;
+
+let gl, program, vao, texID;
+
+function initGL() {
+    const canvas = document.getElementById('glCanvas');
+    gl = canvas.getContext('webgl2');
+    if (!gl) {
+        alert("WebGL 2 not supported");
+        return;
+    }
+
+    const createShader = (src, type) => {
+        const s = gl.createShader(type);
+        gl.shaderSource(s, src);
+        gl.compileShader(s);
+        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+            console.error("Shader Error: " + gl.getShaderInfoLog(s));
+            gl.deleteShader(s);
+            return null;
+        }
+        return s;
+    };
+
+    const vs = createShader(vsSource, gl.VERTEX_SHADER);
+    const fs = createShader(fsSource, gl.FRAGMENT_SHADER);
+    
+    program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        console.error("Link Error: " + gl.getProgramInfoLog(program));
+        return;
+    }
+    gl.useProgram(program);
+
+    // Geometry
+//  const vertices = new Float32Array([
+//      -1, -1, 0,  0, 1,
+//       1, -1, 0,  1, 1,
+//       1,  1, 0,  1, 0,
+//      -1,  1, 0,  0, 0
+//  ]);
+    const vertices = new Float32Array([
+        -0.4, -0.6, 0.0, 0.0, 1.0,   // 0  bottom-left
+         0.6, -0.4, 0.0, 1.0, 1.0,   // 1  bottom-right
+         0.4,  0.6, 0.6, 1.0, 0.0,   // 2  top-right
+        -0.6,  0.4, 0.0, 0.0, 0.0    // 3  top-left
+    ]);
+
+    const indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+    vao = gl.createVertexArray();
+    gl.bindVertexArray(vao);
+
+    const vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+    const ebo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ebo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+    gl.enableVertexAttribArray(0);
+    gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 5 * 4, 0);
+    gl.enableVertexAttribArray(1);
+    gl.vertexAttribPointer(1, 2, gl.FLOAT, false, 5 * 4, 3 * 4);
+
+    const uMVP = gl.getUniformLocation(program, "uMVP");
+    gl.uniformMatrix4fv(uMVP, false, new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]));
+
+    makeHelloTexture();
+}
+
+function makeHelloTexture() {
+    const offscreen = document.createElement('canvas');
+    offscreen.width = TEX_W;
+    offscreen.height = TEX_H;
+    const ctx = offscreen.getContext('2d');
+
+    ctx.fillStyle = "rgb(240, 240, 240)";
+    ctx.fillRect(0, 0, TEX_W, TEX_H);
+
+    ctx.fillStyle = "black";
+    ctx,ctx.font = "bold 20px Arial";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("Hello!", TEX_W / 2, TEX_H / 2);
+
+    texID = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texID);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, TEX_W, TEX_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, offscreen);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+}
+
+function drawBorder() {
+    const canvas = document.getElementById('borderCanvas');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width;
+    const h = canvas.height;
+
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = CREAM;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.fillRect(5, 5, w - 10, h - 10);
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = BLACK;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(2, 2);
+    ctx.lineTo(w - 3, 2);
+    ctx.lineTo(w - 3, h - 3);
+    ctx.lineTo(2, h - 3);
+    ctx.lineTo(2, 2);
+    ctx.stroke();
+}
+
+function render() {
+    const container = document.getElementById('container');
+    const glCanvas = document.getElementById('glCanvas');
+    const brCanvas = document.getElementById('borderCanvas');
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+
+    glCanvas.width = w;
+    glCanvas.height = h;
+    brCanvas.width = w;
+    brCanvas.height = h;
+
+    gl.viewport(0, 0, w, h);
+    gl.clearColor(1, 1, 0.875, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.useProgram(program);
+    gl.bindVertexArray(vao);
+    gl.bindTexture(gl.TEXTURE_2D, texID);
+    gl.drawElements(gl.TRIANGLES, 6, gl.UNSIGNED_SHORT, 0);
+
+    drawBorder();
+    requestAnimationFrame(render);
+}
+
+window.onload = () => {
+    initGL();
+    render();
+};
+</script>
+</body>
+</html>
+

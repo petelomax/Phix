@@ -1,0 +1,313 @@
+﻿--
+-- demo\theGUI\win_menu.exw
+-- ========================
+--
+--  Simple menu demo (kept as perhaps slightly better starting point for hDatePick/hDropDown than win_menus.exw)
+--
+--       highlight = CreateSolidBrush(0x00FFD0A0),
+--(GTK2:#4B6983, GTK3:#4A90D9)
+--       highlight = CreateSolidBrush(0x00FEF0E8), -- (maybe)
+-- items: (with icon and submenu): 126x72, GTK2: 117x67, GTK3: 112x78
+-- {Normal, html-stripped}: 171x50, GTK2: 126x46, GTK3: 136x54
+--Windows height is 6+lines*22.
+
+--puts(1,"")
+--requires(64,true)
+include theGUI.WINAPI.e
+
+constant parchment = CreateSolidBrush(0x00E0FFFF),
+         highlight = CreateSolidBrush(0x00F0F0F0),
+             white = CreateSolidBrush(0x00FFFFFF),
+       menu_border = CreateSolidBrush(0x00E5E5E5)
+
+constant MENU_W = 140,
+         MENU_H = 72
+integer tmHeight, tmExternalLeading, TG_MENUITEM_HEIGHT = 24
+
+sequence items = {"Cut","Copy","Paste"}
+
+atom hPopup = NULL
+atom hMenuFont = NULL
+integer hot_item = -1
+integer sel_item = -1 -- (for keyboard integration)
+
+procedure hide_popup()
+    ShowWindow(hPopup, SW_HIDE)
+    hot_item = -1
+end procedure
+
+function PopupWndProc(atom hWnd, msg, wParam, lParam)
+--if hPopup!=NULL and hWnd!=hPopup then ?9/0 end if
+    switch msg do
+
+        case WM_ACTIVATE:
+            if LOWORD(wParam)=WA_INACTIVE then
+                hide_popup()
+            end if
+            return 0
+
+        case WM_SETFOCUS:
+            return 0
+
+        case WM_MOUSEACTIVATE:
+            return MA_NOACTIVATE
+
+        case WM_MOUSEMOVE:
+            integer x = and_bits(lParam,#FFFF),
+                    y = floor(lParam/#10000)
+
+            sel_item = -1
+            if x>0 and x<=MENU_W and y>4 and y<=MENU_H-4 then
+                sel_item = floor((y-4)/TG_MENUITEM_HEIGHT)
+                set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,`dwFlags`,TME_LEAVE)
+                set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,`hWndTrack`,hWnd)
+                TrackMouseEvent(pTRACKMOUSEEVENT)
+            end if
+            if sel_item!=hot_item then
+                hot_item = sel_item
+                InvalidateRect(hWnd,NULL,false)
+            end if
+            return 0
+
+        case WM_MOUSELEAVE:
+            hot_item = -1
+            InvalidateRect(hWnd,NULL,false)
+            return 0
+
+        case WM_NCACTIVATE:
+            return TRUE
+
+        case WM_LBUTTONDOWN:
+            if hot_item>=0 and hot_item<=2 then
+                ?{"Clicked(popup)",items[hot_item+1]}
+            end if
+            hide_popup()
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+
+            FillRect(hdc,pRECT,white)
+            FrameRect(hdc, pRECT, menu_border)
+            atom oldfont = SelectObject(hdc, hMenuFont)
+            SetBkMode(hdc, TRANSPARENT)
+
+            for i=0 to length(items)-1 do
+                integer y = i*TG_MENUITEM_HEIGHT+4
+                if i=hot_item then
+                    set_struct_field(idRECT,pRECT,`left`,0)
+                    set_struct_field(idRECT,pRECT,`top`,y)
+                    set_struct_field(idRECT,pRECT,`right`,MENU_W)
+                    set_struct_field(idRECT,pRECT,`bottom`,y+TG_MENUITEM_HEIGHT)
+                    FillRect(hdc,pRECT,highlight)
+                    --GTK white, ditto the submenu icon
+                    SetTextColor(hdc, 0x00000000) -- black
+                else
+                    SetTextColor(hdc, 0x00000000)
+                end if
+                string txt = items[i+1] 
+                integer l = length(txt),
+                  {cx,cy} = GetTextExtentPoint32(hdc, txt),
+--                     ty = y + floor((TG_MENUITEM_HEIGHT-cy)/2)
+                       ty = y + floor((TG_MENUITEM_HEIGHT - tmHeight)/2)
+                TextOut(hdc, 38, ty, txt, l)
+            end for
+            {} = SelectObject(hdc, oldfont)
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_KEYDOWN:
+            -- (as explicitly forwarded on from WndProc)
+            integer l= length(items)
+            if wParam=VK_DOWN then
+                sel_item = mod(sel_item+1,l)
+                hot_item = sel_item
+                InvalidateRect(hPopup,NULL,false)
+
+            elsif wParam=VK_UP then
+                sel_item = mod(sel_item-1+l,l)
+                hot_item = sel_item
+                InvalidateRect(hPopup,NULL,false)
+
+            elsif wParam=VK_RETURN then
+                if sel_item>=0 then
+                    ?{"Return",items[sel_item+1]}
+                end if
+                hide_popup()
+--NO!!
+--          elsif wParam=VK_ESCAPE then
+--              hide_popup()
+            end if
+            return 0
+
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant PopupWndProc_cb = call_back(PopupWndProc)
+
+procedure show_popup(atom hPopup, integer w, h)
+    GetCursorPos(pPOINT)
+    integer mx = get_struct_field(idPOINT,pPOINT,"x"),
+            my = get_struct_field(idPOINT,pPOINT,"y"),
+        uFlags = SWP_SHOWWINDOW+SWP_NOACTIVATE
+    SetWindowPos(hPopup, HWND_TOPMOST, mx, my, w, h, uFlags)
+    hot_item = 0
+    sel_item = 0
+    InvalidateRect(hPopup,NULL,false)
+end procedure
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+--if hWnd=hPopup then ?9/0 end if
+    switch msg do
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+
+            -- main window: keep your original parchment + X
+            FillRect(hdc, pRECT, parchment)
+
+            MoveToEx(hdc, 0, 0, NULL)
+            LineTo(hdc, w-1, h-1)
+
+            MoveToEx(hdc, w-1, 0, NULL)
+            LineTo(hdc, 0, h-1)
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_KILLFOCUS:
+        case WM_LBUTTONDOWN:
+            if hPopup!=NULL and IsWindowVisible(hPopup) then
+                hide_popup()
+            end if
+            return 0
+
+        case WM_RBUTTONDOWN:
+            show_popup(hPopup,MENU_W,MENU_H)
+            return 0
+
+        case WM_KEYDOWN:
+            if hPopup!=NULL and IsWindowVisible(hPopup) then
+                -- explicitly forward keys to the (non-focus-stealing) popup
+                return PopupWndProc(hPopup,msg,wParam,lParam)
+            end if
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                if IsWindowVisible(hPopup) then
+                    hide_popup()
+                else
+                    {} = SendMessage(hWnd,WM_CLOSE,0,0)
+                end if
+            end if
+
+        case WM_DESTROY:
+            if GetParent(hWnd)=NULL then
+                PostQuitMessage(0)
+                return 0
+            end if
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("Window",WndProc_cb)
+
+--/* complete bust: --DEV retry with for a=0 to 20 by 4 do/for adj in {-a,+a} do if ok ?9/0 [FIXED]
+    -- get system menu font
+    integer NCMsize = get_struct_size(idNONCLIENTMETRICS)
+--?NCMsize
+--  mem_set(pNONCLIENTMETRICS,0,NCMsize)
+--  set_struct_field(idNONCLIENTMETRICS,pNONCLIENTMETRICS,"cbSize",NCMsize)
+--  SystemParametersInfo(SPI_GETNONCLIENTMETRICS, NCMsize, pNONCLIENTMETRICS, 0)
+--  ^^ fail fail fail fail fail fail fail fail fail, and fail. [FIXED]
+    for a=0 to 120 by 4 do
+        for adj in {-a,+a} do
+?NCMsize+adj
+--if not find(NCMsize+adj,{504,500}) then -- W/WCHAR -- LOGFONT is 92, NCMsize is 552
+if not find(NCMsize+adj,{344,340}) then -- A/TCHAR -- LOGFONT is 60, NCMsize is 360
+            set_struct_field(idNONCLIENTMETRICS,pNONCLIENTMETRICS,"cbSize",NCMsize+adj)
+            integer ok = SystemParametersInfo(SPI_GETNONCLIENTMETRICS, 0, pNONCLIENTMETRICS, 0)
+            if ok then ?9/0 end if
+end if
+        end for
+    end for
+--?{"LOGFONT",get_struct_size(idLOGFONT)}
+--?552/92 -- 6
+
+--  atom pMENUFONT = get_struct_field_addr(idNONCLIENTMETRICS,pNONCLIENTMETRICS,"lfMenuFont")
+--  hMenuFont = CreateFontIndirect(pMENUFONT)
+--*/
+
+    atom hdc = GetDC(NULL)
+    integer dpiY = GetDeviceCaps(hdc, LOGPIXELSY)
+--  ReleaseDC(NULL, hdc)
+
+    integer lfHeight = -floor((9 * dpiY) / 72)
+--(also suggested, untried)
+--          lfHeight = -floor((9.5 * dpiY) / 72)
+--                     -11   -- common pixel height at 96 DPI
+
+    atom pLF = allocate_struct(idLOGFONT)
+--  atom pLF = pLOGFONT
+
+    mem_set(pLF, 0, get_struct_size(idLOGFONT))
+
+    set_struct_field(idLOGFONT,pLF,"lfHeight", lfHeight)
+    set_struct_field(idLOGFONT,pLF,"lfWeight", FW_NORMAL)
+    set_struct_field(idLOGFONT,pLF,"lfCharSet", DEFAULT_CHARSET)
+    set_struct_field(idLOGFONT,pLF,"lfOutPrecision", OUT_DEFAULT_PRECIS)
+    set_struct_field(idLOGFONT,pLF,"lfClipPrecision", CLIP_DEFAULT_PRECIS)
+    set_struct_field(idLOGFONT,pLF,"lfQuality", CLEARTYPE_QUALITY)
+    set_struct_field(idLOGFONT,pLF,"lfPitchAndFamily", DEFAULT_PITCH)
+
+    -- IMPORTANT: Unicode string
+    set_struct_field(idLOGFONT,pLF,"lfFaceName", "Segoe UI")
+
+    hMenuFont = CreateFontIndirect(pLF)
+--  hMenuFont = GetStockObject(DEFAULT_GUI_FONT) -- (OK, very close)
+
+--atom hdc = GetDC(NULL)
+    atom oldfont = SelectObject(hdc, hMenuFont)
+
+    atom pTM = allocate_struct(idTEXTMETRIC)
+    GetTextMetrics(hdc, pTM)
+
+    tmHeight = get_struct_field(idTEXTMETRIC,pTM,"tmHeight")
+    tmExternalLeading = get_struct_field(idTEXTMETRIC,pTM,"tmExternalLeading")
+
+    {} = SelectObject(hdc, oldfont)
+    ReleaseDC(NULL, hdc)
+
+    TG_MENUITEM_HEIGHT = tmHeight + tmExternalLeading + 6
+--?{"TG_MENUITEM_HEIGHT",TG_MENUITEM_HEIGHT} -- 21
+
+    atom hInst = NULL,
+         dwExStyle = WS_EX_TOPMOST+WS_EX_NOACTIVATE, -- (for the popup only)
+         dwStyle = WS_OVERLAPPEDWINDOW               -- (for main window only)
+
+    atom hWnd = CreateWindowEx(0,"Window","win_menu",dwStyle,100,100,500,300,NULL,NULL,hInst,NULL)
+
+    RegisterClassEx("Popup",PopupWndProc_cb)
+
+    -- popup menu window (hidden initially)
+    hPopup = CreateWindowEx(dwExStyle,"Popup","",WS_POPUP,0,0,MENU_W,MENU_H,hWnd,NULL,hInst,NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+
+main()
+

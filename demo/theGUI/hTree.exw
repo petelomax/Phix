@@ -26,8 +26,7 @@ puts(1,``)
 --requires(64,true)
 with javascript_semantics
 without debug
---include theGUI.e
-include hGUI.e -- ok!!
+include theGUI.e
 include builtins\VM\pTime.e
 include builtins\dict.e
 include builtins\pdates.e
@@ -47,19 +46,6 @@ end procedure
 printf(0,``,{`qu_dbg`,qu_dbg})
 --*/
 
-local enum TG_TREE_TEXT, -- a descriptive string for the node
-           TG_TREE_CHILDREN, -- (deferred load or) 0 for leaf or {node_idx}
-           TG_TREE_PARENT, -- node[parent][children] must contain node index
-           TG_TREE_WIDTH, -- -1: unknown, else this node's width
-           TG_TREE_CHECKED, -- true/false (ignored if CHECKS false)
-            -- next two optional on leaf nodes (and as far as they go):
-           TG_TREE_IMAGE, -- a gdn/xpm or two (ignored if IMAGES false)
-           TG_TREE_USERDATA, -- (theGUI -> app, else ignored)
-            -- branches only (all 10 /must/ be present on all branch nodes):
-           TG_TREE_EXPANDED, -- expanded(t)/collapsed(f)/deferred load(-1) flag     -- ???[DEV]
-           TG_TREE_WIDEST, -- -1: unknown, else some node within this subnode
-           TG_TREE_VNC -- visible nodes count (uber-critical!)
-
 -- Aside: I planned to make widest this or immediate child, forming a chain from
 --        the root that had to be followed by lookup, with the promise of perhaps
 --        optimising the recalc requirements. However, my first stab put the real
@@ -77,6 +63,7 @@ local constant tree_attrs = {{     CXTREE_BGSEL:=$,'N',`BGSEL`      }, -- BGCLR 
                              {  CXTREE_LINESTEP:=$,'i',`LINESTEP`   }, -- (internal) char height
                              {   CXTREE_HOVLINE:=$,'i',`HOVLINE`    }, -- (internal)
                              {    CXTREE_HOVCOL:=$,'i',`HOVCOL`     }, -- (internal)
+                             {   CXTREE_CHECKED:=$,'B',`CHECKED`    }, -- t/f
                              {      CXTREE_DATA:=$,'P',`DATA`       }, -- data [in internal format]
                              {     CXTREE_IMAGE:=$,'O',`IMAGE`      }, -- NULL/true/open branch img[s]
                              {  CXTREE_SELECTED:=$,'I',`SELECTED`   }, -- 0 or 1..length(nodes)
@@ -87,7 +74,6 @@ local constant tree_attrs = {{     CXTREE_BGSEL:=$,'N',`BGSEL`      }, -- BGCLR 
 --*/
 
 sequence ctrl_xtra -- NB hTree/desktop-specific
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
 enum CXTREE_BGSEL,
      CXTREE_BGHOV, 
      CXTREE_FGSEL,
@@ -106,10 +92,26 @@ enum CXTREE_BGSEL,
 
      CXTREE_LEN = $
 
+integer defer_load -- in lieu of gS/GetHandler(tree,defer_load_data)
+integer tree_selected = NULL -- hTree's replacement for gSetHandler(tree,`SELECTED`) [not CXTREE_SELECTED]
+
+local enum TG_TREE_TEXT, -- a descriptive string for the node
+           TG_TREE_CHILDREN, -- (deferred load or) 0 for leaf or {node_idx}
+           TG_TREE_PARENT, -- node[parent][children] must contain node index
+           TG_TREE_WIDTH, -- -1: unknown, else this node's width
+           TG_TREE_CHECKED, -- true/false (ignored if CHECKS false)
+            -- next two optional on leaf nodes (and as far as they go):
+           TG_TREE_IMAGE, -- a gdn/xpm or two (ignored if IMAGES false)
+           TG_TREE_USERDATA, -- (theGUI -> app, else ignored)
+            -- branches only (all 10 /must/ be present on all branch nodes):
+           TG_TREE_EXPANDED, -- expanded(t)/collapsed(f)/deferred load(-1) flag     -- ???[DEV]
+           TG_TREE_WIDEST, -- -1: unknown, else some node within this subnode
+           TG_TREE_VNC -- visible nodes count (uber-critical!)
+
 local function tg_tree_n2d(gdx tree, integer n)
     -- calculate the display index of the given node index.
     if n<=0 then return 0 end if
-    sequence nodes = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA]
+    sequence nodes = ctrl_xtra[tree][CXTREE_DATA]
     if n>length(nodes) then return 0 end if
     integer d = 1,
             p = nodes[n][TG_TREE_PARENT]
@@ -139,7 +141,7 @@ local function tg_tree_d2n(gdx tree, integer d)
     -- walks down the tree, pretty much directly
     -- to the node, with no back-tracking at all
     if d=0 then return 0 end if
-    sequence nodes = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA]
+    sequence nodes = ctrl_xtra[tree][CXTREE_DATA]
     integer max_d = 1, original_d = d
     if nodes[1][TG_TREE_CHILDREN]!=0
     and nodes[1][TG_TREE_EXPANDED] then
@@ -211,7 +213,7 @@ end function
 
 local function tg_tree_vnc(gdx tree)
     integer nc = 1
-    sequence nodes = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA]
+    sequence nodes = ctrl_xtra[tree][CXTREE_DATA]
     if nodes[1][TG_TREE_CHILDREN]!=0
     and nodes[1][TG_TREE_EXPANDED] then
         nc += nodes[1][TG_TREE_VNC]
@@ -219,265 +221,9 @@ local function tg_tree_vnc(gdx tree)
     return nc
 end function
 
-constant T_txt = `
-15 17 2 1
-. c None
-0 c #6d6d6d
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-....0.R.R.R.R.R
-...............
-....D..........
-...............
-....D..........
-`
-
-constant MP_txt = `
-15 17 7 1
-. c None
-0 c #6d6d6d
-g c #babbbc
-h c #919191
-i c #fcfcfc
-j c #294272
-m c #4b63a7
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-....U..........
-...............
-ghhhhhhhg......
-hiiiiiiih......
-hiiikiiih......
-hiiikiiih......
-himmmmmih.0.0.0
-hiiikiiih......
-hiiikiiih......
-hiiiiiiih......
-ghhhhhhhg......
-`
-
--- corresponding to `~LT|-M+P`, as per tg_tree_get_display_code:
-constant tree_imgs = apply({substitute_all(T_txt,`URD`,`.0.`), -- hz bar
-                            substitute_all(T_txt,`URD`,`00.`), -- L link
-                            substitute_all(T_txt,`URD`,`000`), -- T link
-                            substitute_all(T_txt,`URD`,`0.0`), -- vt bar
-                            substitute_all(MP_txt,`Uk`,`0i`),  -- - box
-                            substitute_all(MP_txt,`Uk`,`.i`),  -- ""-up
-                            substitute_all(MP_txt,`Uk`,`0j`),  -- + box
-                            substitute_all(MP_txt,`Uk`,`.j`)}, -- ""-up
-                           gImage_from_XPM)
-
---/*
-constant ron_txt = `
-13 13 9 1
-. c None
-a c #0058a8
-b c #005fb8
-c c #0f68bb
-d c #2068b0
-e c #4b8cca
-h c #699ed0
-i c #b5cde3
-j c #d0e0f0
-...iecbcei...
-..hbbbbbbbh..
-.hbbbbbbbbbh.
-ibbbaaaaabbbi
-ebbadj.jdabbe
-cbbaj...jabbc
-bbba.....abbb
-cbbaj...jabbc
-ebbadj.jdabbe
-ibbbaaaaabbbi
-.hbbbbbbbbbh.
-..hbbbbbbbh..
-...iecbcei...
-`
-
-constant roff_txt = `
-13 13 10 1
-. c None
-a c #cdcdcd
-b c #8e8e8e
-c c #6a6a6a
-d c #626262
-e c #747474
-g c #b8b8b8
-m c #e0e0e0
-n c #a0a0a0
-o c #989898
-...abcdcba...
-..negm.mgen..
-.nom.....mon.
-aem.......mea
-bg.........gb
-cm.........mc
-d...........d
-cm.........mc
-bg.........gb
-aem.......mea
-.nom.....mon.
-..negm.mgen..
-...abcdcba...
-`
---*/
-
---DEV see chk_xpm in tg_xpm.e and hCheckbox.exw
-constant checked_txt = `
-13 13 13 1
-. c #f0f0f0
-a c #78a8d4
-b c #0f68bc
-c c #005fb8
-d c #689ed0
-g c #5f9bd3
-h c #a0c3e5
-i c #5f9bd2
-j c #5091ce
-k c #609bd3
-l c #9fc3e4
-m c #dfebf6
-n c #1069bc
-.abcccccccbd.
-dccccccccccca
-bcccccccccccb
-ccccccccccccc
-cccccccccgccc
-cccccccchiccc
-cccjccchicccc
-cccklchiccccc
-cccckmicccccc
-cccccnccccccc
-bcccccccccccb
-acccccccccccd
-.dbcccccccba.
-`
-constant checked_img = gImage_from_XPM(checked_txt)
---constant checked_img = gImage_from_XPM(ron_txt)
-
-constant unchecked_txt = `
-13 13 7 1
-. c #f0f0f0
-a c #a9a9a9
-b c #6a6a6a
-c c #626262
-d c #999999
-e c #eaeaea
-_ c #f3f3f3
-.abcccccccba.
-ade_______eda
-be_________eb
-c___________c
-c___________c
-c___________c
-c___________c
-c___________c
-c___________c
-c___________c
-be_________eb
-ade_______eda
-.abcccccccba.
-`
-constant unchecked_img = gImage_from_XPM(unchecked_txt)
---constant unchecked_img = gImage_from_XPM(roff_txt)
-
---DEV cribbed from tg_xpm.e, then doctored a bit: (may as well put these back)
-local constant dir_closed_xpm = `
-16 16 8 1
-. c None
-_ c #000000
-| c #9C9C00
-a c #CECE63
-b c #FFCE9C
-c c #FFFF9C
-d c #FFFFCE
-e c #F7F7F7
-................
-...||||_........
-..|eddc|_.......
-.|aaaaaa||||||..
-.|ddddddddddca_.
-.|dcccccccccba_.
-.|dccccccbcbca_.
-.|dcccccccbcba_.
-.|dccccbcbcbca_.
-.|dcccccbcbcba_.
-.|dccccbcbcbba_.
-.|dbcbbcbcbbba_.
-.|aaaaaaaaaaaa_.
-.._____________.
-................
-................
-`,
-dir_open_xpm = `
-16 16 6 1
-. c None
-_ c #000000
-| c #9C9C00
-a c #CECE63
-b c #FFCE9C
-c c #FFFF9C
-................
-...||||.........
-..|....|........
-.|.cccc.||||||..
-.|.cccccc....a_.
-.|.cccccccccca_.
-|||||||||||aca_.
-|.cccccbcba_aa_.
-|.ccccccbca_aa_.
-.|.ccccbcbb|_|_.
-.|.ccbbcbbba_|_.
-..|.bccbbbba|__.
-..|||||||||||__.
-...____________.
-................
-................
-`,
-dot_xpm = `
-16 16 7 1
-. c None
-a c #808080
-b c #A1A1A1
-c c #C0C0C0
-d c #DEDEDE
-e c #636363
-f c #383838
-................
-................
-................
-................
-......aabbb.....
-.....abbcdcb....
-....eaabbcdcb...
-....eaaabbccb...
-....feaaabbba...
-....feeaaabaa...
-.....feeaaaa....
-......ffeee.....
-................
-................
-................
-................`
-
-local constant Cimg = gImage_from_XPM(dir_closed_xpm)
-local constant Oimg = gImage_from_XPM(dir_open_xpm)
-local constant Dimg = gImage_from_XPM(dot_xpm)
-
+local sequence tree_imgs
+local integer tucb = NULL, tccb
+local atom Cimg = NULL, Oimg, Dimg -- closed,open,dot, see thegui_xpm.e
 
 global enum TGTDL_TEXT,         -- 1
             TGTDL_EXPANDED,     -- 2
@@ -487,14 +233,11 @@ global enum TGTDL_TEXT,         -- 1
             TGTDL_CHILDREN      -- 6
 
 function tg_tree_convert_nested_to_flat(sequence res, ntree, integer parent, bool deferred=false)
-    -- this code [will be] copied into theGUI.e|js
+    -- this code [has been] copied into theGUI.e|js
     string desc
     object children -- (can be null iff deferred load, aka expanded=-1)
---DEV this is surely a bug... [fixed, but lets wait till the next pw9/8/7 update]
-    bool checked = false
---      expanded = -(length(ntree)==2 and ntree[2]==-1), -- {desc,-1} special case
-    integer dm1 = length(ntree)==2 and ntree[2]==-1, -- {desc,-1} special case
-       expanded = -dm1
+    bool checked = false,
+        expanded = -(length(ntree)==2 and ntree[2]==-1) -- {desc,-1} special case
     object image = NULL
     object userdata = NULL
     switch length(ntree) with fallthrough do    -- don't mix these up:
@@ -526,7 +269,6 @@ function tg_tree_convert_nested_to_flat(sequence res, ntree, integer parent, boo
                       checked, -- TG_TREE_CHECKED
                         image, -- TG_TREE_IMAGE
                      userdata} -- TG_TREE_USERDATA
---?leaf
         res = append(res,leaf)
         return res
     end if
@@ -560,8 +302,6 @@ function tg_tree_convert_nested_to_flat(sequence res, ntree, integer parent, boo
         sequence kdx = repeat(0,nc)
         for i,child in children do
             if string(child) then                                        -- leaf
---              res = append(res,{child,0,parent,-1,false})
-                        -- ( ,no kids,p,width tbd ^,^ unchecked,userdata )
                 res = append(res,{child,0,parent,-1,false,NULL,NULL})
                         --       no kids^,   width^,^u/chk, ^img, ^userdata
                 kdx[i] = length(res)
@@ -590,11 +330,9 @@ function tg_tree_convert_nested_to_flat(sequence res, ntree, integer parent, boo
     return res
 end function
 
-integer defer_load -- in lieu of gS/GetHandler(tree,defer_load_data)
-
 procedure tg_tree_defer_load(gdx tree, integer node_index)
-    sequence res = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA]
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA] = 0 -- (kill refcount)
+    sequence res = ctrl_xtra[tree][CXTREE_DATA]
+    ctrl_xtra[tree][CXTREE_DATA] = 0 -- (kill refcount)
 
     -- what you're actually going to have to do here is more like:
     object rp = res[node_index]
@@ -614,79 +352,78 @@ procedure tg_tree_defer_load(gdx tree, integer node_index)
     newbranch = defer_load(newbranch)
     assert(newbranch[TGTDL_EXPANDED]!=-1) -- (mirrored in next call)
     res = tg_tree_convert_nested_to_flat(res,newbranch,node_index,true)
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA] = res
+    ctrl_xtra[tree][CXTREE_DATA] = res
 end procedure
 
-local procedure tg_tree_ec(gdx tree, integer n, widest, expanded, m)
+local procedure tg_tree_ec(gdx tree, integer n, bool bExpand)
     --
     -- Apart from marking the specified node as expanded/collapsed, propagate 
     -- any changes to the vnc (visible node count) all the way up to the root.
     -- Note that we don't actually change the vnc of the node itself here.
     --
-    integer vnc = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_VNC]
+    integer vnc = ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_VNC],
+           mvnc = iff(bExpand?+vnc:-vnc) -- add or subtract sub-tree counts
     assert(vnc!=0) -- load error?
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_WIDEST] = widest
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_EXPANDED] = expanded
+    -- if collapsed, widest is itself, else mark expanded as "needs scan":
+    ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_WIDEST] = iff(bExpand?-1:n)
+    ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_EXPANDED] = bExpand
     while true do // until parent 0
-        integer parent = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_PARENT]
+        integer parent = ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_PARENT]
         if parent=0 then exit end if
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][parent][TG_TREE_VNC] += m*vnc
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][parent][TG_TREE_WIDEST] = -1
+        ctrl_xtra[tree][CXTREE_DATA][parent][TG_TREE_VNC] += mvnc
+        ctrl_xtra[tree][CXTREE_DATA][parent][TG_TREE_WIDEST] = -1
         n = parent
     end while
 end procedure
 
 local procedure tg_tree_collapse_node(gdx tree, integer n)
-    tg_tree_ec(tree, n, n, false, -1)
+    tg_tree_ec(tree, n, false)
 end procedure
 
 local procedure tg_tree_expand_node(gdx tree, integer n)
-    tg_tree_ec(tree, n, -1, true, +1)
+    tg_tree_ec(tree, n, true)
 end procedure
 
 local function tg_tree_get_width(gdx tree, integer n)
-    object nodes = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA]
+    object nodes = ctrl_xtra[tree][CXTREE_DATA]
     integer width = nodes[n][TG_TREE_WIDTH]
     if width=-1 then
         string dc = tg_tree_get_display_code(nodes,n),
              text = nodes[n][TG_TREE_TEXT]
---      integer w = XgGetTextExtent(tree,text)[1]
         integer w = gGetTextExtent(text,tree)[1]
---?{w,gGetTextExtent(text,tree)[1]}
-
         width = w + (length(dc)+1)*19
         nodes = 0
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_WIDTH] = width
+        ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_WIDTH] = width
     end if
     return width
 end function
 
 local function tg_leaf_or_collapsed_or_widest(gdx tree, integer n)
-    return find(ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_CHILDREN],{0,{}})
-             or ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_WIDEST]=n
-         or not ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_EXPANDED]
+    return find(ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_CHILDREN],{0,{}})
+             or ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_WIDEST]=n
+         or not ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_EXPANDED]
 end function
 
 local function tg_tree_get_widest(gdx tree, integer n)
-    if n=1 and ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][1][TG_TREE_CHILDREN]=0 then
+    if n=1 and ctrl_xtra[tree][CXTREE_DATA][1][TG_TREE_CHILDREN]=0 then
         -- special case: single leaf as root
         {} = tg_tree_get_width(tree,1)
         return 1
     end if
-    integer expanded = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_EXPANDED]
+    integer expanded = ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_EXPANDED]
     if expanded=-1 then tg_tree_defer_load(tree, n) end if
-    integer widest = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_WIDEST]
+    integer widest = ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_WIDEST]
     if widest=-1 then
         widest = n
         if expanded then
             integer width = tg_tree_get_width(tree,n)
-            for c in ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_CHILDREN] do
+            for c in ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_CHILDREN] do
                 integer c0 = c
                 while not tg_leaf_or_collapsed_or_widest(tree,c) do
                     c = tg_tree_get_widest(tree,c)
                 end while
-                if c=c0 and ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][c][TG_TREE_CHILDREN]={}
-                        and ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][c][TG_TREE_EXPANDED]=-1 then
+                if c=c0 and ctrl_xtra[tree][CXTREE_DATA][c][TG_TREE_CHILDREN]={}
+                        and ctrl_xtra[tree][CXTREE_DATA][c][TG_TREE_EXPANDED]=-1 then
                     tg_tree_defer_load(tree, c)
                 end if
                 integer w = tg_tree_get_width(tree,c)
@@ -696,7 +433,7 @@ local function tg_tree_get_widest(gdx tree, integer n)
                 end if
             end for
         end if
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][n][TG_TREE_WIDEST] = widest
+        ctrl_xtra[tree][CXTREE_DATA][n][TG_TREE_WIDEST] = widest
     end if
     return widest
 end function
@@ -706,7 +443,7 @@ local procedure tg_redraw_tree(gdx tree, integer width, height)
      {ox,oy,vw,vh} = gGetAttribute(tree,`VIEWPORT`),
             active = gGetAttribute(tree,`ACTIVE`),
                vnc = tg_tree_vnc(tree)
-    object tree_attr = ctrl_xtra[tree][CX_GTL_ATTRS]
+    object tree_attr = ctrl_xtra[tree]
     sequence nodes = tree_attr[CXTREE_DATA]
     integer selected = tg_tree_n2d(tree,tree_attr[CXTREE_SELECTED]),
             sel_full = tree_attr[CXTREE_SELFULL],
@@ -722,7 +459,7 @@ local procedure tg_redraw_tree(gdx tree, integer width, height)
          bghov = tree_attr[CXTREE_BGHOV],
          fgsel = tree_attr[CXTREE_FGSEL]
     tree_attr = 0 -- (kill refcount)
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_LINESTEP] = line_height
+    ctrl_xtra[tree][CXTREE_LINESTEP] = line_height
     assert(w!=-1)
 --DEV not entirely happy with this...
 --?{`SCROLLSIZE`,w+5,line_height*(vnc+1),`lh`,line_height,`vnc`,vnc}
@@ -733,7 +470,22 @@ local procedure tg_redraw_tree(gdx tree, integer width, height)
             nr = min(vnc-l1+1,floor(vh/line_height)),
             vy = oy
     -- (save for tg_tree_click/tg_tree_hover only:)
-    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_TOPITEM] = l1
+    ctrl_xtra[tree][CXTREE_TOPITEM] = l1
+
+    if not object(tree_imgs) then
+        string {T_txt,MP_txt} = gGetGlobal(`tree_images`)
+        -- corresponding to `~LT|-M+P`, as per tg_tree_get_display_code:
+        tree_imgs = apply({substitute_all(T_txt,`URD`,`.0.`), -- hz bar
+                           substitute_all(T_txt,`URD`,`00.`), -- L link
+                           substitute_all(T_txt,`URD`,`000`), -- T link
+                           substitute_all(T_txt,`URD`,`0.0`), -- vt bar
+                           substitute_all(MP_txt,`Uk`,`0i`),  -- - box
+                           substitute_all(MP_txt,`Uk`,`.i`),  -- ""-up
+                           substitute_all(MP_txt,`Uk`,`0j`),  -- + box
+                           substitute_all(MP_txt,`Uk`,`.j`)}, -- ""-up
+                          gImage_from_XPM)
+        {Cimg,Oimg,Dimg} = gGetGlobal(`treeOCD`) -- closed,open,dot, see thegui_xpm.e
+    end if
 
     for rll=1 to nr do
         integer r = rll+l1-1, vx = 2
@@ -761,7 +513,11 @@ local procedure tg_redraw_tree(gdx tree, integer width, height)
             x += 19
         end for
         if checks then
-            img = iff(node[TG_TREE_CHECKED]?checked_img:unchecked_img)
+            if tucb=NULL then
+                {tucb,tccb} = gGetGlobal(`chk_xpm`) -- unchecked and checked gImages, both 13x13
+                          -- (1st 2 of 5, ^^^^^^^ -- otherwise not documented anywhere)
+            end if
+            img = iff(node[TG_TREE_CHECKED]?tccb:tucb)
             if not active then img = gGreyscale_XPM(img) end if
             gDrawImage(img,tree,x-2,y+6)
             x += 18
@@ -805,15 +561,13 @@ local procedure tg_redraw_tree(gdx tree, integer width, height)
     end for
 end procedure
 
-integer tree_selected = NULL -- hTree's replacement for gSetHandler(tree,`SELECTED`) [not CXTREE_SELECTED]
-
 local procedure tg_tree_click(gdx tree, sequence status, integer x, y) 
 --?{`tg_tree_click`,status, x, y}
     if status[1..2]=`LS` and gGetAttribute(tree,`ACTIVE`) then
         integer ox = gGetAttribute(tree,`VIEWPORT`)[1],
                 xx = x+ox,
                vnc = tg_tree_vnc(tree)
-        object tree_attr = ctrl_xtra[tree][CX_GTL_ATTRS],
+        object tree_attr = ctrl_xtra[tree],
                    nodes = tree_attr[CXTREE_DATA]
         integer line_height = tree_attr[CXTREE_LINESTEP],
                 top_line = tree_attr[CXTREE_TOPITEM],
@@ -845,19 +599,20 @@ local procedure tg_tree_click(gdx tree, sequence status, integer x, y)
                 if xx>=chk and xx<=chk+13 then
                     chk = not nodes[TG_TREE_CHECKED]
                     nodes = 0 -- (kill refcount)
-                    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][line][TG_TREE_CHECKED] = chk
+                    ctrl_xtra[tree][CXTREE_DATA][line][TG_TREE_CHECKED] = chk
                     gRedraw(tree)
                     return
                 end if
             end if
-            if line!=ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] then
-                ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] = line
+            if line!=ctrl_xtra[tree][CXTREE_SELECTED] then
+                ctrl_xtra[tree][CXTREE_SELECTED] = line
                 gRedraw(tree)
 --              rtn selected = gGetHandler(tree,`SELECTED`)
 --?         integer selected = gGetHandler(tree,`SELECTED`)
                 integer selected = tree_selected -- hTree-specific
                 if selected then
-                    if length(tg_get_sig(selected))=3 then
+                    string sig = tg_get_sig(selected)
+                    if length(sig)=3 then
                         selected(tree,line)
                     else
                         selected(line)
@@ -873,7 +628,7 @@ local procedure tg_tree_hover(gdx tree, integer /*x*/,y, left,middle,right)
 bool onscroll=false -- hTree-specific (fudge/broken)
 --?{`tg_tree_click`,status, x, y}
     if gGetAttribute(tree,`ACTIVE`) then
-        object tree_attr = ctrl_xtra[tree][CX_GTL_ATTRS]
+        object tree_attr = ctrl_xtra[tree]
 --?     if sequence(tree_attr) then
 --      atom bgclr = ctrl_bg[tree],
         atom bgclr = gGetAttribute(tree,`BGCLR`), -- hTree
@@ -890,7 +645,7 @@ bool onscroll=false -- hTree-specific (fudge/broken)
                     new_hov = line
                 end if
                 if new_hov!=was_hov then
-                    ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_HOVLINE] = new_hov
+                    ctrl_xtra[tree][CXTREE_HOVLINE] = new_hov
                     gRedraw(tree)
                 end if
             end if
@@ -900,8 +655,8 @@ end procedure
 
 local procedure tg_tree_mouseleave(gdx tree)
 --?"tg_tree_mouseleave"
-    if ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_HOVLINE] then
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_HOVLINE] = 0
+    if ctrl_xtra[tree][CXTREE_HOVLINE] then
+        ctrl_xtra[tree][CXTREE_HOVLINE] = 0
         gRedraw(tree)
     end if
 end procedure
@@ -920,12 +675,12 @@ local function tg_tree_key_handler(gdx tree, integer c, bool ctrl, shift, alt)
                 vnc = tg_tree_vnc(tree),
 --     cline_height = sh/vnc,
 --     cline_height = sh/(vnc+1), 
-        line_height = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_LINESTEP],
+        line_height = ctrl_xtra[tree][CXTREE_LINESTEP],
            top_line = floor(oy/line_height)+1,
           view_rows = floor(vh/line_height),
-               seln = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED],
+               seln = ctrl_xtra[tree][CXTREE_SELECTED],
                seld = tg_tree_n2d(tree,seln), selo = seld
-    object node = iff(seln?ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][seln]:0)
+    object node = iff(seln?ctrl_xtra[tree][CXTREE_DATA][seln]:0)
     bool branch = seld and not find(node[TG_TREE_CHILDREN],{0,{}}),
        expanded = branch and node[TG_TREE_EXPANDED]
     integer parent = iff(seld?node[TG_TREE_PARENT]:0)
@@ -933,11 +688,11 @@ local function tg_tree_key_handler(gdx tree, integer c, bool ctrl, shift, alt)
     if ctrl then
         -- (test, for hTree.exw only)
         if upper(c)='K' then
-            bool chks = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_CHECKED]
-            ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_CHECKED] = not chks
+            bool chks = ctrl_xtra[tree][CXTREE_CHECKED]
+            ctrl_xtra[tree][CXTREE_CHECKED] = not chks
         elsif upper(c)='M' then
-            bool imgs = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_IMAGE]
-            ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_IMAGE] = not imgs
+            bool imgs = ctrl_xtra[tree][CXTREE_IMAGE]
+            ctrl_xtra[tree][CXTREE_IMAGE] = not imgs
         elsif upper(c)='X' then
             gToggleInt(tree,`ACTIVE`) -- (nb one-way!)
         end if
@@ -977,13 +732,13 @@ local function tg_tree_key_handler(gdx tree, integer c, bool ctrl, shift, alt)
                         top_line = 1
         case VK_END:    seld = vnc
                         top_line = max(vnc-view_rows+1,top_line)
-        case VK_SP:     if seln and ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_CHECKED] then
-                            bool chk = ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][seln][TG_TREE_CHECKED]
-                            ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA][seln][TG_TREE_CHECKED] = not chk
+        case VK_SP:     if seln and ctrl_xtra[tree][CXTREE_CHECKED] then
+                            bool chk = ctrl_xtra[tree][CXTREE_DATA][seln][TG_TREE_CHECKED]
+                            ctrl_xtra[tree][CXTREE_DATA][seln][TG_TREE_CHECKED] = not chk
                             gRedraw(tree)
                         end if
 --      case '?': ?gGetAttribute(tree,"DATA")
---      case '?': pp(ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_DATA],{pp_Nest,1})
+--      case '?': pp(ctrl_xtra[tree][CXTREE_DATA],{pp_Nest,1})
 --      default:
 --          if not find(c,{VK_LCTRL,VK_RCTRL,VK_LSHIFT,VK_RSHIFT}) then
 --      ?{`tg_tree_key_handler`,tree,c,gGetKeyName(c),ctrl,shift,alt}
@@ -1001,7 +756,7 @@ local function tg_tree_key_handler(gdx tree, integer c, bool ctrl, shift, alt)
             end if
         end if
         gSetAttribute(tree,`VIEWPORT`,{ox,oy})
-        ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] = tg_tree_d2n(tree,seld)
+        ctrl_xtra[tree][CXTREE_SELECTED] = tg_tree_d2n(tree,seld)
         gRedraw(tree)
     end if
 --  return TG_DEFAULT
@@ -1012,6 +767,9 @@ end function
 function hTree(sequence nodes, string attributes=``, sequence args={})
     if string(nodes) then nodes = {nodes,0} end if -- leaf -> dummy root
     gdx tree = gCanvas(tg_redraw_tree)
+--  ctrl_types[tree] = TREE
+--  ctrl_set_attr[TREE] = tg_set_tree_attribute
+--  ctrl_get_attr[TREE] = tg_get_tree_attribute
     if platform()=JS then
         -- fudge: astonishingly, this works fine despite the fact it does things like
         --        ctrl_xtra[tree] all over the shop, as if tree were an integer, when
@@ -1020,7 +778,6 @@ function hTree(sequence nodes, string attributes=``, sequence args={})
     else
         ctrl_xtra = repeat(0,tree)
     end if
-    ctrl_xtra[tree] = repeat(0,CX_GTL_ATTRS)
     object tree_attr = repeat(0,CXTREE_LEN)
     if string(nodes[1]) then
         nodes = tg_tree_convert_nested_to_flat({},nodes,0)
@@ -1032,13 +789,16 @@ function hTree(sequence nodes, string attributes=``, sequence args={})
     tree_attr[CXTREE_FGSEL] = TG_BLACK
     tree_attr[CXTREE_SELFULL] = true
     tree_attr[CXTREE_IMAGE] = true
-
-    ctrl_xtra[tree][CX_GTL_ATTRS] = tree_attr
+    ctrl_xtra[tree] = tree_attr
+    tree_attr = 0
+--  gSetAttribute(tree,`DATA`,nodes)
+--  tg_register_handler(TREE,`CHECKED`,{`POPI`,`PPI`})
+--  tg_register_handler(TREE,`DATA`,{`FOP`,`FP`})
+--  tg_register_handler(TREE,`SELECTED`,{`POPI`,`PPI`})
     gSetHandler(tree,`CLICK`,tg_tree_click)
     gSetHandler(tree,`MOUSEMOVE`,tg_tree_hover)
     gSetHandler(tree,`MOUSELEAVE`,tg_tree_mouseleave)
     gSetHandler(tree,`KEY`,tg_tree_key_handler)
---  gSetHandler(tree,`REDRAW`,my_redraw) -- NOT HERE, try in gTree.exw.
 --  if selected!=NULL then
 ----        gSetHandler(tree,`SELECTED`,selected)
 --      tree_selected = selected -- hTree-specific
@@ -1209,8 +969,8 @@ gdx tree = hTree(nested_tree),
 --gdx tree = hTree({`Figures`,0}),
 --gdx tree = hTree({`Figures`,{}}),
 
---  dlg = gDialog(tree,`hTree`,`SIZE=240x80`)
-    dlg = gDialog(tree,`hTree`,`SIZE=240x180`)
+    dlg = gDialog(tree,`gTree`,`SIZE=240x80`)
+--  dlg = gDialog(tree,`hTree`,`SIZE=240x180`)
 --  dlg = gDialog(tree,`hTree`,`SIZE=450x350`)
 --  dlg = gDialog(tree,`hTree`,`SIZE=550x450`)
 --gSetAttribute(tree,`BGCLR`,#F0F0F0)
@@ -1218,24 +978,23 @@ gdx tree = hTree(nested_tree),
 --gSetAttribute(tree,`BGCLR`,TG_LIGHT_PARCHMENT)
 --gSetAttribute(tree,`BGCLR`,TG_LIGHT_GREY)
 --gSetAttribute(tree,`FONT`,`Consolas, 12`)
---gSetHandler(tree,`REDRAW`,cross) -- NO! (added to docs)
 
 --gSetHandler(tree,`DATA`,defer_load_data)
 defer_load = defer_load_data
 
---ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_CHECKED] = true -- also Ctrl K toggles [just here/for testing only]
+--ctrl_xtra[tree][CXTREE_CHECKED] = true -- also Ctrl K toggles [just here/for testing only]
 --gSetAttribute(tree,`CHECKED`,true)
 --gSetAttribute(tree,`IMAGE`,false) -- similar, Ctrl M here
 --    if not gGetAttribute(kid,`ACTIVE`) then return false end if
 --gSetAttribute(tree,`ACTIVE`,false) -- good
 
 --gSetAttribute(tree,`SELECTED`,3):
---Xctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] = 3
---Xctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] = 17
---Xctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELECTED] = 18 -- (ignorable, see tg_tree_n2d, but should probably crash, ditto<0)
+--Xctrl_xtra[tree][CXTREE_SELECTED] = 3
+--Xctrl_xtra[tree][CXTREE_SELECTED] = 17
+--Xctrl_xtra[tree][CXTREE_SELECTED] = 18 -- (ignorable, see tg_tree_n2d, but should probably crash, ditto<0)
 
 --gSetAttribute(tree,`SEL_FULL`,false):
---ctrl_xtra[tree][CX_GTL_ATTRS][CXTREE_SELFULL] = false
+--ctrl_xtra[tree][CXTREE_SELFULL] = false
 
 gShow(dlg)
 --?gGetAttribute(tree,`EXPAND`,`YES`)

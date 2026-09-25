@@ -1,0 +1,399 @@
+﻿--
+-- demo\theGUI\win_clip.exw
+-- ========================
+--
+--  Clipboard demo, auto-crops the four corners of all me doc images for me.
+--  Also supports drag and drop, with full image loading support via gdiplus (png,jpg,etc).
+--                                (however image save was all a bit too C++ssy for me)
+--
+--  See also gtk_clip.exw and ..\..\pwa\js\poc\clip.htm (clipp.html adds paste, drag and
+--                                                       drop, and a Choose file button)
+--
+--requires(64,true)
+include theGUI.WINAPI.e
+include theGUI.gdiplus.e
+
+constant BORDER = 10,
+         ppBits = allocate(machine_word()),
+         bmiLen = get_struct_size(idBITMAPINFOHEADER),
+         pBMI = allocate(bmiLen),
+         gdiplusToken = allocate_word(),
+         highlight_brush = CreateSolidBrush(0x00E5E5E5)
+
+local procedure set_BMI(atom pBMI, integer w, h)
+    -- (common code) pBMI may be the constant or the pMem going to the clipboard
+    mem_set(pBMI,0,bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biSize",bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biWidth",w)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biHeight",h)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biPlanes",1)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biBitCount",32)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biCompression",BI_RGB)
+end procedure
+
+function get_bitmap_from_clipboard()
+    atom hNew=0, pBits=0, w=0, h=0
+    if OpenClipboard(NULL) then
+        atom hDIB = GetClipboardData(CF_DIB)
+--?hDIB
+        if hDIB!=NULL then
+            atom pDIB = GlobalLock(hDIB),
+                  hDC = CreateCompatibleDC(NULL)
+            integer biSize = get_struct_field(idBITMAPINFOHEADER,pDIB,"biSize"),
+                       bpp = get_struct_field(idBITMAPINFOHEADER,pDIB,"biBitCount"),
+               compression = get_struct_field(idBITMAPINFOHEADER,pDIB,"biCompression"),
+                   clrUsed = get_struct_field(idBITMAPINFOHEADER,pDIB,"biClrUsed")
+            if find(bpp,{32,24,8,1}) then -- (just quietly ignore anything else!)
+                {w,h} = get_struct_fields(idBITMAPINFOHEADER,pDIB,{"biWidth","biHeight"})
+--              h = abs(h)
+                set_BMI(pBMI, w, h)
+                hNew = CreateDIBSection(hDC,pBMI,DIB_RGB_COLORS,ppBits,NULL,0)
+                pBits = peeknu(ppBits)
+
+                atom pSrc = pDIB + biSize, palette = pSrc
+                -- CF_DIBV5 already includes masks, so don't skip them again
+                if biSize!=get_struct_size(idBITMAPV5HEADER) then
+                    -- skip bitfields (for 16/32-bit BI_BITFIELDS)
+                    if compression = BI_BITFIELDS then
+                        pSrc += 3*4 -- 3 DWORD masks
+                    end if
+
+                    -- skip color table
+                    integer nColors
+                    if clrUsed!=0 then
+                        nColors = clrUsed
+                    elsif bpp<=8 then
+                        nColors = power(2,bpp)
+                    else
+                        nColors = 0
+                    end if
+
+                    pSrc += nColors*4
+                end if
+
+                integer stride = floor((bpp*w+31)/32)*4
+--              for y=0 to h-1 do
+                for y=0 to abs(h)-1 do
+                    atom src_row = pSrc + y*stride,
+                         dst_row = pBits + y*w*4
+                    if bpp=32 then
+                        mem_copy(dst_row,src_row,w*4)
+                    else
+                        atom clr
+                        for x=0 to w-1 do
+                            if bpp=24 then
+                                integer {b,g,r} = peek({src_row+x*3,3})
+                                clr = r+g*#100+b*#10000
+                            else
+                                integer idx
+                                if bpp=8 then
+                                    idx = peek(src_row+x)*4
+                                elsif bpp=1 then
+                                    integer byte_ = peek(src_row+floor(x/8)),
+                                          mask = power(2,7-mod(x,8)),   
+                                       bit = and_bits(byte_,mask)!=0
+                                    idx = iff(bit?4:0)
+                                else
+                                    ?9/0 -- cannot trigger
+                                end if
+                                clr = peek4u(palette+idx)
+                            end if
+                            poke4(dst_row+x*4,clr)
+                        end for
+                    end if
+                end for
+            end if
+            DeleteDC(hDC)
+            GlobalUnlock(hDIB)
+        end if
+        CloseClipboard()
+    end if
+    return {hNew,pBits,w,h}
+end function
+
+--/* never got this anywhere near working... mime_ptr is garbage except for the first...
+function get_encoder_clsid(string mime)
+    -- enumerate encoders and find "image/png"
+    -- (standard GDI+ boilerplate)
+
+    atom pNum = allocate(4),
+         pSize = allocate(4)
+
+    GdipGetImageEncodersSize(pNum, pSize)
+
+    integer num = peek4u(pNum),
+            size = peek4u(pSize)
+    free(pNum)
+    free(pSize)
+
+    atom pEncoders = allocate(size)
+
+    GdipGetImageEncoders(num, size, pEncoders)
+
+    integer esz = get_struct_size(idImageCodecInfo)
+--  integer esz = size/num
+?{num,size,esz,esz*num}
+
+    for i=0 to num-1 do
+        atom p = pEncoders + i*esz
+        atom mime_ptr = get_struct_field(idImageCodecInfo,p,"MimeType")
+
+--      sequence ms = peek_string(mime_ptr)
+        sequence ms = peek_wstring(mime_ptr)
+        ?ms
+        if ms=mime then
+            atom clsid = allocate(16)
+            mem_copy(clsid, get_struct_field(idImageCodecInfo,p,"Clsid"), 16)
+            return clsid
+        end if
+    end for
+
+    return NULL
+end function
+
+procedure save_bitmap_to_png(atom hBitmap, string filename)
+
+--  atom gpBitmap = NULL
+    atom gpBitmap = allocate_word()
+
+    -- create GDI+ bitmap from HBITMAP
+    integer status = GdipCreateBitmapFromHBITMAP(hBitmap,NULL,gpBitmap)
+    if status!=0 then
+        ? "GdipCreateBitmapFromHBITMAP failed"
+    else
+        -- get PNG encoder CLSID
+        atom clsid = get_encoder_clsid("image/png")
+
+        status = GdipSaveImageToFile(gpBitmap,filename,clsid,NULL)
+        if status!=0 then
+            ? "GdipSaveImageToFile failed"
+        end if
+        GdipDisposeImage(gpBitmap)
+-- maybe (untried)
+--      GdipDisposeImage(peeknu(gpBitmap))
+    end if
+    free(gpBitmap)
+end procedure
+--*/
+
+procedure set_clipboard_dib(integer w, h, atom pBits)
+    integer dataSize = w*abs(h)*4
+    atom hMem = GlobalAlloc(GMEM_MOVEABLE,bmiLen+dataSize),
+         pMem = GlobalLock(hMem)
+
+    set_BMI(pMem, w, h)
+    mem_copy(pMem+bmiLen,pBits,dataSize)
+
+    GlobalUnlock(hMem)
+
+    if OpenClipboard(NULL) then
+        EmptyClipboard()
+        -- Aside: CF_DIB is mspaint compatible, CF_DIBV5 ain't.
+        SetClipboardData(CF_DIB,hMem)
+        CloseClipboard()
+    end if
+end procedure
+
+procedure toggle_corners(atom pBits, integer w, h)
+    if pBits!=NULL then
+
+        h = abs(h)
+        integer white = #00FFFFFF,
+                black = #00000000
+
+        sequence corners = {peek4u(pBits + 0),
+                            peek4u(pBits + (w-1)*4),
+                            peek4u(pBits + (h-1)*w*4),
+                            peek4u(pBits + ((h-1)*w + w-1)*4)}
+        bool all_white = unique(corners)={white}
+        integer clr = iff(all_white?black:white)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for i,n in {5,3,2,1,1} do
+            integer im1w = (i-1)*w,
+                    hmiw = (h-i)*w
+            for j=0 to n-1 do
+                integer w1j = w-1-j
+                        -- tl,      tr,     bl,     br
+                for k in {im1w+j,im1w+w1j,hmiw+j,hmiw+w1j} do
+                    poke4(pBits+k*4,clr)
+                end for
+            end for
+        end for
+    end if
+end procedure
+
+function load_image_file(string filename)
+    atom pImage = GdipLoadImageFromFile(filename),
+            hDC = CreateCompatibleDC(NULL)
+    integer w = GdipGetImageWidth(pImage),
+            h = GdipGetImageHeight(pImage)
+    set_BMI(pBMI, w, -h)
+    atom hNew = CreateDIBSection(hDC,pBMI,DIB_RGB_COLORS,ppBits,NULL,0),
+        pBits = peeknu(ppBits),
+         rect = allocate(16),
+      bmpData = allocate(32) -- BitmapData
+    poke4(rect,{0,0,w,h})
+
+    GdipBitmapLockBits(pImage,rect,ImageLockModeRead,PixelFormat32bppARGB,bmpData)
+--printf(1,"PixelFormat32bppARGB = #%08x\n",PixelFormat32bppARGB)
+
+    atom srcScan0 = peeknu(bmpData+16) -- Scan0
+    integer srcStride = peek4s(bmpData+8)
+    if srcStride<0 then
+        srcScan0 += (h-1)*srcStride
+        srcStride = -srcStride
+    end if
+
+    -- copy rows (respect stride!)
+    for y=0 to h-1 do
+        atom src = srcScan0 + y*srcStride
+        atom dst = pBits + y*w*4
+        mem_copy(dst, src, w*4)
+    end for
+
+    GdipBitmapUnlockBits(pImage, bmpData)
+    GdipDisposeImage(pImage)
+
+    DeleteDC(hDC)
+    free(pBMI)
+    free(bmpData)
+    free(rect)
+
+    atom hBmp = hNew
+
+    return {hBmp,pBits,w,h}
+end function
+
+atom hBmp = NULL,
+     pBits = NULL
+integer imgW = 0, 
+        imgH = 0
+
+local procedure toggle_and_show(atom hWnd)
+--  integer w = 240, h = 80
+    integer w = 254, h = 87
+    if hBmp!=0 then
+        toggle_corners(pBits,imgW,imgH)
+        w = max(imgW+BORDER*2+14,222)
+        h = abs(imgH)+BORDER*2+7+32
+    end if
+    SetWindowPos(hWnd,NULL,0,0,w,h,SWP_NOMOVE)
+end procedure
+
+--integer drag_hover = 0
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_CREATE:
+            {hBmp,pBits,imgW,imgH} = get_bitmap_from_clipboard()
+            toggle_and_show(hWnd)
+            DragAcceptFiles(hWnd,TRUE)
+            return 0
+
+----        case WM_DRAGENTER:
+--      case WM_MOUSEMOVE:
+--?{"MOUSEMOVE",drag_hover}
+--          if not drag_hover then
+--              drag_hover = 1
+--              InvalidateRect(hWnd,NULL,TRUE)
+--              return 0
+--          end if
+--
+----        case WM_DRAGLEAVE:
+--      case WM_MOUSELEAVE:
+--?"MOUSELEAVE"
+--          drag_hover = 0
+--          InvalidateRect(hWnd,NULL,TRUE)
+--          return 0
+
+        case WM_DROPFILES:
+            atom hDrop = wParam
+            integer count = DragQueryFile(hDrop, -1, NULL, 0)
+            if count>0 then
+                integer len = DragQueryFile(hDrop, 0, NULL, 0)
+                atom buffer = allocate(len+1)
+                {} = DragQueryFile(hDrop, 0, buffer, len+1)
+                string filename = peek_string(buffer)
+                {hBmp,pBits,imgW,imgH} = load_image_file(filename)
+                toggle_and_show(hWnd)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            DragFinish(hDrop)
+            return 0
+
+        case WM_LBUTTONDOWN:
+            if hBmp!=0 then
+                toggle_corners(pBits,imgW,imgH)
+--?"SAVING"
+--save_bitmap_to_png(hBmp, "win_clip.png")
+--?"SAVED"
+                set_clipboard_dib(imgW,imgH,pBits)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            return 0
+
+        case WM_PAINT:
+            atom hDC = BeginPaint(hWnd,pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+            FillRect(hDC,pRECT,GetStockObject(WHITE_BRUSH))
+--          if drag_hover then
+--              FrameRect(hDC, pRECT, highlight_brush)
+--          end if
+            if hBmp!=0 then
+                atom mem = CreateCompatibleDC(hDC)
+                {} = SelectObject(mem,hBmp)
+                BitBlt(hDC,BORDER,BORDER,imgW,abs(imgH),mem,0,0,SRCCOPY)
+                DeleteDC(mem)
+            else
+                string noimage = "No image in clipboard"
+                integer l = length(noimage),
+                        x = floor((w-8*l)/2),
+                        y = floor((h-16)/2)
+                TextOut(hDC,x,y,noimage,l)
+            end if
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            GdiplusShutdown(gdiplusToken)
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd,msg,wParam,lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    GdiplusStartup(gdiplusToken, pGdiplusStartupInput, NULL)
+
+    RegisterClassEx("clipdemo",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0,"clipdemo","Clip img",
+        WS_OVERLAPPEDWINDOW,
+        100,100,300,200,
+        NULL,NULL,NULL,NULL)
+
+    ShowWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg,NULL,0,0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+
+main()
+

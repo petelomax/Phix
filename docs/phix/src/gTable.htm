@@ -213,8 +213,7 @@ gMainLoop(dlg)
             <br>
             A gTable seamlessly handles all resizing, sorting, and column reordering: apart from restoring a user-modified layout, <!--should
             that be required,--> the application need not concern itself with any of that and pretend the table has not been altered/sorted 
-            at all. Should it be needed it can retrieve the internal tagsets and topline, so it knows where everything&apos;s at and still 
-            deliver finer control.<br>
+            at all, and/or only fetch the internal tagsets and topline when absolutely necessary.<br>
             See demo\theGUI\gTable.exw for an example of saving/restoring user-modified layouts, noting that may contain some finer details
             about that process which have not quite made it into these these docs. [DEV/todo]
 <!--
@@ -488,17 +487,20 @@ Usage note as per <a href>COLUMNS</a>.
             <br>
             <br>
             data[1] contains the master/sortable values, and fairly obviously determines the total number of rows in the table.<br>
+            data[1] can instead be a <a href="#FETCH_DATA">fetch function</a>, useful for table filtering purposes.<br>
             data[2] is reserved for (string) display versions of data[1] or format string/handlers:<br>
             if data[2] is too short or data[2][col] is 0, then data[1][row][col] is displayed as-is/<a href>sprint</a>()&apos;d<br>
             if data[2][col] is a string fmt then <a href>sprintf</a>(fmt,data[1][row][col]) is displayed.<br>
             if data[2][col] is a non-zero integer it is assumed to be a formatting function <small>[eg date_fmt() in gTable.exw]</small>,<br>
-            or data[2][col] can be a sequence of pre-formatted strings, eg data[2][1] above could be {"(1)","[2]","{3}"}.
+            or data[2][col] can be a full-length sequence of pre-formatted strings, as long as data[1] is <i>not</i> a fetch function.
+<!--            ), eg data[2][1] above could be {"(1)","[2]","{3}"}.-->
             <br>
             <br>
             For dates, data[1][row][col] should be eg <small>(int)</small> 19050926 or <small>(<a href="timedatetype.htm">timedate</a>-like)</small> 
             {1905,9,26,<small>"special relativity published"</small>}, <br>
             &nbsp; &nbsp; &nbsp; &nbsp; &nbsp; and data[2][col] a format string/routine, or data[2][col][row] a preformatted string.<br>
-            For case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]).<br>
+            For case-insensitive sorting, data[1][row][col] should be lower/upper(data[2][col][row]), or data[2][col] a format routine
+            that accepts integer row,col and retrieves the un-mullered version from wherever it was stashed.<br>
             For images, data[1][row][col] should be {key, <a href="gImage.htm">gdm</a>} and data[2][col] should be "image".<br>
             Sorting images relies on a key/index. Alternatively data[1][r][c] can be just key, with data[2][c] a fn yeilding {"image",gdm}.<br>
             &nbsp;<small>(key can be an integer or string or anything you like, as long as it is sortable, so probably not a memory address)</small>.<br>
@@ -728,36 +730,33 @@ Usage note as per <a href>COLUMNS</a>.
             <br>
             Naturally, for all of the following specify a gdx id should you have some use for it, or just omit it otherwise. 
 -->
-<!--
-            <br><a name=DATA></a>
+            (optional) Set using eg <a href>gSetHandler</a>(table,"SELECTED",selected)
+            <br><a name=FETCH_DATA></a>
          </td>
         </tr>
         <tr>
          <td>
-?         DATA
+          <i>in data[1]</i>
          </td>
          <td>
-            [DEV not yet implemented] <br>
-            A fetch function for retrieving the gTable details, from the column titles to specific entries at a specified row and column.
-<X!X--
-            Also called when matrix is getting focus. Also called when focus is changed because lines or columns were added or removed (since 3.9).
---X>
+            A fetch function for retrieving the [real/logical but potentially filtered] data[1] rows.
             <br>
             <br>
-            function get_data([<a href>gdx</a> id,] <a href>integer</a> line, col)
+            function get_data(<a href>integer</a> line)
             <br>
             <br>
-            id: (optional) identifier of the gTable element currently being displayed.<br>
-<X!X--?? nah    mode: one of TG_TABLE_COLUMNS, TG_TABLE_FETCH, TG_TABLE_SORT, TG_TABLE_SELECT, TG_TABLE_EDIT...??<br>--X>
-            line: The row or 0 for column titles, -1 for sort status, as shown above.<br>
-            col: The column (meaningless when line is zero).
-<X!X--          Note that gTable automatically maps from any internal sort ordering to a suitable index into data[1].--X>
+            line: when 0 return the length of the [filtered] table entries, else the appropriate entry from it.
             <br>
             <br>
-            Must return a string or {string, options}, where options is a sequence of pairs, the first of which is one of
-            bgclr, fgclr, font, ...???
+            This is a simple hook so that while your full table might have 50,000 entries, after some application-specific 
+            filtering you want to pretend it only has 2 and return the 92nd and 12,345th.<br>
+            Note that data[2] should still contain the column-specific table formatting details (so that table sorting by
+            clicking on column titles still works), except that a sequence of pre-formatted strings in data[2][col] would 
+            have to be replaced with a formatting function instead.<br>
+<!-- NO!
+            , or perhaps better/easier 0 and have get_data() format that particular column [and maybe the rest] on-demand.<br>
 -->
-            (optional) Set using eg <a href>gSetHandler</a>(table,"SELECTED",selected)
+            Set by replacing data[1] with get_data <i>(not gSetHandler)</i>. See demo\theGUI\gVidCut.exw for an example.
             <br><a name=SELHAND></a>
          </td>
         </tr>
@@ -877,7 +876,7 @@ Usage note as per <a href>COLUMNS</a>.
             <br>
             There are also SELECTED handlers on a <a href="gList.htm#SELHAND">gList</a> and <a href="gTree.htm#SELHAND">gTree</a>, 
             were you looking for them.
-            <br>
+            <br><a name=TABCLICK></a>
 <!--
             Note that gTable automatically maps from any internal sort ordering to a suitable index into data[1].
             <br>
@@ -947,25 +946,35 @@ end function
             <br>
          </td>
         </tr>
---X>
+-->
         <tr>
          <td>
-?         TBLCLICK
+          TABCLICK
          </td>
          <td>
-            Action generated when any mouse button is pressed over a cell. Note the standard <a href>CLICK</a> 
-            handler is used internally by this control and should not be overidden, however it will forward all such events to a 
-            TBLCLICK handler first, if one is defined, and as a bonus indicates which cell or title (if any) it occurred on, with a 
-            line of zero indicating a column title. All 6 parameters must always be present.
+            Action generated when any mouse button is pressed over a cell. Note the standard <a href>CLICK</a> handler 
+            is used internally by this control and should not be overidden, and it is assumed theGUI itself should deal 
+            with all header-related events, however it forwards cell events to a TABCLICK handler, if one is defined, 
+            indicating which cell it occurred on. All four parameters must always be present.
             <br>
             <br>
-            procedure tblclick(<a href>gdx</a> table, <a href>sequence</a> status,
-                                                                <a href>integer</a> x, y, line, column)
+            procedure tabclick(<a href>gdx</a> table, <a href>sequence</a> status,
+                                                      <a href>integer</a> line, column)
             <br>
             <br>
             table: identifier of the element that activated the event.<br>
-            status, x, y: as per the standard <a href>CLICK</a> handler.<br>
-            line, column: Coordinates of the cell where the mouse button was pressed. Note line may be 0 or &gt; length(data).<br>
+            status: as per the standard <a href>CLICK</a> handler <small>(it is assumed x,y would not be helpful)</small>.<br>
+            <div class="param">
+             <div class="paraname">line, column:</div>
+             <div class="paradesc">
+                Indices to data corresponding to the cell where the mouse button was pressed, <br>
+                irrespective of how the table may have been sorted or columns dragged about.
+             </div>
+            </div>
+            <br>
+            There is also an TABCLICK handler on a <a href="gTabs.htm#TABCLICK">gTabs</a>, were you looking for that.
+
+<!--
 //          <small>[Aside: unlike <a hrXef>TABMOUSE</a>, <a href>MOUSEMOVE</a> <i>can</i>
             safely be used on a gTable: let me know if a TBLMOUSE with line/col would actually be useful, or perhaps better something
             like integer {l,c} = gTableXYtoLC(table,x,y).]</small>
@@ -995,11 +1004,26 @@ end function
 <font color="#008080">end function</font>
 </pre>
             </small>
---X>
+-->
+            <br><a name=TABKEY></a>
          </td>
         </tr>
-
-<X!X--
+        <tr>
+         <td>
+          TABKEY
+         </td>
+         <td>
+            Action generated when the keyboard is used. Note the standard <a href>KEY</a> handler is used internally 
+            by this control and should not be overidden, however it forwards such events to a TABKEY handler, if one 
+            is defined, as per <a href>KEY</a> except it must be a procedure.
+            <br>
+            <br>
+            The main use is probably for <a href>K_CR</a> to action the currently <a href=#SELECTED>SELECTED</a> line(s),
+            if any that is, or I suppose space might perhaps toggle some form of 'active' status?
+            <br>
+         </td>
+        </tr>
+<!--
           <br><a name=RESIZE_CB></a>
         <tr>
          <td>
@@ -1110,9 +1134,9 @@ end function
           <img id="Timg" />
          </td>
          <td>
-            Note a gTable uses <a href>CLICK</a>, <a href>KEY</a>,
-            <a href>MOUSEMOVE</a>, and <a href>MOUSELEAVE</a>
-            internally, and you should not attempt to use/override them, shout should you need em.
+            Note a gTable uses <a href>CLICK</a> and <a href>KEY</a> (as just mentioned), and also
+            <a href>MOUSEMOVE</a>, and <a href>MOUSELEAVE</a> internally, and you should not attempt 
+            to use/override them, shout should you need em.
 <!--
             <a href>KEY</a>,
             <a href>MOUSEMOVE</a>: All common handlers are supported.

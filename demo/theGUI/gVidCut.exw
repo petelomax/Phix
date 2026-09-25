@@ -1,0 +1,2612 @@
+﻿--
+-- demo\theGUI\gVidCut.exw
+-- =======================
+-- 
+--  An attempt at something half-way between MPC-HC and LosslessCut
+--
+--  Note this expects ffmpeg and libmpv to be manually installed, and remains
+--  a strictly desktop-only program (aka JavaScript/browser-incompatible).
+--
+--  For docs, press F1 when on the word gVidCut in theEditor, or open
+--     phix.chm and navigate to Other Libraries/theGUI/libmpv/gVidCut.
+--
+-- TODO: add a resume playing feature (given VK_HOME is available, no need to make it optional...)
+--       never/once/partial/playing...
+--       black/blue/green extract icon...
+--       preview on seekbar hover...
+--       single instance
+--       thumbnail sheet print...
+--
+--puts(1,"")
+--requires(64,true)
+without javascript_semantics -- (**not** browser compatible)
+--with trace
+--without debug
+
+include theGUI.e
+include builtins\pdates.e
+include builtins\ini.e
+include builtins\syswait.ew
+include builtins\pipeio.e
+include builtins\VM\pcmdlnN.e
+include builtins\pdate.e
+include builtins\penv.e
+
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gSetGlobal(`DIAGNOSTICS`,`DF_SET_XY`)
+--gSetGlobal(`DIAGNOSTICS`,`DF_SET_WH`)
+--gSetGlobal(`DIAGNOSTICS`,`DUMPONREDRAW`)
+--gUseGTK() -- Edit mode broken, video size all wrong...
+include libmpv.e
+with debug
+
+integer mpv_ctx = NULL, sb_ctx = NULL
+
+gdx mainmenu, -- main dialog menu
+    popupmenu, -- right-click popup menu
+    menus, -- (both the above)
+    sources, -- list of input files 
+    spacer, -- for positioning seekbar preview popup
+    cspace, -- (so we can CBXY "")
+    sbview, -- seekbar preview popup
+    video,  -- area for mpv to draw in
+    fragments, -- list of cut segments
+    triplet, -- above three side-by-side
+    seekbar, -- video position/slider
+    seekbar_timer, -- redraw "", and next
+    ctrls, -- hand painted, see draw_ctrls()
+    volume, -- a smaller slider
+    hbox, vbox, dlg,
+    mbx = NULL, lbl, btns -- (see gMessage)
+
+forward function get_source_code_length()
+constant mm = mpv_client_api_version(`mm`),
+      title = `VidCut`, help_text = `
+Something between MPC_HC and LosslessCut: a simple video player that can also perform frame-accurate 
+slicing without doubling or trebling file sizes, and permanently fix incorrect video aspect ratios.
+
+E toggles Edit mode, F toggles fullscreen, Space play/pause, Up/Down control volume, M toggles mute,
+Ctrl Left/Right single steps, I/O marks in/out points, Ctrl Z/Y undo/redo, Ctrl T tests, Ctrl S saves.
+
+For slightly more details see the manual, or inspect the source code itself (which is just ~1.5K lines).
+`, about_txt = sprintf(`
+gVidCut version 1.0
+
+A hybrid video player/editor, based on MPC-HC and inspired by LosslessCut.
+
+Using %s
+    and libmpv version %s, and all amazingly in just %,d lines of source code!
+`, {gVersion(), mpv_client_api_version(), get_source_code_length()})
+
+procedure gMessage(gdx dlg, string msg, title, sequence actions={})
+--  static [mbx, lbl, btns]
+--  static gdx mbx = NULL, lbl, btns
+    if mbx=NULL then
+        lbl = gLabel(msg,`EXPAND=BOTH`)
+        gdx OkBtn = gButton(`OK`,gQuit),
+            YesBtn = gButton(`Yes`,`VISIBLE=FALSE`),
+            NoBtn = gButton(`No`,`VISIBLE=FALSE`),
+            CancelBtn = gButton(`Cancel`,`VISIBLE=FALSE`)
+        btns = {OkBtn,YesBtn,NoBtn,CancelBtn}
+        gdx hbox = gHbox(btns,`SPACE=LEFT,EXPAND=H`),
+            vbox = gVbox({lbl,hbox},`MARGIN=10`)
+        mbx = gDialog(vbox,dlg,title)
+        gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+    else
+        gSetAttribute(lbl,`TITLE`,msg)
+        gSetAttribute(mbx,`TITLE`,title)
+    end if
+    if actions={} then actions={gQuit,NULL,NULL,NULL} end if
+    integer la = length(actions)
+    for i,btn in btns do
+        integer action = iff(i>la?NULL:actions[i])
+        gSetAttribute(btn,`VISIBLE`,action!=NULL)
+        if action then gSetHandler(btn,`ACTION`,action) end if
+    end for
+    gShow(mbx)
+end procedure
+
+--  seekbar_timer: absolutely must be running whenever a video is actually playing, in order
+--  to keep that in step. Ideally timers should be switched off when not needed to allow the
+--  program to go properly idle, just like the lights when leaving a room, which is where the
+--  whole toliept idea comes from. The asynchronous nature of these things means just because
+--  it isn't playing right now does not mean it won't be in 0.25s, however if it is still not
+--  playing ten seconds later it is safe(r) to assume it never will, without a further nudge.
+--
+atom toliept = time()+10 -- time of last interesting event +10 (for seekbar_timer shutdown)
+
+atom timeval = 0 -- (0.0..1.0)
+
+--TODO: each cut needs to be associated to a sourcelist item
+sequence cutlist = {`some`,`stuff`}
+-- SEGMENT MANAGEMENT (for lossless cutting)
+sequence cut_segments = {}  -- Each: {in_point, out_point, filename}
+atom current_in_point = -1, -- Seconds (-1 = not set)
+     current_out_point = 0 -- Seconds (0 = not set)
+bool bHasUnsavedChanges = false,
+     bEditingEnabled = false,
+     bFullscreen = false,
+     bMuted = false
+
+-- ini file handling:
+include builtins\ini.e
+include builtins\timedate.e
+
+constant VIDCUTINI = `gVidCut`,
+ini_defaults = `
+-- gVidCut.ini
+mute = 0
+volume = "0.5"
+max_recent = 20
+seek_thumb_height = 25%
+source_list_width = 80
+fragment_list_width = 80
+`
+ini_load(VIDCUTINI,ini_defaults)
+bMuted = ini_setting(`mute`)
+integer max_recent = ini_setting(`max_recent`),
+        source_list_width = ini_setting(`source_list_width`),
+        fragment_list_width = ini_setting(`fragment_list_width`)
+string seek_thumb_height = ini_setting(`seek_thumb_height`)
+
+constant RECENTINI = VIDCUTINI&`_Recent`,
+recent_defaults = `
+-- gVidCut_Recent.ini: recent/favourites held as fullpath = {bFav,last_play,duration,subtitles,position}
+` -- eg C:\Program Files (x86)\Phix\demo\theGUI\hermit.mpg = {false,19/09/26 06:01:11,21.473180,0,1.534867}
+
+sequence recent = {}, recent_dirs = {}, recent_files = {}, favs = {}, timestrs = {}, times = {}, durations = {},
+         filedates = {}, filesizes = {}, subtitles = {}, positions = {}
+procedure load_recent_files()
+    ini_load(RECENTINI,recent_defaults)
+    bool bFav; atom dur,p; sequence lps; object subt
+    for fullpath in ini_keynames(RECENTINI) do
+        if get_file_type(fullpath)==FILETYPE_FILE then
+            string sfp = ini_setting(fullpath)
+            sequence r = scanf(sfp,`{%t,%s,%f,%s,%f}`)
+            if length(r)!=1 then ?9/0 end if
+            {bFav,lps,dur,subt,p} = r[1]
+            recent &= {fullpath}
+            recent_dirs &= {get_file_path(fullpath)}
+            recent_files &= {get_file_name(fullpath)}
+            favs &= bFav
+            timestrs &= {lps}
+            times &= {parse_date_string(lps,{`DD/MM/YY hh:mm:ss`})}
+            durations &= dur
+            filedates &= {get_file_date(fullpath)}
+            filesizes &= get_file_size(fullpath)
+            if subt=`0` then subt = NULL end if
+            subtitles &= {subt}
+            positions &= p
+        end if
+    end for
+end procedure
+load_recent_files()
+
+--DEV somewhere better than this... ini file? get_file_path(ini_filename(VIDCUTINI))&VIDCUTINI??
+function get_temp_file(string filename)
+--  return join_path({current_dir(),filename})
+--  return join_path({get_file_path(ini_filename(VIDCUTINI)),VIDCUTINI,filename})
+    string path = get_file_path(ini_filename(VIDCUTINI))
+    path = join_path({path,VIDCUTINI})
+    if get_file_type(path)!=FILETYPE_DIRECTORY then
+        assert(create_directory(path))
+    end if
+    path = join_path({path,filename})
+    path = mpv_normalize_path(path)
+    return path
+end function
+--constant seekbar_img = get_temp_file(`seekbar_img.bmp`)
+
+include builtins\pipeio.e
+
+function read_pipe(string cmd)
+    sequence pipes = {0,create_pipe(INHERIT_READ),0}
+    atom hProc = system_exec(cmd,12,pipes),
+         hPipe = pipes[PIPOUT][READ_PIPE]
+    object res = read_from_pipe(hPipe,hProc)
+    if string(res) then 
+        while true do
+            object buff = read_from_pipe(hPipe,hProc)
+            if buff=-1 then exit end if
+            res &= buff
+        end while
+    else
+        res = ""
+    end if
+--sleep(1)
+    if platform()=WINDOWS then
+        hProc = close_handles(hProc)
+    end if
+    pipes = close_handles(pipes)
+--?{`read_pipe`,cmd,res}
+    return res
+end function
+
+--SUG: slap these in the ini file, so we don't have to flash up consoles on startup, or rather do so just once...
+function get_ff_versions()
+    sequence result = {0,0}
+    for i,ff in {`ffprobe`,`ffmpeg`} do
+        string res = read_pipe(ff&` -version`)
+        result[i] = trim(res[1..match(` Copyright`,res)])
+    end for
+    return result   
+end function
+constant {ffprobe_version,ffmpeg_version} = get_ff_versions(),
+         bFFprobe = ffprobe_version!="",
+         bFFmpeg = ffmpeg_version!=""
+
+constant string PROBE_WH_AR = join({`-v error`, -- aka `-loglevel error`,
+                                    `-select_streams v:0`,
+                                    `-show_entries stream=width,height,sample_aspect_ratio`,
+                                    `-of csv` -- aka `-output_format csv`
+                                    },' ')
+
+integer video_width = 640, video_height = 480, sar_num = 1, sar_den = 1
+
+function probe_options(string video_file)
+    assert(bFFprobe) -- shd'a gMessage()'d b4/instead'a calling me!
+    -- get true display dimensions and aspect ratio via ffprobe
+    string ffprobe_cmd = sprintf(`ffprobe %s "%s"`,{PROBE_WH_AR,video_file}),
+           csv = read_pipe(ffprobe_cmd) -- eg "stream,1440,1080,1:1\r\n"
+--?ffprobe_cmd
+--`ffprobe -v error -select_streams v:0 -show_entries stream=width,height,sample_aspect_ratio -of csv "C:/Users/petel/Downloads/Dexter.S08E09.540p.x265.AAC.[9jaRocks.Com].mkv"`
+    if csv="" then return false end if
+    -- aside: a trailing ',' seems random...
+    csv = trim_tail(csv,",\r\n")
+    -- aside: that's not exactly very helpful, now is it:
+    if ends(`,N/A`,csv) then csv[-3..-1] = `1:1` end if
+--?{`csv`,csv}
+    sequence r = scanf(csv,`stream,%d,%d,%d:%d`)
+    if length(r)!=1 then 
+        gMessage(dlg,`Failed to parse ffprobe output: `&csv,`Error`)
+        return false
+    end if
+    {video_width,video_height,sar_num,sar_den} = r[1]
+--?{`video_width`,video_width,`video_height`,video_height,`sar_num`,sar_num,`sar_den`,sar_den}
+    return true
+end function
+
+bool bLoaded = false -- NB the menu state flag: get_duration()>0 is a  
+                     --  much better way to determine successful load.
+
+constant FILE_MENU = {{"&Open\t",M_CTRL+'O'},
+                      {"&Save As\t",bEditingEnabled,M_CTRL+'S'},
+                      {"&Test\t",bEditingEnabled,M_CTRL+'T'},
+                      {"&Recent Files",M_CTRL+'R'},
+                      `|`,
+-- and something to undo/redo
+                      {"Undo\t",bEditingEnabled,M_CTRL+'Z'},
+                      {"Redo\t",bEditingEnabled,M_CTRL+'Y'},
+                      `|`,
+--/!*
+                      {"&Load Subtitles...\t",bLoaded,M_CTRL+'L'},
+--                    {"&Download Subtitles...\t",bLoaded,M_CTRL+'D'},
+--                    {"Save Thumbnails...\t",bLoaded,'B'},
+--*!/
+                      {"&Properties\t",bLoaded,M_SHIFT+VK_F10},
+                      `|`,
+                      {"E&xit\t",M_ALT+VK_F4}},
+       ARATIO_MENU = {{"D3fault\t",`??`,true,'3'},
+                      {"4:3\t",`??`,'4'},
+                      {"5:4\t",`??`,'5'},
+                      {"16:9\t",`??`,'6'},
+                      {"235:100\t",`??`,'2'},
+                      {"185:100\t",`??`,'1'},
+                      {"Fix",false,'F'}},
+     ASPECT_RATIOS = {`185/100`,`235/100`,`no`,`4/3`,`5/4`,`16/9`},
+         VIEW_MENU = {{"&Aspect ratio",bLoaded,M_NOT_KEY+'A',ARATIO_MENU},
+                      {"&Edit mode\t","?",bFFmpeg,false,'E'},
+                      {"&Fullscreen\t",bLoaded,M_ALT+VK_CR}},
+--see/edit gVidCut.ini instead: (to be done properly later...)
+--                    {"&Options\t",M_ALT+'O'}},
+        SHUNT_MENU = {{"In\t",bEditingEnabled,M_ALT+VK_RIGHT},
+                      {"Out\t",bEditingEnabled,M_ALT+VK_LEFT},
+                      {"Up\t",bEditingEnabled,M_ALT+VK_UP},
+                      {"Down\t",bEditingEnabled,M_ALT+VK_DOWN},
+                      {"Clear\t",bEditingEnabled,M_ALT+VK_END}},
+         PLAY_MENU = {{"&Play/pause\t(SPACE)",VK_SP},
+                      {"Frame &Fwd\t",M_CTRL+VK_RIGHT},
+                      {"Frame &Back\t",M_CTRL+VK_LEFT},
+                      {"Mark &In point\t",bEditingEnabled,'I'},
+                      {"Mark &Out point\t",bEditingEnabled,'O'},
+                      {"E&xtract\t",bEditingEnabled,'X'},
+                      {"Volume &Up\t",VK_UP},
+                      {"Volume &Down\t",VK_DOWN},
+                      {"Shunt segment",bEditingEnabled,SHUNT_MENU},
+                      {"&Stop\t",'.'},
+                      {"&Mute\t",`?`,bMuted,'M'},
+                      {"Subtitles\t",`?`,'V'}},
+         HELP_MENU = {{"&Instructions\t",VK_F1},
+                      {"&About",M_ALT+'A'}},
+         MAIN_MENU = {{"&File",FILE_MENU},
+                      {"&View",VIEW_MENU},
+                      {"&Play",bLoaded,'P',PLAY_MENU},
+                      {"&Help",HELP_MENU}}
+--
+-- menu ids so far: (courtesy of tg_build_menu(), btw)
+--{" ",".","1","2","3","4","5","6","E","F","I","M","O","P","X","UP","DOWN","F1",
+-- "NOT KEY+A","Alt+CR","Alt+A","Alt+END","Alt+UP","Alt+DOWN","Alt+LEFT","Alt+RIGHT","Alt+F4","Shift+F10",
+-- "Ctrl+L","Ctrl+O","Ctrl+R","Ctrl+S","Ctrl+T","Ctrl+Y","Ctrl+Z","Ctrl+LEFT","Ctrl+RIGHT"}
+
+procedure apply_loaded(bool flag)
+--?{`apply_loaded`,flag}
+    bLoaded = flag
+    -- enable/disable those menu entries that need a file already loaded
+--  for id in {M_CTRL+'L',M_CTRL+'D',M_SHIFT+VK_F10,M_NOT_KEY+'A',M_ALT+VK_CR,'P'} do
+    for id in {M_CTRL+'L',M_SHIFT+VK_F10,M_NOT_KEY+'A',M_ALT+VK_CR,'P'} do
+        gMenuSetAttribute(menus,id,`ACTIVE`,bLoaded)
+    end for
+end procedure
+
+string video_file ="" -- (as opened)
+
+function get_duration()
+    bool bGet = mpv_ctx!=NULL and video_file!=""
+    atom duration = iff(bGet?mpv_get_property(mpv_ctx,`duration`,MPV_FORMAT_DOUBLE,0):0)
+    return duration
+end function
+
+procedure set_aspect_ratio(integer c)
+    gMenuSetAttribute(menus,c,`CHECKED`,true)
+    -- Disable 'Fix' for 'd3fault', else enable, iff ffmpeg installed:
+    gMenuSetAttribute(menus,'F',`ACTIVE`,c!='3' and bFFmpeg)
+    string ar = ASPECT_RATIOS[c-'0'], cmd
+    if mm={2,0} then
+        cmd = `set video-aspect `&ASPECT_RATIOS[c-'0']
+        mpv_command_string(mpv_ctx,cmd)
+    elsif mm={2,5} then
+        if get_duration()>0 then
+            mpv_set_property(mpv_ctx,`video-aspect-override`,MPV_FORMAT_STRING,ar)
+        end if
+    else
+        ?9/0
+    end if
+end procedure
+
+procedure toggle_fullscreen()
+    if get_duration()>0 then
+        bFullscreen = not bFullscreen
+        gSetAttribute({mainmenu,seekbar,hbox},`VISIBLE`,not bFullscreen)
+        gSetAttribute({sources,fragments},`VISIBLE`,bEditingEnabled and not bFullscreen)
+        gSetAttribute(dlg,`FULLSCREEN`,bFullscreen)
+    end if
+end procedure
+
+integer sub_id = -2     -- -2 is check, -1 is none, 0+ is subtitle track_id
+
+procedure set_subtitle_visibility(integer visible)
+    -- visible can be true or false, or -1 to toggle.
+    if sub_id>=0 then
+        mpv_set_property(mpv_ctx,`sub`,MPV_FORMAT_INT,sub_id)
+        bool v = mpv_get_property(mpv_ctx,`sub-visibility`,MPV_FORMAT_FLAG)
+        v = iff(visible==-1?not v:visible)
+        mpv_set_property(mpv_ctx,`sub-visibility`,MPV_FORMAT_FLAG,v)
+        gMenuSetAttribute(menus,'V',`CHECKED`,v)
+        -- when the video is letterboxed, ie top/bottom borders exist because of user-resizing,
+        -- then when subtitles are being displayed make the top border height 0 to maximise the
+        -- chances of the subtitles fitting entirely within the bottom border, off-video (but
+        -- if they're half-on/half-off, that's just user error, aka not resizing it sensibly).
+        mpv_set_property(mpv_ctx,`video-align-y`,MPV_FORMAT_INT,-v)
+    end if
+end procedure
+
+--constant FETCH=-1, TOGGLE=-2
+constant TOGGLE=-1
+
+procedure set_pause(integer pause) -- TOGGLE/true/false
+    if mpv_ctx=NULL then ?9/0 end if -- (sanity check)
+--  bool bToggle = pause==TOGGLE -- (since next line trashes it!)
+--  if pause<=FETCH then pause = mpv_get_property(mpv_ctx,`pause`,MPV_FORMAT_FLAG) end if
+--  if bToggle then pause = not pause end if
+    if pause=TOGGLE then pause = not mpv_get_property(mpv_ctx,`pause`,MPV_FORMAT_FLAG) end if
+    mpv_set_property(mpv_ctx,`pause`,MPV_FORMAT_FLAG,pause)
+if not pause then
+    string --aid = mpv_get_property_string(mpv_ctx,`aid`),
+--       codec = mpv_get_property_string(mpv_ctx,`audio-codec-name`),
+         codec = mpv_get_property(mpv_ctx,`audio-codec-name`,dflt:=""),
+     ao_active = mpv_get_property(mpv_ctx,`current-ao`,dflt:="")
+--   ao_active = mpv_get_property_string(mpv_ctx,`current-ao`)  
+--  if aid!=`1` or not find(codec,{`aac`,`mp3`}) or ao_active!=`wasapi` then
+    if not find(codec,{`aac`,`mp3`}) or ao_active!=`wasapi` then
+--      ?{`aid`,aid,`codc`,codec,`ao_active`,ao_active}
+        ?{`codc`,codec,`ao_active`,ao_active}
+--/*
+        // Tear down audio pipeline
+        mpv_command_string(mpv_ctx,`set aid no`)
+        mpv_command_string(mpv_ctx,`set ao null`)
+        // Rebuild audio pipeline (blank string resets 'ao' to default driver)
+        mpv_command_string(mpv_ctx,`set ao ""`)
+--std::string restore_aid_cmd = `set aid ` + std::string(aid);
+OH, NO...
+        mpv_command_string(mpv_ctx,`set aid `&aid)
+
+            -- Query the actual codec name currently active in the audio hardware
+            local codec = mp.get_property(`audio-codec-name`)
+            local ao_active = mp.get_property(`current-ao`)
+            print("Unpaused. Active AO: " .. tostring(ao_active) .. " | Codec: " .. tostring(codec))
+            
+            -- If an audio track is selected but the hardware output or codec has crashed (returns empty)
+            if not codec or codec == "" or not ao_active or ao_active == "" then
+                printf(1,"Audio crash detected!\n")
+                rebuild_audio()
+            end
+
+DEV:::
+ao-reload mpv_command_string(ctx, "ao-reload");Tears down and completely rebuilds the audio output thread. This is the cleanest programmatic fix.
+
+--function rebuild_audio()
+--*/
+        printf(1,"Rebuilding audio pipeline...\n")
+
+-- no, abject failure:
+mpv_command_string(mpv_ctx,"ao-reload"); // Tears down and completely rebuilds the audio output thread.
+mpv_set_property(mpv_ctx,`audio-codec-name`,MPV_FORMAT_STRING,`aac`)
+mpv_set_property(mpv_ctx,`current-ao`,MPV_FORMAT_STRING,`wasapi`)
+--mpv_set_property_string(current-ao,wasapi)==>-10 [property unavailable]
+
+--/*    
+    -- Save the current volume and audio track ID
+--      string vol = mpv_get_property_string(mpv_ctx,`volume`)
+--?{"volume",volume}
+--  local current_vol = mp.get_property(`volume`)
+--  local current_aid = mp.get_property(`aid`)
+    
+        -- Force audio pipeline teardown by disabling the audio track
+--  mp.set_property(`aid`, `no`)
+--      mpv_command_string(mpv_ctx,`set aid no`)
+        mpv_command_string(mpv_ctx,`set ao null`)
+    
+    -- Cycle the Audio Output driver to force libmpv to free the device context
+    -- Setting it to null then back to default forces a complete rebuild
+--  mp.set_property(`ao`, `null`)
+--  mp.set_property(`ao`, "") 
+        // Rebuild audio pipeline (blank string resets 'ao' to default driver)
+        mpv_command_string(mpv_ctx,`set ao ""`)
+
+    
+        -- Restore the audio track and volume to re-initialise WASAPI
+--  mp.set_property(`aid`, current_aid)
+--      mpv_command_string(mpv_ctx,`set aid `&aid)
+--      mpv_command_string(mpv_ctx,`set volume `&vol)
+--      mpv_set_property(mpv_ctx,`volume`,MPV_FORMAT_STRING,vol)
+--  mp.set_property(`volume`, current_vol)
+--*/    
+        printf(1,"Audio pipeline rebuilt successfully!\n")
+string vol = mpv_get_property_string(mpv_ctx,`volume`)
+?{"volume",volume}
+
+--end
+
+--*!/
+    end if
+end if
+--  if gGetAttribute(seekbar_timer,`RUN`)==pause then -- (ie wrong)
+--DEV should I be checking for MPV_END_FILE_REASON_EOF(= 0), or this be outside above test?
+        if bFullscreen and timeval>=0.999 and pause then
+            toggle_fullscreen() -- drop out of fullscreen at/when stopped due to hitting eof
+--          pos[1] = 0
+        end if
+    if gGetAttribute(seekbar_timer,`RUN`)==pause then -- (ie wrong)
+--?{`seekbar_timer`,bPlaying}
+        gSetAttribute(seekbar_timer,`RUN`,not pause)
+    end if
+end procedure
+
+string subtitle_file = ""
+bool first_time_ffprobe_less = true
+atom seek_to = 0
+object restore_subtitles = 0
+
+procedure set_seekbar_timer()
+    toliept = time()+10
+    if mpv_ctx and not gGetAttribute(seekbar_timer,`RUN`) then
+--?`run seekbar_timer`
+        gSetAttribute(seekbar_timer,`RUN`,true)
+    end if
+end procedure
+
+bool bLoadSeekbar = false
+object folder = NULL -- for gOpenFile/gSaveFile <== last opened file's directory
+
+procedure update_recent_and_open_file(string txt)
+--?{`update_recent_and_open_file`,txt}
+    if length(txt)>0 then
+        set_seekbar_timer()
+        string timestr = format_timedate(date(),`DD/MM/YY hh:mm:ss`)
+        integer k = find(txt,recent)
+        if k then
+            bool bFav = favs[k]
+            object sk = subtitles[k]
+            atom pk = positions[k]
+            recent[2..k] = recent[1..k-1];                  recent[1] = txt
+            recent_dirs[2..k] = recent_dirs[1..k-1];        recent_dirs[1] = get_file_path(txt)
+            recent_files[2..k] = recent_files[1..k-1];      recent_files[1] = get_file_name(txt)
+            favs[2..k] = favs[1..k-1];                      favs[1] = bFav
+            times[2..k] = times[1..k-1];                    times[1] = date()
+            timestrs[2..k] = timestrs[1..k-1];              timestrs[1] = timestr
+            subtitles[2..k] = subtitles[1..k-1];            subtitles[1] = sk
+            positions[2..k] = positions[1..k-1];            positions[1] = pk
+            durations[2..k] = durations[1..k-1]; 
+            filedates[2..k] = filedates[1..k-1];
+            filesizes[2..k] = filesizes[1..k-1];
+        else
+            recent = prepend(recent,txt)
+            recent_dirs = prepend(recent_dirs,get_file_path(txt))
+            recent_files = prepend(recent_files,get_file_name(txt))
+            favs = prepend(favs,false)
+            timestrs = prepend(timestrs,timestr)
+            times = prepend(times,timestr)
+            subtitles = prepend(subtitles,0)
+            positions = prepend(positions,0)
+            durations = prepend(durations,0)
+            filedates = prepend(filedates,0)
+            filesizes = prepend(filesizes,0)
+        end if
+        durations[1] = `???`
+        filedates[1] = get_file_date(txt)
+        filesizes[1] = get_file_size(txt)
+--?{`recent_files`,source_line(),recent_files}
+        if mpv_ctx!=0 then
+            video_file = mpv_normalize_path(recent[1])
+            if file_exists(video_file)
+--          and probe_options(video_file) then
+            and (bFFprobe=false or probe_options(video_file)) then
+--          if true then
+                subtitle_file = ""
+                folder = get_file_path(recent[1])
+                --
+                -- Note: you cannot do anything until you know it has successfully loaded, 
+                --       which is detected by get_duration()>0, and the traditional place
+                --       to do that is draw_ctrls()/(not bLoaded)/(sub_id=-2), albeit the
+                --       first place where it actually triggers is usually draw_seekbar().
+                --
+                mpv_command_string(mpv_ctx,sprintf(`loadfile "%s"`,{video_file}))
+                mpv_command_string(mpv_ctx,`set pause no`) -- Start decoding to prime VO
+                bLoadSeekbar = true
+                apply_loaded(false)
+--?{`video_file`,source_line(),video_file}
+                if bFFprobe then
+                    -- resize to fit:
+                    integer {cw,ch} = gGetAttribute(video,`SIZE`),
+                            {dw,dh} = gGetAttribute(dlg,`SIZE`),
+                            {sw,sh} = gGetGlobal(`SCREENSIZE`),
+                            vw = round(video_width*sar_num/sar_den),
+                            vh = video_height
+--?{`cw`,cw,`ch`,ch,`dw`,dw,`dh`,dh,`sw`,sw,`sh`,sh,`vw`,vw,`vh`,vh}
+                    dw -= cw
+                    dh -= ch
+                    if vh+dh>sh then
+                        -- scale down, heeping aspect ratio the same
+                        integer nh = sh-dh
+                        {vw,vh} = {round(vw*nh/vh),nh}
+--?{`nh`,nh,`vw`,vw,`vh`,vh}
+                    end if
+                    if vw+dw>sw then
+                        ?9/0 -- placeholder... (which may never ever trigger)
+--should it, compare with/out this:
+--                      integer nw = sw-dw
+--                      {vw,vh} = {nw,round(vh*nw/vw)}
+                    end if
+                    sequence nwh = {vw+dw,vh+dh}
+--?{`nwh`,nwh}
+                    gSetAttribute(dlg,`SIZE`,nwh)
+                    gSetAttribute(dlg,`TITLE`,get_file_name(video_file))
+                    gShow(dlg,TG_CENTER,TG_CENTER)
+
+                    timeval = 0
+                    gRedraw(dlg)
+                elsif first_time_ffprobe_less then
+                    first_time_ffprobe_less = false
+                    gMessage(dlg,`ffprobe not installed`,`Warning`)
+                end if
+                seek_to = positions[1]
+                restore_subtitles = subtitles[1]
+--else gMessage()?
+            end if
+        end if
+    end if
+end procedure
+
+gdx recent_window = NULL,
+    recent_table
+
+procedure close_recent_and_play(integer row)
+    -- (row is post-filter_dx here)
+    gHide(recent_window)
+    update_recent_and_open_file(recent[row])
+end procedure
+
+procedure toggle_fav(gdx table, integer row)
+    -- (row is post-filter_dx here)
+    favs[row] = not favs[row]
+    sequence data = gGetAttribute(table,`DATA`)
+    gSetAttribute(table,`DATA`,NULL)
+    data[1][row][1] = favs[row]
+    gSetAttribute(table,`DATA`,data)
+    gRedraw(table)
+end procedure
+
+sequence data, filter_dx
+
+procedure recent_click(gdx table, sequence status, integer row, col)
+    if status[1]='L' then
+        row = filter_dx[row]
+        if status[2]='D' then
+            close_recent_and_play(row)
+        elsif status[2]='S' and col=1 then
+            toggle_fav(table,row)
+        end if  
+    end if  
+end procedure
+
+gdm favicon, notfavicon
+
+function fav_fmt(integer /*get_data*/, row, col)
+    bool fav = data[filter_dx[row]][col]
+    return {`image`,iff(fav?favicon:notfavicon)}
+end function
+
+include builtins\unidecode.e
+
+function rf_mixed_case(integer /*get_data*/, row, /*col*/)  
+    -- for case-insensitve sorting, and presence of subtitles/resume point
+    row = filter_dx[row]
+    string filename = recent_files[row]
+--  filename = unidecode(filename) -- (temp/for visual confirmation only)
+    sequence fs = {}
+    if string(subtitles[row]) 
+    and file_exists(subtitles[row]) then
+        fs = {`srt`}
+    end if
+    if positions[row]!=0 then
+        fs &= {elapsed_short(positions[row],0,`:`)}
+    end if
+    if length(fs) then filename &= sprintf("  [%s]",{join(fs,',')}) end if
+    return filename
+end function
+
+constant string date_fmt = `%[3]02d/%[2]02d/%[1]02d %[4]02d:%[5]02d`
+
+function size_fmt(integer get_data, row, col)
+    return file_size_k(data[filter_dx[row]][col])
+end function
+
+function dur_fmt(integer /*get_data*/, row, col)
+    object res = data[filter_dx[row]][col]
+    if not string(res) then -- `???`...
+        res = elapsed_short(res,0,`:`)
+    end if
+    return res
+end function
+
+function td_fmt(integer /*get_data*/, row, col)
+    object td = data[filter_dx[row]][col]
+    if not string(td) then
+        td = format_timedate(td,`DD/MM/YY hh:mm:ss`) 
+    end if
+    return td
+end function
+
+function get_data(integer row)
+    if row=0 then return length(filter_dx) end if
+    return data[filter_dx[row]]
+end function
+
+constant RF_TITLE = `Recent Files`
+string ac_filter = "" -- auto cyclic filter, see gVidCut docs
+
+procedure apply_filter()
+    integer ld = length(data)
+    filter_dx = tagset(ld)
+    sequence terms = split(ac_filter)
+    string title = RF_TITLE
+    if length(terms) then
+        sequence sdata = repeat(0,ld)
+        for i=1 to ld do sdata[i] = lower(get_data(i)) end for
+        integer terms_ok = 0
+        for t in reverse(terms) do
+            sequence f2 = {}
+            for f in filter_dx do
+                for column in sdata[f] do
+                    if string(column) and match(t,column) then
+                        f2 &= f
+                        exit
+                    end if
+                end for
+            end for
+            if length(f2)=0 then exit end if
+            filter_dx = f2
+            terms_ok += 1
+        end for
+        string term
+        if terms_ok=0 then
+            term = terms[$]
+            integer chars_ok = 1
+            for l=1 to length(term) do
+                sequence f2 = {}
+                string t = term[-l..-1]
+                for f in filter_dx do
+                    for column in sdata[f] do
+                        if string(column) and match(t,column) then
+                            f2 &= f
+                            exit
+                        end if
+                    end for
+                end for
+                if length(f2)=0 then exit end if
+                filter_dx = f2
+                chars_ok = l
+            end for
+            term = term[-chars_ok..-1]
+        else
+            term = join(terms[-terms_ok..$])
+        end if
+        integer n = length(filter_dx)
+        if n!=ld then
+            title = sprintf(`%s [%s, %d/%d]`,{RF_TITLE,term,n,ld})
+        else
+            title = sprintf(`%s [%s, (none)]`,{RF_TITLE,term})
+        end if
+    end if
+    gSetAttribute(recent_window,`TITLE`,title)
+end procedure
+
+procedure recent_key_handler(gdx table, integer c)
+    if c=VK_CR or (c=' ' and ac_filter="")  then
+        integer row = gGetAttribute(table,`SELECTED`)
+        if row then
+            row = filter_dx[row]
+            if c=VK_CR then
+                close_recent_and_play(row)
+            else
+                toggle_fav(table,row)
+            end if
+        end if  
+    end if  
+    if c=VK_DEL or c=VK_BS then
+        if length(ac_filter) then
+            ac_filter = ac_filter[1..$-1]
+        end if
+    elsif c>=' ' and c<#7F then
+        ac_filter &= lower(c)
+    end if
+    apply_filter()
+end procedure
+
+procedure open_recent()
+    if recent_window=NULL then
+        sequence columns = {{`Fav`,25,`C`},
+                            {`Directory`,160,`L`},
+                            {`File`,260,`CL`},
+                            {`Date`,60,`CR`},
+                            {`Size`,40,`CR`},
+                            {`Duration`,40,`CR`},
+                            {`Last played`,60,`CR`}}
+        recent_table = gTable(columns,{{}},0)
+        gSetHandler(recent_table,`TABCLICK`,recent_click)
+        gSetHandler(recent_table,`TABKEY`,recent_key_handler)
+        recent_window = gDialog(recent_table,dlg,RF_TITLE,`SIZE=1200x600`)
+        favicon = gGetGlobal(`CHECKED_ICON`)
+        notfavicon = gGetGlobal(`UNCHECKED_ICON`)
+    end if
+    sequence rf_lower_case = apply(apply(recent_files,unidecode),lower)
+--  -- (leetcode handling, if we ever need it:)
+--  for i,txt in rf_lower_case do
+--      rf_lower_case[i[ = substitute_all(txt,"30@$","eoas")
+--  end for
+    data = columnize({favs,recent_dirs,rf_lower_case,filedates,filesizes,durations,times})
+    sequence ctrl = {fav_fmt,        0,rf_mixed_case, date_fmt, size_fmt,  dur_fmt,td_fmt}
+    filter_dx = tagset(length(data))
+    apply_filter()
+    gSetAttribute(recent_table,`DATA`,{get_data,ctrl})
+    gShow(recent_window)
+end procedure
+
+procedure export_video(gdx dlg)
+?`export_video`
+    assert(bFFmpeg) -- shd'a gMessage()'d b4/instead'a calling me!
+    if length(cut_segments)=0 then
+        gMessage(dlg,`No segments marked for export`,`Error`)
+        return
+    end if
+    
+    string default_name = get_temp_file(`output.mp4`),
+--         fltr = `MP4 Video (*.mp4)|*.mp4|All Files (*.*)|*.*`
+--         output_file = gFileSaveDialog(dlg,`Export Video`,default_name,fltr)
+           output_file = default_name
+    
+    if output_file != "" then
+        ?{`Exporting to`,output_file}
+        -- BUILD CONCATENATION LIST
+        string concat_list = ""
+        for segment in cut_segments do
+            concat_list &= sprintf("file '%s'\n",{segment[3]})
+        end for
+        
+        -- WRITE CONCATENATION LIST TO TEMP FILE
+        string list_file = get_temp_file(`vidcut_concat.txt`)
+--      gFileWrite(list_file,concat_list)
+--      write_file(list_file,concat_list)
+        integer fn = open(list_file,`w`)
+        puts(fn,concat_list)
+        close(fn)
+        
+        -- BUILD FFMPEG COMMAND (lossless concat)
+        string ffmpeg_cmd = sprintf(
+            `ffmpeg -y -f concat -safe 0 -i "%s" -c copy "%s"`,
+            {list_file,output_file}
+        )
+        
+        ?{`FFMPEG CMD:`,ffmpeg_cmd}
+        atom exit_code = system_exec(ffmpeg_cmd)
+        if exit_code = 0 then
+            gMessage(dlg,`Export successful!`,`Success`)
+            -- CLEANUP
+--          gFileDelete(list_file)
+            {} = delete_file(list_file)
+            cut_segments = {}  -- Clear segments after export
+            bHasUnsavedChanges = false
+            if get_file_type(output_file)=FILETYPE_FILE then
+                gMenuSetAttribute(menus,M_CTRL+'S',`ACTIVE`,true)
+            end if
+        else
+            gMessage(dlg,`Export failed (see console)`,`Error`)
+        end if
+    end if
+end procedure
+
+procedure set_volume(gdx id, atom c)
+    set_seekbar_timer()
+    -- if id!=volume, c is 0 or VK_UP/VK_DOWN or +/-1,
+    -- else in fact c===v, but no-one cares about that.
+    atom v = gGetAttribute(volume,`VALUE`)
+    if id!=volume and c!=0 then
+        v = max(min(v+iff(c=VK_UP or c=+1?0.01:-0.01),1),0)
+        gSetAttribute(volume,`VALUE`,v)
+        gRedraw(volume)
+    end if
+    if mpv_ctx!=0 then
+        mpv_set_property(mpv_ctx,`volume`,MPV_FORMAT_DOUBLE,v*100)
+    end if
+    ini_restore(VIDCUTINI)
+    ini_set(`volume`,sprintf(`"%f"`,v))
+end procedure
+
+procedure toggle_mute()
+    mpv_command_string(mpv_ctx,`cycle mute`)
+    bMuted = not bMuted
+    gMenuSetAttribute(menus,'M',`CHECKED`,bMuted)
+    ini_restore(VIDCUTINI)
+    ini_set(`mute`,bMuted)
+--hm, -ao=pulse seems to make mpv work again.
+--ao=alsa
+--audio-device=auto
+end procedure
+
+procedure move_back(string filename)
+    bool res = move_file(`output.mp4`,filename,true)
+    if res then 
+        gMenuSetAttribute(menus,M_CTRL+'S',`ACTIVE`,false)
+--else gMessage?
+    end if
+end procedure
+
+procedure save_as()
+    if get_file_type(`output.mp4`)=FILETYPE_FILE then
+        object name = NULL
+--DEV   if length(?in_files)=1 then name = infiles[1] end if
+        gSaveFile(dlg,move_back,name:=name)
+    end if
+end procedure
+
+procedure load_subtitles(string subtitle_path)
+    if get_duration()>0 then
+        if length(subtitle_path) then
+            mpv_command_string(mpv_ctx,sprintf(`sub-add "%s"`,{mpv_normalize_path(subtitle_path)}))
+            sub_id = -2
+            subtitle_file = subtitle_path  -- Track for cleanup
+            subtitles[1] = subtitle_path
+            ?{`Subtitle loaded:`, subtitle_path}
+        else
+            sequence filters = {{`SubRip Subtitle (*.srt)`,`*.srt`}, {`All Files (*.*)`,`*.*`}}
+            gOpenFile(dlg,load_subtitles,NULL,filters)
+            subtitles[1] = NULL
+        end if
+    end if
+end procedure
+
+procedure mpv_drop(string filename)
+    if ends(`.srt`,filename) then
+        load_subtitles(filename)
+    else
+        update_recent_and_open_file(filename)
+    end if
+end procedure
+
+procedure mark_in()
+    assert(bFFmpeg) -- shd'a gMessage()'d b4/instead'a calling me!
+    -- Mark In point
+    current_in_point = mpv_get_property(mpv_ctx,`playback-time`,MPV_FORMAT_DOUBLE)
+    bHasUnsavedChanges = true
+    ?{`Marked IN at`,current_in_point,`s`}
+end procedure
+
+procedure mark_out()
+    assert(bFFmpeg) -- shd'a gMessage()'d b4/instead'a calling me!
+    -- Mark Out point
+    current_out_point = mpv_get_property(mpv_ctx,`playback-time`,MPV_FORMAT_DOUBLE)
+    bHasUnsavedChanges = true
+    ?{`Marked OUT at`,current_out_point,`s`}
+    -- AUTOMATICALLY EXTRACT SEGMENT WHEN OUT IS MARKED (if IN is set)
+    if current_in_point>=0 and current_out_point>current_in_point then
+        string tempfile = get_temp_file(sprintf(`segment_%03d.mp4`,{length(cut_segments)+1}))
+        string ffmpeg_cmd = sprintf(`ffmpeg -y -ss %f -to %f -i "%s" -c copy "%s"`,
+                {current_in_point,current_out_point,video_file,tempfile})
+        ?{`Extracting segment:`,ffmpeg_cmd}
+        integer exit_code = system_exec(ffmpeg_cmd)
+        if exit_code = 0 then
+            cut_segments &= {{current_in_point,current_out_point,temp_file}}
+            ?{`Segment added (total:`,length(cut_segments),`)`}
+            -- Reset points for next segment
+            current_in_point = 0
+            current_out_point = 0
+        else
+            ?{`Segment extraction failed`}
+        end if
+    end if
+end procedure
+
+gdx properties_dlg = NULL, info
+constant pfmt = `
+File Name: %s
+Directory: %s
+File date: %s
+Disk size: %s
+`
+-- lots more stuff to go in there...
+--sequence durations = {},
+--storage size, display size, aspect ratio, subtitles[/embedded]
+
+procedure show_properties(integer shift)
+    if shift then 
+        string msg = sprintf(pfmt,{recent_files[1],
+                                   recent_dirs[1],
+                                   sprintf(date_fmt,filedates[1]),
+                                   file_size_k(filesizes[1])})
+        if properties_dlg=NULL then
+            info = gLabel(msg,`EXPAND=BOTH`)
+            gdx ok = gButton(`OK`,gQuit),
+              hbox = gHbox({ok},`SPACE=LEFT`),
+              vbox = gVbox({info,hbox},`MARGIN=10`)
+            properties_dlg = gDialog(vbox,dlg,`Properties`)
+            gSetAttribute(properties_dlg,`DEFAULTENTER`,TG_CLOSE)
+        else
+            gSetAttribute(info,`TITLE`,msg)
+--          sequence nwh = sq_add(gGetTextExtent(msg),{30,75})
+--          gSetAttribute(properties_dlg,`SIZE`,nwh)
+        end if
+        gShow(properties_dlg,TG_CENTER,TG_CENTER)
+    end if
+end procedure
+
+function yes_action()
+--?`yes_action`
+    export_video(dlg)
+    if length(cut_segments) = 0 then  -- Only close if export succeeded or cancelled
+        gHide(dlg)
+    end if
+    return TG_CLOSE -- (close the message box)
+end function
+
+function no_action()
+--?`no_action`
+--May be needed:
+    bHasUnsavedChanges = false
+    gHide(dlg)
+    return TG_CLOSE -- (close the message box)
+end function
+
+function cancel_action()
+--?`cancel_action`
+    return TG_CLOSE -- (close the message box)
+end function
+
+function close_handler()
+--?`close`
+    if bHasUnsavedChanges then
+        gMessage(dlg,`Save changes before closing?`,`Confirm`,
+                     {NULL,yes_action,no_action,cancel_action})
+        return TG_IGNORE  -- Don't close yet
+    end if
+    mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+    ini_save(VIDCUTINI)
+    ini_delete_all(RECENTINI)
+    integer saved = 0
+    for i,d in durations do
+        if (favs[i] or saved<max_recent)
+        and atom(d) then -- (omit unloadables)
+            object subi = subtitles[i]
+            if find(subi,{0,"\0"}) then subi="0" end if
+            string setting = sprintf(`{%t,%s,%f,%s,%f}`,{favs[i],timestrs[i],d,subi,positions[i]})
+            ini_set(recent[i],setting,false)
+            saved += 1
+        end if
+    end for
+    ini_save(RECENTINI)
+    return TG_CONTINUE
+end function
+
+procedure quick_restart()
+    if close_handler()=TG_CONTINUE then
+        requires({-machine_bits(),"-restart"},0b1001)
+    end if
+end procedure
+
+function key_handler(gdx dlg, integer c, bool ctrl, shift, alt)
+--?{`key_handler`,dlg, c, gGetKeyName(c), {ctrl, shift, alt}}
+    set_seekbar_timer()
+    if c=VK_F1 then
+        gMessage(dlg,help_text,title)
+        return TG_IGNORE -- (don't open browser help!)
+    end if
+    c = upper(c)
+    atom d = get_duration()
+    if alt then
+        switch c do
+            case VK_CR: toggle_fullscreen()
+            case 'A': gMessage(dlg,about_txt,`About`)
+        end switch
+    elsif ctrl then
+        switch c do
+            case 'O': gOpenFile(dlg,update_recent_and_open_file,NULL,folder)
+            case 'Q': quick_restart()
+            case 'R': open_recent()
+            case 'S': save_as()
+--          case 'T': test()
+            case 'L': load_subtitles("")
+--          case 'D': download_subtitle_mpchc_style()
+            case VK_RIGHT: if d>0 then mpv_command_string(mpv_ctx,`frame-step`) end if
+            case VK_LEFT: if d>0 then mpv_command_string(mpv_ctx,`frame-back-step`) end if
+        end switch
+    elsif d>0 then
+        if mpv_ctx=0 then ?9/0 end if -- sanity check
+        if c>='1' and c<='6' then
+            set_aspect_ratio(c)
+        else
+            switch c do
+                case VK_SP: set_pause(TOGGLE)
+                case VK_UP, VK_DOWN: set_volume(0,c)
+                case VK_RIGHT: mpv_command_string(mpv_ctx,`seek +5 relative`)
+                case VK_LEFT: mpv_command_string(mpv_ctx,`seek -5 relative`)
+                case VK_HOME: mpv_command_string(mpv_ctx,`seek 0 absolute`)
+                case VK_END: mpv_command_string(mpv_ctx,sprintf(`seek %f absolute`,{d}))
+                case '.': set_pause(true)
+                case 'F': toggle_fullscreen()
+                case 'I': mark_in()
+                case 'O': mark_out()
+                case 'V': set_subtitle_visibility(-1) // toggle
+                case VK_F10: show_properties(shift)
+--DEV replace with Ctrl Z/Y:
+                case VK_DEL:  -- Clear all segments
+                    if length(cut_segments) > 0 then
+                        cut_segments = {}
+                        current_in_point = 0
+                        current_out_point = 0
+                        bHasUnsavedChanges = false
+                        ?{`All segments cleared`}
+                    end if
+                case VK_BS:  -- Undo last segment
+                    if length(cut_segments) > 0 then
+                        cut_segments = cut_segments[1..length(cut_segments)-1]
+                        bHasUnsavedChanges = true
+                        ?{`Last segment removed (remaining:`,length(cut_segments),`)`}
+                        -- Reset points if we had a partial segment
+                        if current_in_point > 0 then
+                            current_in_point = 0
+                            current_out_point = 0
+                        end if
+                    end if
+            end switch
+        end if
+    end if
+    switch c do
+        case 'E':
+            if not bFFmpeg then
+                gMessage(dlg,`ffmpeg not installed`,`Error`)
+            elsif not bFullscreen then
+                bEditingEnabled = not bEditingEnabled
+                gSetAttribute({sources,fragments},`VISIBLE`,bEditingEnabled)
+                gRedraw(dlg)
+            end if
+        case 'M': toggle_mute()
+        case VK_ESC: 
+            if bFullscreen then
+                toggle_fullscreen()
+                set_pause(true)
+            elsif not bHasUnsavedChanges then 
+                return TG_CLOSE
+            else
+                gHide(dlg) -- it works!!
+            end if
+    end switch
+    gRedraw(dlg)
+    return TG_DEFAULT
+end function
+
+function menu_handler(gdx menu, integer id)
+    if id='F' then
+        --
+        -- fix aspect ratio
+        -- (All I know is that I once fixed a badly squidged 960x720 video back to a watchable 1280x720 like this):
+        -- ffmpeg -i 720p.h264.mp4 -map 0 -c copy -bsf:v h264_metadata=sample_aspect_ratio=4/3 -aspect 16/9 720pffs.mp4
+        -- (by which I mean I no longer had to manually override the aspect ratio, it just immediately played properly)
+
+--      integer exit_code = system_exec(cmd) ..
+--      obvs. check file was created, offer to play it, and later offer to overwrite original..
+
+        gMenuSetAttribute(menus,'3',`CHECKED`,true) -- re-select d3fault
+        gMenuSetAttribute(menus,'F',`ACTIVE`,false) -- disable self
+
+    else
+        integer {c,ctrl,shift,alt} = gMenuCcsa(id)
+        {} = key_handler(dlg,c,ctrl,shift,alt) 
+    end if
+    if id==M_ALT+VK_F4 then
+        gHide(dlg) -- (not just the right-click popup menu)
+        return TG_CLOSE
+    end if
+    return TG_DEFAULT
+end function
+
+atom ldt = -1 -- left down time, for verifying a mouse button release is "ours".
+
+procedure dlg_click_handler(gdx /*id*/, sequence status)
+    set_seekbar_timer()
+    if status[1..2]=`RS` then -- right single click
+        gPopupMenu(dlg,popupmenu)
+    elsif status[1..2]=`LS` then -- left down
+        ldt = time()
+    elsif status[1..2]=`LR`  -- left release, but first let's be certain it really is
+      and ldt>time()-0.5     -- ours, not residual from (eg) the recent_files pop-up
+      and get_duration()>0 then -- and only when there's a successfully loaded video
+        set_pause(TOGGLE)
+    end if
+end procedure
+
+procedure mpv_init(atom handle)
+--?"mpv_init"
+    mpv_ctx = mpv_create()
+    mpv_set_option_string(mpv_ctx,`wid`,sprintf(`%d`,handle))
+    mpv_set_option_string(mpv_ctx,`vo`,`gpu`)  -- or `direct3d` on Windows
+    mpv_set_option_string(mpv_ctx,`keep-open`,`yes`)
+    mpv_set_option_string(mpv_ctx,`pause`,`yes`)    -- Start paused
+    mpv_set_option_string(mpv_ctx,`mute`,iff(bMuted?`yes`:`no`))
+    mpv_set_option_string(mpv_ctx,`osd-bar`,`no`)
+    mpv_initialize(mpv_ctx)
+
+    sequence cl = command_line()
+    if length(cl)>2 then
+        cl = cl[3]
+        if cl="-restart" then cl = recent[1] end if
+        if get_file_type(cl)=FILETYPE_FILE then
+            update_recent_and_open_file(cl)
+            set_volume(0,0)
+--DEVgood place for -restart? requires({-machine_bits(),"-restart"},true)
+--DEV dies without this... unless we kill the MPV_INIT below... [FIXED]
+--else
+--filename = recent[1]
+
+        end if
+--      cl = {} -- (don't re-attempt for sbview)
+    end if
+end procedure
+
+atom sbview_handle = NULL -- DEV temp, for debugging
+
+procedure mpv_initp(atom handle)
+?{"mpv_initp",handle}
+sbview_handle = handle
+    sb_ctx = mpv_create()
+    mpv_set_option_string(sb_ctx,`wid`,sprintf(`%d`,handle))
+    mpv_set_option_string(sb_ctx,`vo`,`gpu`)  -- or `direct3d` on Windows
+    mpv_set_option_string(sb_ctx,`keep-open`,`yes`)
+--  mpv_set_option_string(sb_ctx,`pause`,`yes`) -- Start paused
+    mpv_set_option_string(sb_ctx,`pause`,`no`) -- Start paused .. loadfile
+    mpv_set_option_string(sb_ctx,`mute`,`yes`)
+    mpv_set_option_string(sb_ctx,`osd-bar`,`no`)
+    mpv_initialize(sb_ctx)
+end procedure
+
+function reverse_xpm(string xpm)
+    sequence res = split(xpm,'\n')
+    res[4..$] = apply(res[4..$],reverse)
+    res = join(res,'\n')
+    return res
+end function
+
+constant stop_xpm = `
+15 15 2 1
+. c None
+# c #000000
+...............
+...............
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...#########...
+...............
+...............`,
+stop = gImage_from_XPM(stop_xpm),
+rec_xpm = `
+7 11 2 1
+. c None
+# c #000000
+##.....
+#......
+#......
+#...#..
+#....#.
+#######
+#....#.
+#...#..
+#......
+#......
+##.....`,
+rec = gImage_from_XPM(rec_xpm),
+bck_xpm = `
+5 7 2 1
+. c None
+# c #000000
+...#.
+..#..
+.#...
+#....
+.#...
+..#..
+...#.`,
+bck = gImage_from_XPM(bck_xpm),
+play_xpm = `
+15 15 2 1
+. c None
+# c #000000
+....#..........
+....##.........
+....###........
+....####.......
+....#####......
+....######.....
+....#######....
+....########...
+....#######....
+....######.....
+....#####......
+....####.......
+....###........
+....##.........
+....#..........`,
+play = gImage_from_XPM(play_xpm),
+pause_xpm = `
+15 15 2 1
+. c None
+# c #000000
+...............
+...............
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+....###..###...
+...............
+...............`,
+pause = gImage_from_XPM(pause_xpm),
+fwd = gImage_from_XPM(reverse_xpm(bck_xpm)),
+cut = gImage_from_XPM(reverse_xpm(rec_xpm)),
+xtr_xpm = `
+10 11 2 1
+. c None
+# c #000000
+.#####.#..
+.#......#.
+.#..######
+.#..#...#.
+.#..#..#..
+.#..#....#
+.#..#....#
+.#..###..#
+.#.......#
+.#.......#
+.#########`,
+xtract = gImage_from_XPM(xtr_xpm),
+--xtractG = gImage_from_XPM(substitute(xtr_xpm,`000000`,`008000`)),
+--xtractB = gImage_from_XPM(substitute(xtr_xpm,`000000`,`0000FF`)),
+-- = ...
+mute_xpm = `
+18 18 15 1
+. c None
+# c #000000
+V c #505050
+C c #686868
+Q c #707070
+T c #787878
+R c #888888
+O c #949494
+W c #a0a0a0
+A c #a8a8a8
+Y c #b8b8b8
+J c #c0c0c0
+K c #c8c8c8
+U c #d8d8d8
+n c #e8e8e8
+.......U..........
+......K#..........
+.....Y##...VTY....
+....O###...YT#Vn..
+...V####......C#n.
+CCC#####..WA...CV.
+########..YVV...#J
+########KVn.QR..QR
+########.YT.UV..WV
+########.YT.UV..WV
+########KVn.CR..QR
+########..YVV...#J
+CCC#####..AY...CC.
+...V####......V#n.
+....O###...YQ#V...
+.....Y##...VTK....
+......K#..........
+.......U..........`,
+mute = gImage_from_XPM(mute_xpm),
+muted_xpm = `
+18 18 8 1
+. c None
+# c #000000
+V c #505050
+C c #686868
+O c #949494
+Y c #b8b8b8
+K c #c8c8c8
+U c #d8d8d8
+..................
+.......U..........
+......K#..........
+.....Y##..........
+....O###..........
+...V####..........
+CCC#####..#.....#.
+########...#...#..
+########....#.#...
+########.....#....
+########....#.#...
+########...#...#..
+CCC#####..#.....#.
+...V####..........
+....O###..........
+.....Y##..........
+......K#..........
+.......U..........`,
+muted = gImage_from_XPM(muted_xpm)
+
+integer ctrl_hover = 0
+
+enum ICON, POSITION, WIDTH, MARGIN, H_OFFSET, VISIBLE, KEY, TIP
+constant REC=2, PLAY=4, CUT=6, XTRACT=7, MUTE=8
+sequence ctrl_info = {{stop,5,14,0,2,true,'.',`stop`},
+                      {rec,40,5,0,4,true,'I',`start segment`},
+                      {bck,50,4,2,6,true,M_CTRL+VK_LEFT,`back frame`},
+                      {play,58,14,0,2,true,' ',`play/pause`},
+                      {fwd,76,4,2,6,true,M_CTRL+VK_RIGHT,`step frame`},
+                      {cut,85,5,0,4,true,'O',`end segment`},
+                      {xtract,115,10,5,4,true,'X',`extract`},
+                      {mute,622/*w-25*/,20,5,0,true,'M',`mute`}}
+
+procedure draw_ctrls(gdx ctrls, integer w,h)
+    --
+    -- You could, o/c, implement ctrls as a bunch of buttons, but it is
+    -- just as easy to draw the icons (which are the hard part anyway),
+    -- and hover effects & clicking has turned out quite a bit easier.
+    --
+    ctrl_info[REC][VISIBLE] = bEditingEnabled
+    ctrl_info[CUT][VISIBLE] = bEditingEnabled
+    ctrl_info[XTRACT][VISIBLE] = bEditingEnabled
+--  ctrl_info[XTRACT][ICON] = iff(bEditingEnabled... xtractG,xtractB,xtract)
+    ctrl_info[MUTE][POSITION] = w-25
+    if ctrl_hover and ctrl_info[ctrl_hover][VISIBLE] then
+        integer p = ctrl_info[ctrl_hover][POSITION],
+                q = ctrl_info[ctrl_hover][WIDTH],
+                m = ctrl_info[ctrl_hover][MARGIN]
+        gDrawRect(ctrls,p-m,0,p+q+m,h-4,true,colour:=#caf0f8) -- (faint blue)
+    end if
+    atom d = get_duration()
+    bool bPaused = iff(d>0?mpv_get_property(mpv_ctx,`pause`,MPV_FORMAT_FLAG):true)
+    ctrl_info[PLAY][ICON] = iff(bPaused?play:pause)
+    ctrl_info[MUTE][ICON] = iff(bMuted?muted:mute)
+    for i,ci in ctrl_info do
+        if ci[VISIBLE] then
+            gDrawImage(ci[ICON],ctrls,ci[POSITION],ci[H_OFFSET])
+        end if  
+    end for
+    if d>0 then 
+        if not bLoaded then
+            durations[1] = d
+            apply_loaded(true)
+            set_aspect_ratio('3') -- D3fault/no
+        end if
+        if string(restore_subtitles) and length(restore_subtitles)>1 then
+            load_subtitles(restore_subtitles)
+            restore_subtitles = 0
+        end if
+        if sub_id=-2 then
+            sub_id = -1
+            integer tlc = mpv_get_property(mpv_ctx,`track-list/count`,MPV_FORMAT_INT)
+--?{`track-list/count`,tlc}
+            for i=0 to tlc-1 do
+                string prop = sprintf(`track-list/%d/type`,i),
+                         id = sprintf(`track-list/%d/id`,i),
+                        tlt = mpv_get_property(mpv_ctx,prop)
+--?{prop,tlt}
+                if tlt=`sub` then
+--DEV maybe:
+--              if tlt=`sub` and sub_id=-1 then
+--                  sub_id = i
+--X                 string id = sprintf(`track-list/%d/id`,i)
+--,                      lang = sprintf(`track-list/%d/lang`,i)
+--?{i,mpv_get_property(mpv_ctx,lang)}
+--track-list/N/lang
+                    sub_id = mpv_get_property(mpv_ctx,id,MPV_FORMAT_INT)
+--track-list/N/id
+--if i>2 then
+                    exit -- assme en[g] will be first...
+--                  if aud_id!=-1 then exit end if
+--end if
+--              elsif tlt=`audio` and aud_id=-1 then
+--X                 string id = sprintf(`track-list/%d/id`,i)
+--                  aud_id = mpv_get_property(mpv_ctx,id,MPV_FORMAT_INT)
+--                  if sub_id!=-1 then exit end if
+                end if
+            end for
+--/*
+{"track-list/count",4}
+{"track-list/0/type","video"}
+{"track-list/1/type","audio"}
+{"track-list/2/type","sub"}
+{"track-list/3/type","video"}
+-- and after loading and getting a count of 5:
+{"track-list/4/type","sub"}
+--*/
+            gMenuSetAttribute(menus,'V',`ACTIVE`,sub_id!=-1)
+            set_subtitle_visibility(sub_id>=0)
+--          gMenuSetAttribute(menus,'V',`CHECKED`,sub_id>=0)
+        end if
+        if seek_to then
+            mpv_command_string(mpv_ctx,sprintf(`seek %f absolute`,seek_to))
+            seek_to = 0
+        end if
+        atom pos = mpv_get_property(mpv_ctx,`playback-time`,MPV_FORMAT_DOUBLE)
+        string p = elapsed_short(pos,fmt:=`:`), e = elapsed_short(d,fmt:=`:`)
+        gDrawText(ctrls,w-30,h/2-2,`%s / %s`,{p,e},TG_W)
+    end if
+end procedure
+
+function get_ctrl_index(integer x)
+    -- convert an x co-ordinate into a control index, or 0
+    for i,ci in ctrl_info do
+        if ci[VISIBLE] then
+            integer p = ci[POSITION],
+                    w = ci[WIDTH],
+                    m = ci[MARGIN]
+            if x>=p-m and x<=p+w+m then return i end if
+        end if
+    end for
+    return 0
+end function
+
+procedure ctrl_click_handler(gdx ctrls, sequence status, integer x, y)
+    set_seekbar_timer()
+    if status[1..2]=`LS` then -- left single click
+        integer cdx = get_ctrl_index(x)
+        if cdx then
+            {} = menu_handler(NULL,ctrl_info[cdx][KEY])
+        end if
+    end if
+end procedure
+
+procedure ctrl_mousemove(gdx ctrls, integer x,/*y*/)
+    set_seekbar_timer()
+    ctrl_hover = get_ctrl_index(x)
+    gSetAttribute(ctrls,`TIP`,iff(ctrl_hover?ctrl_info[ctrl_hover][TIP]:NULL))
+    gRedraw(ctrls)
+end procedure
+
+procedure ctrl_mouseleave(gdx ctrls)
+    set_seekbar_timer()
+    ctrl_hover = 0
+    gRedraw(ctrls)
+end procedure
+
+integer seekbar_hover = -1
+string seekbar_tip
+
+--TODO: hover effects (similar to ctrls)
+procedure draw_seekbar(gdx seekbar, integer tw,h)
+    gDrawRect(seekbar,0,0,tw-1,h-1,colour:=TG_BLACK)
+    
+    integer w = round(tw*timeval)-2
+    if w>=1 then -- Draw playback position:
+        gDrawRect(seekbar,1,1,min(w,tw-3),h-2,true,colour:=TG_GREEN)
+    end if
+    if seekbar_hover!=-1 then
+        gDrawText(seekbar,seekbar_hover,h/2,seekbar_tip,{},TG_C)
+    end if
+    atom duration = get_duration()
+    if duration>0 then
+        -- Draw marked segments (teal overlay)
+        if length(cut_segments) > 0 then
+            integer seg_start_x, seg_end_x
+--          , seg_width
+            for i, segment in cut_segments do
+                seg_start_x = round(tw * segment[1] / duration) + 1 -- +1 for 1-based offset
+                seg_end_x   = round(tw * segment[2] / duration) + 1
+--              seg_width   = max(1,seg_end_x - seg_start_x)
+                if seg_start_x>=1 and seg_end_x<=tw then
+--                  gDrawRect(seekbar,seg_start_x,1,seg_width,h-2,true,colour:=TG_TEAL)
+                    gDrawRect(seekbar,seg_start_x,1,seg_end_x,h-2,true,colour:=TG_TEAL)
+                end if
+            end for
+        end if
+    
+        -- Draw current in/out points (yellow lines)
+        if current_in_point > 0 then
+            integer in_x = round(tw * current_in_point / duration) + 1
+            if in_x >= 1 and in_x <= tw then
+                gDrawLine(seekbar,in_x,1,in_x,h-2,colour:=TG_YELLOW)
+            end if
+        end if
+        if current_out_point > 0 then
+            integer out_x = round(tw * current_out_point / duration) + 1
+            if out_x>=1 and out_x<=tw then
+                gDrawLine(seekbar,out_x,1,out_x,h-2,colour:=TG_YELLOW)
+            end if
+        end if
+    end if
+
+end procedure
+
+procedure update_seekbar(gdx seekbar_timer)
+    atom duration = get_duration()
+    if duration>0 then
+        atom pt = mpv_get_property(mpv_ctx,`playback-time`,MPV_FORMAT_DOUBLE)
+        timeval = pt/duration
+        positions[1] = iff(timeval>0.999?0:pt)
+        gRedraw(seekbar)
+        if timeval>0.999 then
+            bool pause = mpv_get_property(mpv_ctx,`pause`,MPV_FORMAT_FLAG)
+            -- (also pops bFullScreen when it should:)
+            if pause then set_pause(true) end if
+--          set_pause(FETCH) 
+        end if
+    elsif time()>toliept then
+--?"seekbar_timer stop"
+        gSetAttribute(seekbar_timer,`RUN`,false)
+    end if
+end procedure
+
+procedure jump_to(integer x)
+    atom d = get_duration()
+    if d>0 then
+        integer w = gGetAttribute(seekbar,`SIZE`)[1]
+        timeval = max(min(x/w,1),0)
+--      gSetAttribute(seekbar,`VALUE`,>)
+--      seekbar_hover = x
+        gRedraw(seekbar)
+        mpv_command_string(mpv_ctx,sprintf(`seek %f absolute`,timeval*d))
+    end if
+end procedure
+
+bool bDragg = false,
+     bOnThumb = false
+
+function seekbar_click(gdx /*seekbar*/, sequence status, integer x, /*y*/) 
+    set_seekbar_timer()
+    if status[1]='L' then
+        integer s2 = status[2]
+        if s2='S' then
+            if bOnThumb then bDragg = true; return `CAPTURE` end if
+        elsif s2='R' then
+            if bDragg then  bDragg = false; return `RELEASE` end if
+            jump_to(x)
+        end if
+    end if
+    return TG_IGNORE
+end function
+
+--/*
+from https://www.mux.com/articles/extract-thumbnails-from-a-video-with-ffmpeg#extract-a-single-thumbnail-at-a-specific-timestamp
+
+Extract a single thumbnail at a specific timestamp:
+ffmpeg -i input_video.mp4 -vf "select='gte(t,9)',scale=320:-1" -frames:v 1 thumbnail.png
+
+Extract 1 thumbnail for every 10th I-frame or keyframe:
+ffmpeg -i input_video.mp4 -vf "select='eq(pict_type,I)',select='not(mod(n,10))',scale=320:-1" -vsync vfr -q:v 2 thumb%04d.png
+
+for i in 20 to 80 step 20
+    ffmpeg -noaccurate_seek -ss {i} -i 'https://www.sample-videos.com/video/mp4/720/big_buck_bunny_720p_30mb.mp4' -vframes 1 out-{i}.png
+    
+    
+ffmpeg -i ./Big_Buck_Bunny_360_10s_30MB.mp4 -i ./watermark-ex.png -filter_complex "drawtext=fontfile=/Users/<username>/Library/Fonts/OpenSans-Bold.ttf:text='$UPPERCASE_TITLE':fontcolor=white:fontsize=28:x=(w-tw)/2:y=(h-th)/2,drawtext=fontfile=/Users/<username>/Library/Fonts/OpenSans-SemiBold.ttf:text=\'$DURATION\':x=(w-tw-8):y=(h-th-8):boxborderw=8:fontsize=20:fontcolor=white:box=1:boxcolor=black@0.625,overlay=x=8/2:y=(main_h-overlay_h-8)" -ss 00:00:09.000 -vframes 1 thumbnail.jpg 
+--*/
+
+--integer overlay_id = -1
+
+function getint(integer fn, size, skip=0)
+    atom res = 0, m = 1
+    for i=1 to skip do {} = getc(fn) end for
+    for i=1 to size do
+        res += getc(fn)*m
+        m*=#100
+    end for
+    return res
+end function
+
+constant integer tg_popup = gGetGlobal(`tg_popup`) -- (not documented, see theGUI.e instead of phix.chm)
+
+--/*
+ao-volume / audio-device: If the OS drops the audio endpoint, these properties will change unexpectedly or return null string values.
+ao-reload mpv_command_string(ctx, "ao-reload");Tears down and completely rebuilds the audio output thread. This is the cleanest programmatic fix.
+The easiest workaround is the select the audio track again manually (by default the # key). 
+audio-reload
+
+lua:
+-- Function to completely rebuild the audio system
+function rebuild_audio()
+    print("Rebuilding audio pipeline...")
+    
+    -- Save the current volume and audio track ID
+    local current_vol = mp.get_property("volume")
+    local current_aid = mp.get_property("aid")
+    
+    -- Force audio pipeline teardown by disabling the audio track
+    mp.set_property("aid", "no")
+    
+    -- Cycle the Audio Output driver to force libmpv to free the device context
+    -- Setting it to null then back to default forces a complete rebuild
+    mp.set_property("ao", "null")
+    mp.set_property("ao", "") 
+    
+    -- Restore the audio track and volume to re-initialise WASAPI
+    mp.set_property("aid", current_aid)
+    mp.set_property("volume", current_vol)
+    
+    print("Audio pipeline rebuilt successfully!")
+end
+
+-- Function to check audio status on unpause
+function check_audio_on_unpause(prop, paused)
+    -- We only care when paused becomes false (meaning it unpaused)
+    if paused == false then
+        -- Check if mpv thinks an audio stream should be playing
+        local aid = mp.get_property("aid")
+        
+        if aid ~= "no" and aid ~= nil then
+            -- Query the actual codec name currently active in the audio hardware
+            local codec = mp.get_property("audio-codec-name")
+            local ao_active = mp.get_property("current-ao")
+            
+            print("Unpaused. Active AO: " .. tostring(ao_active) .. " | Codec: " .. tostring(codec))
+            
+            -- If an audio track is selected but the hardware output or codec has crashed (returns empty)
+            if not codec or codec == "" or not ao_active or ao_active == "" then
+                print("Audio crash detected!")
+                rebuild_audio()
+            end
+        end
+    end
+end
+
+-- Watch the "pause" property for changes
+mp.observe_property("pause", "bool", check_audio_on_unpause)
+
+C/C++:
+// 1. Get current track so you can restore it
+char* aid = mpv_get_property_string(mpv_ctx, "aid");
+
+// 2. Tear down audio pipeline
+mpv_command_string(mpv_ctx, "set aid no");
+mpv_command_string(mpv_ctx, "set ao null");
+
+// 3. Rebuild audio pipeline (blank string resets 'ao' to default driver)
+mpv_command_string(mpv_ctx, "set ao \"\"");
+std::string restore_aid_cmd = "set aid " + std::string(aid);
+mpv_command_string(mpv_ctx, restore_aid_cmd.c_str());
+
+// 4. Free memory
+mpv_free(aid);
+
+==> need to rationalise play/pause first
+
+--*/
+
+procedure seekbar_mousemove(gdx seekbar, integer x,y, bool left, middle, right)
+    set_seekbar_timer()
+    atom d = get_duration()
+    if d then
+        integer {w,h} = gGetAttribute(seekbar,`SIZE`)
+        atom tv = max(min(x/w,1),0)
+        if not left then
+            bDragg = false
+            atom thumbx = w*timeval
+            bOnThumb = x>=thumbx-5 and x<=thumbx+5
+            gSetAttribute(seekbar,`CURSOR`,iff(bOnThumb?`WE_RESIZE`:NULL))
+        elsif bDragg then
+            jump_to(x)
+        end if
+-- Nah, I'm gonna do it!!
+        -- Aside: MPC-HC has a natty (optional) litte feature whereby hovering on 
+        -- the seekbar (aka seekbar) displays a thumbnail tooltip-like thing, but
+        -- you may as well just drag it directly and get full-screen image, imnsho.
+        -- (Admittedly that idea is critical for YouTube/online playing, whereby
+        --  dragging would buffer like crazy, but on a desktop it's near-instant.)
+        atom s = tv*d
+        seekbar_hover = x
+        seekbar_tip = elapsed_short(s,0,`:`)
+        gRedraw(seekbar)        
+--/!*
+--      -- aside: when bEditingEnabled it makes much more sense to seek(video) aka jump_to(x).
+        bool bAbsoluteThumbHeight = ends("px",seek_thumb_height)
+        integer sth
+        if bAbsoluteThumbHeight then
+            sth = to_number(seek_thumb_height[1..-3]) -- eg 25px
+        else
+            assert(seek_thumb_height[$]='%')
+            sth = to_number(seek_thumb_height[1..-2]) -- eg 25%
+        end if
+        if sth and not bEditingEnabled then
+            -- logically move the otherwise invisible spacer so its bl is where we
+            -- want the tl of sbview, the [paused and shrunk] preview video popup.
+            integer {vw,vh} = gGetAttribute(video,`SIZE`)
+            if bAbsoluteThumbHeight then
+                {w,h} = {round(sth*vw/vh),sth}
+            else
+                {w,h} = {round((sth/100)*vw),round((sth/100)*vh)}
+            end if
+            {x,y} = {round(tv*vw-w/2),vh-h}
+--          gSetAttribute(spacer,`CBXY`,{x,y-10})
+--          gSetAttribute(spacer,`CBXY`,{x,y})
+            gSetAttribute(spacer,`CBXY`,{x,y+13})
+            gSetAttribute(sbview,`SIZE`,{w,h})
+--DEV I think this needs to do a SetWindowPos, and with HWND_TOP[MOST] perhaps...
+--AH: is it only working because/when it's going through "the only video on a dialog"??
+            tg_popup(spacer,sbview)
+--this probably wants to be in yet another timer...
+--?{"sb_ctx",sb_ctx}
+            if bLoadSeekbar and sb_ctx!=NULL then
+--          if bLoadSeekbar then
+                bLoadSeekbar = false
+                mpv_command_string(sb_ctx,sprintf(`loadfile "%s"`,{video_file}))
+                mpv_command_string(sb_ctx,`set pause no`) -- Start decoding to prime VO
+--              mpv_command_string(sb_ctx,`set pause yes`)
+            end if
+
+--/*
+    integer {screen_width,screen_height} = gGetGlobalIntInt(`SCREENSIZE`)
+--DEV avoid this (hard slam instead)
+    if x+w>screen_width then x = x+ow-w end if  -- flip horizontally
+    if y+h>screen_height then y = y-oh-h end if -- flip vertically
+
+    if ctrl_hdc[ctrl]=NULL then ctrl_hdc[ctrl]={NULL,NULL,dlg,w,h} end if
+    ctrl_flags[ctrl] = or_bits(ctrl_flags[ctrl],CF_POPUP)
+    ctrl_xtra[dlg][DX_ACTIVEPOP] = ctrl
+    atom hWnd = ctrl_hdc[ctrl][1], hPopup, hDraw,
+
+--*/
+        end if
+--DEV killme:
+--/* better:
+        if false then
+-- or maybe a much better idea is to create a headerless child window that we show/hide/reposition here...(liknked to the same key_handler, which immeditaely hides it)
+-- (actually, it wants to be a proper gPopup simialr to gPopupMenu() and  gDropdown/gDatePick for the same alt-tab reasons/handling)
+-- gDropDown/FILTER Default true: keyboard input automatically opens a filtered dropdown list (using the same auto-cyclic filter developed here)...?
+--screenshot-raw [<flags> [<format>]]
+--Return a screenshot in memory. This can be used only through the client API or from a script using mp.command_native. The MPV_FORMAT_NODE_MAP returned by this command has the w, h, stride fields set to obvious contents.
+--
+--The format field is set to the format of the screenshot image data. This can be controlled by the format argument. The format can be one of the following:
+--
+--bgr0 (d efault)
+--This format is organized as B8G8R8X8 (where B is the LSB). The contents of the padding X are undefined.
+--bgra
+--This format is organized as B8G8R8A8 (where B is the LSB).
+--rgba
+--This format is organized as R8G8B8A8 (where R is the LSB).
+--rgba64
+--This format is organized as R16G16B16A16 (where R is the LSB). Each component occupies 2 bytes per pixel. When this format is used, the image data will be high bit depth, and --screenshot-high-bit-depth is ignored.
+--The data field is of type MPV_FORMAT_BYTE_ARRAY with the actual image data. The image is freed as soon as the result mpv_node is freed. As usual with client API semantics, you are not allowed to write to the image data.
+--
+--The stride is the number of bytes from a pixel at (x0, y0) to the pixel at (x0, y0 + 1). This can be larger than w * bpp if the image was cropped, or if there is padding. This number can be negative as well. You access a pixel with byte_index = y * stride + x * bpp. Here, bpp is the number of bytes per pixel, which is 8 for rgba64 format and 4 for other formats.
+--
+--The flags argument is like the first argument to screenshot and supports subtitles, video, window.
+--
+--MPV_FORMAT_NODE_MAP
+--  "w"         MPV_FORMAT_INT64
+--  "h"         MPV_FORMAT_INT64
+--  "stride"    MPV_FORMAT_INT64
+--  "format"    MPV_FORMAT_STRING
+--  "data"      MPV_FORMAT_BYTE_ARRAY
+--*/
+--/*        
+            string ss = sprintf(`%.3f`,remainder(s,60))
+            -- assumes no video exceeds 60 hours...
+            while s>60 do
+                s = floor(s/60)
+                ss = sprintf(`%02d:%s`,{rmdr(s,60),ss})
+            end while
+--or:
+--          string ss2 = seekbar_tip & sprintf(`%.3f`,s-floor(s))[2..$]
+            {w,h} = gGetAttribute(video,`SIZE`) -- (yup, discarding seekbar size)
+--          integer ih = round(h*seek_thumb_height/100)
+            integer ih = round(h*25/100)
+            if get_file_type(seekbar_img)=FILETYPE_FILE then
+--              assert(delete_file(seekbar_img))
+            end if
+            string cmd = join({sprintf(`ffmpeg -i "%s"`,{video_file}),
+                               sprintf(`-ss %s`,{ss}),
+                               sprintf(`-vf "scale=-1:%d"`,ih),
+                               sprintf(`-frames:v 1 "%s"`,{seekbar_img})}),
+--ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E05.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 00:00:14.435 -vf "scale=-1:24" -frames:v 1 out.bmp
+--                 res = read_pipe(cmd)
+                   res = "read_pipe(cmd)"
+?cmd
+?res
+--/!*
+
+            integer fn = open(seekbar_img,"rb"),
+                    bm = getint(fn,2),
+                    offset = getint(fn,4,8),
+                    biSize = getint(fn,4),
+                    img_width = getint(fn,4),
+                    img_height = getint(fn,4),
+                    biBitCount = getint(fn,2,2),
+                    stride = img_width*4
+            close(fn)
+            assert(bm=#4D42) -- "BM"
+            assert(biSize=40) -- == get_struct_size(idBITMAPINFOHEADER)
+            assert(biBitCount=32) -- (mpv won't cope with anything else)
+?{offset,biSize,img_width,img_height,biBitCount,stride}
+--/*
+`ffmpeg -i "C:/Users/petel/Downloads/Dexter.S08E09.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 15:53.089 -vf "scale=-1:135" -frames:v 1 "C:/Users/petel/gVidCut/seekbar_img.bmp"`
+ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E09.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 00:00:14.435 -vf "scale=-1:24" -frames:v 1 out.bmp
+
+ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers
+  built with gcc 16.1.0 (Rev5, Built by MSYS2 project)
+  configuration: --prefix=/ucrt64 --target-os=mingw32 --arch=x86_64 --cc=gcc --cxx=g++ --disable-debug --disable-strippi
+ng --disable-doc --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-frei0r --enable-gmp --enable-gnutls --enable-
+gpl --enable-iconv --enable-libaom --enable-libass --enable-libbluray --enable-libcaca --enable-libdav1d --enable-libfon
+tconfig --enable-libfreetype --enable-libfribidi --enable-libgme --enable-libgsm --enable-libharfbuzz --enable-libjxl --
+enable-libmodplug --enable-libmp3lame --enable-libopencore_amrnb --enable-libopencore_amrwb --enable-libopenjpeg --enabl
+e-libopus --enable-librtmp --enable-libssh --enable-libsoxr --enable-libspeex --enable-libsrt --enable-libtheora --enabl
+e-libvidstab --enable-libvorbis --enable-libx264 --enable-libx265 --enable-libxvid --enable-libvpx --enable-libwebp --en
+able-libxml2 --enable-libzimg --enable-libzvbi --enable-openal --enable-pic --enable-runtime-cpudetect --enable-swresamp
+le --enable-version3 --enable-vulkan --enable-zlib --enable-libvpl --enable-liblc3 --enable-libplacebo --enable-librav1e
+ --enable-librsvg --enable-libsvtav1 --enable-libshaderc --enable-whisper --enable-amf --enable-nvenc --logfile=config.l
+og --enable-shared
+  libavutil      60. 26.102 / 60. 26.102
+  libavcodec     62. 28.102 / 62. 28.102
+  libavformat    62. 12.102 / 62. 12.102
+  libavdevice    62.  3.102 / 62.  3.102
+  libavfilter    11. 14.102 / 11. 14.102
+  libswscale      9.  5.102 /  9.  5.102
+  libswresample   6.  3.102 /  6.  3.102
+
+seekbar_img
+floor((bpp*w+31)/32)*4
+Offset  Hex bytes (as they appear in the dump)  Interpretation
+0-1     42 4D   bfType = "BM" – OK
+2-5     B6 2F 41 00     bfSize = 0x00412FB6 = 4 272 054 – matches the file size you reported
+6-7     00 00   bfReserved1 = 0 – OK
+8-9     00 00   bfReserved2 = 0 – OK
+A-D     36 00 00 00     bfOffBits = 0x00000036 = 54 – correct (file-header + info-header)
+E-F     28 00   biSize = 0x00000028 = 40 – but note: only two bytes were written
+10-13   00 00 90 05     biWidth (as stored) = 0x00009005? → actually the value we see is the high half of the DWORD
+14-17   00 00 EE 02     biHeight (as stored) = 0x0000EE02? → again the high half
+Bitmap File
+===========
+00000000,bfType,x2,BM,signature (should be "BM")
+00000002,bfSize,4,4272054,
+00000006,bfReserved1,2,0,(must be 0)
+00000008,bfReserved2,2,0,(must be 0)
+0000000A,bfOffBits,4,54,
+0000000E,biSize,4,40,BITMAPINFOHEADER(40)
+00000012,biWidth,4,1424,
+00000016,biHeight,4,750,
+0000001A,biPlanes,2,1,(must be 1)
+0000001C,biBitCount,2,32,
+0000001E,biCompression,4,0,(should be 0)
+00000022,biSizeImage,4,4272000,
+00000026,biXPelsPerMeter,4,0,(should be 0)
+0000002A,biYPelsPerMeter,4,0,(should be 0)
+0000002E,biClrUsed,4,0,(should be 0)
+00000032,biClrImportant,4,0,(should be 0)
+00000036,-,-,F0F0 F000F0F0 F000F0F0 ,..........
+--*/
+--          if overlay_id>=0 then
+--              mpv_command_string(mpv_ctx,sprintf(`overlay-remove %d`,{overlay_id}))
+--              overlay_id = -1
+--          end if
+
+--ffprobe
+--X     elapsed_short
+-- ADD OVERLAY AT CLICK POSITION
+--seekbar_img
+-->>
+--Capturing Your Desktop / Screen Recording (from https://trac.ffmpeg.org/wiki/Capture/Desktop )
+--ffmpeg -filter_complex gfxcapture=window_title='(?i)My Application':max_framerate=60,hwdownload,format=bgra,format=yuv420p -c:v libx264 -crf 15 capture.mp4
+--
+--Output a single frame from the video into an image file:
+--ffmpeg -i input.flv -ss 00:00:14.435 -frames:v 1 out.png
+--ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E05.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 00:00:14.435 -frames:v 1 out.bmp
+--ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E05.540p.x265.AAC.[9jaRocks.Com].mkv" -vf "select='gte(t,9)',scale=320:-1" -frames:v 1 out.bmp
+--ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E05.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 00:00:14.435 -vf "scale=320:-1" -frames:v 1 out.bmp
+--ffmpeg -i "C:\Users\petel\Downloads\Dexter.S08E05.540p.x265.AAC.[9jaRocks.Com].mkv" -ss 00:00:14.435 -vf "scale=-1:24" -frames:v 1 out.bmp
+
+
+-- ADD OVERLAY AT CLICK POSITION
+--      if overlay_id >= 0 then  -- Remove existing overlay first
+--          mpv_command_string(mpv_ctx, sprintf("overlay-remove %d", {overlay_id}))
+--      end if
+--      mpv_command_string(mpv_ctx, sprintf("overlay-add 0 \"%s\" %d %d", {overlay_path, cx, cy}))
+
+--      string ffmpeg_cmd = sprintf(
+--          `ffmpeg -y -f concat -safe 0 -i "%s" -c copy "%s"`,
+--          {list_file,output_file}
+--      )
+--      
+--      ?{`FFMPEG CMD:`,ffmpeg_cmd}
+--      atom exit_code = system_exec(ffmpeg_cmd)
+--
+--      mpv_command_string(mpv_ctx, sprintf(`overlay-add 0 "%s" %d %d`, {overlay_path, cx, cy}))
+--mpv_command_string(mpv_ctx, sprintf(`overlay-add 0 "%s" %d %d`, {`out.png`, 0, 0}))
+--string path = mpv_normalize_path(get_proper_path(`out.png`))
+--string path = mpv_normalize_path(get_proper_path(`out.bmp`))
+--string path = mpv_normalize_path(get_proper_path(`out.raw`))
+--integer fn = open(path,`wb`)
+--for i=1 to 43*24 do puts(fn,x"FF0000FF") end for
+--for i=1 to 43*24 do puts(fn,x"FF00FF00") end for
+--close(fn)
+--mpv_command_string(mpv_ctx, sprintf(`overlay-add 0 "%s" %d %d`, {path, 0, 0}))
+--      ffmpeg
+--      overlay_id = 0
+-->>>
+--      integer stride = 
+--      inteer x = 
+        x = round((w-img_width)*tv)
+        y = h-img_height
+--int stride = ((bm.bmWidth * bi.biBitCount + 31) & ~31) / 8; // DWORD-aligned
+--/* AH::
+--It is also possible to pass a raw memory address for use as bitmap memory by passing a memory address as integer prefixed with an & character. 
+--Passing the wrong thing here will crash the player. This mode might be useful for use with libmpv. The offset parameter is simply added to the memory address.
+        cmd = sprintf(`overlay-add 0 %d %d &%d 0 bgra %d %d %d`,{x,y,pMem,iw,ih,iw*4})
+--*/
+--      cmd = sprintf(`overlay-add %d %d %d "%s"`,{overlay_id,x,y,seekbar_img})&
+--            sprintf(` %d bgra %d %d %d`,{offset,img_width,img_height,stride})
+--overlay-add <id> <x> <y> <file> <offset> <fmt> <w> <h> <stride> [<dw> [<dh> [<video_colorspace> [<max_luma> [<primaries> [<transfer>]]]]]]
+--      mpv_command_string(mpv_ctx, cmd)
+--      mpv_command_string(mpv_ctx, sprintf(`overlay-add 0 0 0 "%s" 0 bgra 43 24 172`,{path})) -- YEAH!! (tiny blue patch top left....)
+--mpv_command_string(`overlay-add 0 "out.png" 0 0`)=>-4 [invalid parameter]
+--mpv_command_string(`overlay-add 0 "C:/Program Files (x86)/Phix/demo/theGUI/out.png" 0 0`)=>-4 [invalid parameter]
+--mpv_command_string(`overlay-add 0 0 0 "C:/Program Files (x86)/Phix/demo/theGUI/out.bmp" 0 bgra 43 24 172`)=>-12 [error running command]
+--*!/
+        end if
+--*/
+--overlay_id = 0
+    end if
+end procedure
+
+procedure seekbar_mouseleave(gdx seekbar)
+    set_seekbar_timer()
+    seekbar_hover = -1
+    gRedraw(seekbar)
+end procedure
+
+procedure draw_volume(gdx volume, integer w,h)
+    atom v = gGetAttribute(volume,`VALUE`) -- (0.0..1.0)
+    gDrawRect(volume,0,0,w-1,h-1,colour:=TG_BLACK)
+    if not bMuted then
+        if v>0 then
+            gDrawRect(volume,1,1,max(w*v-3,0),h-2,true,colour:=TG_GREEN)
+        end if
+        gDrawText(volume,w/2,h/2,`%d%%`,{v*100},TG_C)
+    end if
+end procedure
+
+--TODO: Open (multiple when bEditingEnabled) plonks them in here (when bEditingEnabled) 
+--      and selects the first. Also, obvs, initially empty in the final version.
+sequence sourcelist = recent_files -- (temp)
+
+function fetch_sources(integer item)
+    if item=0 then return length(sourcelist) end if
+    if item=-1 then
+        item = largest(apply(sourcelist,length),true)
+        -- Find the largest point size (max 16) that will fit.
+        string txt = sourcelist[item]
+        integer width = gGetAttribute(sources,`SIZE`)[1]
+        for point_size=6 to 16 do -- (binary chop probably not worth it)
+            gSetAttribute(sources,`FONT`,`Helvetica, %d`,{point_size+1})
+            if gGetTextExtent(txt,sources)[1]>width then -- (nope)
+                gSetAttribute(sources,`FONT`,`Helvetica, %d`,{point_size})
+                exit
+            end if
+        end for -- (if 17pt was ok, leave it at that)
+        return item
+    end if
+    return sourcelist[item]
+end function
+
+procedure source_selected(integer item)
+    update_recent_and_open_file(sourcelist[item])
+end procedure   
+
+function fetch_cuts(integer item)
+    if item=0 then return length(cutlist) end if
+    if item=-1 then return 0 end if -- don't care here (no long paths)
+    -- TODO better fmt, once we've decided what the entries actually are
+    return sprintf(`%v`,{cutlist[item]})
+end function
+
+--procedure cut_selected(integer item)
+--  summat(cutlist[item])
+--end procedure 
+
+--procedure pvkey(gdx ctrl, integer c)
+--  ?{`pvkey`,ctrl, c}
+--end procedure
+
+--TODO: (when bEditingEnabled) list of input files on the left, segments on the right, export/test buttons.
+--TODO: I'm open to checkboxes, path, etc under sources and similar under fragments... 
+mainmenu = gMenu(MAIN_MENU,menu_handler)
+popupmenu = gMenu(MAIN_MENU,menu_handler)
+menus = {mainmenu,popupmenu}
+sources = gList(fetch_sources,source_selected,`SIZE=80x,EXPAND=V`)
+spacer = gCanvas(`VISIBLE=NO,SIZE=10x10`) -- for seekbar preview positioning
+cspace = gCbox(spacer,`VISIBLE=NO`) -- (so we can CBXY spacer)
+--sbview = gCanvas(`BGCLR=BLACK`)
+sbview = gCanvas()
+--gSetHandler(sbview,`KEY`,pvkey) -- nope
+--gSetHandler(spacer,`KEY`,pvkey) -- nope
+--gSetHandler(cspace,`KEY`,pvkey) -- nope...
+video = gCanvas(`BGCLR=BLACK`)
+fragments = gList(fetch_cuts/*,cut_selected)[??]*/,`SIZE=80x,EXPAND=V`)
+gSetAttribute({sources,fragments},`VISIBLE`,bEditingEnabled)
+triplet = gHbox({cspace,sources,video,fragments}) -- or two gSplit - nah
+seekbar = gCanvas(draw_seekbar,`SIZE=x18,EXPAND=H,MARGIN=3x5`)
+--seekbar_timer = gTimer(update_seekbar,25,false,seekbar)
+seekbar_timer = gTimer(update_seekbar,25,false)
+ctrls = gCanvas(draw_ctrls,`SIZE=x21,EXPAND=H`)
+sequence r = scanf(ini_setting({VIDCUTINI,`volume`}),`"%f"`)
+volume = gSlider(set_volume,`SIZE=58x18,EXPAND=N,VALUE=%f`,r[1])
+hbox = gHbox({ctrls,volume},`MARGIN=0x5,GAP=5,EXPAND=H`)
+--gdx dp = gDatePick(gCalendar())
+--vbox = gVbox({mainmenu,dp,triplet,seekbar,hbox})
+vbox = gVbox({mainmenu,triplet,seekbar,hbox})
+dlg = gDialog(vbox,`gVidCut`,`SIZE=682x577`,false) -- (apt for 680x480, attow)
+gSetHandler(dlg,`KEY`,key_handler)
+gSetHandler(dlg,`CLOSE`,close_handler)
+gSetHandler(dlg,`MOUSEWHEEL`,set_volume)
+gSetHandler(video,`MOUSEWHEEL`,set_volume)
+gSetHandler(video,`CLICK`,dlg_click_handler)
+gSetHandler(ctrls,`CLICK`,ctrl_click_handler)
+gSetHandler(ctrls,`MOUSEMOVE`,ctrl_mousemove)
+gSetHandler(ctrls,`MOUSELEAVE`,ctrl_mouseleave)
+gSetHandler(seekbar,`CLICK`,seekbar_click)
+gSetHandler(seekbar,`MOUSEMOVE`,seekbar_mousemove)
+gSetHandler(seekbar,`MOUSELEAVE`,seekbar_mouseleave)
+gSetHandler(volume,`REDRAW`,draw_volume)
+gSetAttribute({video,dlg},`USER_DATA`,popupmenu)
+gSetAttribute(menus,`USER_DATA`,dlg)
+gSetAttribute(video,`MPV_INIT`,mpv_init)
+gSetAttribute(sbview,`MPV_INIT`,mpv_initp)
+gSetHandler(dlg,`DROP`,mpv_drop)
+--string test = "😀"  -- U+1F600 → UTF-16: 0xD83D, 0xDE00 → {55357,56832}
+--sequence u = utf8_to_utf16(test) & 0  -- {55357,56832,0}
+--? u  -- Should show {55357,56832,0}
+--gSetAttribute(dlg,`TITLE`,test)
+--gSetAttribute(dlg,`TITLE`,`TEST`)
+gMainLoop(dlg)
+function get_source_code_length() return source_line() end function
+
+--/*
+{"oops, pDiagN.e line 3170: rid is",0,19033,30,"fatal exception [MEMORY VIOLATION] at #5ADA2108"}
+
+pDiagN.e line 398: oops, rid[=0] out of range[1..19033]
+pDiagN.e line 398: oops, rid[=1073741824] out of range[1..19033]
+
+
+
+(not asked)
+I'll want frame-accurate snipping, I understand LC has a "smart cut" feature for that, which 
+does need some re-encoding and keyframe snapping (info from ffprobe/possibly kept hidden).
+
+>>
+Can you write me some crib sheets for the mpv, ffmpeg, and ffprobe commands I need to know
+
+Here are **only the commands you need** for your lossless video editor—tested, contextualized, and stripped of all non-essentials. 
+Each includes the *exact moment* to use it in your workflow.
+
+---
+
+### 🎬 **MPV Properties** (Runtime Control via `mpv_set_option_string()` / `mpv_get_property()`)  
+*Use these in your key handlers, menu callbacks, and timer loops—**no FFmpeg needed**.*
+
+| Goal                      | Command                                       | When to Use           | Critical Notes                                                |
+|---------------------------|-----------------------------------------------|-----------------------|---------------------------------------------------------------|
+| **Toggle play/pause**     | `cycle pause`                                 | Spacebar handler      | Updates `bPlaying` flag via `pause` property                  |+
+| **Seek ±5s**              | `seek ±5 relative`                            | Arrow keys            | Use `relative` for smooth stepping                            |-
+| **Jump to start/end**     | `seek 0 absolute` `seek [duration] absolute`                          | Home/End keys | Get `duration` via `mpv_get_property()` first |-
+| **Set volume (0-100)**    | `set volume [0-100]`                          | Slider change         | MPV uses 0-100 scale (not 0.0-1.0)                            |+
+| **Get current time**      | `mpv_get_property(...,"playback-time",...)`   | seekbar update        | Returns seconds as `double`                                   |+
+| **Get duration**          | `mpv_get_property(...,"duration",...)`        | Init/on load          | **Always validate** (may be 0 early)                          |+
+| **Set aspect ratio**      | `set video-aspect [ratio]`                    | Aspect ratio menu     | `0` = native, `16/9` = forced widescreen                      |+
+| **Get video dimensions**  | `mpv_get_property(...,
+                                    "video-out-width/height",...)`          | Fullscreen zoom calc  | Use *after* video loads (may be 0 initially)                  |
+| **Toggle fullscreen (drawing area)** | `set video-zoom [zoom]`
+                                         `set video-zoom 0`                 | F11 handler           | `zoom = min(draw_w/vid_w,draw_h/vid_h)` for fit-to-window |+[/ish, or better]
+| **Mute/unmute**           | `cycle mute`                                  | Mute button           | Or `set mute [yes/no]`                                        |
+
+> 💡 **MPV Golden Rule**:  
+> **Always check return value** of `mpv_get_property()`!  
+> ```phix
+> atom pos = mpv_get_property(mpv_ctx,"playback-time",MPV_FORMAT_DOUBLE)
+> if pos>=0 then
+>     -- Use 'pos' safely
+> end if
+> ```
+
+---
+
+### ✂️ **FFmpeg Commands** (Lossless Edit Operations via `system()`)  
+*Use these for cutting, exporting, and fixing—**only when lossless is possible**.*
+
+| Goal                               | Command  | When to Use                       | Critical Notes |
+|------------------------------------|----------|-----------------------------------|----------------|
+| **Lossless cut (no re-encode)**    | `ffmpeg -y -ss [start] -to [end] -i input -c copy output` 
+                                                | Segment extraction (on 'O' press) | **-ss BEFORE -i** = fast but keyframe-only
+                                                                                        -ss AFTER -i** = frame-accurate but slow
+                                                                                     → **Use -ss BEFORE for speed** (snap to keyframes later if needed) |
+| **Lossless concat (no re-encode)** | `ffmpeg -y -f concat -safe 0 -i list.txt -c copy output` 
+                                                | Exporting segments                | `list.txt` format:
+                                                                                      `file 'segment1.mp4'`
+                                                                                      `file 'segment2.mp4'`
+                                                                                    → **ALL segments MUST have identical codec/resolution/pixel format** (FFmpeg will fail if not) |
+| **Fix aspect ratio metadata**      | `ffmpeg -y -i input -c copy -bsf:v h264_metadata=sample_aspect_ratio=4/3 -aspect 16/9 output` 
+                                                | Aspect ratio correction           | Use when video plays squished (e.g., 720p.h264.mp4 → 1280x720)
+                                                                                    → **Only works for H.264** (adjust BSF for codec) |
+| **Get keyframes (for snapping)**   | `ffprobe -select_streams v:0 -show_entries frame=pkt_pts_time,pict_type -of csv=p=0 input` 
+                                                | Pre-cut keyframe snapping         | Output: `time,I` or `time,P` or `time,B`
+                                                                                    → **Filter for `I` frames** (keyframes) |
+
+> 💡 **FFmpeg Golden Rules**:  
+> 1. **`-c copy` = lossless ONLY if**:  
+>    - Video/audio codecs match exactly  
+>    - Resolution, pixel format, sample rate, channel layout match  
+>    → *If FFmpeg errors, you MUST re-encode (lossy)*  
+> 2. **Always use `-y`** to overwrite output (avoids prompts)  
+> 3. **`-ss` placement matters**:  
+>    - `-ss [time] -i input` → Fast, but cuts at nearest keyframe (may add 0-2s extra)  
+>    - `-i input -ss [time]` → Slow (decodes to frame), but frame-accurate  
+>    → *For lossless cutting, use first form + snap to keyframes*  
+
+---
+
+### 🔍 **FFprobe Commands** (Metadata Prep via `system()` or `popen()`)  
+*Use these BEFORE editing to validate/enable lossless workflow.*
+
+| Goal                               | Command  | When to Use             | Critical Notes |
+|------------------------------------|----------|-------------------------|----------------|
+| **Check if lossless cut possible** | `ffprobe -v error -select_streams v:0 -show_entries stream=codec_name,width,height,pix_fmt -of json input` 
+                                                | Before marking IN/OUT   | Compare streams of all segments → **MUST match** for `-c copy` |
+| **Get keyframe times**             | `ffprobe -v error -skip_frame nokey -select_streams v:0 -show_entries frame=pkt_pts_time -of csv=p=0 input` 
+                                                | Pre-marking snapping    | Output: `0.000`, `1.033`, `2.066`... (keyframe times only)
+                                                                          → **Use to snap IN/OUT to nearest keyframe** |
+| **Get duration**                   | `ffprobe -v error -show_entries format=duration -of csv=p=0 input` 
+                                                | Init (fallback for MPV) | More reliable than MPV early in load
+                                                                          → Returns `double` (eg `123.456`) |
+| **Check if video is squished**     | `ffprobe -v error -select_streams v:0 -show_entries stream=display_aspect_ratio -of csv=p=0 input` 
+                                                | Aspect ratio menu init  | Output: `0:0` (unspecified) or `4:3`, `16:9`, etc.
+                                                                          → If `0:0`, use sample aspect ratio + `-aspect` |
+
+> 💡 **FFprobe Golden Rule**:  
+> **Always parse JSON/CSV output**—never assume format.  
+> Example keyframe snapping (Phix pseudocode):  
+> ```phix
+> string cmd = sprintf("ffprobe -v error -skip_frame nokey -select_streams v:0 -show_entries frame=pkt_pts_time -of csv=p=0 \"%s\"",{VIDEO_FILE})
+> -- Parse output → find largest keyframe ≤ target_time
+> ```
+
+---
+
+### 🚫 **What You DON'T Need** (Based on Your Workflow)
+| Command                                           | Why to Avoid                                                          |
+|---------------------------------------------------|-----------------------------------------------------------------------|
+| `ffmpeg -vf "crop=..."`                           | Requires re-encode (lossy) — use only if absolutely necessary         |
+| `ffmpeg -af "volume=..."`                         | Use MPV's volume property instead (real-time, no re-encode) 			|
+| `ffprobe -show_frames`                            | Overkill — `show_entries frame=pkt_pts_time,pict_type` is sufficient  |
+| `mpv_set_option_string(...,"fullscreen","yes")`   | Breaks your main-window rendering (use drawing-area zoom instead)     |
+| `ffmpeg -ss [start] -t [duration] ...`            | Prefer `-to` for clarity (avoids math errors)                         |
+
+---
+
+### 📌 Your Workflow Cheat Sheet
+1. **Marking a segment**:  
+   - Press 'I' → get `playback-time` → store as `current_in`  
+   - Press 'O' → get `playback-time` → store as `current_out`  
+   - **IF** `current_out > current_in` →  
+     ```bash
+     ffmpeg -y -ss [current_in] -to [current_out] -i input -c copy segment_N.mp4
+     ```
+2. **Exporting segments**:  
+   - Build `concat_list.txt` with `file 'segment_N.mp4'` lines  
+   - Run:  
+     ```bash
+     ffmpeg -y -f concat -safe 0 -i concat_list.txt -c copy output.mp4
+     ```
+3. **Fixing squished video**:  
+   - Run:  
+     ```bash
+     ffmpeg -y -i input -c copy -bsf:v h264_metadata=sample_aspect_ratio=4/3 -aspect 16/9 output.mp4
+     ```
+4. **Snapping to keyframes**:  
+   - Get keyframe list → find largest keyframe ≤ target time → use that as IN/OUT  
+
+---
+
+This is **everything you need** to build a lossless cutter. 
+No theory, no fluff — just the commands that work in your editor, paired with *exactly* when to use them. 
+Test each one in isolation; they're slot-in ready for your existing structure.  
+
+Your scissors aren't just sharp — they're *lossless-sharp*. Time to cut. ✂️🎥
+
+-- #Shift+RIGHT no-osd seek  1 exact                # seek exactly 1 second forward
+-- #O           no-osd cycle-values osd-level 3 1   # toggle displaying the OSD on user interaction or always
+-- #z           add sub-delay -0.1                  # shift subtitles 100 ms earlier
+-- #Z           add sub-delay  0.1                  # delay subtitles by 100 ms
+-- #ctrl++      add audio-delay  0.1                # change audio/video sync by delaying the audio
+-- #ctrl+-      add audio-delay -0.1                # change audio/video sync by shifting the audio earlier
+-- #G           add sub-scale  0.1                  # increase the subtitle font size
+-- #F           add sub-scale -0.1                  # decrease the subtitle font size
+-- #r           add sub-pos -1                      # move subtitles up
+-- #R           add sub-pos +1                      # move subtitles down
+-- #v           cycle sub-visibility                # hide or show the subtitles
+-- #s           screenshot                          # take a screenshot of the video in its original resolution with subtitles
+-- #S           screenshot video                    # take a screenshot of the video in its original resolution without subtitles
+-- #A cycle-values video-aspect-override "16:9" "4:3" "2.35:1" "no" # cycle the video aspect ratio
+-- options:
+--osc=<yes|no>  Whether to load the on-screen-controller (default: yes).
+--osd-bar=<yes|no>  Enable display of the OSD bar (default: yes).
+--                  You can configure this on a per-command basis in input.conf using osd- prefixes, see Input Command Prefixes. 
+--                  If you want to disable the OSD completely, use --osd-level=0.
+--terminal=<yes|no> terminal=no disables any use of the terminal and stdin/stdout/stderr. This completely silences any message output.
+--                  Unlike --really-quiet, this disables input and terminal initialization as well.
+-- properties:
+--percent-pos (RW)  Position in current file (0-100). The advantage over using this instead of calculating it out of other properties 
+--       is that it properly falls back to estimating the playback position from the byte position, if the file duration is not known.
+--eof-reached       Whether the end of playback was reached.
+--width, height     Video size. This uses the size of the video as decoded, or if no video frame has been decoded yet, the (possibly 
+--                  incorrect) container indicated size.
+--video-params/dw,  Video size as integers, scaled for correct aspect ratio.
+--video-params/dh
+--dwidth, dheight   Video display size. This is the video size after filters and aspect scaling have been applied. 
+--                  The actual video window size can still be different from this, e.g. if the user resized the video window manually.
+--                  These have the same values as video-out-params/dw and video-out-params/dh.
+-- display-width, display-height The current display's horizontal and vertical resolution in pixels. Whether or not these values 
+--              update as the mpv window changes displays depends on the windowing backend. It may not be available on all platforms.
+--mpv-version       The mpv version/copyright string. Depending on how the binary was built, it might contain either a release version, or just a git hash.
+--property-list     The list of top-level properties.
+--command-list      The list of input commands. This returns an array of maps, where each map node represents a command. This map has the following entries:
+--player-operation-mode A read-only string of the current player operation mode, mirroring the --player-operation-mode option. 
+--                      To set operation mode, set the option at startup instead.
+--The OSC is enabled by default if mpv was compiled with Lua support. It can be disabled entirely using the --osc=no option.
+--
+
+--*/
+
+--/* all good, ready and waiting:
+--      function computeFileHash(string filename)
+--          integer fn = open(filename, `rb`)
+--          atom size = get_file_size(filename)
+--          sequence d = repeat(0,8)
+--          for block=1 to 2 do
+--              for i=1 to 8192 do
+--                  for j=8 to 1 by -1 do
+--                      d[j] += getc(fn)
+--                  end for
+--              end for
+--              if block=1 then {} = seek(fn,size-65536) end if
+--          end for
+--          close(fn)
+--          for i=8 to 1 by -1 do
+--              d[i] += size && #FF
+--              size = size >> 8
+--          end for
+--          for i=8 to 2 by -1 do
+--              d[i-1] += d[i] >> 8
+--              d[i] &&= #FF
+--          end for
+--          d[1] &&= #FF
+--          return join(d,"",fmt:=`%02X`)
+--      end function
+--*/
+--/*
+
+
+printf(1," #%s\n #8e245d9679d31e12\n",computeFileHash(`C:\Users\petel\Downloads\breakdance.avi`))
+--printf(1," #%s\n #61f7751fc2a72bfb\n",computeFileHash(`C:\Users\petel\Downloads\dummy.bin`))
+--*/
+--/*
+gdx subtitle_window = NULL,
+    subtitle_table
+
+--procedure download_subtitles()
+    if subtitle_window=NULL then
+        sequence columns = {{`Provider`,25,`L`},
+                            {`File`,260,`L`},
+                            {`Language`,60,`L`},
+                            {`FPS`,40,`R`},
+                            {`Hearing Impaired`,40,`R`},
+                            {`Downloads`,40,`R`},
+                            {`Title(s)`,260,`L`},
+                            {`Score`,60,`R`},
+                            {`Disc`,60,`R`}}
+        subtitle_table = gTable(columns,{{}},0)
+        subtitle_window = gDialog(subtitle_table,dlg,`Download Subtitles`,`SIZE=1200x600`)
+    end if
+-- similar but different:
+--  string date_fmt = `%[3]02d/%[2]02d/%[1]02d %[4]02d:%[5]02d`
+--  sequence data = columnize({favs,recent_dirs,recent_files,filedates,filesizes,durations,times}),
+--           ctrl =         {     0,          0,           0, date_fmt, size_fmt,  dur_fmt,timestrs}
+    gSetAttribute(recent_table,`DATA`,{data,ctrl})
+    gShow(subtitle_window)
+--end procedure
+--*/
+--/*
+--procedure download_subtitle_mpchc_style()
+    -- MPC-HC'S ACTUAL METHOD: Anonymous OpenSubtitles hash search
+    --    (No registration needed—uses the same endpoint MPC-HC hardcoded)
+?video_file
+    integer file_size = get_file_size(video_file)
+    if file_size >= 131072 then
+    
+    -- READ FIRST AND LAST 64KB
+--  atom fh = open(video_file, `rb`)
+--  if fh = 0 then return "" end if
+--  first_64k = read(fh, 65536)
+--  seek(fh, file_size - 65536, 0)  -- Seek to start of last 64KB
+--  last_64k = read(fh, 65536)
+--  close(fh)
+--  
+--  -- CALCULATE HASH (MPHC'S METHOD: size + first/last 64KB as hex)
+--  hash = to_hex(file_size) & to_hex(first_64k) & to_hex(last_64k)
+--  hash = lower(hash)  -- OpenSubtitles expects lowercase
+        string fhash = computeFileHash(video_file),
+    
+    -- BUILD ANONYMOUS URL (MPHC'S EXACT ENDPOINT)
+--      url = sprintf("http://api.opensubtitles.org/xml-rpc?method=SearchSubtitles&name=\"%s\"&moviehash=%s&sublanguageid=eng", {video_file,fhash})
+        url = sprintf(`http://api.opensubtitles.org/xml-rpc?method=SearchSubtitles&moviehash=%s&sublanguageid=eng`, {fhash})
+?url
+    
+    -- DOWNLOAD USING BUILT-IN PHIX NETWORK (NO EXTERNAL TOOLS NEEDED)
+    string result = read_pipe(sprintf(`curl -s -m 10 "%s"`, {url}))
+?result
+--/*
+for "http://api.opensubtitles.org/xml-rpc?method=SearchSubtitles&moviehash=176cd81302aab28e&sublanguageid=eng" I got:
+<?xml version="1.0" encoding="utf-8"?>
+<methodResponse>
+ <params>
+  <param>
+   <value>
+    <struct>
+     <member>
+      <name>status</name>
+      <value>
+       <string>parse error. not well formed</string>
+      </value>
+     </member>
+     <member>
+      <name>seconds</name>
+      <value>
+       <double>0.001000</double>
+      </value>
+     </member>
+    </struct>
+   </value>
+  </param>
+ </params>
+</methodResponse>`
+--*/
+    end if  -- /Too small for hash
+--/*
+    if result = "" then return "" end if
+    
+    -- PARSE FOR FIRST ENGLISH SUBTITLE URL (MPHC'S LOGIC)
+    atom zip_url_match = match_regex(result, """"SubDownloadLink"":\s*""([^""]+)""""")
+    if zip_url_match = NULL then return "" end if
+    string zip_url = zip_url_match[2]
+    
+    -- DOWNLOAD AND EXTRACT .SRT FROM ZIP
+    string zip_path = get_temp_file(`subtemp.zip`)
+    string srt_path = get_temp_file(`temp_sub.srt`)
+    if system(sprintf(`curl -s -L -o "%s" "%s"`, {zip_path, zip_url})) != 0 then
+        return ""
+    end if
+    if system(sprintf(`unzip -p "%s" *.srt > "%s" 2>/dev/null`, {zip_path, srt_path})) != 0 then
+        return ""
+    end if
+    {} = delete_file(zip_path)  -- Cleanup zip
+    return srt_path  -- Return path to extracted .srt
+    return ""
+--end function
+--*/
+--end procedure
+--*/
+--/*
+--procedure download_subtitle_mpchc_style()--string video_file)
+    -- 1. ---- HASH CALCULATION (MPHC's method) -----------------------
+    atom fsize = get_file_size(video_file)
+    if fsize >= 131072 then
+
+--  atom fh = open(video_file, `rb`)
+--  if fh = 0 then return "" end if
+--  string first64k = read(fh, 65536)
+--  seek(fh, fsize - 65536, 0)                -- start of last 64KB
+--  string last64k  = read(fh, 65536)
+--  close(fh)
+
+--  string hash = lower( to_hex(fsize) & to_hex(first64k) & to_hex(last64k) )
+    -- Example: `176cd81302aab28e...` (hex string)
+        string fhash = computeFileHash(video_file)
+
+
+    -- 2. ---- BUILD XML-RPC REQUEST ---------------------------------
+    string xml_request = sprintf(
+        "<?xml version=\"1.0\"?>" &
+        "<methodCall>" &
+        "  <methodName>SearchSubtitles</methodName>" &
+        "  <params>" &
+        "    <param>" &
+        "      <value>" &
+        "        <struct>" &
+        "          <member><name>moviehash</name><value><string>%s</string></value></member>" &
+        "          <member><name>sublanguageid</name><value><string>eng</string></value></member>" &
+        "        </struct>" &
+        "      </value>" &
+        "    </param>" &
+        "  </params>" &
+        "</methodCall>",
+        {fhash}
+    )
+
+    -- Write the XML to a temp file (curl can read it directly)
+    string req_file = get_temp_file(`os_xmlrpc_req.xml`)
+    atom req_fh = open(req_file, `wb`)
+    puts(req_fh, xml_request)
+    close(req_fh)
+
+    -- 3. ---- SEND XML-RPC POST (curl) ------------------------------
+    string resp_file = get_temp_file(`os_xmlrpc_resp.xml`)
+    string curl_cmd = sprintf(
+        `curl -s -H "Content-Type: text/xml" -d @"%s" "http://api.opensubtitles.org/xml-rpc" -o "%s"`,
+        {req_file, resp_file}
+    )
+
+    integer res = system_exec(curl_cmd)
+    if res != 0 then
+?{curl_cmd,res}
+        {} = delete_file(req_file)
+        return
+    end if
+    {} = delete_file(req_file)   -- cleanup request file
+
+    -- 4. ---- PARSE XML RESPONSE ------------------------------------
+--  string xmlresp = read_all(resp_file)
+    string xmlresp = get_text(resp_file)
+    {} = delete_file(resp_file)
+?{`xmlresp`,xmlresp}
+ -- 401 Unauthorised - time to throw in the towel methinks...
+--/*
+    if xmlresp = "" then return "" end if
+
+    -- Look for the first <data><value><string>…</string></value></data> that contains a download link
+    -- The XML-RPC response is a struct with a "data" array; each element is a struct with "SubDownloadLink".
+    atom data_start = match_regex(xmlresp, `<data>`)
+    if data_start = NULL then return "" end if
+    string data_section = xmlresp[data_start..$]
+
+    -- Find the first <value><string>…</string></string> inside a <member><name>SubDownloadLink</name>…</member>
+    atom link_match = match_regex(data_section,
+                                 """<member><name>SubDownloadLink</name><value><string>([^<]+)</string></value></member>""")
+    if link_match = NULL then return "" end if
+    string zip_url = link_match[2]
+
+    if zip_url = "" then return "" end if
+
+    -- 5. ---- DOWNLOAD ZIP & EXTRACT .SRT ---------------------------
+    string zip_path = get_temp_file(`subtemp.zip`)
+    string srt_path = get_temp_file(`temp_sub.srt`)
+
+    if system(sprintf(`curl -s -L -o "%s" "%s"`, {zip_path, zip_url})) != 0 then
+        return ""
+    end if
+
+    -- unzip -p extracts the first matching file to stdout
+    if system(sprintf(`unzip -p "%s" *.srt > "%s" 2>/dev/null`, {zip_path, srt_path})) != 0 then
+        {} = delete_file(zip_path)
+        return ""
+    end if
+    {} = delete_file(zip_path)   -- cleanup zip
+
+    if not file_exists(srt_path) then return "" end if
+    return srt_path   -- <-- this is the .srt file you can feed to MPV
+--*/
+    end if   -- /too small for a real hash
+
+--end procedure
+--*/
+
+--/*
+Formats:
+ D.. = Demuxing supported
+ .E. = Muxing supported
+ ..d = Is a device
+ ---
+ D   bmp_pipe        piped bmp sequence
+ DE  ico             Microsoft Windows ICO
+ DE  image2          image2 sequence
+ D   jpeg_pipe       piped jpeg sequence
+ DE  m4v             raw MPEG-4 video
+  E  mp4             MP4 (MPEG-4 Part 14)
+ DE  mpjpeg          MIME multipart JPEG
+ D   png_pipe        piped png sequence
+ D   ppm_pipe        piped ppm sequence
+ DE  srt             SubRip subtitle
+ DE  wav             WAV / WAVE (Waveform Audio)
+ D   xbm_pipe        piped xbm sequence
+
+C:\Program Files (x86)\Phix>
+-display_hflip
+-display_vflip
+
+       
+--*/
+
+--       Create your own subtitles, eg:
+--/*
+5
+00:00:19,769 --> 00:00:21,187
+Your left jacket sleeve
+
+6
+00:00:21,312 --> 00:00:23,148
+is slightly shorter
+than your right.
+--*/
+
+--printf(1,"mpv_client_api_version:%d = #%x\n",mpv_client_api_version(`ulong`))
+--printf(1,"mpv_client_api_version:%v\n",,,)
+--printf(1,"mpv_client_api_version:%s\n",mpv_client_api_version())
+--      seek_thumb_height_percent = ini_setting(`seek_thumb_height_percent`,25,false)
+--ini_set(`seek_thumb_height`,25,false)
+--ini_set(`source_list_width`,80,false)
+--ini_set(`fragment_list_width`,80,false)
+--?ini_setting(`seek_thumb_height_percent`)
+--?ini_keynames()
+
+

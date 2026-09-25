@@ -145,37 +145,46 @@ global function match_all(object needle, sequence haystack, integer start=1, boo
     return res
 end function
 
-global function begins(object sub_text, sequence full_text, integer start=1)
+global function begins(object sub_text, sequence full_text, object startx=1)
     integer lf = length(full_text)
---  if lf=0 then return false end if
-    if start<0 then start += lf+1 end if
+    if sequence(startx) then
+        sequence skipset = startx
+        startx = 1
+        while startx<=lf and find(full_text[startx],skipset) do
+            startx += 1
+        end while
+    elsif startx<0 then
+        startx += lf+1
+    end if
     if atom(sub_text) then
         -- eg begins('c',"cat") -> true.
-        return sub_text==full_text[start]
+        return startx<=lf and startx>=1 and sub_text==full_text[startx]
     end if
     integer ls = length(sub_text),
-            endx = start+ls-1
+            endx = startx+ls-1
     return endx<=lf 
-       and (ls<50 or sub_text[1]=full_text[start]) -- (skip some long slices)
-       and sub_text==full_text[start..endx]
+       and (ls<50 or sub_text[1]=full_text[startx]) -- (skip some long slices)
+       and sub_text==full_text[startx..endx]
 end function
 
---global function ends(object sub_text, sequence full_text, integer lf=length(full_text))
-global function ends(object sub_text, sequence full_text, integer endx=-1)
+global function ends(object sub_text, sequence full_text, object endx=-1)
     integer lf = length(full_text)
---  if lf=0 then return false end if
-    if endx<0 then endx += lf+1 end if
+    if sequence(endx) then
+        sequence skipset = endx
+        endx = lf
+        while endx>0 and find(full_text[endx],skipset) do
+            endx -= 1
+        end while
+    elsif endx<0 then
+        endx += lf+1
+    end if
     if atom(sub_text) then
         -- eg ends('t',"cat") -> true.
-        return sub_text==full_text[endx]
+        return endx>=1 and endx<=lf and sub_text==full_text[endx]
     end if
---  integer ls = lf-length(sub_text)+1
---  return ls<=lf and sub_text==full_text[ls..lf]
---  return ls>0 and sub_text==full_text[ls..lf]
     integer ls = length(sub_text)
     return ls<=endx
        and (ls<50 or sub_text[1]=full_text[-ls]) -- (skip some long slices)
        and sub_text==full_text[-ls..endx]
---  return ls<=lf and sub_text==full_text[-ls..-1]
 end function
 

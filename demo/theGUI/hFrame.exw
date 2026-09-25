@@ -3,13 +3,16 @@
 -- ======================
 -- 
 -- Trivial demo, for drawing/size only, contents fudged as a simple canvas, with (full, unlike `edge`) box/cross.
+-- A real frame has rather significant container responsibilities and duties, not even slightly touched on here.
+-- update: when addding this to theGUI.e, I decided to kill off gFrame and let gH/Vbox have a TITLE instead.
+-- (not part of the distro, but frame.exw is)
 --
-puts(1,"")
+--puts(1,"")
 --requires(64,true)
 with javascript_semantics
-include hGUI.e
---gSetGlobal("DIAGNOSTICS",true)
-gSetGlobal("DIAGNOSTICS","MARGINS")
+include theGUI.e
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gSetGlobal(`DIAGNOSTICS`,`MARGINS`)
 --gUseGTK()
 
 bool draw_fake_contents = false
@@ -18,26 +21,31 @@ bool draw_fake_contents = false
 procedure tg_frame_draw(gdx frame, integer w,h)
 ----?{"edge",w,h}
 ----?9/0
-    nullable_string title = "gFrame"
+--  nullable_string title = `Frame title`
 --  nullable_string title = NULL
+--  nullable_string title = ""
+    nullable_string title = gGetAttribute(frame,`TITLE`)
     integer tw = 0, th = 1
     atom bgclr = gGetAttribute(frame,`BGCLR`)
-    if title=NULL then
-        gDrawRect(frame,0,0,w-1,h-1,colour:=#DCDCDC)
-    else
-        {tw,th} = gGetTextExtent(title,frame)
-        gDrawRect(frame,0,th/2,w-1,h-1,colour:=#DCDCDC)
---      gDrawRect(frame,0,th/2,w-1,h-1,colour:=TG_GREEN)
-        gDrawRect(frame,7,1,tw+10,th,true,colour:=bgclr)
---      gDrawRect(frame,7,1,tw+11,th,true,colour:=TG_RED)
-        atom txtclr = iff(gGetAttribute(frame,`ACTIVE`)?TG_BLACK:TG_DARK_GREY)
-        gDrawText(frame,8,0,title,{},TG_SE,colour:=txtclr)
+    if title!=NULL then     -- update: std H/Vbox
+        if title="" then    --  "" untitled frame
+            gDrawRect(frame,0,0,w-1,h-1,colour:=#DCDCDC)
+        else
+            {tw,th} = gGetTextExtent(title,frame)
+            gDrawRect(frame,0,th/2,w-1,h-1,colour:=#DCDCDC)
+--          gDrawRect(frame,0,th/2,w-1,h-1,colour:=TG_GREEN)
+            gDrawRect(frame,7,1,tw+10,th,true,colour:=bgclr)
+--          gDrawRect(frame,7,1,tw+11,th,true,colour:=TG_RED)
+            atom txtclr = iff(gGetAttribute(frame,`ACTIVE`)?TG_BLACK:TG_DARK_GREY)
+            gDrawText(frame,8,0,title,{},TG_SE,colour:=txtclr)
+        end if
     end if
     if draw_fake_contents then
         -- (the real thing will need to take margins into account)
         w -= 2
         h -= th+1
-        gDrawRect(frame,1,th,w,th+h-1,true,colour:=TG_BLUE) -- fudge, obviously, for visualisation
+--      gDrawRect(frame,1,th,w,th+h-1,true,colour:=TG_BLUE) -- fudge, obviously, for visualisation
+        gDrawRect(frame,1,th,w,th+h-1,true,colour:=TG_PARCHMENT) -- fudge, obviously, for visualisation
 --      integer {mt,mr,mb,ml} = {0,0,0,0}
         integer {mt,mr,mb,ml} = {5,5,5,5}
         w -= mr+ml
@@ -46,16 +54,16 @@ procedure tg_frame_draw(gdx frame, integer w,h)
         gDrawRect(frame,1+ml,th+mt,ml+w,th+mt+h-1)
         gDrawLine(frame,1+ml,th+mt,ml+w,th+mt+h-1)
         gDrawLine(frame,ml+w,th+mt,1+ml,th+mt+h-1)
-        integer l = length(sprintf("%d",max(w,h)))
-        string fmt = sprintf("%%%dd x %%%dd",{l,-l})
-        gDrawText(frame,1+ml+w/2,th+mt+h/2,fmt,{w,h},TG_C,style:="Monospace,8")
+        integer l = length(sprintf(`%d`,max(w,h)))
+        string fmt = sprintf(`%%%dd x %%%dd`,{l,-l})
+        gDrawText(frame,1+ml+w/2,th+mt+h/2,fmt,{w,h},TG_C,style:=`Monospace,8`)
     end if
 end procedure
 
---function hFrame(rtn redraw, nullable_string title, string attributes="")
-function hFrame(rtn redraw, string attributes="")
+function hFrame(rtn redraw, nullable_string title, string attributes=``)
+--function hFrame(rtn redraw, string attributes=``)
     gdx frame = gCanvas(redraw,attributes)
---  gSetAttribute(frame,`TTTLE`,title)
+    gSetAttribute(frame,`TITLE`,title)
     gSetAttribute(frame,`CANFOCUS`,false)
 --  gSetAttribute(frame,`ACTIVE`,false)
     return frame
@@ -65,18 +73,18 @@ end function
 -- Aside: these canvas|dialog sizing tests are now part of tg_unit_tests()
 --gdx frame = hFrame(tg_frame_draw), 
 --DEV MARGIN does nothing... correction: wonkifies things/too big/slides offscreen when in box... [FIXED]
-gdx frame = hFrame(tg_frame_draw,"MARGIN=5"), 
+gdx frame = hFrame(tg_frame_draw,`Frame title`,`MARGIN=5`), 
 --gdx frame = hFrame(`SIZE = 300x300`), 
 --  box = gHbox({frame}),
 --  box = gHbox({frame},`MARGIN=5`),
 --  dlg = gDialog(box,`gFrame`,`SIZE=240x80`)
-    dlg = gDialog(frame,`hFrame`,`SIZE=240x80`)
+    dlg = gDialog(frame,`Titled box`,`SIZE=240x80`)
 --excellent!
---gSetAttribute(frame,"BGCLR","PARCHMENT")
---gSetAttribute(dlg,"BGCLR","PARCHMENT")
---gSetAttribute(dlg,"BGCLR",TG_BLUE)
---gSetAttribute(box,"BGCLR",TG_BLUE)
---gSetAttribute(box,"BGCLR","PARCHMENT")
+--gSetAttribute(frame,`BGCLR`,`PARCHMENT`)
+--gSetAttribute(dlg,`BGCLR`,`PARCHMENT`)
+--gSetAttribute(dlg,`BGCLR`,TG_BLUE)
+--gSetAttribute(box,`BGCLR`,TG_BLUE)
+--gSetAttribute(box,`BGCLR`,`PARCHMENT`)
 gMainLoop(dlg)
 
 --/*

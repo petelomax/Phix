@@ -2,18 +2,19 @@
 -- demo\theGUI\file_open.exw
 -- ==========================
 --
---  Simple use of gGetOpenFileName()
+--  Simple use of gOpenFile()
 --  Should be similar to C:\Program Files (x86)\Phix\pwa\js\poc\drop.html
 --
 with javascript_semantics
 --requires(64,true)
 include theGUI.e
---gUseGTK() -- DEV sizing problems, see gtk_win_open...
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gUseGTK()
 
 -- <some bog-standard gList stuff:>
 --DEV ... (no type/paste/drag/drop, as yet...)
-sequence data = {{{"Type, paste, drag and drop a file here, or click the button above...",TG_GREY,TG_ITALIC}}}
---sequence data = {{{"click the button above...",TG_GREY,TG_ITALIC}}}
+--sequence data = {{{`Type, paste, drag and drop a file here, or click the button above...`,TG_GREY,TG_ITALIC}}}
+sequence data = {{{`click the button above...`,TG_GREY,TG_ITALIC}}}
 
 integer maxlen = largest(apply(data,length),return_index:=true)
 
@@ -26,32 +27,46 @@ end function
 -- </some bog-standard gList stuff>
 
 procedure got_txt(string filename, sequence contents, gdx lbl)
-    gSetAttribute(lbl,"TITLE",filename)
+    gSetAttribute(lbl,`TITLE`,filename)
     data = contents
     maxlen = largest(apply(data,length),return_index:=true)
     gRedraw(gGetDialog(lbl))
 end procedure   
-    
+
 procedure got(object file, gdx lbl)
     gGetFileText(file,GT_LF_STRIPPED,got_txt,lbl)
 end procedure
 
+-- (fine)
+procedure got_txt2(string filename, sequence contents)
+    ?filename
+    ?shorten(contents)
+end procedure   
+
+--string g = "got_"
+--g &= g[3]&"x"
+--g &= g[3]&"2"
+--call_proc(routine_id(g),{"fn","contents",1,2,3})
+--
+--procedure got1(object file)
+--  gGetFileText(file,GT_LF_STRIPPED,got_txt2)
+--end procedure
+
 procedure action(gdx btn)
     gdx dlg = gGetDialog(btn),
-        lbl = gGetAttribute(btn,"USER_DATA")
-    gGetOpenFileName(dlg,got,lbl)
+        lbl = gGetAttribute(btn,`USER_DATA`)
+    gOpenFile(dlg,got,lbl)
+--  gOpenFile(dlg,got1)
 end procedure
 
---DEV gLabel() don't like "" (the empty string)...
---gdx lbl = gLabel(" ","EXPAND=H"),
-gdx lbl = gLabel(repeat(' ',100),"EXPAND=H"),
-    btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl}}),
---  btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl},{"SIZE",{85,25}}}), --GTK2
---  btn = gButton("Choose File",action,"==",{{"USER_DATA",lbl},{"SIZE",{95,35}}}), --GTK3
-    hbox = gHbox({btn,gHbox({lbl},"SPACE=AROUND")},"GAP=5,EXPAND=H"),
+gdx lbl = gLabel(``,`EXPAND=H`),
+    btn = gButton(`Choose File`,action,`==`,{{`USER_DATA`,lbl}}),
+--  btn = gButton(`Choose File`,action,`==`,{{`USER_DATA`,lbl},{`SIZE`,{85,25}}}), --GTK2
+--  btn = gButton(`Choose File`,action,`==`,{{`USER_DATA`,lbl},{`SIZE`,{95,35}}}), --GTK3
+    hbox = gHbox({btn,gHbox({lbl},`SPACE=AROUND`)},`GAP=5,EXPAND=H`),
     list = gList(get_data,`FONT="Consolas, 12", BGCLR=LIGHT_PARCHMENT`),
     vbox = gVbox({hbox,list}),
-    dlg = gDialog(vbox,"File Open Demo",`SIZE=435x171`)
+    dlg = gDialog(vbox,`File Open Demo`,`SIZE=435x171`)
 gShow(dlg)
 gMainLoop()
 

@@ -6,12 +6,13 @@
 --
 with javascript_semantics
 --requires(64,true)
-puts(1,"")
+--puts(1,"")
 include theGUI.e
---gUseGTK()
+gUseGTK()
+--include bsearch.e
 
 --/*
--- ctrl_xtra[CX_GTL_ATTRS] for for gGraph():
+-- ctrl_xtra[] for for gGraph():
 local constant graph_attrs = {{      GX_GRID:=$,'B',`GRID`          },
                               {   GX_GRIDCLR:=$,'C',`GRIDCLR`       },
                               {    GX_GTITLE:=$,'S',`GTITLE`        },
@@ -41,8 +42,6 @@ local constant graph_attrs = {{      GX_GRID:=$,'B',`GRID`          },
                               {     GX_YTICK:=$,'N',`YTICK`         },
                               {  GX_XTICKFMT:=$,'S',`XTICKFMT`      },
                               {  GX_YTICKFMT:=$,'S',`YTICKFMT`      }},
---                            {   GX_XTENTHS:=$,'I',`XTENTHS`       },
---                            {   GX_YTENTHS:=$,'I',`YTENTHS`       },
 --                            {      GX_XRID:=$,'I',`XRID`          },
 --                            {      GX_YRID:=$,'I',`YRID`          }},
                        GX_LEN = length(graph_attrs),
@@ -53,7 +52,6 @@ if GX_LEGENDXY or GX_LEGENDPOS then end if -- DEV currently unused...
 --*/
 
 sequence ctrl_xtra = {} -- hGraph-specific
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
 enum GX_GRID,
      GX_GRIDCLR,
      GX_GTITLE,
@@ -83,36 +81,92 @@ enum GX_GRID,
      GX_YTICK,
      GX_XTICKFMT,
      GX_YTICKFMT,
-     GX_XRID,
-     GX_YRID,
+--   GX_XRID,       -- now handlers? (testme)
+--   GX_YRID,
      GX_LEN = $
 
 local function tg_get_sig(rtn rid) -- (copied verbatim from theGUI.e)
     return get_routine_info(rid,false)[3] -- eg `FI` (nb and that when rid==null, probably)
 end function
 
-rtn graph_data
+rtn graph_data -- (not hGUI.e)
 
-local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
+procedure tg_draw_minor_ticks(gdx graph, atom x,y,tick,level,size, integer minor, xydx)
+    -- draw one mark of size ...
+    atom {xe,ye} = iff(xydx=1?{x,y-size}:{x+size,y})
+    gDrawLine(graph,x,y,xe,ye)
+    size /= 2
+    if level=1 then
+        -- ... and minor-1 marks of size/2:
+        for i=1 to minor-1 do
+            if xydx=1 then x -= tick/minor else y += tick/minor end if
+            {xe,ye} = iff(xydx=1?{x,y-size}:{x+size,y})
+            gDrawLine(graph,x,y,xe,ye)
+        end for
+    else
+        -- ... and recurse/split for smaller ones:
+        atom {xs,ys} = {x,y}
+        if xydx=1 then xs -= tick/2 else ys += tick/2 end if
+        tick /= 2
+        minor /= 2
+        level -= 1
+        tg_draw_minor_ticks(graph, x,y, tick,level,size,minor, xydx)
+        tg_draw_minor_ticks(graph, xs,ys, tick,level,size,minor, xydx)
+    end if
+end procedure
+
+local procedure tg_redraw_graph(gdx graph, integer w, h)
 --  rtn data = gGetHandler(graph,`DATA`)
     rtn data = graph_data
     string sig = tg_get_sig(data)
     sequence datasets = iff(sig=`F`?data():
                         iff(sig=`FO`?data(graph):
-                        iff(sig=`FII`?data(canvas_width,canvas_height):
-                        iff(sig=`FOII`?data(graph,canvas_width,canvas_height):9/0))))
+                        iff(sig=`FII`?data(w,h):
+                        iff(sig=`FOII`?data(graph,w,h):9/0))))
 
     // nb: `XTICK` etc may be set in the above data() call.
-    object grattrbs = ctrl_xtra[graph][CX_GTL_ATTRS]
-
+    object grattrbs = ctrl_xtra[graph],
+           legendxy = grattrbs[GX_LEGENDXY]
+    sequence xytick = {grattrbs[GX_XTICK],
+                       grattrbs[GX_YTICK]},
+                 wh = {w,h},
+             tminor = {0,0},
+             tsizes = {16,16},
+            tlevels = {1,1}
+    for i,t in xytick do
+        if sequence(t) then
+            if sequence(t[1]) then
+                t = t[1][binary_index(wh[i],t[2])]
+            end if
+        end if
+        if sequence(t) then
+            switch length(t) with fallthrough do
+                case 4: tlevels[i] = t[4]
+                case 3: tsizes[i] = t[3]
+                case 2: tminor[i] = t[2]
+                        break
+                default: ?9/0
+            end switch          
+            t = t[1]
+        end if
+--erm: (if/when it promises to help, I guess)
+--  crash(`minor ticks (%d) must be divisible by %d to show %d levels`,{minor,power(2,levels-1),levels})
+        xytick[i] = t -- (shd be integer by now)
+    end for
     atom gridclr = grattrbs[GX_GRIDCLR],
-         xtick = grattrbs[GX_XTICK],
+         xtick = xytick[1],
+         xtminor = tminor[1],
+         xtlevels = tlevels[1],
+         xtsize = tsizes[1],
          xmin = grattrbs[GX_XMIN],
          xmax = grattrbs[GX_XMAX],
          xmargin = grattrbs[GX_XMARGIN],
          xyshift = grattrbs[GX_XYSHIFT],
          xangle = grattrbs[GX_XANGLE],
-         ytick = grattrbs[GX_YTICK],
+         ytick = xytick[2],
+         ytminor = tminor[2],
+         ytlevels = tlevels[2],
+         ytsize = tsizes[2],
          ymin = grattrbs[GX_YMIN],
          ymax = grattrbs[GX_YMAX],
          ymargin = grattrbs[GX_YMARGIN],
@@ -141,25 +195,25 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
             yacross = grattrbs[GX_YACROSS],
             xrid = gGetHandler(graph,`XRID`),
             yrid = gGetHandler(graph,`YRID`),
-            ystart = 16
+            ystart = 16,
+            ytop = 0
     bool bGrid = grattrbs[GX_GRID],
          bLegendBox = grattrbs[GX_LEGENDBOX]
     grattrbs = 0
 
     -- draw title and axis names
     gSetAttribute(graph,`FGCLR`,TG_BLACK)
---?{"title",title,"yname",yname,"xname",xname} -- (all "" here)
+--?{`title`,title,`yname`,yname,`xname`,xname} -- (all "" here)
     if title!=`` then
-        gDrawText(graph,canvas_width/2+4,5,title,{},TG_SOUTH)
---      ysummat -= 30
+        gDrawText(graph,w/2+4,5,title,{},TG_SOUTH)
+        ytop = 15
     end if
     if yname!=`` then
---      gDrawText(graph,34,canvas_height/2,yname,{},TG_SOUTH,90)
-        gDrawText(graph,20,canvas_height/2,yname,{},TG_SOUTH,270)
---      xsummat -= 30
+        gDrawText(graph,20,(h+ytop)/2,yname,{},TG_SOUTH,270)
+        xmargin += 10
     end if
     if xname!=`` then
-        gDrawText(graph,canvas_width/2,canvas_height-0,xname,{},TG_NORTH)
+        gDrawText(graph,w/2,h-0,xname,{},TG_NORTH)
         ystart += 10
     end if
 
@@ -183,54 +237,50 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
         assert(mode=``,`invalid MODE for MARKSTYLE`)
         mode = `MARK`
     end if
-    atom dx = (canvas_width-60-xmargin)/nx,
---  atom dx = (canvas_width-20-xmargin)/nx,
---       dy = (canvas_height-60-ymargin)/ny,
-         dy = (canvas_height-ystart-9-2*ymargin)/ny,
+    atom dx = (w-60-xmargin)/nx,
+         dy = (h-ystart-9-ymargin-ytop)/ny,
          vx = 30+xmargin,
---       vy = 30+ymargin,
          vy = ystart+ymargin,
---       vy = ymargin+ysummat,
          x = xmin,
          y = ymin
---       vltop = iff(title=``?8:28)
+    integer {lgn,rt} = iff(xangle=0?{TG_S,0}: -- (rt n/a)
+                       iff(xangle=90?{TG_E,TG_W}:
+                       iff(xangle=-90?{TG_W,TG_E}:9/0)))
     for i=1 to nx+1-vb do   -- the vertical lines
         if (bGrid and not vb) or i=xacross then
             gSetAttribute(graph,`FGCLR`,iff(i=xacross?TG_BLACK:gridclr))
---          gSetAttribute(graph,`FGCLR`,TG_RED)
---          gDrawLine(graph,vx,28,vx,canvas_height-(30+ymargin))
-            gDrawLine(graph,vx,9+ymargin,vx,canvas_height-(ystart+ymargin))
---          gDrawLine(graph,vx,vltop,vx,canvas_height-(30+ymargin))
---          gDrawLine(graph,vx,vy,vx,canvas_height-(30+ymargin))
+            gDrawLine(graph,vx,9+ytop,vx,h-(ystart+ymargin))
         end if
         gSetAttribute(graph,`FGCLR`,TG_BLACK)
-        integer align = iff(xangle=0?TG_SOUTH:
-                        iff(xangle=90?TG_EAST:
-                        iff(xangle=-90?TG_WEST:9/0)))
         string xtext = iff(xrid?xrid(x):sprintf(xfmt,x))
         atom tx = vx+dx*vb/2+1,
---           ty = canvas_height-(25+ymargin+xyshift+(yacross-1)*dy)
-             ty = canvas_height-(ystart+ymargin+xyshift+(yacross-1)*dy)
+--           ty = h-(25+ymargin+xyshift+(yacross-1)*dy)
+             ty = h-(ystart+ymargin+xyshift+(yacross-1)*dy)
 
---?xtext
-        gDrawText(graph,tx,ty,xtext,{},align,{TG_W,xangle})
+        gDrawText(graph,vx,ty+5,xtext,{},lgn,{rt,xangle})
+        if i>1 and xtminor>1 then
+            tg_draw_minor_ticks(graph,tx-1,ty,dx,xtlevels,xtsize,xtminor,1)
+        end if
         vx += dx
         x += xtick
     end for
-    for i=1 to ny+1-hb do   -- the horizontal lines
+    integer nhl = ny+1-hb
+    {lgn,rt} = iff(yangle=0?{TG_W,0}: -- (rt n/a)
+               iff(yangle=90?{TG_S,TG_N}:
+               iff(yangle=-90?{TG_N,TG_S}:9/0)))
+    for i=1 to nhl do   -- the horizontal lines
         if (bGrid and not hb) or i=yacross then
             gSetAttribute(graph,`FGCLR`,iff(i=yacross?TG_BLACK:gridclr))
-            gDrawLine(graph,31+xmargin,canvas_height-vy,canvas_width-30,canvas_height-vy)
+            gDrawLine(graph,31+xmargin,h-vy,w-30,h-vy)
         end if
         gSetAttribute(graph,`FGCLR`,TG_BLACK)
-        integer align = iff(yangle=0?TG_WEST:
-                        iff(yangle=90?TG_NORTH:
-                        iff(yangle=-90?TG_SOUTH:9/0)))
         string ytext = iff(yrid?yrid(y):sprintf(yfmt,y))
         atom tx = 25+xmargin+yxshift+(xacross-1)*dx,
-             ty = canvas_height-((vy+dy*hb/2)+2)
---?{ytext,ty}
-        gDrawText(graph,tx,ty,ytext,{},align,yangle)
+             ty = h-vy
+        gDrawText(graph,tx,ty,ytext,{},lgn,{rt,yangle})
+        if i>1 and ytminor>1 then
+            tg_draw_minor_ticks(graph,30+xmargin,ty,dy,ytlevels,ytsize,ytminor,2)
+        end if
         vy += dy
         y += ytick
     end for 
@@ -238,22 +288,22 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
     integer lw,lh, -- (legend text height, per line)
             ll = length(legend)
     if ll then
---      {lw,lh} = XgGetTextExtent(graph,legend,false)
-        {lw,lh} = gGetTextExtent(legend,graph,false)
+        {lw,lh} = gGetTextExtent(legend,graph)
         assert(length(legendpos)=2)
         if legendpos=`XY` then
-            {lx,ly} = gGetAttribute(graph,`LEGENDXY`) -- (untested)
+--          {lx,ly} = gGetAttribute(graph,`LEGENDXY`) -- (untested)
+            {lx,ly} = legendxy -- (untested)
         else
             switch legendpos[1] do
                 case 'T': ly = 25
-                case 'C': ly = floor((canvas_height-50-lh*ll)/2)
-                case 'B': ly = canvas_height-50-lh*ll
+                case 'C': ly = floor((h-50-lh*ll)/2)
+                case 'B': ly = h-50-lh*ll
                 default: ?9/0
             end switch
             switch legendpos[2] do
                 case 'L': lx = 30+xmargin
-                case 'C': lx = floor((xmargin*2+canvas_width-lw)/2)
-                case 'R': lx = canvas_width-lw-50
+                case 'C': lx = floor((xmargin*2+w-lw)/2)
+                case 'R': lx = w-lw-50
                 default: ?9/0
             end switch
             gSetAttribute(graph,`LEGENDXY`,{lx,ly})
@@ -267,8 +317,8 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
     end if
 
     -- and finally draw/plot the points!
-    atom w = dx/xtick,
-         h = dy/ytick
+    atom wx = dx/xtick,
+         hx = dy/ytick
     vx = 30+xmargin + (xacross-1)*dx
 --  vy = 30+ymargin + (yacross-1)*dy
     vy = ystart+ymargin + (yacross-1)*dy
@@ -300,18 +350,18 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
         atom fgclr = iff(ldd>=3?dd[3]:TG_BLACK)
         gSetAttribute(graph,`FGCLR`,fgclr)
         if length(px) then
-            atom x1 = 30+xmargin+(px[1]-xmin)*w,
---               y1 = 30+ymargin+(py[1]-ymin)*h
-                 y1 = ystart+ymargin+(py[1]-ymin)*h
+            atom x1 = 30+xmargin+(px[1]-xmin)*wx,
+--               y1 = 30+ymargin+(py[1]-ymin)*hx
+                 y1 = ystart+ymargin+(py[1]-ymin)*hx
             for i=2-(vb or hb or mm) to length(px) do
-                atom x2 = 30+xmargin+(px[i]-xmin)*w+dx*vb/2,
---                   y2 = 30+ymargin+(py[i]-ymin)*h+dy*hb/2
-                     y2 = ystart+ymargin+(py[i]-ymin)*h+dy*hb/2
+                atom x2 = 30+xmargin+(px[i]-xmin)*wx+dx*vb/2,
+--                   y2 = 30+ymargin+(py[i]-ymin)*hx+dy*hb/2
+                     y2 = ystart+ymargin+(py[i]-ymin)*hx+dy*hb/2
                 if mode=`BAR` then
                     if vb then
-                        gDrawRect(graph,x2-dx/2+1,canvas_height-vy,x2+dx/2-1,canvas_height-y2,true)
+                        gDrawRect(graph,x2-dx/2+1,h-vy,x2+dx/2-1,h-y2,true)
                     elsif hb then
-                        gDrawRect(graph,vx,canvas_height-(y2-dy/2+1),x2,canvas_height-(y2+dy/2-1),true)
+                        gDrawRect(graph,vx,h-(y2-dy/2+1),x2,h-(y2+dy/2-1),true)
                     end if
                 else
                     if mm then
@@ -322,21 +372,21 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
 --          `HOLLOW_BOX`, `HOLLOW_DIAMOND`. Default `X`. 
 --        (rest to be implemented as and when needed)
                         if dms=`HOLLOW_CIRCLE` then
-                            gDrawCircle(graph,x2,canvas_height-y2,2*(dsz+1))
+                            gDrawCircle(graph,x2,h-y2,2*(dsz+1))
                         elsif dms=`PLUS` then
-                            gDrawLine(graph,x2,canvas_height-(y2-dsz),x2,canvas_height-(y2+dsz+1))
-                            gDrawLine(graph,x2-dsz+1,canvas_height-y2,x2+dsz,canvas_height-y2)
+                            gDrawLine(graph,x2,h-(y2-dsz),x2,h-(y2+dsz+1))
+                            gDrawLine(graph,x2-dsz+1,h-y2,x2+dsz,h-y2)
                         elsif dms=`X` then
-                            gDrawLine(graph,x2-dsz,canvas_height-(y2-dsz),x2+dsz,canvas_height-(y2+dsz))
-                            gDrawLine(graph,x2-dsz,canvas_height-(y2+dsz),x2+dsz,canvas_height-(y2-dsz))
+                            gDrawLine(graph,x2-dsz,h-(y2-dsz),x2+dsz,h-(y2+dsz))
+                            gDrawLine(graph,x2-dsz,h-(y2+dsz),x2+dsz,h-(y2-dsz))
                         elsif dms=`DOT` then
-                            gCanvasPixel(graph,x2,canvas_height-y2,fgclr)
+                            gDrawPixel(graph,x2,h-y2,fgclr)
                         else
                             crash(`unknown MARKSTYLE (%s)`,{dms})
                         end if
                     end if
                     if not mm or (dmm=`MARKLINE` and i>=2) then
-                        gDrawLine(graph,x1,canvas_height-y1,x2,canvas_height-y2)
+                        gDrawLine(graph,x1,h-y1,x2,h-y2)
                     end if
                 end if
                 x1 = x2
@@ -359,7 +409,7 @@ local procedure tg_redraw_graph(gdx graph, integer canvas_width, canvas_height)
                         gDrawLine(graph,lX+12-dsz,lY+dsz,lX+12+dsz,lY-dsz)
                         gDrawLine(graph,lX+12-dsz,lY-dsz,lX+12+dsz,lY+dsz)
                     elsif dms=`DOT` then
-                        gCanvasPixel(graph,lX+15,lY,fgclr)
+                        gDrawPixel(graph,lX+15,lY,fgclr)
                     else --default/x
                         ?9/0
                     end if
@@ -380,11 +430,11 @@ end procedure
 
 global function hGraph(rtn data, string attributes=``, sequence args={})
     gdx graph = gCanvas(tg_redraw_graph)
+--gSetAttribute(graph,`BGCLR`,TG_CYAN)
     if platform()!=JS then
         ctrl_xtra &= repeat(0,graph-length(ctrl_xtra))
     end if
-    ctrl_xtra[graph] = repeat(0,CX_GTL_ATTRS)
---  ctrl_xtra[graph][CX_CANVAS_TYPE] = GRAPH
+--  ctrl_types[graph] = GRAPH
 --  tg_register_handler(GRAPH,`DATA`,{`F`,`FO`,`FII`,`FOII`})
 --  tg_register_handler(GRAPH,`XRID`,{`FI`})
 --  tg_register_handler(GRAPH,`YRID`,{`FI`})
@@ -409,10 +459,11 @@ graph_data = data
     grattrbs[GX_YTICK] = 1
     grattrbs[GX_XTICKFMT] = `%g`
     grattrbs[GX_YTICKFMT] = `%g`
-    ctrl_xtra[graph][CX_GTL_ATTRS] = grattrbs
+    ctrl_xtra[graph] = grattrbs
     grattrbs = 0 -- (kill refcount)
+    gSetAttribute(graph,`BGCLR`,TG_WHITE)
     if length(attributes) then
---      gSetAttributes(graph,attributes,args)
+        gSetAttributes(graph,attributes,args)
     end if
     return graph    
 end function
@@ -421,32 +472,56 @@ constant x = {  0,  1,   2,   3,   4,   5,    6,    7,    8,    9},
          y = {2.7,2.8,31.4,38.1,58.0,76.2,100.5,130.0,149.3,180.0}
 
 --integer count = 0
+puts(1,"")
+--?180/5
+--?factors(36,1)
+--?sq_mul(factors(36,1),5)
+--?sq_div(180,{5,10,15,20,30,45,60,90,180})
 
 function get_data(gdx graph, integer w, h)
 --?{w,h} -- 238,48 for our 240x80.
 --function get_data(gdx graph)
---  integer {w, h} = gGetAttribute(graph,"SIZE")
+--  integer {w, h} = gGetAttribute(graph,`SIZE`)
 --  integer ytick = iff(h<90 ? 180 :
-    integer ytick = iff(h<48 ? 180 :
-                    iff(h<110 ? 90 :
-                    iff(h<160 ? 60 :
-                                20)))
+    integer ytick = iff(h<60 ? 180 :
+--                  iff(h<110 ? 90 :
+                    iff(h<75 ? 90 :
+                    iff(h<100 ? 60 :
+--                  iff(h<110 ? 180 :
+                    iff(h<140 ? 45 :
+                    iff(h<170 ? 30 :
+                                20)))))
+--/*
+I currently have the following statement
+    integer ytick = iff(h<60 ? 180 :
+                    iff(h<75 ? 90 :
+                    iff(h<100 ? 60 :
+                    iff(h<140 ? 45 :
+                    iff(h<170 ? 30 :
+                                20)))))
+to calculate how many x-axis labels to display. The exact snap points are not
+particularly critical, it is just for a quick demo. Is there a simpler formula
+to generate a ytick in the set {180,90,60,45,30,20,10,5} from h in the range 0 
+to 5000? I only put the 10,5 on the end in case it makes it a bit easier.
+--*/
 --  integer ydx = binary_index(h,
 --                {47,109,159}),
 --        ytick = {180,90,60,20}[ydx]
 --count += 1
 --?count
 --if count>10 then ?9/0 end if
---  gSetAttribute(graph,"MARKSTYLE","DOT")
+--  gSetAttribute(graph,`MARKSTYLE`,`DOT`)
 --?{w,h}
---?gGetAttribute(gGetDialog(graph),"SIZE")
---  gSetInt(graph,"XTICK",iff(w<640?iff(h<300?100:50):20))
---  gSetInt(graph,"XTICK",iff(w<150?iff(h<200?100:2):1))
---  gSetInt(graph,"YTICK",iff(h<160?iff(h<110?iff(h<90?180:90):60):20))
---  gSetInt(graph,"YTICK",iff(h>=160?20:iff(h>=110?60:iff(h>=90?90:180))))
---  gSetInt(graph,"YTICK",{180,90,60,20}[abs(binary_search(h,{90,110,160}))]
---  gSetInt(graph,"YTICK",ytick)
-ctrl_xtra[graph][CX_GTL_ATTRS][GX_YTICK] = ytick
+--?gGetAttribute(gGetDialog(graph),`SIZE`)
+--  gSetInt(graph,`XTICK`,iff(w<640?iff(h<300?100:50):20))
+--  gSetInt(graph,`XTICK`,iff(w<150?iff(h<200?100:2):1))
+--  gSetInt(graph,`YTICK`,iff(h<160?iff(h<110?iff(h<90?180:90):60):20))
+--  gSetInt(graph,`YTICK`,iff(h>=160?20:iff(h>=110?60:iff(h>=90?90:180))))
+--  gSetInt(graph,`YTICK`,{180,90,60,20}[abs(binary_search(h,{90,110,160}))]
+--  gSetInt(graph,`YTICK`,ytick)
+ctrl_xtra[graph][GX_YTICK] = ytick
+
+--  return {{x,y,TG_BLUE}}
     return {{x,y,TG_BLUE}}
 end function
 
@@ -458,7 +533,7 @@ end function
 --end for
 
 --procedure redraw(gdx /*canvas*/, integer w, h)
---  ?{"redraw",w,h}
+--  ?{`redraw`,w,h}
 --end procedure
 
 -- sug: if X/YTICK=0 then ... range is max-min, floor(range/tick)*20 <= w/h where 20 is deduced from tags...
@@ -467,32 +542,38 @@ end function
 --      XMAX is smallest multiple of XTICK >= max(x)
 --      YMIN is smallest multiple of YTICK <= min(y)
 --      YMAX is smallest multiple of YTICK >= max(y)
-gdx graph = hGraph(get_data,"XTICK=1,XMIN=0,XMAX=9,YMIN=0,YMAX=180"),
-    dlg = gDialog(graph,`gGraph`,"SIZE=240x140,MINSIZE=210x112")
---  dlg = gDialog(graph,`gGraph`,"SIZE=240x80")
-ctrl_xtra[graph][CX_GTL_ATTRS][GX_XMAX] = 9
-ctrl_xtra[graph][CX_GTL_ATTRS][GX_YMAX] = 180
+--gdx graph = hGraph(get_data,`XTICK=1,XMIN=0,XMAX=9,YMIN=0,YMAX=180`),
+gdx graph = hGraph(get_data),
+--  dlg = gDialog(graph,`gGraph`,`SIZE=240x140,MINSIZE=210x112`)
+    dlg = gDialog(graph,`gGraph`,`SIZE=240x80`)
+ctrl_xtra[graph][GX_XMAX] = 9
+ctrl_xtra[graph][GX_YMAX] = 180
+--ctrl_xtra[graph][GX_XTICK] = {1,4}
+--ctrl_xtra[graph][GX_YTICK] = {{{180,2},{90,4},{60,10,10,2},{20,16,10,5}},{89,109,159}}
 
---gSetAttributes(dlg,"RASTERSIZE=320x240,MINSIZE=320x200")
---gSetAttributes(dlg,"RASTERSIZE=320x240,MINSIZE=210x80")
---gSetAttributes(dlg,"SIZE=320x240,MINSIZE=210x80")
---gSetAttributes(dlg,"MINSIZE=210x112")
+--gSetAttributes(dlg,`RASTERSIZE=320x240,MINSIZE=320x200`)
+--gSetAttributes(dlg,`RASTERSIZE=320x240,MINSIZE=210x80`)
+--gSetAttributes(dlg,`SIZE=320x240,MINSIZE=210x80`)
+--gSetAttributes(dlg,`MINSIZE=210x112`)
 --DEV these should be the default...(nah)
---gSetAttribute(graph,"XMARGIN",0)
---gSetAttribute(graph,"YMARGIN",0)
---ctrl_xtra[graph][CX_GTL_ATTRS][GX_XMARGIN] = 0
---ctrl_xtra[graph][CX_GTL_ATTRS][GX_YMARGIN] = 0
---gSetAttribute(graph,"GRID",false) -- (good)
---gSetAttribute(graph,"GRIDCLR",TG_CYAN) -- (good)
---gSetAttribute(graph,"MODE","MARKLINE")
---gSetAttribute(graph,"MODE","MARK")
---gSetAttribute(graph,"MARKSTYLE","HOLLOW_CIRCLE")
---gSetAttribute(graph,"MARKSIZE",0)
---gSetAttribute(graph,"MARKSTYLE","X")
---gSetAttribute(graph,"MARKSTYLE","PLUS")
---gSetAttribute(graph,"LEGEND","legend")
---gSetAttribute(graph,"LEGENDPOS","TL")
---gSetHandler(graph,"REDRAW",redraw)
+--gSetAttribute(graph,`XMARGIN`,0)
+--gSetAttribute(graph,`YMARGIN`,0)
+--ctrl_xtra[graph][GX_XMARGIN] = 0
+--ctrl_xtra[graph][GX_YMARGIN] = 40
+--ctrl_xtra[graph][GX_XANGLE] = 90
+--ctrl_xtra[graph][GX_XANGLE] = -90
+--ctrl_xtra[graph][GX_YANGLE] = 90
+--gSetAttribute(graph,`GRID`,false) -- (good)
+--gSetAttribute(graph,`GRIDCLR`,TG_CYAN) -- (good)
+--gSetAttribute(graph,`MODE`,`MARKLINE`)
+--gSetAttribute(graph,`MODE`,`MARK`)
+--gSetAttribute(graph,`MARKSTYLE`,`HOLLOW_CIRCLE`)
+--gSetAttribute(graph,`MARKSIZE`,0)
+--gSetAttribute(graph,`MARKSTYLE`,`X`)
+--gSetAttribute(graph,`MARKSTYLE`,`PLUS`)
+--gSetAttribute(graph,`LEGEND`,`legend`)
+--gSetAttribute(graph,`LEGENDPOS`,`TL`)
+--gSetHandler(graph,`REDRAW`,redraw)
 gShow(dlg)
 gMainLoop()
 

@@ -1,0 +1,202 @@
+--
+-- demo\theGUI\hSlider.exw
+-- =======================
+-- 
+--  initial implementation of the gSlider control, carefully written in a somewhat 
+--  convoluted style that is intended to make chucking it into theGUI.e simple(r).
+--
+--requires(64,true)
+with javascript_semantics
+--with trace
+include theGUI.e
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gUseGTK()
+
+--/*
+local constant slider_attrs = {{  CX_SLIDER_HORIZ:=$,'b',`[bHoriz]`  }, -- (internal) t/f
+                               {  CX_SLIDER_VALUE:=$,'N',`VALUE`     }, -- 0.0..1.0 (always)
+                               { CX_SLIDER_MINMAX:=$,'p',`MINMAX`    }, -- {lo,hi} (see docs)
+                               {CX_SLIDER_ONTHUMB:=$,'b',`[bOnThumb]`}, -- (internal) t/f
+                               {  CX_SLIDER_DRAGG:=$,'b',`[DRAGG]`   }, -- (internal) t/f
+                               { CX_SLIDER_DRAGXY:=$,'n',`[DRAGXY]`  }}, -- (internal) last down/dragggable x|y 
+               CX_SLIDER_LEN = length(slider_attrs),
+--*/
+
+sequence ctrl_xtra = {}
+enum CX_SLIDER_HORIZ, -- (false for a vertical slider)
+     CX_SLIDER_VALUE,
+     CX_SLIDER_MINMAX,
+     CX_SLIDER_ONTHUMB,
+     CX_SLIDER_DRAGG,
+     CX_SLIDER_DRAGXY,
+     CX_SLIDER_LEN = $
+
+integer r_value_changed -- DEV replace with gS/GetHandler, o/c
+
+gdn slider_thumb = NULL, slider_vthumb
+
+procedure tg_draw_slider(gdx slider, integer w,h)
+    bool bActive = gGetAttribute(slider,`ACTIVE`),
+         bHoriz = ctrl_xtra[slider][CX_SLIDER_HORIZ]
+    atom v = ctrl_xtra[slider][CX_SLIDER_VALUE]
+    if slider_thumb=NULL then
+        -- (otherwise undocumented, as defined in tg_xpm.e:)
+        {slider_thumb, slider_vthumb} = gGetGlobal(`slider_thumb`)
+    end if
+    if bHoriz then
+        gDrawRect(slider,0,7,w-1,8,true,colour:=#E7EAEA)
+        gDrawRect(slider,0,6,w-1,9,false,colour:=#D6D6D6)
+        gDrawImage(slider_thumb,slider,(w-10)*v,0)
+        gDrawLine(slider,5,20,5,h-1,colour:=#C4C4C4)
+        gDrawLine(slider,w-5,20,w-5,h-1,colour:=#C4C4C4)
+    else
+        gDrawRect(slider,7,0,8,h-1,true,colour:=#E7EAEA)
+        gDrawRect(slider,6,0,9,h-1,false,colour:=#D6D6D6)
+        gDrawImage(slider_vthumb,slider,0,(h-10)*v)
+        gDrawLine(slider,20,5,w-1,5,colour:=#C4C4C4)
+        gDrawLine(slider,20,h-5,w-1,h-5,colour:=#C4C4C4)
+    end if
+end procedure
+
+local procedure tg_slider_mousemove(gdx slider, integer x,y, bool left, middle, right)
+    bool bActive = gGetAttribute(slider,`ACTIVE`),
+         bDragg = ctrl_xtra[slider][CX_SLIDER_DRAGG],
+         bHoriz = ctrl_xtra[slider][CX_SLIDER_HORIZ]
+    integer dxy = ctrl_xtra[slider][CX_SLIDER_DRAGXY],
+          {w,h} = gGetAttribute(slider,`SIZE`)
+    atom v = ctrl_xtra[slider][CX_SLIDER_VALUE]
+    if not left then -- (DEV maybe mouseleave? maybe not...)
+        ctrl_xtra[slider][CX_SLIDER_DRAGG] = false
+        bool bOnThumb
+        if bHoriz then
+            atom tx = (w-10)*v
+            bOnThumb = x>=tx and x<=tx+11
+        else
+            atom ty = (h-10)*v
+            bOnThumb = y>=ty and y<=ty+11
+        end if
+        string wens = iff(bHoriz?`WE_RESIZE`:`NS_RESIZE`)
+        gSetAttribute(slider,`CURSOR`,iff(bOnThumb?wens:NULL))
+        ctrl_xtra[slider][CX_SLIDER_ONTHUMB] = bOnThumb
+    elsif bDragg then
+        integer xy = iff(bHoriz?x:y),
+                wh = iff(bHoriz?w:h)
+        v += (xy-dxy)/(wh-10)
+        v = max(min(v,1),0)
+        ctrl_xtra[slider][CX_SLIDER_VALUE] = v
+        ctrl_xtra[slider][CX_SLIDER_DRAGXY] = xy
+        gRedraw(slider)
+--      rtn value_changed = gGetHandler(slider,`VALUE_CHANGED`)
+        if r_value_changed then
+            --DEV plus the usual sig handling...
+            atom {lo,hi} = ctrl_xtra[slider][CX_SLIDER_MINMAX]
+            r_value_changed(slider,v*(hi-lo)+lo)
+        end if
+    end if
+end procedure
+
+local function tg_slider_click(gdx slider, sequence status, integer x, y) 
+    if gGetAttribute(slider,`ACTIVE`) then
+        bool bOnThumb = ctrl_xtra[slider][CX_SLIDER_ONTHUMB],
+             bHoriz = ctrl_xtra[slider][CX_SLIDER_HORIZ]
+        if status[1..2]=`LS` then
+            integer dxy = iff(bHoriz?x:y)
+            ctrl_xtra[slider][CX_SLIDER_DRAGG] = true
+            ctrl_xtra[slider][CX_SLIDER_DRAGXY] = dxy
+            return `CAPTURE`
+        elsif status[1..2]=`LR` then
+            if ctrl_xtra[slider][CX_SLIDER_DRAGG] then
+                ctrl_xtra[slider][CX_SLIDER_DRAGG] = false
+                return `RELEASE`
+            end if
+        end if
+    end if
+    return TG_IGNORE
+end function
+
+local function paranormalise_vaa(object value_changed, sequence attr, args)
+    if string(value_changed) then
+        if length(attr) then args = attr end if
+        attr = value_changed
+        value_changed = NULL
+    end if
+    assert(rtn(value_changed))
+    assert(string(attr) and (length(attr)=0 or find('=',attr)))
+    assert(not string(args))
+    return {value_changed,attr,args}
+end function
+
+constant r = paranormalise_vaa
+asserteq(paranormalise_vaa(NULL,"" ,{} ),{NULL,"" ,{} }) -- gSlider()
+asserteq(paranormalise_vaa( "=","" ,{} ),{NULL,"=",{} }) -- gSlider(attr)
+asserteq(paranormalise_vaa( "=",{1},{} ),{NULL,"=",{1}}) -- gSlider(attr,args)
+asserteq(paranormalise_vaa(   r,"" ,{} ),{   r,"" ,{} }) -- gSlider(vc)
+asserteq(paranormalise_vaa(   r,"=",{} ),{   r,"=",{} }) -- gSlider(vc,attr)
+asserteq(paranormalise_vaa(   r,"=",{1}),{   r,"=",{1}}) -- gSlider(vc,attr,args)
+
+--function hSlider(rtn value_changed=NULL, string attr="", sequence args={})
+function hSlider(object value_changed=NULL, sequence attr="", args={})
+    {value_changed,attr,args} = paranormalise_vaa(value_changed,attr,args)
+    gdx slider = gCanvas(tg_draw_slider)
+    if platform()!=JS then
+        ctrl_xtra &= repeat(0,slider-length(ctrl_xtra))
+    end if
+    object cx = repeat(0,CX_SLIDER_LEN)
+--  cx[CX_SLIDER_HORIZ] = true -- (set below, after SIZE set)
+    cx[CX_SLIDER_VALUE] = 0
+    cx[CX_SLIDER_MINMAX] = {0,1}
+    ctrl_xtra[slider] = cx
+    cx = 0
+    gSetAttributes(slider,attr,args)
+    integer {w,h} = gGetAttribute(slider,`USERSIZE`)
+    bool bHoriz = w=0 or (h!=0 and w>h)
+    ctrl_xtra[slider][CX_SLIDER_HORIZ] = bHoriz
+    if w=0 and h=0 then
+--      gSetAttribute(slider,`SIZE`,iff(bHoriz?`x24`:`24x`))
+        gSetAttribute(slider,`SIZE`,`x24`)
+    end if
+    gSetAttribute(slider,`EXPAND`,iff(bHoriz?'H':'V'))
+    gSetHandler(slider,`CLICK`,tg_slider_click)
+    gSetHandler(slider,`MOUSEMOVE`,tg_slider_mousemove)
+--  gSetHandler(slider,`VALUE_CHANGED`,value_changed)
+    r_value_changed = value_changed
+    return slider
+end function
+
+local procedure hSetAttribute(gdx slider, string name, object v)
+    if name=`VALUE` then
+        if sequence(v) then
+            atom {lo,hi} = v[2]
+            ctrl_xtra[slider][CX_SLIDER_MINMAX] = {lo,hi}
+            v = (v[1]-lo)/(hi-lo) -- (convert to 0.0..1.0)
+        end if
+        ctrl_xtra[slider][CX_SLIDER_VALUE] = v
+    else
+        ?9/0
+    end if
+end procedure
+
+constant title = `gSlider`
+
+procedure value_changed(gdx id, atom v)
+    gdx dlg = gGetDialog(id)
+--  atom v = gGetDouble(id,`VALUE`)
+    gSetAttribute(dlg,`TITLE`,`%s:%d`,{title,v*100})
+--  gSetAttribute(dlg,`TITLE`,`%s:%d`,{title,v}) -- (if range set)
+end procedure
+
+--gdx slider = hSlider(value_changed,`SIZE=220x30`),
+gdx slider = hSlider(value_changed),
+--gdx slider = hSlider(value_changed,`SIZE=x24`),
+--gdx slider = hSlider(value_changed,`SIZE=24x`),
+--gdx slider = gSlider(value_changed,`SIZE=30x220`),
+--  vbox = gVbox({slider},`MARGIN=9x9`),
+    vbox = gVbox({slider},`MARGIN=9x9,SPACE=AROUND`),
+--  dialog = gDialog(slider,title,`SIZE=240x80`)
+    dialog = gDialog(vbox,title,`SIZE=240x80`)
+--gSetAttribute(slider,`BGCLR`,TG_LIGHT_GREY)
+--gSetAttribute(slider,`VALUE`,75)
+--hSetAttribute(slider,`VALUE`,{75,{100,1}})
+--hSetAttribute(slider,`VALUE`,{75,{1,100}})
+gMainLoop(dialog)
+

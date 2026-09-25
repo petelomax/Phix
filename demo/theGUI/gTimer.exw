@@ -12,32 +12,31 @@
 with javascript_semantics
 include theGUI.e
 --gUseGTK()
-constant title = "gTimer",
+constant title = `gTimer`,
          bCorrectDrift = false,
 --       bCorrectDrift = true,
          interval = iff(bCorrectDrift?1000:100)
 integer next = interval
 
 procedure action(gdx timer)
-    gdx dlg = gGetAttribute(timer,"USER_DATA")
+    gdx dlg = gGetAttribute(timer,`USER_DATA`)
 -- (test - yeah, subtly different)
 --if time()>5 then gHide(dlg) end if
---if time()>5 then gSetAttribute(dlg,"VISIBLE",false) end if
+--if time()>5 then gSetAttribute(dlg,`VISIBLE`,false) end if
     if bCorrectDrift then
         integer drift = floor(time()*1000)-next
-        string sdrift = iff(drift?sprintf("(%d)",drift):"")
-        gSetAttribute(dlg,"TITLE","%s:%.1f%s",{title,time(),sdrift})
-        gSetAttribute(timer,"MSECS",max(1000-drift,10))
+        string sdrift = iff(drift?sprintf(`(%d)`,drift):"")
+        gSetAttribute(dlg,`TITLE`,`%s:%.1f%s`,{title,time(),sdrift})
+        gSetAttribute(timer,`MSECS`,max(1000-drift,10))
         next += interval
     else
-        gSetAttribute(dlg,"TITLE","%s:%.1f",{title,time()})
+        gSetAttribute(dlg,`TITLE`,`%s:%.1f`,{title,time()})
     end if
 end procedure
 
 integer w = iff(bCorrectDrift?260:240), h=80
 gdx dlg = gDialog(NULL,title,`SIZE=%dx%d`,{w,h}),
   timer = gTimer(action,interval,true,dlg)
-gShow(dlg)
-gMainLoop()
---?"done"
+gMainLoop(dlg)
+--?`done`
 --wait_key()

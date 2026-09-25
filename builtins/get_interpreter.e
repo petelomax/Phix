@@ -317,7 +317,9 @@ global procedure requires(object x, bool bQuiet=false)
         sequence cl = command_line()
         if sequence(x) then
             string new_options = x[2]
-            while begins("-",cl[$]) do cl = cl[1..$-1] end while
+--13/9/26 (gVidcut Ctrl Q)
+--          while begins("-",cl[$]) do cl = cl[1..$-1] end while
+            cl = cl[1..2]
             if length(new_options) then
                 cl = append(cl,new_options)
             end if

@@ -10,20 +10,21 @@
         <br>
         <br>
         Such files keep important settings and other info in plain text, which can easily be read and manually edited in emergency cases. <br>
-        Their contents should change as infrequently as possible, to wit this encourages the use of multiple ini files, instead of/in preference 
-        to allowing multiple groups/sections <small>(with overloaded keynames)</small> within a single ini file <small>(with different lifespans 
-        and corruption consequences)</small>.<br>
-        Multiple ini files may improve robustness simply by the fact that should a catastrophe occur it might only corrupt a subset of the 
-        settings and/or make restoring just the clobbered part significantly easier, plus unchanged files aren&apos;t overwritten, further 
-        reducing the risk of damage. <br>
+        Their contents should change as infrequently as possible, to wit this encourages the use of <i>multiple</i> ini files, 
+        <b><i>instead of</i></b>/in preference to allowing multiple groups/sections within a single ini file <small>(with, yuk,  
+        overloaded keynames, and things with different lifespans and corruption consequences)</small>.
+        <br>
+        <br>
+        Multiple ini files may improve robustness simply by the fact that a catastrophe might only corrupt a subset of settings and/or make 
+        restoring just the clobbered part significantly easier, plus unchanged files aren&apos;t overwritten, further reducing risk of damage. <br>
         For instance it is not generally wise to mix, say, secure digital authentication keys with more transient things like recent files or 
         usage stats: the latter are fairly frequently updated and should they be corrupted there is a reasonable probability of only some minor 
-        irritation, whereas key loss could lead to a far more serious and prolonged interruption.<br>
-        Note that ini.e makes no attempt to make any backups itself, but does at least provide <a href>ini_filename</a>() 
+        irritation, simply deleting the file may be an adequate fix, whereas key loss could lead to a far more serious and prolonged interruption.<br>
+        Note that ini.e [as yet] makes no attempt to make any backups itself, but does at least provide <a href>ini_filename</a>() 
         so you know what to save, and <a href>ini_dirty</a>() so you know when and ideally not have to wade through thousands 
         of identically-corrupted backups looking for an earlier one that still works, not that I can promise that won&apos;t ever happen.
-        Aside: while there is inevitably a small risk that ini.e still contains a few bugs, the far bigger risk is that an application will
-        tell it to store garbage, along with hardware failure, malware, acts of god, terrorism, and user error.
+        Aside: while there is inevitably a small risk ini.e still contains bugs, the far bigger risk is that an application tells it to store 
+        garbage, along with hardware failure, malware, acts of god, terrorism, and user error.
         <br>
         <br>
         Each line in the ini file is either a comment line, blank or with line[1] in "-/;=" 
@@ -43,8 +44,10 @@
         <small>[I might reconsider handling floats via "%g", but the "random precision" aspect rather deters me from doing that
                 without a pretty good cause, which hasn&apos;t arisen yet.]</small><br>
         No settings can exceed a single line, but you should be able to manage your own '\n' embedding easily enough.<br>
-        <small>(Tip: ini.e would treat say "text[01]".."text[10]" as ten distinct keynames, so [I suppose] you <i>could</i> 
-                     even split/stitch on that sort of basis manually.)</small><br>
+        <small>(While it might be sensible to assue a limit of 32,767 bytes per line, ini.e itself imposes no such restriction,
+                     however keeping the .ini file human-editable is a much more important consideration.
+                Tip: ini.e treats say "text[01]".."text[10]" as ten distinct keynames, so I suppose you <i>could</i> 
+                     split/stitch on that sort of basis manually.)</small><br>
         Note that ini.e also doesn&apos;t attempt any escape character or quote handling itself: that&apos;s all on you as well.<br>
         Likewise an ini file cannot hold say "123" as an unquoted <i>string</i>, you may have to quote-strip/add manually.<br>
 <!--
@@ -94,14 +97,15 @@ C:\Program Files (x86)\Phix\builtins\ini.e
 C:\Users\Pete\theEditor.ini
 """
 ini_load(TED,ini_defaults)
+ini_load(SESSION,session_defaults)
 -- ...
-    ini_restore(TED) -- (be sure "session" isn't active)
+    ini_restore(TED) -- (be sure SESSION isn't active)
     integer w = ini_setting("width"),
             h = ini_setting("height"),
       {{x,y}} = scanf(ini_setting("mainwin"),"{%d,%d}")
 -- ...
     -- reload files if any from the previous session:
-    ini_load(SESSION,session_defaults) -- (optional here)
+    ini_restore(SESSION) -- (entirely optional here)
     for key in ini_keynames(SESSION) do
         object setting = ini_setting(key)
         if integer(setting) or length(setting) then
@@ -149,14 +153,15 @@ C:\Program Files (x86)\Phix\builtins\ini.e
 C:\Users\Pete\theEditor.ini
 """</font>
 <font color="#7060A8">ini_load</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">,</font><font color="#000000">ini_defaults</font><font color="#0000FF">)</font>
+<font color="#7060A8">ini_load</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">,</font><font color="#000000">session_defaults</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (be sure "session" isn&apos;t active)</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (be sure SESSION isn&apos;t active)</i></font>
 <font color="#004080">    integer</font><font color="#000000"> w</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"width"</font><font color="#0000FF">),</font>
 <font color="#000000">            h</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"height"</font><font color="#0000FF">),
       {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#7060A8"> scanf</font><font color="#0000FF">(</font><font color="#7060A8">ini_setting</font><font color="#800000">(</font><font color="#008000">"mainwin"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"{%d,%d}"</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...
     -- reload files if any from the previous session:</i></font>
-<font color="#7060A8">    ini_load</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">,</font><font color="#000000">session_defaults</font><font color="#0000FF">)</font><font color="#000080"><i> -- (optional here)</i></font>
+<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (entirely optional here)</i></font>
 <font color="#008080">    for</font><font color="#000000"> key</font><font color="#008080"> in</font><font color="#7060A8"> ini_keynames</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#008080"> do</font>
 <font color="#004080">        object</font><font color="#000000"> setting</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font>
 <font color="#008080">        if</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> or</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
@@ -286,7 +291,7 @@ C:\Users\Pete\theEditor.ini
             Does nothing unless <a href>ini_dirty</a>() indicates it that needs/ought to (and then clears the dirty flag).<br>
             Invokes <a href>ini_as_string</a>() automatically and writes the result to disk (but not under p2js).<br>
             Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
+            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
             </dd>
            </dl>
           </td>
@@ -307,7 +312,7 @@ C:\Users\Pete\theEditor.ini
             Completely removes the specified entry from the internal tables and sets the active index to 0.<br>
             An error occurs if there are any pending updates, aka <a href>ini_save</a>() missing, unless bIgnoreDirty is overidden.<br>
             Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.<br>
+            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.<br>
             Provided for completeness only: there is no real benefit from ever bothering with this, other than verify-saved
             or you are for some strange reason attempting the awkward/longhand re-creation method mentioned in <a href>ini_load</a>().
             </dd>
@@ -340,11 +345,12 @@ C:\Users\Pete\theEditor.ini
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>ini_setting</b>(string keyname, object dflt=0, bool bMustExist=true)
+            <b>ini_setting</b>(sequence keyname, object dflt=0, bool bMustExist=true)
              <br>
             </dt>
             <dd class="pad">
             Result will be integer, string, or (when bMustExist is false) whatever type dflt was.<br>
+            keyname can be a string or {ini_name,keyname} to perform an automatic ini_restore(ini_name).<br>
             When bMustExist is true, dflt is not actually used/returned, and an error occurs instead.<br>
             </dd>
            </dl>
@@ -352,17 +358,18 @@ C:\Users\Pete\theEditor.ini
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_delete_key></a>
+            <a name=ini_delete_all></a><a name=ini_delete_key></a>
             <br>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
+            <b>ini_delete_all</b>(string ini_name="") -- remove everything except comments,<br>
             <b>ini_delete_key</b>(string keyname, bool bMustExist=<a href>true</a>) -- remove keyname.
              <br>
             </dt>
             <dd class="pad">
-            Probably better suited to (say) recent files than proper/permanant settings.
+            Both those are probably better suited to (say) recent files than proper/permanant settings.
             </dd>
            </dl>
           </td>
@@ -382,7 +389,7 @@ C:\Users\Pete\theEditor.ini
             Returns a list of all keynames currently stored.<br>
             Probably more useful for, say, recent files than actual/proper/permanant settings.<br>
             Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and there is no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
+            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
             </dd>
            </dl>
           </td>
@@ -418,7 +425,7 @@ C:\Users\Pete\theEditor.ini
             </dt>
             <dd class="pad">
             Made available in case it proves useful, used internally by <a href>ini_save</a>() and <a href>ini_close</a>().<br>
-            Returns whether any pending <a href>ini_set</a>() or <a href>ini_delete_key</a>() have yet to be saved.<br>
+            Returns whether any pending <a href>ini_set</a>() or <a href>ini_delete_key</a>(/all) have yet to be saved.<br>
             Note that ini.e makes no attempt to create any backups, so you might use this 
             to decide when to make backups and/or periodically make them anyway.
             No files are left open between <a href>ini_load</a>() and <a href>ini_save</a>(), so copying is not a problem.
@@ -460,7 +467,9 @@ C:\Users\Pete\theEditor.ini
        <br>
        <br>
         Should you want, for instance, to save the width and height of ten different windows, then rather than have ten
-        "sections" with those fields duplicated in each, you&apos;ll want to have a unique details_width, etc.
+        "sections" with those fields duplicated in each, use unique names such as main_width, details_width, options_width, 
+        etc. Alternatively of course you could have main_window = "{10,10,800,600}", and so on, sharing the same sprintf()
+        to pack and scanf() to unpack, and that way effectively make sub-fields anonymous as far as ini.e is concerneed.
        <br>
        <br>
        <br>

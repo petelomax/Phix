@@ -27,7 +27,7 @@
             Update the size and layout of all controls in the same dialog, and then, obviously, redraw them. 
             <br>
             <br>
-            id: Identifier of the interface element.
+            id: Identifier of the interface element. No gain/loss to be had by specifying <a href>gGetDialog</a>(id).
 <!--            <small>bNow: intended for internal use, gives GTK an extra nudge.</small>-->
             <br>
          </td>
@@ -40,20 +40,34 @@
           Supported.
          </td>
         </tr>
-<!--
         <tr>
          <td>
           <b>Notes:</b>
          </td>
          <td>
-            Redrawing too often can slow things down, however be advised that doing so at most once per second (and when the
+            Invoking mid-paint, aka from within a <a href>REDRAW</a> handler, is decidedly dodgy since the redraw currently 
+            underway is likely to announce "all done" (eg ValidateRect) before the latest request has actually had a chance 
+            to take proper(/on-screen) effect, even if it did successfully update all (internal) bits &apos;n bobs needed.
+            Plus of course if you&apos;re not very careful risking an infinite loop of redraw-&gt;redraw-&gt;redraw-&gt;...
+            <br>
+            <br>
+            Generally speaking, I would say &gt;99% of reasons to redraw are from mouse/keyboard/callback/timer events.
+            <br>
+            <br>
+            However things such as <a href>OpenGL</a> and <a href>libmpv</a> <i>cannot</i> be initialised until the relevant 
+            window has reached the drawing stage. Hence when theGUI detects that kind of call, it automatically schedules another 
+            redraw 1/8<small><sup>th</sup></small>s (125ms) later. You <i>do</i> need to make sure you <i>only</i> make such calls 
+            either in a one-off fashion or when something has genuinely changed, otherwise it <i>will</i> enter a busy loop, quite 
+            possibly becoming sluggish or even unresponsive, and waste CPU cycles and battery life for no good reason.
+<!--
+            Redrawingtoo often can slow things down, however be advised that doing so at most once per second (and when the
             last is done) may make some program which actually stalls on the 2237th item appear to stall on some random item
             in the 21xx range, and no generic quick fix for that sort of thing springs to mind other than to put up with the 
             slowdown while finding out precisely which item deserves deeper investigation.
+-->
             <br>
          </td>
         </tr>
--->
         <tr>
          <td class="techbtn">
           <b>See Also:</b>

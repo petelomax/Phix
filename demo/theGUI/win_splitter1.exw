@@ -8,6 +8,7 @@
 --
 --?""
 --requires(64,true)
+
 include theGUI.WINAPI.e
 
 bool clip = false -- type 'C' to toggle
@@ -30,7 +31,7 @@ constant hResizeCursor = LoadCursor(IDC_SIZEWE),
          mild = CreateSolidBrush(0x00E8E8E8),
          blue = CreateSolidBrush(0x00FFF0F0)
 
-function WndProc_cb(atom hWnd, msg, wParam, lParam)
+function WndProc(atom hWnd, msg, wParam, lParam)
     switch msg do
 
         case WM_SIZE:
@@ -56,6 +57,9 @@ function WndProc_cb(atom hWnd, msg, wParam, lParam)
                     ctrl_xtra[id][CX_SPLIT_RATIO] = max(0,min(1,x/w))
                     InvalidateRect(hWnd, NULL, false)
                 elsif x>=l and x<=r then
+-- nearly...
+--              end if
+--              if x>=l and x<=r then
                     SetCursor(hResizeCursor)
                 end if
             else
@@ -140,10 +144,10 @@ function WndProc_cb(atom hWnd, msg, wParam, lParam)
 
     return DefWindowProc(hWnd, msg, wParam, lParam)
 end function
-constant WndProc = call_back(WndProc_cb)
+constant WndProc_cb = call_back(WndProc)
 
 procedure main()
-    RegisterClassEx("SplitCanvasOne",WndProc)
+    RegisterClassEx("SplitCanvasOne",WndProc_cb)
 
     atom hWnd = CreateWindowEx(0, "SplitCanvasOne", "Resizable Single Canvas Split",
                                WS_OVERLAPPEDWINDOW,
@@ -162,3 +166,6 @@ procedure main()
 end procedure
 main()
 
+--/*
+InitCommonControls()
+--*/

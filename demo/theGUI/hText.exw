@@ -15,7 +15,7 @@
 --  On the other hand, once you have a text field working, you can start to
 --  think about tweaking it to support a spin field, and (later) maybe even 
 --  a dropdown and datepick, rather than start from scratch &/or duplicate 
---  ~700 lines, along with however many bugs they might contain.
+--  ~700 lines, along with however many bugs they might contain. [DONE]
 --
 --  This code may also have uses elsewhere, for instance should you hanker
 --  after in-place editing on a gTable this should contain almost all the 
@@ -34,22 +34,43 @@
 --
 -- enum TEXT, SPIN, CHECKBOX, DATEPICK
 -- constant ?? = TEXT
+--DEV kill, by factoring out...
+--constant run_unit_tests = true -- disable for any work on gSpin, gDropDown, gDatePick, etc...
+--DEV trash these, replace with hSpin/hDatePick/hDropDown:
+--constant AS_SPIN = false -- nb disable unit tests before toggling
+--constant AS_SPIN = false  -- (makes it a gSpin)
+--constant AS_DATEPICK = false  -- (makes it a gDatePick) [needs gCalendar really...]
+--constant AS_DROPDOWN = false  -- (makes it a gDropDown) [needs gList really...]
 --/*
 --        SPIN
 --          (non inheritable, creation only) Makes the control a <a href="gSpin.htm">gSpin</a>. Can be <a href="logicops.htm#tf">false</a> (the default),
---          <a href="logicops.htm#tf">true</a> (== {0,100,1,false}), or {lo,hi[,step[,wrap]]} where lo and hi must be integers with lo&lt;=hi,
+--          <a href="logicops.htm#tf">true</a> (== {0,9,1,false}), or {lo,hi[,step[,wrap]]} where lo and hi must be integers with lo&lt;=hi,
 --          step must be an integer&gt;=1, and wrap must be true/false. Reading ths attribute yeilds either false or a four-element sequence. 
 --          Setting before the first display defaults the control size from lo/hi. Changing the <a href="gSetAttribute.htm#FONT">FONT</a>
 --          changes the up/down image sizes to match.
 --*/
 
-puts(1,"")
 --requires(64,true)
+puts(1,"")
 --with trace
 --trace(3)
 with javascript_semantics
-without debug
+--without debug
 include theGUI.e
+--include hGUI.e
+--include backup/hGUI.6210.e -- OK
+--include backup/hGUI.6280.e -- OK
+--include backup/hGUI.7380.e -- OK
+--include backup/hGUI.7423.e -- OK
+--include backup/hGUI.7424.e -- bad
+--include backup/hGUI.7425.e -- bad
+--include backup/hGUI.7442.e -- bad
+--include backup/hGUI.7450.e -- ok
+--include backup/hGUI.7483.e -- ok
+--include backup/hGUI.7527.e -- ok
+--include backup/hGUI.7531.e -- ok
+
+--include backup\hGUI.1752.e -- bad
 --/!*
 include VM\pTime.e
 include dict.e
@@ -75,72 +96,85 @@ with debug
 --include backup\theGUI.6130.e -- loopy!
 --include backup\theGUI.6140.e -- loopy!
 --include backup\theGUI.7060.e -- loopy!
---gUseGTK() -- DEV loopy on GTK2 [FIXED]... also no focus on canvas...
---  it seems gtk_widget_modify_fg() triggers a full redraw - I need to google that...
---  better: revert to ctrl_bg/fg for a canvas... [DONE]
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gUseGTK()
 
---Temp, ==> ctrl_xtra[CX_GTL_ATTRS] for gText(): (eg)
---                            {   CXTEXT_VALUE:=$,      'S',`VALUE`     }, -- text
---                            {   CXTEXT_CARETPOS=$,    'i',`$CPOS`     }, -- cursor position
 --string it
 --integer cpos = 01
 
-local constant bGTK = gVersion(-1)==TG_GTK,
-               bGTK2 = bGTK and gVersion(-2)==2,
-               bGTK3 = bGTK and gVersion(-2)==3,
-               bWAPI = gVersion(-1)==TG_WINAPI
+constant backend = gVersion(-1),
+         backver = gVersion(-2),
+         bGTK2 = backend=TG_GTK and backver=2,
+         bGTK3 = backend=TG_GTK and backver=3 
 
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
+--/*
+local constant text_attrs = {{ CXTEXT_CARETCLR:=$,'n',`[CARETCLR]`  }, -- (internal) TG_BLACK|WHITE for blinking
+                             {  CXTEXT_CARETCT:=$,'i',`[CARETCT]`   }, -- (internal) blink six times then stop (if zero activity)
+                             { CXTEXT_CARETIME:=$,'n',`[CARETIME]`  }, -- (internal) time()+0.5 to next blink on/off
+                             {CXTEXT_CARETIMER:=$,'i',`[CARETIMER]` }, -- (internal) the gTimer() used for blinking
+                             { CXTEXT_CARETPOS:=$,'i',`[CARETPOS]`  }, -- (internal) cursor position (initially 1)
+                             {CXTEXT_CHARSFROM:=$,'i',`[CHARSFROM]` }, -- (internal) VALUE[i] is the first char being shown
+                             {    CXTEXT_LASTW:=$,'i',`[LASTW]`     }, -- (internal) last width, for bumping cfrom
+                             { CXTEXT_HADFOCUS:=$,'b',`[HADFOCUS]`  }, -- (internal) restart caret timer
+                             { CXTEXT_SELSTART:=$,'i',`[SELSTART]`  }, -- (internal) selection start, or 0 if none
+                             {    CXTEXT_VALUE:=$,'S',`VALUE`       }, -- text
+                             {CXTEXT_CUEBANNER:=$,'S',`CUEBANNER`   }, -- text to display when length(text)==0
+                             {     CXTEXT_UNDO:=$,'p',`[UNDO]`      }, -- (internal) undo stack (initially NULL)
+                             {  CXTEXT_UNDOPOS:=$,'i',`[UNDOPOS]`   }, -- (internal) idx<=length(undo stack)
+                             {      CXTEXT_SDD:=$,'i',`[SDD]`       }, -- (internal) spin/datepick/dropdown extras
+                             {      CXSPIN_HOV:=$,'i',`[SPIN_HOV]`  }}, -- (internal) 0/1/2 for none/up/down
+                    CXTEXT_LEN = length(text_attrs)
+
+-- logically, but easier just to code {lo,hi,step,bWrap} = ctrl_xtra[text][CXTEXT_SDD]:
+--local enum -- ctrl_xtra[spin][CXTEXT_SDD] for SPIN:
+--   CXSPIN_LO,         -- int <= hi
+--   CXSPIN_HI,         -- int >= lo
+--   CXSPIN_STEP,       -- int >= 1 (or same sign as hi-lo? or just suckitandsee?)
+--   CXSPIN_WRAP,       -- t/f              (may work for +ve step only, "")    
+
+--*/
+
+local enum TEXT, SPIN, DATEPICK, DROPDOWN -- ""
+
+-- contents of ctrl_xtra[text]:
 enum CXTEXT_CARETCLR,
      CXTEXT_CARETCT,
      CXTEXT_CARETIME,
      CXTEXT_CARETIMER,
      CXTEXT_CARETPOS,
      CXTEXT_CHARSFROM,
+     CXTEXT_LASTW,
      CXTEXT_HADFOCUS,
      CXTEXT_SELSTART,
      CXTEXT_VALUE,
-     CXTEXT_VALUE_CHANGED,
-     CXTEXT_CUEBANNER,              -- (yet to be added to the docs)
+     CXTEXT_CUEBANNER,
      CXTEXT_UNDO,
      CXTEXT_UNDOPOS,
-     CXTEXT_DEFER,
-     CXTEXT_DEFERX,
---DEV:
-     CXTEXT_SPIN,       -- t/f
-     CXSPIN_LO,         -- int <= hi
-     CXSPIN_HI,         -- int >= lo
-     CXSPIN_STEP,       -- int >= 1 (or same sign as hi-lo? or just suckitandsee?)
-     CXSPIN_WRAP,       -- t/f              (may work for +ve step only, "")    
+     CXTEXT_SDD,        -- {lo,hi,step,wrap}, {calendar}, {list}
      CXSPIN_HOV,        -- 0/1/2 for none/up/down
+     CXTEXT_VALUE_CHANGED, -- nb hText only, use gSetHandler in theGUI.e
      CXTEXT_LEN = $
-sequence ctrl_xtra
+sequence ctrl_xtra, ctrl_types
 
-gdx clipboard = NULL
-
-bool bTest = false
-
-function tg_nearest_cpos(gdx text, integer x)
+local function tg_nearest_cpos(gdx text, integer x)
     -- perform a binary chop to find the nearest cpos, taking cfrom into account
-    integer cfrom = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM]
+    integer cfrom = ctrl_xtra[text][CXTEXT_CHARSFROM]
     if x<=5 then return cfrom end if
-    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE]
---?txt
+    string txt = ctrl_xtra[text][CXTEXT_VALUE]
     sequence utf32 = utf8_to_utf32(txt)[cfrom..$]
---?utf32
     integer lo = 0,
             hi = length(utf32),
             lopos = 5,
---          hipos = 5 + XgGetTextExtent32(text,utf32)[1]
-            hipos = 5 + gGetTextExtent32(utf32,text)[1]
+--          hipos = 5 + gGetTextExtent32(utf32,text)[1]
+            hipos = 5 + gGetTextExtent(utf32_to_utf8(utf32),text)[1]
     if x>=hipos then return cfrom+hi end if
     while hi>lo+1 do
         integer mid = floor((hi+lo)/2)
         -- may as well leave these in (never triggered for me)
         if mid<=lo then ?9/0 end if
         if mid>=hi then ?9/0 end if
---      integer midpos = 5 + XgGetTextExtent32(text,utf32[1..mid])[1]
-        integer midpos = 5 + gGetTextExtent32(utf32[1..mid],text)[1]
+--      integer midpos = 5 + gGetTextExtent32(utf32[1..mid],text)[1]
+        integer midpos = 5 + gGetTextExtent(utf32_to_utf8(utf32[1..mid]),text)[1]
         if x<midpos then
             hi = mid
             hipos = midpos
@@ -176,61 +210,66 @@ local function tg_gtext_next_word_boundary(integer cpos, len, sequence utf32)
     return cpos
 end function
 
-procedure tg_gtext_redraw(gdx text, integer w, h)
---?`redraw`
---?{w,h}
-    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE], substr
---?txt
+local procedure tg_text_process_mouseclickmove(gdx text, integer d, x)
+    --
+    -- process mouse click/move:
+    -- d is 'S' or 'D' for single./double click, 'M' for mousemove.
+    -- 
+    string txt = ctrl_xtra[text][CXTEXT_VALUE]
     sequence utf32 = utf8_to_utf32(txt)
---?{`utf32<`,utf32}
-    bool unicode = length(txt)!=length(utf32),
-           bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN]
-    if bTest and bSpin then ?9/0 end if
-    integer cfrom = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM],
-             cpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS],
-         selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART],
-                d = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER]
-    if d then
-        --
-        -- process deferred mouse click/move:
-        -- 
-        integer prev_cpos = cpos,
-                x = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX]
+    integer cfrom = ctrl_xtra[text][CXTEXT_CHARSFROM],
+             cpos = ctrl_xtra[text][CXTEXT_CARETPOS],
+         selstart = ctrl_xtra[text][CXTEXT_SELSTART],
+        prev_cpos = cpos
+    if backend=TG_GTK then
         if bGTK2 then x += 4 end if
         if bGTK3 then x -= 2 end if
-        cpos = tg_nearest_cpos(text, x)
-        if d='S' then
-            bool shift = gGetGlobal(`SHIFTKEY`)
-            if shift and selstart=0 then
-                selstart = prev_cpos
-            elsif selstart=0 or not shift then
-                selstart = cpos
-            end if
-        elsif d='D' then
-            selstart = tg_gtext_prev_word_boundary(cpos,utf32)
-            cpos = tg_gtext_next_word_boundary(cpos,length(utf32),utf32)
-        elsif d='M' then
-            if x<=5 then
-                if cfrom>1 then
-                    cfrom -= 1
-                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM] = cfrom
-                end if
-                cpos = cfrom
---          else
---              cpos = tg_nearest_cpos(text,x)
-            end if
---      ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
-        else
-            ?9/0
-        end if
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART] = selstart
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = 0
-        -- </deferred mouse click/move>
     end if
+    cpos = tg_nearest_cpos(text, x)
+    if d='S' then
+        bool shift = gGetGlobal(`SHIFTKEY`)
+        if shift and selstart=0 then
+            selstart = prev_cpos
+        elsif selstart=0 or not shift then
+            selstart = cpos
+        end if
+    elsif d='D' then
+        selstart = tg_gtext_prev_word_boundary(cpos,utf32)
+        cpos = tg_gtext_next_word_boundary(cpos,length(utf32),utf32)
+    elsif d='M' then
+        if x<=5 then
+            if cfrom>1 then
+                cfrom -= 1
+                ctrl_xtra[text][CXTEXT_CHARSFROM] = cfrom
+            end if
+            cpos = cfrom
+--      else
+--          cpos = tg_nearest_cpos(text,x)
+        end if
+--      ctrl_xtra[text][CXTEXT_CARETPOS] = cpos
+    else
+        ?9/0
+    end if
+    ctrl_xtra[text][CXTEXT_SELSTART] = selstart
+    ctrl_xtra[text][CXTEXT_CARETPOS] = cpos
+end procedure
+
+local atom date_pick_icon = NULL
+
+local procedure tg_gtext_redraw(gdx text, integer w, h)
+    string txt = ctrl_xtra[text][CXTEXT_VALUE], substr
+    sequence utf32 = utf8_to_utf32(txt)
+    bool unicode = length(txt)!=length(utf32),
+           tType = ctrl_types[text]
+    integer cfrom = ctrl_xtra[text][CXTEXT_CHARSFROM],
+             cpos = ctrl_xtra[text][CXTEXT_CARETPOS],
+           last_w = ctrl_xtra[text][CXTEXT_LASTW],
+         selstart = ctrl_xtra[text][CXTEXT_SELSTART],
+              hov = ctrl_xtra[text][CXSPIN_HOV]
+    ctrl_xtra[text][CXTEXT_LASTW] = w
     bool bHasFocus = (gGetFocus()==text), 
        bDrawCursor = false
-    if not bTest then
+    if backend==TG_GTK then
         if bGTK2 then
             gDrawLine(text,0,0,w-1,0,colour:=#9E9A91)
             gDrawLine(text,0,0,0,h-1,colour:=#9E9A91)
@@ -242,134 +281,117 @@ procedure tg_gtext_redraw(gdx text, integer w, h)
             gDrawRect(text,0,0,w-1,h-1,false,0,colour:=#E8E8E7,width:=1)
 
             if bHasFocus then
---          if false then
---              gDrawRect(text,1,1,w-1,h-1,false,2,colour:=#4A90D9,width:=2)
                 gDrawRect(text,1,1,w-2,h-5,false,2,colour:=#4A90D9,width:=2)
             else
---              gDrawRect(text,0,0,w,h,false,4,colour:=#808080,width:=1)
                 gDrawRect(text,0,0,w-1,h-8,false,4,colour:=#808080,width:=1)
             end if
-        elsif bWAPI then
-            atom boxclr = iff(bHasFocus?#0078D4:#646464)
-            gDrawRect(text,0,0,w-1,h-1,colour:=boxclr)
-        else
-            ?9/0
         end if
+    elsif backend==TG_WINAPI then
+        atom boxclr = iff(bHasFocus?#0078D4:#646464)
+        gDrawRect(text,0,0,w-1,h-1,colour:=boxclr)
+    else
+        ?9/0
     end if
     integer x = floor(h/5), y = floor(h/2), tw, th
-    if bGTK2 then x -= 2 y += 1 end if
---  if bGTK3 then x += 1 end if
-    if bGTK3 then x += 4 y += 1 end if
---?{`x`,x}
---DEV/SUG:
---  if txt=`` and not bHasFocus then
---      txt = cuebanner
---  end if
+    if backend=TG_GTK then
+        if bGTK2 then x -= 2 y += 1 end if
+        if bGTK3 then x += 4 y += 1 end if
+    end if
+
+    -- ensure cpos on-screen, by adjusting cfrom as needed:
+    integer l1 = length(iff(unicode?utf32:txt))+1
+    cpos = min(cpos,l1)
+    integer newfrom = min(iff(cfrom>=cpos?1:cfrom),l1)
+    substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
+                                        :txt[newfrom..cpos-1])
+    {tw,th} = gGetTextExtent(substr,text,bNorm:=true)
+    integer maxw = w-6-(tType!=TEXT)*(h-6)
+    if tw>=maxw then
+        newfrom = max(1,cpos-floor((cpos-newfrom)*((w*2/3)/tw)))
+        substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
+                                            :txt[newfrom..cpos-1])
+        {tw,th} = gGetTextExtent(substr,text,bNorm:=true)
+
+    elsif w>last_w and newfrom>1 then
+        -- increase newfrom while txt[$] still visible
+        while newfrom>1 do
+            substr = iff(unicode?utf32_to_utf8(utf32[newfrom-1..$])
+                                                :txt[newfrom-1..$])
+            {tw,th} = gGetTextExtent(substr,text,bNorm:=true)
+            if tw>=maxw then exit end if
+            newfrom -= 1
+        end while
+    end if
+    if newfrom!=cfrom then
+        cfrom = newfrom
+        ctrl_xtra[text][CXTEXT_CHARSFROM] = cfrom
+    end if
+
     -- cursor:
-    gdx cursorblinktimer = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIMER]
+    gdx cursorblinktimer = ctrl_xtra[text][CXTEXT_CARETIMER]
     -- Aside: GTK only shows cursor when no text selected, WinAPI always
-    if bHasFocus and ((not (bGTK2 or bGTK3)) or selstart=0 or selstart=cpos) then
-        if not ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] then
-            ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT] = 6
+--  if bHasFocus and ((not (bGTK2 or bGTK3)) or selstart=0 or selstart=cpos) then
+    if bHasFocus then
+        if not ctrl_xtra[text][CXTEXT_HADFOCUS] then
+            ctrl_xtra[text][CXTEXT_CARETCT] = 6
             gSetAttribute(cursorblinktimer,`RUN`,true)
         end if
         if gGetAttribute(cursorblinktimer,`RUN`) then
-            atom caretime = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIME],
-                 caretclr = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCLR]
+            atom caretime = ctrl_xtra[text][CXTEXT_CARETIME],
+                 caretclr = ctrl_xtra[text][CXTEXT_CARETCLR]
             if time()>=caretime then
 --              caretclr = iff(caretclr=TG_BLACK?bgsel:TG_BLACK)
                 caretclr = iff(caretclr=TG_BLACK?TG_WHITE:TG_BLACK)
-                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCLR] = caretclr
-                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETIME] = time()+0.5
+                ctrl_xtra[text][CXTEXT_CARETCLR] = caretclr
+                ctrl_xtra[text][CXTEXT_CARETIME] = time()+0.5
                 if caretclr=TG_BLACK then
-                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT] -= 1
-                    if ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETCT]<=0 then
+                    ctrl_xtra[text][CXTEXT_CARETCT] -= 1
+                    if ctrl_xtra[text][CXTEXT_CARETCT]<=0 then
                         gSetAttribute(cursorblinktimer,`RUN`,false)
                     end if
                 end if
-            end if
-
-            integer newfrom = iff(cfrom>=cpos?1:cfrom)
-            substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
-                                                :txt[newfrom..cpos-1])
---          {tw,th} = XgGetTextExtent(text,substr)
-            {tw,th} = gGetTextExtent(substr,text)
---?{`Twth`,tw,th,w,h}
---?{`Tw`,tw,w,txt[newfrom..cpos-1]} £"333
---?{`Tw`,tw,w,substr}
---          if tw>=w-6-bSpin*15 then
-            if tw>=w-6-bSpin*(h-6) then
---?"shift" -- DEV proves above test is insufficient/wrong... (when dlg resized deeper/narrower, also click stops being correct)
---              newfrom = cpos-floor((cpos-newfrom)*((w*2/3)/tw))
-                newfrom = max(1,cpos-floor((cpos-newfrom)*((w*2/3)/tw)))
---/*DEV slice length is negative [40..10] -- fixed, I think, by prev max(1,).
-    text = 1
-    w = 385
-    h = 267
-    txt = `one two three four five six seven eight nine ten`
---         123456789012345678901234567890123456789012345678 -- 48
-    substr = `one two th`
-    utf32 = `one two three four five six seven eight nine ten`
-    unicode = 0
-    bSpin = 1
-    cfrom = 1
-    cpos = 11
-    selstart = 0
-    d = 0
-    prev_cpos = <novalue>
-    x = <novalue>
-    shift = <novalue>
-    bHasFocus = 1
-    bDrawCursor = 0
-    boxclr = 30932
-    x = 53'5'
-    y = 133
-    tw = 128
-    th = 32' '
-    newfrom = -9
---*/
-                substr = iff(unicode?utf32_to_utf8(utf32[newfrom..cpos-1])
-                                                    :txt[newfrom..cpos-1])
---              {tw,th} = XgGetTextExtent(text,substr)
-                {tw,th} = gGetTextExtent(substr,text)
-            end if
-            if newfrom!=cfrom then
-                cfrom = newfrom
-                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CHARSFROM] = cfrom
             end if
             bDrawCursor = (caretclr=TG_BLACK)
         end if
     else
         gSetAttribute(cursorblinktimer,`RUN`,false)
     end if
-    if not bTest then gCanvasClip(text,{1,1,w-2-bSpin*(h-6),h-2}) end if
+    gCanvasClip(text,{1,1,maxw+5,h-1})
+    if tType=SPIN then
+        y += 1
+    elsif tType=DATEPICK then
+        y += 1
+        x -= 1
+    end if
     if selstart and bHasFocus then
         if selstart>cpos then {cpos,selstart} = {selstart,cpos} end if
         integer sx = x
         if selstart>cfrom then
             substr = iff(unicode?utf32_to_utf8(utf32[cfrom..selstart-1])
                                                 :txt[cfrom..selstart-1])
-            if not bTest then
-                gDrawText(text,sx,y,substr)
-            end if
---          sx += XgGetTextExtent(text,substr)[1]
-            sx += gGetTextExtent(substr,text)[1]
+            gDrawText(text,sx,y,substr)
+            sx += gGetTextExtent(substr,text,bNorm:=true)[1]
             cfrom = selstart
         end if
         substr = iff(unicode?utf32_to_utf8(utf32[cfrom..cpos-1])
                                             :txt[cfrom..cpos-1])
-        if not bTest then
-            sequence selclr = iff(bGTK2?{TG_WHITE,iff(bHasFocus?#4B6983:#9C9A94)}
-                             :iff(bGTK3?{#DBFFF2,#0078D7}
-                             :iff(bWAPI?{#DBFFF2,#0078D7}
-                             :9/0)))
-            -- selclr = #DBFFF2, selbg = #0078D7
-            gDrawText(text,sx,y,substr,colour:=selclr)
+        sequence selclr
+        if backend==TG_GTK then
+            if bGTK2 then
+                selclr = {TG_WHITE,iff(bHasFocus?#4B6983:#9C9A94)}
+            elsif bGTK3 then
+                selclr = {#DBFFF2,#0078D7}
+            else
+                ?9/0
+            end if
+        elsif backend==TG_WINAPI then
+            selclr = {#DBFFF2,#0078D7}
+        else
+            ?9/0 -- unknown backend
         end if
---?{length(txt),cfrom,cpos}
+        gDrawText(text,sx,y,substr,colour:=selclr)
         if cpos<=length(txt) then
---          sx += XgGetTextExtent(text,substr)[1]
-            sx += gGetTextExtent(substr,text)[1]
+            sx += gGetTextExtent(substr,text,bNorm:=true)[1]
             substr = iff(unicode?utf32_to_utf8(utf32[cpos..$])
                                                 :txt[cpos..$])
             gDrawText(text,sx,y,substr)
@@ -377,64 +399,76 @@ procedure tg_gtext_redraw(gdx text, integer w, h)
     else
         substr = iff(unicode?utf32_to_utf8(utf32[cfrom..$])
                                             :txt[cfrom..$])
-        if not bTest then
-            if length(substr)=0 then
-                substr = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CUEBANNER]
-                gDrawText(text,x,y,substr,colour:=TG_GREY)
+        if length(substr)=0 then
+            sequence cb = ctrl_xtra[text][CXTEXT_CUEBANNER]
+            if string(cb) then
+                gDrawText(text,x,y,cb,colour:=TG_GREY)
             else
-                gDrawText(text,x,y,substr)
+                substr = cb[1]
+                atom clr = cb[2]
+                object style = iff(length(cb)=3?cb[3]:-1)
+                gDrawText(text,x,y,substr,colour:=clr,style:=style)
             end if
+        else
+            gDrawText(text,x,y,substr)
         end if
     end if
-    if not bTest then gCanvasClip(text,NULL) end if
-    if bSpin then
+    gCanvasClip(text,NULL)
+    if tType=SPIN then
 --DEV we should probably force a gSpin to have an odd height...
 --    I also suspect a gText height should depend on FONT or an explicit SIZE, but not/refuse to expand heightwise.
-        integer hov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV],
---              m = floor(h/2)
---              g = floor(h/7),
-                g = ceil(h/10),
+        integer g = ceil(h/10),
                 m = ceil(h/2),
                 l = w-h+5,
                 r = w-2
---?{"hmg",h,m,g}
         gDrawLine(text,l,1,l,h-1,#D2D2D2)
---      gDrawRect(text,l,m,r,m+1,colour:=#D2D2D2)
-        gDrawLine(text,l,r+1,m,m,colour:=#D2D2D2)
+        gDrawLine(text,l,r+1,m,r+1,colour:=#D2D2D2)
         if hov then 
---      if true then    
             integer {t,b} = iff(hov=1?{1,m-1}:{m,h-2})
             gDrawRect(text,l,t,r,b,true,colour:=#D8E6F1)
---          if hov=1 then t -= 1 else b += 1 end if
             if hov=1 then t -= 1 end if
             gDrawRect(text,l,t,r+1,b+1,false,colour:=#0078D4)
         end if
         -- draw the up and down arrows themselves
---      integer xl = w-m+1, la = 0, yb = h-g-1
         integer xl = w-m+2, la = 0, yb = h-g-1
---      for yt=g to m-g do
         for yt=g+1 to m-g-1 do
---          integer xr = xl+la+1, aclr = #606060
             integer xr = xl+la+1, aclr = #505050
---          integer xr = xl+la+1, aclr = #404040
---          integer xr = xl+la+1, aclr = #303030
---          integer xr = xl+la+1, aclr = #202020
             gDrawLine(text,xl,yt,xr,yt,aclr)
             gDrawLine(text,xl,yb,xr,yb,aclr)
             xl -= 1
             la += 2
             yb -= 1
         end for
+    elsif tType=DATEPICK then
+        integer l = w-28
+        if hov then -- DEV or drop-down visible
+            gDrawRect(text,l,1,w-2,h-2,true,colour:=#D8E6F1)
+        end if
+        gDrawLine(text,l,1,l,h-1,#D2D2D2)
+        if date_pick_icon=NULL then date_pick_icon = gGetGlobal("dp_xpm") end if
+        -- "" is 22x14: (revisit this with a resizable datepick in v2..)
+        gDrawImage(date_pick_icon,text,w-25,h/2-7)
+    elsif tType=DROPDOWN then
+        integer l = w-19
+        if hov then -- DEV or drop-down visible
+            gDrawRect(text,l,1,w-2,h-2,true,colour:=#D8E6F1)
+        end if
+        gDrawLine(text,l,1,l,h-1,#D2D2D2)
+        for y=8 to 12 do
+            gDrawLine(text,w+y-22,y,w-y+3,y,#505050)
+        end for
     end if
     if bDrawCursor then
-        integer cx = x+tw+1+bGTK2,
+        if th=0 then th = gGetTextExtent("|",text)[2] end if
+        integer cx = x+tw+1,
                hth = floor(th/2)
---?{`cursor`,cx}
---      if bGTK3 then cx += 1 y -= 2 end if
-        if bGTK3 then cx -= 1 y -= 1 end if
+        if backend=TG_GTK then  
+            if bGTK2 then cx += 1 end if
+            if bGTK3 then cx -= 1 y -= 1 end if
+        end if
         gDrawLine(text,cx,y-hth,cx,y+hth,TG_BLACK)
     end if
-    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = bHasFocus
+    ctrl_xtra[text][CXTEXT_HADFOCUS] = bHasFocus
 end procedure   
 
 local procedure tg_gtext_cursorblink_action(gdx cursorblinktimer)
@@ -475,38 +509,42 @@ local function tg_gtext_onediff(string s1, s2)
     return {TG_GTEXT_CPLX,0,0}
 end function
 
-local sequence undo -- temp: [CXTEXT_UNDO] (with refcount of one)
-local integer upos  -- temp: [CXTEXT_UNDOPOS]
-local procedure tg_gtext_update_undo(string c)
+local integer upos  -- copy of crl_xtra[txt][CXTEXT_UNDOPOS] (pbr not needed)
+
+local function tg_gtext_update_undo(sequence undo, string c)
     -- aside: this relies heavily on unit_tests() passing,
     --         as opposed to being intuitively easy code.
     -- undo[1] is the initial state and is never changed.
+    bool bAddNew = true
     if length(undo)!=1 then
         -- c is the current value, b,a are the last two
         string b = undo[-1],
                a = undo[-2]
-        if c==b then return end if  
-        -- {tg_gtext_type, length, position}:
-        integer {act,acl,sac} = tg_gtext_onediff(a,c),
-                {abt,abl,sab} = tg_gtext_onediff(a,b)
---?{act,acl,sac,a,c}
---?{abt,abl,sab,a,b}
---?{abl+act,acl}
-        -- if ac is one insert/delete and one more than ab then 
-        if act==abt and (abl+act)==acl
-        and ((act==TG_GTEXT_DEL and sac-acl==sab-abl) or
-             (act==TG_GTEXT_INS and sac ==sab    )) then
-            undo[$] = c -- replace b
-            return
-        end if
+        if c==b then
+            bAddNew = false
+        else
+            -- {tg_gtext_type, length, position}:
+            integer {act,acl,sac} = tg_gtext_onediff(a,c),
+                    {abt,abl,sab} = tg_gtext_onediff(a,b)
+            -- if ac is one insert/delete and one more than ab then 
+            if act==abt and (abl+act)==acl
+            and ((act==TG_GTEXT_DEL and sac-acl==sab-abl) or
+                 (act==TG_GTEXT_INS and sac ==sab    )) then
+                undo[$] = c -- replace b
+                bAddNew = false
+            end if
+        end if  
     elsif c==undo[1] then
-        return
+        bAddNew = false
     end if
-    -- add new entry
-    undo = append(undo,c)
-    upos += 1
-    assert(upos==length(undo)) -- (quick sanity check)
-end procedure
+    if bAddNew then
+        -- add new entry
+        undo = append(undo,c)
+        upos += 1
+        assert(upos==length(undo)) -- (quick sanity check)
+    end if
+    return undo
+end function
 
 -- Debug aid (temp):
 --local sequence klog = {}
@@ -515,19 +553,18 @@ end procedure
 local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift) 
 --if c='!' then ?9/0 end if -- (debug aid)
 --  klog = append(klog,{c,gGetKeyName(c),ctrl,shift})
---if not bTest then
 --  ?{`tg_gtext_key_handler`,text,c,gGetKeyName(c),ctrl,shift}
---end if
     bool redraw = true, -- (and not TG_IGNORE)
        bAltered = false,
        bGraphic = (not ctrl) and ((c>=' ' and c<=#7E) or c=VK_POUND)
         -- ^certainly avoid #A1..#A4 (udlr), #E0..E6 (VK_APPS..VK_SCROLL),
         --                  #90 (VK_NUMLOCK), or #F1..FC (VK_F1..F12)...
-    string txt = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE]
+    string txt = ctrl_xtra[text][CXTEXT_VALUE]
     sequence utf32 = utf8_to_utf32(txt)
-    integer cpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS],
-        selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART], was_ss = selstart,
-             len = length(utf32)
+    integer cpos = ctrl_xtra[text][CXTEXT_CARETPOS],
+        selstart = ctrl_xtra[text][CXTEXT_SELSTART], was_ss = selstart,
+             len = length(utf32),
+           tType = ctrl_types[text]
     bool unicode = length(txt)!=len
 --if ctrl and c='C' then trace(1) end if
 --if selstart and ctrl and c=VK_RIGHT then trace(1) end if
@@ -599,17 +636,15 @@ local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift)
         elsif c='C'
            or c='X'
            or c='V' then
-            if clipboard=NULL then clipboard = gClipboard() end if
             sequence clip = ``
             if selstart>cpos then {cpos,selstart} = {selstart,cpos} end if
             if c='V' then
---              clip = filter(gGetAttribute(clipboard,`TEXT`),`in`,{#20,#FF},`[]`)
-                clip = gGetAttribute(clipboard,`TEXT`)
+                clip = gGetGlobal(`CLIPTXT`)
                 clip = clip[1..find_any("\r\n",clip)-1]
             elsif selstart and selstart!=cpos then
                 clip = iff(unicode?utf32_to_utf8(utf32[selstart..cpos-1])
                                                   :txt[selstart..cpos-1])
-                gSetAttribute(clipboard,`TEXT`,clip)
+                gSetGlobal(`CLIPTXT`,clip)
             end if
             if c!='C' and length(clip) then
                 if selstart and selstart!=cpos then
@@ -657,6 +692,23 @@ local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift)
         else
             cpos = max(cpos-1,1)
         end if
+    elsif c=VK_UP
+       or c=VK_DOWN then
+        if tType=SPIN then
+            integer {lo,hi,step,bWrap} = ctrl_xtra[text][CXTEXT_SDD],
+                     v = to_integer(ctrl_xtra[text][CXTEXT_VALUE])
+            if c=VK_UP then
+                v = max(lo,v+step)
+                if v>hi then v = iff(bWrap?lo:hi) end if
+            else          -- down
+                v = min(hi,v-step)
+                if v<lo then v = iff(bWrap?hi:lo) end if
+            end if
+            txt = sprintf("%d",v)
+            cpos = length(txt)+1
+            redraw = true
+--      elsif tType=DATEPICK, DROPDOWN -- maybe...
+        end if
     elsif bGraphic then
         object cc = iff(c=VK_POUND?iff(unicode?#A3:x"C2A3"):c)
         if unicode then
@@ -672,8 +724,13 @@ local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift)
     end if
     if redraw or c=-1 then
         if bAltered then
-            undo = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO]
-            upos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS]
+            object undo = ctrl_xtra[text][CXTEXT_UNDO]
+            if not sequence(undo) then
+                undo = {ctrl_xtra[text][CXTEXT_VALUE]}
+                upos = 1
+            else
+                upos = ctrl_xtra[text][CXTEXT_UNDOPOS]
+            end if
             if ctrl and (c='Z' or c='Y') then
                 string was_txt = txt
                 if c='Z' then -- undo
@@ -688,41 +745,40 @@ local function tg_gtext_key_handler(gdx text, integer c, bool ctrl, shift)
                     end if
                 end if
                 integer {t,l,s} = tg_gtext_onediff(txt,was_txt)
---if not bTest then
---  ?{`t`,t,l,s,txt,was_txt,`Ctrl `&c}
---end if
                 if t=TG_GTEXT_DEL then
                     selstart = s
                     cpos = s-l
---?{`del`,selstart,cpos}
                 elsif t=TG_GTEXT_INS then
                     cpos = s
                     selstart = 0
---?{`ins`,selstart,cpos}
                 end if
             else
-                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO] = 0 -- (kill refcount)
+                ctrl_xtra[text][CXTEXT_UNDO] = 0 -- (kill refcount)
                 if upos<length(undo) then undo = undo[1..upos] end if
-                tg_gtext_update_undo(txt)
-                ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO] = undo
+                undo = tg_gtext_update_undo(undo,txt)
+                ctrl_xtra[text][CXTEXT_UNDO] = undo
             end if
-            ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS] = upos
---if not bTest then
---  ?{undo,upos}
---end if
+            ctrl_xtra[text][CXTEXT_UNDOPOS] = upos
         end if
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS] = cpos
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE] = txt
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false -- (restart caret timer)
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART] = selstart
+        ctrl_xtra[text][CXTEXT_CARETPOS] = cpos
+        ctrl_xtra[text][CXTEXT_VALUE] = txt
+        ctrl_xtra[text][CXTEXT_HADFOCUS] = false -- (restart caret timer)
+        ctrl_xtra[text][CXTEXT_SELSTART] = selstart
         gRedraw(text)
         if bAltered then
-            rtn value_changed = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE_CHANGED]
+--          rtn value_changed = gGetHandler(text,`VALUE_CHANGED`)
+            rtn value_changed = ctrl_xtra[text][CXTEXT_VALUE_CHANGED]
             if value_changed then
-                value_changed(text)
+--              string sig = tg_get_sig(value_changed)
+--              if sig=`POS` then
+--                  value_changed(text,txt)
+--              elsif sig=`PS` then
+                    value_changed(txt)
+--              else
+--                  ?9/0
+--              end if
             end if
         end if
---?`ignore`
         return TG_IGNORE -- dealt with; do not propagate
     end if
     return TG_DEFAULT
@@ -731,15 +787,16 @@ end function
 local gdx gtext_menu = NULL
 
 -- the following uses control key codes for menu ids:
-local constant TG_GTEXT_POPUP_MENU = {{`Undo`,'Z'},
-                                      {`Redo`,'Y'},
+local constant TG_GTEXT_POPUP_MENU = {{"Undo\t",M_CTRL+'Z'},
+                                      {"Redo\t",M_CTRL+'Y'},
                                       `-`,
-                                      {`Cut`,'X'},
-                                      {`Copy`,'C'},
-                                      {`Paste`,'V'},
-                                      {`Delete`,VK_DEL},
+                                      {"Cut\t",M_CTRL+'X'},
+                                      {"Copy\t",M_CTRL+'C'},
+                                      {"Paste\t",M_CTRL+'V'},
+                                      {"Delete\t",VK_DEL},
                                       `-`,
-                                      {`Select all`,'A'}}
+                                      {"Select all\t",M_CTRL+'A'}}
+--
 --- The native (WinAPI) version also has no icons and:
 --      Right to left Reading order
 --      Show Unicode control characters
@@ -757,9 +814,11 @@ local constant TG_GTEXT_POPUP_MENU = {{`Undo`,'Z'},
 
 local procedure tg_gtext_menu_handler(gdx menu, integer id)
     gdx text = gGetAttribute(gtext_menu,`USER_DATA`)
-    bool ctrl = id!=VK_DEL
-    {} = tg_gtext_key_handler(text,id,ctrl,false) 
+    integer {ch,ctrl,shift} = gMenuCcsa(id)
+    {} = tg_gtext_key_handler(text,ch,ctrl,shift) 
 end procedure
+
+constant integer tg_popup = gGetGlobal(`tg_popup`) -- (undocumented)
 
 function tg_gtext_click(gdx text, sequence status, integer x, /*y*/)
     switch status[1..2] do
@@ -769,52 +828,66 @@ function tg_gtext_click(gdx text, sequence status, integer x, /*y*/)
                         gtext_menu = gMenu(TG_GTEXT_POPUP_MENU,tg_gtext_menu_handler)
                         gSetAttribute(gtext_menu,`USER_DATA`,text)
                     end if
-                    integer undolen = length(ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDO]),
-                            undopos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_UNDOPOS],
-                           selstart = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SELSTART],
-                           caretpos = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_CARETPOS]
-                    if clipboard=NULL then clipboard = gClipboard() end if
+                    object undo = ctrl_xtra[text][CXTEXT_UNDO]
+                    integer undolen = iff(sequence(undo)?length(undo):0),
+                            undopos = ctrl_xtra[text][CXTEXT_UNDOPOS],
+                           selstart = ctrl_xtra[text][CXTEXT_SELSTART],
+                           caretpos = ctrl_xtra[text][CXTEXT_CARETPOS]
+                    string txt = ctrl_xtra[text][CXTEXT_VALUE]
                     bool selected = selstart and selstart!=caretpos,
-                         cliptext = gGetAttribute(clipboard,`TEXTAVAILABLE`)
-                    gMenuSetAttribute(gtext_menu,'Z',`ACTIVE`,undopos>1)
-                    gMenuSetAttribute(gtext_menu,'Y',`ACTIVE`,undopos<undolen)
-                    gMenuSetAttribute(gtext_menu,'X',`ACTIVE`,selected)
-                    gMenuSetAttribute(gtext_menu,'C',`ACTIVE`,selected)
-                    gMenuSetAttribute(gtext_menu,'V',`ACTIVE`,cliptext)
+                         cliptext = gGetGlobal(`CLIPTXT?`)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'Z',`ACTIVE`,undopos>1)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'Y',`ACTIVE`,undopos<undolen)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'X',`ACTIVE`,selected)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'C',`ACTIVE`,selected)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'V',`ACTIVE`,cliptext)
                     gMenuSetAttribute(gtext_menu,VK_DEL,`ACTIVE`,selected)
-                    gPopupMenu(gtext_menu)
+                    gMenuSetAttribute(gtext_menu,M_CTRL+'A',`ACTIVE`,length(txt)>0)
+                    gPopupMenu(gGetDialog(text),gtext_menu)
                     return TG_IGNORE
         case `LS`:  -- (left button single click/down) [or]
         case `LD`:  -- (left button double click: select word)
-                    bool bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN]
-                    integer hov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV]
-                    if bSpin and hov then
-                        integer lo = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_LO],
-                                hi = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HI],
-                              step = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_STEP],
---DEV [docs index] wrap/WRAP...
-                             bWrap = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_WRAP],
-                                 v = to_integer(ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE])
-                        if hov=1 then -- up
-                            v = max(lo,v+step)
-                            if v>hi then v = iff(bWrap?lo:hi) end if
-                        else          -- down
-                            v = min(hi,v-step)
-                            if v<lo then v = iff(bWrap?hi:lo) end if
+                    integer hov = ctrl_xtra[text][CXSPIN_HOV],
+                          tType = ctrl_types[text]
+                    if hov then
+                        if tType=SPIN then
+                            integer {lo,hi,step,bWrap} = ctrl_xtra[text][CXTEXT_SDD],
+                                     v = to_integer(ctrl_xtra[text][CXTEXT_VALUE])
+                            if hov=1 then -- up
+                                v = max(lo,v+step)
+                                if v>hi then v = iff(bWrap?lo:hi) end if
+                            else          -- down
+                                v = min(hi,v-step)
+                                if v<lo then v = iff(bWrap?hi:lo) end if
+                            end if
+                            ctrl_xtra[text][CXTEXT_VALUE] = sprintf("%d",v)
+--DEV call value_changed
+--                          gSetAttribute(v,"VALUE",sprint("%d",v))
+--                          ?{"spin",v}
+--                          rtn value_changed = gGetHandler(text,`VALUE_CHANGED`)
+                            rtn value_changed = ctrl_xtra[text][CXTEXT_VALUE_CHANGED]
+                            if value_changed then
+--                              string sig = tg_get_sig(value_changed)
+--                              if sig=`POI` then
+--                                  value_changed(text,v)
+--                              elsif sig=`PI` then
+                                    value_changed(v)
+--                              else
+--                                  ?9/0
+--                              end if
+                            end if
+                        elsif tType=DATEPICK then
+                            {gdx calendar} = ctrl_xtra[text][CXTEXT_SDD]
+                            tg_popup(text,calendar)
+                        elsif tType=DROPDOWN then
+                            {gdx list} = ctrl_xtra[text][CXTEXT_SDD]
+                            tg_popup(text,list)
                         end if
-                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_VALUE] = sprintf("%d",v)
---                      gSetAttribute(v,"VALUE",sprint("%d",v))
---                      ?{"spin",v}
                     else
---dev utter codswallop... (not that this "unnecessary workaround" causes any known issues)
-                        -- see tg_gtext_redraw(): While WinAPI, JavaScript and GTK2 allow
-                        --  gGetTextExtent from anywhere, under GTK3, bless it, that can 
-                        --  /*only*/ be invoked from *within* a redraw operation... (grrr)
-                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = status[2]
-                        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX] = x
+                        tg_text_process_mouseclickmove(text, status[2], x)
                     end if
                     -- restart cursorblink...
-                    ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false
+                    ctrl_xtra[text][CXTEXT_HADFOCUS] = false
                     gSetFocus(text) -- ... whether this matters or not
                     gRedraw(text)
     end switch
@@ -823,45 +896,61 @@ end function
 
 procedure tg_gtext_mousemove(gdx text, integer x,y, bool left,/*middle*/,/*right*/)
 --bSpin/hover on up/down?
-    bool bSpin = ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_SPIN],
-       bRedraw = false
-    if bSpin then
+    integer tType = ctrl_types[text]
+    bool bRedraw = false
+    if tType!=TEXT then
         integer {w,h} = gGetAttribute(text,"SIZE"), hov = 0,
-               washov = ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV]
-        if x>w-h+4 then hov = 1 + (y>h/2) end if
+               washov = ctrl_xtra[text][CXSPIN_HOV]
+        if tType=SPIN then
+            if x>w-h+4 then hov = 1 + (y>h/2) end if
+        elsif tType=DATEPICK then
+            hov = x>=w-28
+        elsif tType=DROPDOWN then
+            hov = x>=w-19
+        end if
         if hov!=washov then
-            ctrl_xtra[text][CX_GTL_ATTRS][CXSPIN_HOV] = hov
+            ctrl_xtra[text][CXSPIN_HOV] = hov
             bRedraw = true
         end if
---      ?{w,h,x,y,hov}
     end if
     if left then
-        -- see tg_gtext_redraw():
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFER] = 'M'
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_DEFERX] = x
+        tg_text_process_mouseclickmove(text, 'M', x)
         -- restart cursorblink:
-        ctrl_xtra[text][CX_GTL_ATTRS][CXTEXT_HADFOCUS] = false
+        ctrl_xtra[text][CXTEXT_HADFOCUS] = false
         bRedraw = true
     end if
     if bRedraw then gRedraw(text) end if
 end procedure
 
+local procedure tg_gtext_mouseleave(gdx text)
+--?{`tg_gtext_mouseleave`,text}
+    ctrl_xtra[text][CXSPIN_HOV] = 0
+    gRedraw(text)
+end procedure
+
 function hText(rtn value_changed, string attr)
---  return gText(value_changed, attr)
+--function gText(object value_changed=NULL, sequence attributes="", args={})
+--  {value_changed, attributes, args} = paranormalise(value_changed, attributes, args)
     -- [DEV] theGUI.e can probably just set ctrl_size[id][SZ_[USER_|NATURAL]H].
-    string hsz = iff(bGTK2?`x22`:iff(bGTK3?`x34`:`x20`))
+--  string hsz = iff(bGTK2?`x22`:iff(bGTK3?`x34`:`x20`))
+    string hsz = iff(backend=TG_GTK and bGTK2?`x22`
+                :iff(backend=TG_GTK and bGTK3?`x34`:`x20`))
+--trace(1)
     gdx id = gCanvas(tg_gtext_redraw,`SIZE=%s`,{hsz})
---  ctrl_xtra[id][CX_CANVAS_TYPE] = TEXT
     if platform()=JS then
         -- fudge: astonishingly, this works fine despite the fact it does things like
         --        ctrl_xtra[table] all over the shop, as if it were an integer, when
         --        it is in fact an HtmlElement...
         ctrl_xtra = {}
+        ctrl_types = {}
     else
         ctrl_xtra = repeat(0,id)
+        ctrl_types = repeat(0,id)
     end if
-    object cx = repeat(0,CXTEXT_LEN),
-          cxi = repeat(0,CX_GTL_ATTRS)
+    ctrl_types[id] = TEXT
+--  ctrl_set_attr[TEXT] = tg_set_text_attribute
+--  ctrl_get_attr[TEXT] = tg_get_text_attribute
+    object cx = repeat(0,CXTEXT_LEN)
     cx[CXTEXT_CARETCLR] = TG_BLACK
     cx[CXTEXT_CARETCT] = 6
 --  cx[CXTEXT_CARETIME] = time()
@@ -873,58 +962,132 @@ function hText(rtn value_changed, string attr)
 --  cx[CXTEXT_SELSTART] = 0 -- (already is)
     cx[CXTEXT_VALUE] = attr -- DEV...:
 --  cx[CXTEXT_VALUE] = ``
-    cx[CXTEXT_VALUE_CHANGED] = value_changed
+    cx[CXTEXT_VALUE_CHANGED] = value_changed -- hText only
     cx[CXTEXT_CUEBANNER] = ``
---  cx[CXTEXT_CUEBANNER] = `Enter some text`
-    cx[CXTEXT_UNDOPOS] = 1
-
---/*
--- bTest must not be set true, in unit_tests()...
-    cx[CXTEXT_SPIN] = true
-    cx[CXSPIN_LO] = 3
-    cx[CXSPIN_HI] = 7
-    cx[CXSPIN_STEP] = 1
---*/
-
---  ctrl_xtra[id][CX_GTL_ATTRS] = cx
-    cxi[CX_GTL_ATTRS] = cx
+--  cx[CXTEXT_CUEBANNER] = {`Enter some text`,TG_RED,TG_ITALIC}
+--  cx[CXTEXT_UNDOPOS] = 1 -- (NO, 0)
+    ctrl_xtra[id] = cx
     cx = 0
-    ctrl_xtra[id] = cxi
-    cxi = 0
-    -- .. gSetAttributes() [in the final version]
-    string v = ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_VALUE]
-    ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_UNDO] = {v}
---  ctrl_xtra[id][CX_GTL_ATTRS][CXTEXT_UNDO] = {attr}
---DEV fwd, or not....
+    gSetAttribute(id,`EXPAND`,`HORIZONTAL`)
+    gSetAttribute(id,`BGCLR`,TG_WHITE)
+    gSetAttribute(id,`CANFOCUS`,true)
+--  gSetAttribute(id,`FGCLR`,TG_RED)
     gSetHandler(id,`KEY`,tg_gtext_key_handler)
     gSetHandler(id,`CLICK`,tg_gtext_click)
     gSetHandler(id,`MOUSEMOVE`,tg_gtext_mousemove)
+    gSetHandler(id,`MOUSELEAVE`,tg_gtext_mouseleave)
+--  gSetHandler(id,`VALUE_CHANGED`,value_changed)
     return id
 end function
 
-procedure value_changed(gdx txt)
-if not bTest then
-    string cn = gGetAttribute(txt,`CLASSNAME`)
-    if cn=`Text` then
-        ?{`value_changed`,cn,gGetAttribute(txt,`VALUE`)}
-    elsif cn=`Canvas` then -- and/or ctrl_xtra[text][CX_CANVAS_TYPE]=TEXT:
-        -- (obvs this eventually needs to go into "")
-        ?{`value_changed`,cn,ctrl_xtra[txt][CX_GTL_ATTRS][CXTEXT_VALUE]}
-    end if
-end if
+--DEV make the text go red when it's not an integer...
+function hSpin(rtn value_changed)
+--function gSpin(rtn value_changed, string attributes="", sequence args={})
+    gdx spin = hText(value_changed, "3")
+    gSetAttribute(spin,`SIZE`,`32x21`)
+    gSetAttribute(spin,`EXPAND`,`NONE`)
+    ctrl_types[spin] = SPIN
+    ctrl_xtra[spin][CXTEXT_SDD] = {3,7,1,false}
+--  ctrl_xtra[spin][CXTEXT_SDD] = {0,9,1,false}
+    return spin 
+end function
+
+--DEV make the text go red when it's not a date...
+function hDatePick(gdx calendar, rtn value_changed, string v)
+    gdx datepick = hText(value_changed, v)
+    gSetAttribute(datepick,`SIZE`,`109x21`)
+    gSetAttribute(datepick,`EXPAND`,`NONE`)
+    ctrl_types[datepick] = DATEPICK
+    -- note: we're using an X-canvas in lieu of a gCalendar for now...
+    -- note it is the application's responsibility to tie together
+    --      all interactions between the datepick and the calendar
+    --      (theGUI is busy enough showing/hiding/forwarding keys)
+--  gdx calendar = gCanvas(`SIZE=221x142`)
+--  gdx calendar = gCalendar(tg_datepick_calendar_handler,ymd,atributes,args)
+    ctrl_xtra[datepick][CXTEXT_SDD] = {calendar}
+    return datepick
+end function
+
+--DEV allow/prohibit editing... (CANFOCUS=NO??)
+function hDropdown(gdx list, rtn value_changed, string v)
+    gdx dropdown = hText(value_changed, v)
+    gSetAttribute(dropdown,`SIZE`,`80x21`)
+    gSetAttribute(dropdown,`EXPAND`,`NONE`)
+    ctrl_types[dropdown] = DROPDOWN
+    -- note: we're using an X-canvas in lieu of a gList for now...
+    -- note it is the application's responsibility to tie together
+    --      all interactions between the dropdown and popup gList
+    --      (theGUI is busy enough showing/hiding/forwarding keys)
+    ctrl_xtra[dropdown][CXTEXT_SDD] = {list}
+    return dropdown
+end function
+
+-- </theGUI.e>
+
+procedure unit_tests()
+    assert(tg_gtext_onediff(``,``)=={TG_GTEXT_SAME,0,0})
+    assert(tg_gtext_onediff(`abc`,``)=={TG_GTEXT_DEL,-3,1})
+    assert(tg_gtext_onediff(``,`abc`)=={TG_GTEXT_INS,3,1})
+    assert(tg_gtext_onediff(`xyz`,`abc`)=={TG_GTEXT_CPLX,0,0})
+    assert(tg_gtext_onediff(`abc`,`ac`)=={TG_GTEXT_DEL,-1,2})
+    assert(tg_gtext_onediff(`ac`,`abc`)=={TG_GTEXT_INS,1,2})
+
+    sequence undo = {`abc`}
+    upos = 1
+    undo = tg_gtext_update_undo(undo,``)
+    assert(undo=={`abc`,``})
+    undo = tg_gtext_update_undo(undo,`abc`)
+    assert(undo=={`abc`,``,`abc`})
+    undo = tg_gtext_update_undo(undo,`ac`)
+    assert(undo=={`abc`,``,`abc`,`ac`})
+    undo = tg_gtext_update_undo(undo,`abc`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`})
+    undo = tg_gtext_update_undo(undo,`abcd`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcd`})
+    undo = tg_gtext_update_undo(undo,`abcde`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcde`})
+    undo = tg_gtext_update_undo(undo,`abcdef`)
+    assert(undo=={`abc`,``,`abc`,`ac`,`abc`,`abcdef`})
+    upos = 3
+    undo = undo[1..3]
+    undo = tg_gtext_update_undo(undo,`xyz`)
+    assert(undo=={`abc`,``,`abc`,`xyz`})
+    assert(upos==4)
+end procedure
+unit_tests()
+
+--procedure value_changed(gdx txt, string v)
+--procedure value_changed(integer v)
+procedure value_changed(object v)
+    ?v
+--?gGetAttribute(txt,`VALUE`) -- undefined on a plain canvas
+--  string cn = gGetAttribute(txt,`CLASSNAME`)
+--  if cn=`gText` then
+--      ?{`value_changed`,cn,gGetAttribute(txt,`VALUE`)}
+--  elsif cn=`gCanvas` then -- and/or ctrl_types[text]=TEXT:
+--      -- (obvs this eventually needs to go into "")
+--      ?{`value_changed`,cn,ctrl_xtra[txt][CXTEXT_VALUE]}
+--  end if
 end procedure
 
 
-string dsz = iff(bGTK2?`240x80`:iff(bGTK3?`240x92`:`240x80`))
+-- hText:
 --gdx txt = gText(value_changed,`VALUE=`one two three``),
 --gdx txt = gText(value_changed,`VALUE=`hButton``),
 --  htx = hText(value_changed,`VALUE=`uno duo tre``),
 --  htx = hText(value_changed,`uno duo tre`),
-gdx htx = hText(value_changed,`one two three`),
---gdx htx = hText(value_changed,`one two three four five six seven eight nine ten`),
+--gdx txt = hText(value_changed,`one two three`),
+--gdx txt = hText(value_changed,``),
+--gdx txt = hSpin(value_changed),
+gdx cal = gCanvas(`SIZE=221x142`),
+    txt = hDatePick(cal,value_changed,"05/11/2025"),
+--gdx list = gCanvas(`SIZE=100x200`),
+--  txt = hDropdown(list,value_changed,"thing"),
+
+--gdx txt = hText(value_changed,`one two three four five six seven eight nine ten`),
 --  htx = hText(value_changed,`hButton`),
 --gdx txt = gText(value_changed,`VALUE=`one two three`,BGCLR=RED`), -- fine
---gdx txt = gText(value_changed,`VALUE=`one two three`,FGCLR=RED`), -- no??
+--gdx txt = gText(value_changed,`VALUE=`one two three`,FGCLR=RED`), -- fine
 --gdx txt = gText(value_changed,`VALUE=`one two three`,SIZE=200x100`),
 --DEV not working on GTK... (who cares!)
 --gdx txt = gText(`VALUE=`one two three`,EXPAND=HORIZONTAL`), -- ooh/er, WinAPI... [DEV]
@@ -933,34 +1096,47 @@ gdx htx = hText(value_changed,`one two three`),
 --gdx txt = gText(),
 --  dialog = gDialog(txt,`gText`,`SIZE=226x73`)
 --  hbx = gVbox({txt,htx},`MARGIN=13x13, GAP=10`),
-    hbx = gVbox({htx},`MARGIN=13x13, GAP=10`),
+--  hbx = gVbox({txt},`MARGIN=13x13, GAP=10`),
+--  hbx = gVbox({txt},`MARGIN=13x13`),
+    hbx = gVbox({txt},`==`,{{`MARGIN`,iff(bGTK3?7:13)}}),
+--  hbx = gVbox({txt},`MARGIN=11x11, GAP=10`),
+--  hbx = gVbox({txt},`SPACE=AROUND, GAP=10`),
+--  hbx = gVbox({txt},`SPACE=AROUND`),
 --  dlg = gDialog(hbx,`gText`,`SIZE=240x80`)
-    dlg = gDialog(hbx,`gText`,`SIZE=%s`,{dsz})
+--  dlg = gDialog(hbx,`gSpin`,`SIZE=240x80`)
+    dlg = gDialog(hbx,`gDatePick`,`SIZE=240x80`)
+--  dlg = gDialog(hbx,`gDropDown`,`SIZE=240x80`)
 --  dlg = gDialog(hbx,`gText`)
 --gSetAttribute({txt,htx},`EXPAND`,`HORIZONTAL`)
---gSetAttribute({htx},`EXPAND`,`HORIZONTAL`)
-gSetAttribute(htx,`CANFOCUS`,true) -- no discernable effect...
---gSetAttribute(htx,`FONT`,`Helvetica, Italic 21`)
---?gGetAttribute(htx,`FONT`)
---gSetAttribute(htx,`FONT`,`Helvetica, 21`)
+--gSetAttribute({txt},`EXPAND`,`HORIZONTAL`)
+gSetAttribute(txt,`CANFOCUS`,true) -- no discernable effect... [it does now]
+--gSetAttribute(txt,`FONT`,`Helvetica, Italic 41`) -- (nb breaks unit tests)
+--?gGetAttribute(txt,`FONT`)
+--gSetAttribute(txt,`FONT`,`Helvetica, 21`)
 --gSetAttribute(txt,`SIZE`,250)
 --gSetAttribute(txt,`SIZE`,`250`)
 --gSetAttribute(txt,`BGCLR`,TG_RED)
-gShow(dlg)
---gSetFocus(htx)
+--gSetAttribute(txt,`FGCLR`,TG_RED)
+--gShow(dlg)
+--gSetFocus(txt)
 --?gGetFocus()
 --?gGetAttribute(txt,`VALUE`)
 --?gGetAttribute(txt,`SIZE`)
+--gSetHandler(dlg,`MOUSEMOVE`,tg_gtext_mousemove)
+gMainLoop(dlg)
 
+--/* Removed: what we really want anyway is proper unit tests on the integrated final, including js...
 object was_ctrl_xtra
 procedure replay(sequence klog)
     -- part of unit_tests()
     ctrl_xtra = deep_copy(was_ctrl_xtra)
     for i,k in klog do
         k = deep_copy(k)
-        k[1] = htx
+        k[1] = txt
+--DEV factor out??
         {} = call_func(tg_gtext_key_handler,k)
-        tg_gtext_redraw(htx,212,20)
+--DEV we shouldn't need this anymore...
+        tg_gtext_redraw(txt,212,20)
     end for
 end procedure
 
@@ -995,8 +1171,7 @@ procedure unit_tests()
     assert(upos==4)
 
     was_ctrl_xtra = deep_copy(ctrl_xtra)
-    gSetFocus(htx)
-    bTest = true
+    gSetFocus(txt)
     --
     --  Some of these tests are a plain "not crash", others should assert
     --  the internals end up as expected, which can only realistically be
@@ -1029,113 +1204,33 @@ procedure unit_tests()
     -- (no longer triggered by the time I got round to it...)
     sequence rklog = {{227,VK_END,0,0},{127,VK_DEL,0,0},{225,VK_INS,0,0},{229,VK_PGDN,0,0},{228,VK_PGUP,0,0},{226,VK_HOME,0,0},
                       {21,VK_LSHIFT,0,1},{49827,VK_POUND,0,1},{34,'"',0,1}}
+-- hmm, end: cpos:=len+1
+--      del/ins/pgdn/ip: nowt
+--      home: cops:=1
+--      shift: nowt
+--      pound,": insert
 
     replay(rklog)
 
     -- DONE [the now permanent tests]:
+--?ctrl_xtra[txt][CXTEXT_VALUE] -- `£"one two three`
+--?was_ctrl_xtra[txt][CXTEXT_VALUE] -- `one two three` -- ah!
     replay({{227,VK_END,0,0},{8,VK_BS,0,1}})
-    integer caretpos = ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_CARETPOS]
+--?ctrl_xtra[txt][CXTEXT_VALUE] -- "one two thre"
+    integer caretpos = ctrl_xtra[txt][CXTEXT_CARETPOS]
     assert(caretpos==13)
-    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_CHARSFROM]==1)
-    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_SELSTART]==0)
-    assert(ctrl_xtra[htx][CX_GTL_ATTRS][CXTEXT_VALUE]==`one two thre`)
+    assert(ctrl_xtra[txt][CXTEXT_CHARSFROM]==1)
+    assert(ctrl_xtra[txt][CXTEXT_SELSTART]==0)
+    assert(ctrl_xtra[txt][CXTEXT_VALUE]==`one two thre`)
 
 --?9/0
 
     ctrl_xtra = was_ctrl_xtra
     was_ctrl_xtra = 0 -- kill refcount
 --  klog = {}
-    bTest = false
 --?`unit_tests done`
-end procedure unit_tests()
-
-gMainLoop()
-
---/*
-DEV use these (and more) to replicate/debug *AND* write unit tests on tg_gtext_key_handler: [DONE | I/P:]
-
-====
- C:\Program Files (x86)\Phix\demo\theGUI\hText.exw:
-    ctrl_xtra = {0,{{16777215,6,4.735,3,16,1,0,0,`one two three`,12335,{`one two three`,"oone two three`"},1}}}
-    clipboard = 6
-    bTest = 0
-    undo = {`one two three`,"oone two three`"}
-    upos = 1
-    klog = {{23,`VK_LCTRL`,1,0},{86'V',`V`,1,0},{227,`VK_END`,0,0},{96'`',```,0,0},{23,`VK_LCTRL`,1,0},{90'Z',`Z`,1,0}}
-    txt = 1
-    htx = 2
-    hbx = 4
-    dlg = 5
-    was_ctrl_xtra = 0
-vs:
- C:\Program Files (x86)\Phix\demo\theGUI\hText.exw:
-    ctrl_xtra = {0,{{0,4,6.969,3,18,1,1,0,"oneone two three`",12335,{`one two three`,`oneone two three`,"oneone two three`"},3}}}
-                                 ^^   ^hadfocus
-enum CXTEXT_CARETCLR,
-     CXTEXT_CARETCT,
-     CXTEXT_CARETIME,
-     CXTEXT_CARETIMER, -- 3
-     CXTEXT_CARETPOS,
-     CXTEXT_CHARSFROM,
-     CXTEXT_HADFOCUS,
-     CXTEXT_SELSTART,
-     CXTEXT_VALUE,
-     CXTEXT_VALUE_CHANGED,
-     CXTEXT_UNDO,
-     CXTEXT_UNDOPOS,
-
-    clipboard = 0
-    bTest = 0
-    undo = {`one two three`,`oneone two three`,"oneone two three`"}
-    upos = 3
-    klog = {{111'o',`o`,0,0},{110'n',`n`,0,0},{101'e',`e`,0,0},{227,`VK_END`,0,0},{96'`',"`",0,0},{21,`VK_LSHIFT`,0,1}}
-    txt = 1
-    htx = 2
-    hbx = 4
-    dlg = 5
-    was_ctrl_xtra = 0
-
-C:\Program Files (x86)\Phix\p.exw:2315
-abort() code must be integer
-    eres = 3221226356.0
-    eres = #C0000374
-#374
-884
-
-C:\Program Files (x86)\Phix>p64 demo\theGUI\hText.exw
-
-
-C:\Program Files (x86)\Phix>
-
--- for the fake/hll GTK version of gDatePick() only:
-local constant dp_xpm_txt = """
-22 14 11 1
-. c None
-d c #4D6185
-@ c #AFA8A6
-b c #776B68
-e c #FFFFFF
-f c #EFF2F9
-g c #EAEFF7
-i c #F7F7F7
-p c #C8C8C8
-t c #958E8C
-u c #5D5452
-......................
-.@bbbbbbbbb@..........
-.bepppppppfb..........
-.beeeeeeeegb..........
-.bepppppppgb..........
-.bepgpgpgpgb..ddddddd.
-.bepppppppgb...ddddd..
-.bepgpgpgpgb....ddd...
-.bepppppppgb.....d....
-.bepgpgpgpgb..........
-.bfppppppubb..........
-.bfffffffbt...........
-.@bbbbbbbb............
-......................
-"""
-
-
+end procedure
+if run_unit_tests then unit_tests() end if
 --*/
+
+

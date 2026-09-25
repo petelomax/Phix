@@ -235,7 +235,12 @@ end function
 --       sole responsiblity to ensure the correct ini file is open/active.
 --       However some "name"s, esp filepaths, almost always need it overidden.
 
-global function ini_setting(string keyname, object dflt=0, bool bMustExist=true)
+--global function ini_setting(string keyname, object dflt=0, bool bMustExist=true)
+global function ini_setting(sequence keyname, object dflt=0, bool bMustExist=true)
+    if not string(keyname) then
+        ini_restore(keyname[1])
+        keyname = keyname[2]
+    end if
     integer k = ini_keydx(keyname)
     if k then return settings[k] end if
     assert(not bMustExist)
@@ -244,9 +249,9 @@ end function
 
 global procedure ini_set(string keyname, object setting, bool bMustExist=true)
     if string(setting) then
-        -- aside: note that eg "\\n" and `\n` are perfectly fine, but the callee
-        --        is expected to perform any escape char/sprintf/scanf handling.
-        assert(not find('\n',setting),"no multiple lines")
+        -- aside: explicitly-escaped strings such as "\\n" and `\n` are perfectly fine but
+        --        the callee is expected to perform any escape char/sprintf/scanf handling.
+        assert(not find('\n',setting),"no multiple lines") -- aka find(#10,setting)
     else
         assert(integer(setting),"int/str only") -- nb deliberately not floats
     end if
@@ -257,7 +262,7 @@ global procedure ini_set(string keyname, object setting, bool bMustExist=true)
             dirty[ini_idx] = true
         end if
     else
-        assert(not bMustExist)
+        assert(bMustExist==false)
         keynames = append(keynames,keyname)
         settings = append(settings,setting)
         dirty[ini_idx] = true
@@ -273,6 +278,20 @@ global procedure ini_delete_key(string keyname, bool bMustExist=true)
     else
         assert(not bMustExist)
     end if
+end procedure
+
+global procedure ini_delete_all(string ini_name="")
+    ini_restore(ini_name)
+    sequence nk = {}, ns = {}
+    for k,key in keynames do
+        if key="" then -- keep comments
+            nk &= {""}
+            ns &= {settings[k]}
+        end if
+    end for
+    keynames = nk
+    settings = ns
+    dirty[ini_idx] = true
 end procedure
 
 --ini_load("xpEditer")

@@ -20,12 +20,15 @@
 -- and even how to display it in the first place. Should anything seem
 -- wrong here, the first thing to check/fix is /always/ hover-effects.
 --
+-- DEV: 
+--  2020-2029 shd probably be 2019-2030, likewise 2000-2099 -> 1990-2109.
+--  Either that or "grey out" 2019/2030/1990/2100 even if left clickable    <== **better**
+--
 with javascript_semantics
-puts(1,"")
+--puts(1,"")
 --requires(64,true)
---without debug
---include theGUI.e
-include hGUI.e -- all good!
+without debug
+include theGUI.e
 include builtins\timedate.e
 include builtins\VM\pTime.e
 include builtins\pdates.e
@@ -36,11 +39,36 @@ include builtins\pfile.e
 with debug
 
 constant backend = gVersion(-1)
+
+constant integer tg_get_sig = gGetGlobal("tg_get_sig")
+
+local function tg_intint(string val) -- (copied verbatim from theGUI.e)
+    --
+    -- convert eg `225x75` to {225,75}, and in fact 
+    --            `50x10x20x30` to {50,10,20,30},
+    --            `1`->{1}, and `1x2x3`->{1,2,3}.
+    -- likewise eg `{225,75}` -> {225,75}, etc.
+    --
+    sequence res
+    if val[1]='{' then
+        assert(val[$]='}')
+        res = split(val[2..-2],',',false)
+    else
+        res = split(val,'x',false)
+    end if
+    res = apply(true,to_number,{res,0})
+
+    -- It could do this provided callers ignored any -1, which 
+    -- would make `50x` not the same as `50x0`, matching pGUI.
+--  res = apply(true,to_number,{res,-1})
+    return res
+end function
+
 --/*
-local constant calendar_attrs = {{  CXCAL_BGSEL:=$,'N',`BGSEL`  }, -- BGCLR for selected item[s]
-                                 {  CXCAL_BGHOV:=$,'N',`BGHOV`  }, -- BGCLR when hovering (titles)
-                                 {  CXCAL_BGHBX:=$,'N',`BGHBX`  }, -- BGCLR when hovering (boxes)
-                                 {  CXCAL_RANGE:=$,'P',`RANGE`  }, -- date range, see below
+local constant calendar_attrs = {{  CXCAL_RANGE:=$,'P',`RANGE`  }, -- date range, see below
+                                 {  CXCAL_BGSEL:=$,'n',`[BGSEL]`}, -- BGCLR for selected item[s]
+                                 {  CXCAL_BGHOV:=$,'n',`[BGHOV]`}, -- BGCLR when hovering (titles)
+                                 {  CXCAL_BGHBX:=$,'n',`[BGHBX]`}, -- BGCLR when hovering (boxes)
                                  {   CXCAL_YEAR:=$,'i',`[YEAR]` }, -- (internal)
                                  {  CXCAL_MONTH:=$,'i',`[MONTH]`}, -- ""
                                  {    CXCAL_DAY:=$,'i',`[DAY]`  }, -- "", nb may be 31/2
@@ -56,10 +84,10 @@ local constant calendar_attrs = {{  CXCAL_BGSEL:=$,'N',`BGSEL`  }, -- BGCLR for 
                                  {CXCAL_DT_PICK:=$,'i',`[DT_PK]`}}, -- "", 0 or the gDatePick
                CXCAL_LEN = length(calendar_attrs),
 --*/
-enum CXCAL_BGSEL,
+enum CXCAL_RANGE,
+     CXCAL_BGSEL,
      CXCAL_BGHOV,
      CXCAL_BGHBX,
-     CXCAL_RANGE,
      CXCAL_YEAR,
      CXCAL_MONTH,
      CXCAL_DAY,
@@ -75,7 +103,6 @@ enum CXCAL_BGSEL,
      CXCAL_DT_PICK,
      CXCAL_VALUE_CHANGED,   -- DEV in lieu of gSetHandler...
      CXCAL_LEN = $
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
 sequence ctrl_xtra
 
 -- display states [CXCAL_STATE] (see gCalendar technicalia):
@@ -84,7 +111,8 @@ local enum TG_MONTH, TG_YEAR, TG_DECADE, TG_CENTURY, TG_MILLEN
 --local constant CAL_STATES={`TG_MONTH`,`TG_YEAR`,`TG_DECADE`,`TG_CENTURY`,`TG_MILLEN`}
 
 local constant ONEDAY = timedelta(days:=1),
-            SEVENDAYS = timedelta(days:=7)
+            SEVENDAYS = timedelta(days:=7),
+           bGregorian = false -- (no error for < 1752)
 
 local function tg_greyscale(atom clr)
 --?"gGreyscale"
@@ -114,11 +142,11 @@ local function tg_last_day_of_month(integer year, month, bool bPrev=false)
         {year,month} = iff(month=12?{year+1,1}:
                                     {year,month+1})
     end if
-    return adjust_timedate({year,month,1,0,0,0},-ONEDAY)[DT_DAY]
+    return adjust_timedate({year,month,1,0,0,0},-ONEDAY,bGregorian)[DT_DAY]
 end function
 
 local function tg_clamp_calendar(gdx calendar, integer year,month,day)
-    integer {{sy,sm,sd},{ey,em,ed}} = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_RANGE]
+    integer {{sy,sm,sd},{ey,em,ed}} = ctrl_xtra[calendar][CXCAL_RANGE]
     --
     -- note that for a range of 3/11..7/11,
     --   8/10 -> 3/11, but 8/11 -> 7/11,
@@ -160,7 +188,7 @@ local procedure tg_calendar_set_hoverable(gdx calendar)
     --  a) to not overlap header 1|2|3
     --  b) so that divmod 7|4 is useful
     --
-    object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
+    object cal_attr = ctrl_xtra[calendar]
     integer y = cal_attr[CXCAL_YEAR],
             m = cal_attr[CXCAL_MONTH],
         state = cal_attr[CXCAL_STATE],
@@ -205,11 +233,11 @@ local procedure tg_calendar_set_hoverable(gdx calendar)
     end if
 --printf(1,"tg_calendar_set_hoverable: l:%t, r:%t, lohov:%d, hihov:%d\n",
 --          {lhov, rhov, lohov, hihov})
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_LHOV] = lhov
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_RHOV] = rhov
+    ctrl_xtra[calendar][CXCAL_LHOV] = lhov
+    ctrl_xtra[calendar][CXCAL_RHOV] = rhov
     -- (title_hov is implicitly lhov or rhov [and state<TG_MILLEN])
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_LOHOV] = lohov
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HIHOV] = hihov
+    ctrl_xtra[calendar][CXCAL_LOHOV] = lohov
+    ctrl_xtra[calendar][CXCAL_HIHOV] = hihov
 end procedure
 
 atom cal_left = NULL, cal_lefth, cal_lefti,
@@ -222,7 +250,7 @@ local procedure tg_redraw_calendar(gdx calendar, integer w, h)
 --DEV set this properly...:
 --       bFocus = true,
          bFocus = gGetFocus()==calendar
-    object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
+    object cal_attr = ctrl_xtra[calendar]
     integer hov = iff(bActive?cal_attr[CXCAL_HOV]:0),
           state = cal_attr[CXCAL_STATE],
            year = cal_attr[CXCAL_YEAR],
@@ -248,7 +276,6 @@ local procedure tg_redraw_calendar(gdx calendar, integer w, h)
 
     if not bActive then hovclr = tg_greyscale(hovclr) end if
     if cal_left=NULL then
---      sequence cal_hdr = {"6 9 2 1",". c None","x c #313131"}
 --DEV (already added to tg_xpm.e):
 --      string {cal_ltxt,cal_rtxt} = tg_XPM_from_shorthand(`calendar_arrows`)
         string cal_ltxt = `
@@ -311,7 +338,7 @@ x c #313131
         integer prevday = 31, dow = 8, lastday = 31
 --DEV use tg_last_day_of_month()...
         if year>=1752 then
-            prevday = adjust_timedate(ymd,-ONEDAY)[DT_DAY]
+            prevday = adjust_timedate(ymd,-ONEDAY,bGregorian)[DT_DAY]
             if month=12 then
                 ymd[DT_YEAR] = year+1
                 ymd[DT_MONTH] = 1
@@ -320,14 +347,14 @@ x c #313131
             end if
             -- get the last day of the displayed month (28..31)
             dow = day_of_week(year,month,1)
-            lastday = adjust_timedate(ymd,-ONEDAY)[DT_DAY]
+            lastday = adjust_timedate(ymd,-ONEDAY,bGregorian)[DT_DAY]
         end if
 --*/
         -- save for click/scroll handling:
 -- (DEV or we could just invoke tg_last_day_of_month() as needed instead?, *2)
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_PREV] = prevday
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_LAST] = lastday
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_SEL] = day+dow+6
+        ctrl_xtra[calendar][CXCAL_PREV] = prevday
+        ctrl_xtra[calendar][CXCAL_LAST] = lastday
+        ctrl_xtra[calendar][CXCAL_SEL] = day+dow+6
         day = min(day,lastday) -- (do that on retrieval as well)
         {x, y} = {24, 56}
         for d=2-dow to 43-dow do
@@ -370,7 +397,7 @@ x c #313131
 --                 iff(state=TG_DECADE?rmdr(year,10)+2:
 --                iff(state=TG_CENTURY?rmdr(floor(year/10),10)+2
 --                       /*TG_MILLEN*/:rmdr(floor(year/100),10)+2)))
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_SEL] = hi+3
+        ctrl_xtra[calendar][CXCAL_SEL] = hi+3
 
         string s = iff(state=TG_YEAR?sprintf(`%d`,year):
                  iff(state=TG_DECADE?sprintf(`%d-%d`,{ds,de}):
@@ -434,15 +461,15 @@ local procedure tg_calendar_mousemove(gdx calendar, integer x,y)
     --   4..15 month/year/decade/mllnnia [when state>=TG_YEAR, of 4*3 shown]
     -- This routine does not care much what is in the box being hovered on.
     --
-    object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
+    object cal_attr = ctrl_xtra[calendar]
     integer hov = 0,
-        was_hov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV],
-          state = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE],
-           year = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_YEAR],
-          lohov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_LOHOV],
-          hihov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HIHOV],
-           lhov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_LHOV],
-           rhov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_RHOV],
+        was_hov = ctrl_xtra[calendar][CXCAL_HOV],
+          state = ctrl_xtra[calendar][CXCAL_STATE],
+           year = ctrl_xtra[calendar][CXCAL_YEAR],
+          lohov = ctrl_xtra[calendar][CXCAL_LOHOV],
+          hihov = ctrl_xtra[calendar][CXCAL_HIHOV],
+           lhov = ctrl_xtra[calendar][CXCAL_LHOV],
+           rhov = ctrl_xtra[calendar][CXCAL_RHOV],
            thov = (lhov or rhov) and (state<TG_MILLEN)
     cal_attr = NULL -- (kill refcount)
     if y<=32 then
@@ -462,7 +489,7 @@ local procedure tg_calendar_mousemove(gdx calendar, integer x,y)
         if hov<lohov or hov>hihov then hov = 0 end if
     end if
     if hov!=was_hov then
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV] = hov
+        ctrl_xtra[calendar][CXCAL_HOV] = hov
         gRedraw(calendar)
     end if
 end procedure
@@ -480,15 +507,11 @@ end procedure
 
 procedure tg_calendar_mouseleave(gdx calendar)
 ?"tg_calendar_mouseleave"
-    if ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV] then
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV] = 0
+    if ctrl_xtra[calendar][CXCAL_HOV] then
+        ctrl_xtra[calendar][CXCAL_HOV] = 0
         gRedraw(calendar)
     end if
 end procedure
-
-local function tg_get_sig(rtn rid) -- (copied verbatim from theGUI.e)
-    return get_routine_info(rid,false)[3] -- eg `FI` (nb and that when rid==null, probably)
-end function
 
 local procedure tg_save_calendar(gdx calendar, integer year, month, day)
 --?{"tg_save_calendar", year, month, day}
@@ -497,20 +520,20 @@ local procedure tg_save_calendar(gdx calendar, integer year, month, day)
     -- may as well be safe (a month=0 bug has now been fixed):
     if month<1 or month>12 then ?9/0 end if
     if day<1 or day>31 then ?9/0 end if
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_YEAR] = year
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_MONTH] = month
-    ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_DAY] = day
+    ctrl_xtra[calendar][CXCAL_YEAR] = year
+    ctrl_xtra[calendar][CXCAL_MONTH] = month
+    ctrl_xtra[calendar][CXCAL_DAY] = day
 
     tg_calendar_set_hoverable(calendar)
 
     sequence ymd = tg_clamp_calendar(calendar,year,month,day)
 
-    gdx datepick = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_DT_PICK]
+    gdx datepick = ctrl_xtra[calendar][CXCAL_DT_PICK]
     if datepick then
         gSetAttribute(datepick,`VALUE`,"%02d/%02d/%04d",ymd)
     end if
 
-    rtn value_changed = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_VALUE_CHANGED]
+    rtn value_changed = ctrl_xtra[calendar][CXCAL_VALUE_CHANGED]
 --  rtn value_changed = gGetHandler(calendar,`VALUE_CHANGED`)
     if value_changed then
         string sig = tg_get_sig(value_changed)
@@ -533,7 +556,7 @@ local procedure tg_calendar_scroll(gdx calendar, integer code)
     -- 5..46 a day [when state==TG_MONTH, any of the 6*7 days being shown],
     -- 2..13 month/year/decade/mllnnia [when state>=TG_YEAR, of 4*3 shown]
     --
-    object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
+    object cal_attr = ctrl_xtra[calendar]
     integer state = cal_attr[CXCAL_STATE],
              year = cal_attr[CXCAL_YEAR],
             month = cal_attr[CXCAL_MONTH],
@@ -543,7 +566,7 @@ local procedure tg_calendar_scroll(gdx calendar, integer code)
           lastday = cal_attr[CXCAL_LAST]
     cal_attr = 0 -- (kill refcount)
     if code=0 then
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE] = state+1
+        ctrl_xtra[calendar][CXCAL_STATE] = state+1
     elsif code<=1 then
         if state=TG_MONTH then
             month += code
@@ -579,7 +602,7 @@ local procedure tg_calendar_scroll(gdx calendar, integer code)
                     t3 = power(10,state-3)
             year = year-rmdr(year,t2)+(code-3)*t3+rmdr(year,t3)
         end if
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE] = state-1
+        ctrl_xtra[calendar][CXCAL_STATE] = state-1
     end if
     tg_save_calendar(calendar,year,month,day)
 end procedure
@@ -587,13 +610,13 @@ end procedure
 local function tg_calendar_click(gdx calendar, sequence status, integer x, y) 
 ?{`tg_calendar_click`,calendar,status, x, y}
 --if status[2]!='S' then ?9/0 end if
-    integer hov = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_HOV],
+    integer hov = ctrl_xtra[calendar][CXCAL_HOV],
             res = TG_DEFAULT
     if hov and status[1..2]=`LS` and gGetAttribute(calendar,`ACTIVE`) then
         tg_calendar_scroll(calendar,hov-2)
         if hov>3 
-        and ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE]=TG_MONTH
-        and ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_DT_PICK] then -- (a gDatePick) [DEV/testme]
+        and ctrl_xtra[calendar][CXCAL_STATE]=TG_MONTH
+        and ctrl_xtra[calendar][CXCAL_DT_PICK] then -- (a gDatePick) [DEV/testme]
             res = TG_CLOSE
         else
 ---DEV/SUG we may want to recalc any hover here, as per tg_calendar_mousewheel(). [DONE but not tested]
@@ -606,7 +629,7 @@ end function
 
 local function tg_calendar_key(gdx calendar, integer c)
 --?{"tg_calendar_key",calendar,c}
-    object cal_attr = ctrl_xtra[calendar][CX_GTL_ATTRS]
+    object cal_attr = ctrl_xtra[calendar]
     integer state = cal_attr[CXCAL_STATE],
              year = cal_attr[CXCAL_YEAR],
             month = cal_attr[CXCAL_MONTH],
@@ -619,6 +642,7 @@ local function tg_calendar_key(gdx calendar, integer c)
             hihov = cal_attr[CXCAL_HIHOV],
               sel = cal_attr[CXCAL_SEL]
     cal_attr = 0 -- (kill refcount)
+--?{year,month,day}
 
 --  elsif upper(c)='X' then
 --      gToggleInt(calendar,`ACTIVE`) -- (nb one-way!)
@@ -642,7 +666,7 @@ local function tg_calendar_key(gdx calendar, integer c)
             c = 0
         else
 --?{"state",state}
-            ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE] = state-1
+            ctrl_xtra[calendar][CXCAL_STATE] = state-1
             tg_calendar_recalculate_hover(calendar)
             gRedraw(calendar)
         end if
@@ -652,14 +676,18 @@ local function tg_calendar_key(gdx calendar, integer c)
         ?9/0 -- DEV/TEMP!
     elsif state=TG_MONTH then
         sequence dt = {year,month,min(day,lastday),0,0,0}
+        integer adj = 0
         switch c do
-            case VK_UP:     dt = adjust_timedate(dt,-SEVENDAYS,false)
-            case VK_DOWN:   dt = adjust_timedate(dt,+SEVENDAYS,false)
-            case VK_LEFT:   dt = adjust_timedate(dt,-ONEDAY,false)
-            case VK_RIGHT:  dt = adjust_timedate(dt,+ONEDAY,false)
+            case VK_UP:     adj = -SEVENDAYS
+            case VK_DOWN:   adj = +SEVENDAYS
+            case VK_LEFT:   adj = -ONEDAY
+            case VK_RIGHT:  adj = +ONEDAY
             default: c = 0
         end switch
-        {year,month,day} = dt
+        if adj then
+            dt = adjust_timedate(dt,adj,bGregorian)
+            {year,month,day} = dt
+        end if
     elsif state=TG_YEAR then
         switch c do
             case VK_UP:     month -= 4
@@ -702,6 +730,7 @@ local function tg_calendar_key(gdx calendar, integer c)
 --  if c and oymd!=tg_clamp_calendar(calendar, year,month,day) then
     sequence nymd = tg_clamp_calendar(calendar, year,month,day)
     if c and oymd!=nymd then
+--?nymd
         --
         -- aside: we certainly don't want to clamp the day here,
         --        not clamping the year prevents keyboard entry,
@@ -725,37 +754,15 @@ end function
 local procedure tg_calendar_mousewheel(gdx calendar, integer direction)
 --?{"tg_calendar_mousewheel",calendar,direction}
     integer hdx = iff(direction=-1?CXCAL_RHOV:CXCAL_LHOV)
-    if ctrl_xtra[calendar][CX_GTL_ATTRS][hdx] then
+    if ctrl_xtra[calendar][hdx] then
         tg_calendar_scroll(calendar,-direction)
         tg_calendar_recalculate_hover(calendar)
         gRedraw(calendar)
     end if
 end procedure
 
-local function tg_intint(string val) -- (copied verbatim from theGUI.e)
-    --
-    -- convert eg `225x75` to {225,75}, and in fact 
-    --            `50x10x20x30` to {50,10,20,30},
-    --            `1`->{1}, and `1x2x3`->{1,2,3}.
-    -- likewise eg `{225,75}` -> {225,75}, etc.
-    --
-    sequence res
-    if val[1]='{' then
-        assert(val[$]='}')
-        res = split(val[2..-2],',',false)
-    else
-        res = split(val,'x',false)
-    end if
-    res = apply(true,to_number,{res,0})
-
-    -- It could do this provided callers ignored any -1, which 
-    -- would make `50x` not the same as `50x0`, matching pGUI.
---  res = apply(true,to_number,{res,-1})
-    return res
-end function
-
 -- merge into gSetAttribute/tg_set_canvas_attribute, obviously:
-local procedure hSetAttribute(gdx calendar, string name, object v)
+local procedure tg_set_calendar_attribute(gdx calendar, string name, object v)
     if name=`RANGE` then
 -- and cn==CALENDAR...?
         if string(v) then
@@ -780,15 +787,26 @@ local procedure hSetAttribute(gdx calendar, string name, object v)
             end for
             assert(v[1]<=v[2])
         end if
-        ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_RANGE] = v
+        ctrl_xtra[calendar][CXCAL_RANGE] = v
+        integer year = ctrl_xtra[calendar][CXCAL_YEAR],
+               month = ctrl_xtra[calendar][CXCAL_MONTH],
+                 day = ctrl_xtra[calendar][CXCAL_DAY]
+        {year,month,day} = tg_clamp_calendar(calendar, year,month,day)
+        ctrl_xtra[calendar][CXCAL_YEAR] = year
+        ctrl_xtra[calendar][CXCAL_MONTH] = month
+        ctrl_xtra[calendar][CXCAL_DAY] = day
 --DEV not tested here, but we may want this, and possibly on non-alt-tab-losefocus too[?]:
 --  elsif name=`ACTIVE` then
 --      if v=false then
---          ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_STATE] = TG_MONTH
+--          ctrl_xtra[calendar][CXCAL_STATE] = TG_MONTH
 --      end if
     else
         ?9/0
     end if
+end procedure
+
+local procedure hSetAttribute(gdx calendar, string name, object v)
+    tg_set_calendar_attribute(calendar, name, v)
 end procedure
 
 local function hCalendar(rtn value_changed=NULL, object ymd=NULL, string attributes=``, sequence args={})
@@ -804,10 +822,8 @@ local function hCalendar(rtn value_changed=NULL, object ymd=NULL, string attribu
     else
         ctrl_xtra = repeat(0,calendar)
     end if
-    object cx = repeat(0,CXCAL_LEN),
-          cxi = repeat(0,CX_GTL_ATTRS)
---DEV:
---  cxi[CX_CANVAS_TYPE] = CALENDAR
+    object cx = repeat(0,CXCAL_LEN)
+--  ctrl_types[calendar] = CALENDAR
     cx[CXCAL_BGSEL] = #CCE8F8
     cx[CXCAL_BGHOV] = #0066CC
     cx[CXCAL_BGHBX] = #E5F3FF
@@ -818,18 +834,15 @@ local function hCalendar(rtn value_changed=NULL, object ymd=NULL, string attribu
     cx[CXCAL_STATE] = TG_MONTH
 --DEV gSetHander(calendar,`VALUE_CHANGED`,value_changed)
     cx[CXCAL_VALUE_CHANGED] = value_changed
-    cxi[CX_GTL_ATTRS] = cx
+    ctrl_xtra[calendar] = cx
     cx = 0
-    ctrl_xtra[calendar] = cxi
-    cxi = 0
 --DEV/SUG MINSIZE/MAXSIZE as well?
     gSetAttribute(calendar,`EXPAND`,false)
---  gSetAttribute(calendar,`EXPAND`,"NO")
---  gSetAttribute(calendar,`CANFOCUS`,true) -- already OK?
+    gSetAttribute(calendar,`CANFOCUS`,true)
     hSetAttribute(calendar,`RANGE`,NULL)
     -- some test cases:
 --  hSetAttribute(calendar,`RANGE`,{{2025,11,1},{2025,11,30}}) -- no l/r, ever
---  hSetAttribute(calendar,`RANGE`,{{2025,11,3},{2025,11,7}}) -- "", just a few days
+--  hSetAttribute(calendar,`RANGE`,{{2025,11,3},{2025,11,7}}) -- "", just a few days --DEV BUGGY!
 --  hSetAttribute(calendar,`RANGE`,{{2025,10,1},{2025,11,30}}) -- l only
 --  hSetAttribute(calendar,`RANGE`,{{2025,11,1},{2025,12,31}}) -- r only
 --  hSetAttribute(calendar,`RANGE`,{{2025,1,1},{2025,12,31}}) -- 2025 only
@@ -867,9 +880,9 @@ gdx calendar = hCalendar(value_changed),
 gMainLoop(dlg)
 
 --/*
-integer year = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_YEAR],
-        month = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_MONTH],
-        day = ctrl_xtra[calendar][CX_GTL_ATTRS][CXCAL_DAY]
+integer year = ctrl_xtra[calendar][CXCAL_YEAR],
+        month = ctrl_xtra[calendar][CXCAL_MONTH],
+        day = ctrl_xtra[calendar][CXCAL_DAY]
 ?{year,month,day}
 wait_key()
 --*/

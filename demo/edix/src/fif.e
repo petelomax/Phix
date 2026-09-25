@@ -142,10 +142,9 @@ end function
 integer fileNum
 
 procedure complete_line()
-integer c
     -- get rest of line
     while true do
-        c = getc(fileNum)
+        integer c = getc(fileNum)
         if c<1 then exit end if
         if c='\n' then exit end if
         if c='\t' then c=' ' end if --DEV should pad?
@@ -284,7 +283,6 @@ sequence phit           -- array of partial hits found
 end procedure
 
 procedure init_charmash()
-integer c, cprev
     charmash=repeat(0,256)
     for i='a' to 'z' do
         charmash[i] = i 
@@ -300,9 +298,9 @@ integer c, cprev
     charmash['>']='>'
     -- everything else is considered "white space"
 
-    c = 'a'
+    integer c = 'a'
     for k = 1 to length(searchstring) do
-        cprev = c
+        integer cprev = c
         c = searchstring[k]
         if c=0 then exit end if
         if c!=charmash[c] then

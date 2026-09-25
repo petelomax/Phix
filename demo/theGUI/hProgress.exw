@@ -1,0 +1,159 @@
+--
+--  demo\theGUI\gProgress.exw
+--  =========================
+--
+-- that sliding bars thing: create a full-size background image and blit p pixels wide of it,
+-- from k to p+k where k is min(0..10,w-p).
+--
+--requires(64,true)
+--puts(1,"")
+include theGUI.e
+--include backup\hGUI.0701.e --X
+--include backup\hGUI.0861.e --X no stripes
+--include backup\hGUI.1100.e --X no stripes
+--include backup\hGUI.1911.e --X no stripes
+--include backup\hGUI.3318.e -- good
+--include backup\hGUI.3623.e -- good
+--include backup\hGUI.3836.e -- good
+--include backup\hGUI.4290.e -- good
+--include backup\hGUI.4333.e -- good
+--include backup\hGUI.4370.e -- good
+--include backup\hGUI.4391.e -- bad
+--include backup\hGUI.4401.e -- bad
+--include backup\hGUI.4450.e -- bad
+--include backup\hGUI.4646.e -- bad
+--include backup\hGUI.4830.e -- bad
+--include backup\hGUI.3800.e --X
+--gUseGTK()
+
+--/*
+local constant progress_attrs = {{  CX_PROGRESS_IMAGE:=$,'b',`[PRGIMG]`  }, -- (internal) width+15 stripes img
+                                 {  CX_PROGRESS_DRIFT:=$,'i',`[DRIFT]`   }, -- 0..14 for the drift
+                                 {  CX_PROGRESS_TIMER:=$,'i',`[TIMER]`   }, -- (internal, display every 0.1s)
+                                 {  CX_PROGRESS_VALUE:=$,'N',`VALUE`     }, -- value, start..limit
+                                 {  CX_PROGRESS_START:=$,'n',`[START]`   }, -- start (default 0)
+                                 {  CX_PROGRESS_LIMIT:=$,'n',`[LIMIT]`   }}, -- limit (default 100)
+               CX_PROGRESS_LEN = length(progress_attrs),
+--*/
+
+sequence ctrl_xtra = {}
+enum CX_PROGRESS_IMAGE,
+     CX_PROGRESS_DRIFT,
+     CX_PROGRESS_TIMER,
+     CX_PROGRESS_VALUE,
+     CX_PROGRESS_START,
+     CX_PROGRESS_LIMIT,
+     CX_PROGRESS_LEN = $
+
+gdn stripes = NULL
+
+local procedure tg_redraw_progressbar(gdx pbar, integer w,h)
+--?{"tg_redraw_progressbar",pbar, w,h}
+--?{"tick",time()}
+    gdn img = ctrl_xtra[pbar][CX_PROGRESS_IMAGE]
+--  object ud = gGetAttribute(pbar,"USER_DATA")
+--  {integer l} = iff(ud=NULL?{0}:ud)
+    if img=NULL or gGetAttribute(img,`SIZE`)!={w+15,h} then
+        if img!=NULL then img = gImageDestroy(img) end if
+        img = gImage(w+15,h)
+        if stripes=NULL then stripes = gGetGlobal("stripes") end if
+--      if stripes=NULL then stripes = gGetGlobal("slider_thumb")[1] end if
+        integer x = 0
+        do
+            integer y = 0
+            do
+                gDrawImage(stripes,img,x,y)
+                y += 15
+            until y>h
+            x += 15
+        until x>w+15
+        ctrl_xtra[pbar][CX_PROGRESS_IMAGE] = img
+    end if
+    integer drift = ctrl_xtra[pbar][CX_PROGRESS_DRIFT]
+    atom v = ctrl_xtra[pbar][CX_PROGRESS_VALUE],
+     start = ctrl_xtra[pbar][CX_PROGRESS_START],
+     limit = ctrl_xtra[pbar][CX_PROGRESS_LIMIT],
+        pc = min((v-start)/(limit-start)*100,100), l = w
+    if pc>=100 then
+        gDrawRect(pbar,0,0,w-1,h-1,true,1,#198754)
+        gdx pbtimer = ctrl_xtra[pbar][CX_PROGRESS_TIMER]
+        gSetAttribute(pbtimer,"RUN",false)
+    else
+        l = floor((v-start)/(limit-start)*w)
+        gDrawImage(img,pbar,0,0,drift,0,l)
+    end if
+    gDrawText(pbar,l/2,h/2,"%.2f%%",{pc},TG_C,0,TG_WHITE)
+    drift = rmdr(drift+1,15)
+    ctrl_xtra[pbar][CX_PROGRESS_DRIFT] = drift
+end procedure
+
+procedure tg_progress_action(gdx pbtimer)
+    gdx pbar = gGetAttribute(pbtimer,"USER_DATA")
+    gRedraw(pbar)
+end procedure
+
+function hProgressBar()
+    gdx pbar = gCanvas(tg_redraw_progressbar),
+     pbtimer = gTimer(tg_progress_action,100,true,pbar)
+    if platform()!=JS then
+        ctrl_xtra &= repeat(0,pbar-length(ctrl_xtra))
+    end if
+    object cx = repeat(0,CX_PROGRESS_LEN)
+--  cx[CX_PROGRESS_IMAGE] = NULL
+--  cx[CX_PROGRESS_DRIFT] = 0
+    cx[CX_PROGRESS_TIMER] = pbtimer
+--  cx[CX_PROGRESS_VALUE] = 0
+--  cx[CX_PROGRESS_START] = 0
+    cx[CX_PROGRESS_LIMIT] = 100
+    ctrl_xtra[pbar] = cx
+    cx = 0
+    gSetAttribute(pbar,`BGCLR`,TG_WHITE)
+--  gSetAttribute(pbar,`BGCLR`,TG_RED)
+    gSetAttribute(pbar,`EXPAND`,'H')
+    gSetAttribute(pbar,`SIZE`,`x25`)
+    return pbar
+end function
+
+procedure hSetAttribute(gdx pbar, string name, object v)
+    if name="VALUE" then
+        bool bRun = true
+        if sequence(v) then
+            switch length(v) with fallthrough do
+                case 4: bRun = v[4]
+                case 3: ctrl_xtra[pbar][CX_PROGRESS_START] = v[3]
+                case 2: ctrl_xtra[pbar][CX_PROGRESS_LIMIT] = v[2]
+                case 1: ctrl_xtra[pbar][CX_PROGRESS_VALUE] = v[1]
+                        break
+                default: ?9/0 -- wot len dat den?
+            end switch
+            v = v[1]
+        else
+            ctrl_xtra[pbar][CX_PROGRESS_VALUE] = v
+        end if
+        gdx pbtimer = ctrl_xtra[pbar][CX_PROGRESS_TIMER]
+        gSetAttribute(pbtimer,"RUN",bRun)
+    else
+        ?9/0
+    end if
+end procedure
+
+procedure tick(gdx timer)
+    gdx pbar = gGetAttribute(timer,"USER_DATA")
+--  integer v = gGetAttribute(pbar,`VALUE`)
+    atom v = ctrl_xtra[pbar][CX_PROGRESS_VALUE]
+    v += 1.23
+--?{"tick",v}
+    hSetAttribute(pbar,`VALUE`,v)
+    if v>=100 then
+--  if v>=50 then
+        gSetAttribute(timer,"RUN",false)
+    end if
+end procedure
+
+gdx pbar = hProgressBar(),
+    hbox = gHbox({pbar},"MARGIN=10,SPACE=AROUND"),
+    dlg = gDialog(hbox,"hProgress",`SIZE=240x80`),
+    timer = gTimer(tick,100,true,pbar)
+--hSetAttribute(pbar,`VALUE`,{0,50})
+
+gMainLoop(dlg)

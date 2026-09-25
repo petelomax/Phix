@@ -303,6 +303,7 @@ constant r8={"al","cl","dl","bl","ah","ch","dh","bh","r8l","r9l","r10l","r11l","
          r8l={"spl","bpl","sil","dil"},
          r16={"ax","cx","dx","bx","sp","bp","si","di","r8w","r9w","r10w","r11w","r12w","r13w","r14w","r15w"},
 --*/
+--DEV actually these go up to 31... (is that x64 only?)
 constant XMM = {T_xmm0,T_xmm1,T_xmm2,T_xmm3,T_xmm4,T_xmm5,T_xmm6,T_xmm7}
 
 integer Z64 -- like/copy of pglobals.e/X64, but with ilASM{[PE64]} etc applied. (should ==X64 when emitON=true, I think)
@@ -1596,7 +1597,7 @@ integer scale
 integer idx
 integer base
 integer offset
---integer sib
+integer sib
 integer rex               -- rex prefix (64-bit mode) (WRXB=8421)
 -- rW = and_bits(rex,#08) -- 64-bit operand size
 -- rR = and_bits(rex,#04) -- msb extension to modRM reg field
@@ -2703,8 +2704,8 @@ end if
                                     -- 0o073 0o1r5 d8                   -- cmp reg,[ebp+d8]
                                     s5 &= 0o073
                                 else
---                                  Aborp("oops")
-                                    ?9/0 -- placeholder for more code (eg add reg,[hllvar])
+                                    Aborp("oops")
+--                                  ?9/0 -- placeholder for more code (eg add reg,[hllvar])
                                 end if
                                 emit_ebpN(reg,N)
                             else
@@ -4379,6 +4380,125 @@ end if
                         s5 &= 0o245         -- mov dword[esi],[edi]; esi+/-=4; edi+/-=4
                     end if
                 end if
+
+            elsif ttidx=T_cvtsi2sd then     -- Convert doubleword integer to double precision floating point value
+--F2:0F2A 0o341     cvtsi2sd xmm4,ecx
+--F2:0F2A 0o351     cvtsi2sd xmm5,ecx
+--F2:0F2A 0o302     cvtsi2sd xmm0,edx
+--F2:0F2A 0o310     cvtsi2sd xmm1,eax
+--F2:49:0F2A 0o344  cvtsi2sd xmm4,r12
+--F2:49:0F2A 0o355  cvtsi2sd xmm5,r13
+--F2:49:0F2A 0o363  cvtsi2sd xmm6,r11
+--F2:48:0F2A 0o302  cvtsi2sd xmm0,rdx
+--F2:48:0F2A 0o310  cvtsi2sd xmm1,rax
+--cvtsi2sd xmm1,eax
+--cvtsi2sd xmm3,[edx+110]
+--cvtsi2sd xmm7,[UserDefinedSymbol]
+                skipSpacesAndComments()
+--; 860                             cvtsi2sd xmm4, r12  -- cx
+--                                  cvtsi2sd xmm5,r12d  ;#006E485D: 362:49:017052354           np 02 02 90 146      
+--; 861                             cvtsi2sd xmm5, r13  -- cy
+--                                  cvtsi2sd xmm6,r15d  ;#006E4862: 362:49:017052367           np 02 02 90 236      
+--
+                {p1type,p1size,p1details} = get_operand(P_XMM,true)
+                comma()
+                if p1type=P_XMM then
+                    {p2type,p2size,p2details} = get_operand(P_REG,false)
+                    if p2type!=P_REG then ?9/0 end if
+                    if p2size!=iff(Z64=1?8:4) then ?9/0 end if
+                    reg = p1details-1
+                    if reg>7 then ?9/0 end if
+                    sib = 0o300+reg*0o10
+--printf(1,"p1details:%d, reg:%d, sib:%o\n",{p1details,reg,sib})
+                    reg = p2details-1
+                    if emitON then
+--                      if p1size=4 then
+                        if Z64=0 then
+                            if reg>7 then ?9/0 end if
+                            sib += reg
+                            s5 &= {#F2,#0F,#2A,sib}
+--                      elsif p1size=8 then
+                        elsif Z64=1 then
+                            rex = #48
+                            if reg>7 then
+                                rex = #49
+                                reg -= 8
+                            end if
+                            sib += reg
+                            s5 &= {#F2,rex,#0F,#2A,sib}
+                        else
+                            ?9/0 -- placeholder for more code, maybe
+                        end if
+                    end if
+                else
+                    ?9/0 -- sanity check (should never trigger)
+                end if
+                
+            elsif ttidx=T_cvtsd2si then     -- Convert a double-precision floating-point value to a signed doubleword integer
+--F2:0F2D 0o310     cvtsd2si ecx,xmm0
+--F2:48:0F2D 0o310  cvtsd2si rcx,xmm0
+--F2:48:0F2D 0o302  cvtsd2si rax,xmm2
+                skipSpacesAndComments()
+                {p1type,p1size,p1details} = get_operand(P_REG,true)
+                comma()
+                if p1type!=P_REG then ?9/0 end if
+                {p2type,p2size,p2details} = get_operand(P_XMM,false)
+                if p2type!=P_XMM then ?9/0 end if
+--              if p2size!=iff(Z64=1?8:4) then ?9/0 end if
+                reg = p1details-1
+                if reg>7 then ?9/0 end if
+                sib = 0o300+reg*0o10
+                reg = p2details-1
+                if emitON then
+                    if p1size=4 then
+                        if reg>7 then ?9/0 end if
+                        sib += reg
+                        s5 &= {#F2,#0F,#2D,sib}
+                    elsif p1size=8 then
+                        rex = #48
+                        if reg>7 then ?9/0 end if
+--                      if reg>7 then
+--                          rex = #49
+--                          reg -= 8
+--                      end if
+                        sib += reg
+                        s5 &= {#F2,rex,#0F,#2D,sib}
+                    else
+                        ?9/0 -- placeholder for more code, maybe
+                    end if
+                end if
+
+            elsif ttidx=T_addsd
+               or ttidx=T_mulsd
+               or ttidx=T_subsd then
+--F2:0F 0o130 0o304     addsd xmm0,xmm4
+--F2:0F 0o130 0o305     addsd xmm0,xmm5
+--F2:0F 0o131 0o302     mulsd xmm0,xmm2
+--F2:0F 0o131 0o303     mulsd xmm0,xmm3
+--F2:0F 0o131 0o312     mulsd xmm1,xmm2
+--F2:0F 0o131 0o312     mulsd xmm1,xmm2
+--F2:0F 0o131 0o313     mulsd xmm1,xmm3
+--F2:0F 0o134 0o301     subsd xmm0,xmm1
+                op = iff(ttidx=T_addsd?0o130
+                    :iff(ttidx=T_mulsd?0o131
+                    :iff(ttidx=T_subsd?0o134
+                    :9/0)))
+                skipSpacesAndComments()
+                {p1type,p1size,p1details} = get_operand(P_XMM,true)
+                comma()
+                if p1type!=P_XMM then ?9/0 end if
+                {p2type,p2size,p2details} = get_operand(P_XMM,false)
+                if p2type!=P_XMM then ?9/0 end if
+                reg = p1details-1
+                if reg>7 then ?9/0 end if
+                sib = 0o300+reg*0o10
+                reg = p2details-1
+                if reg>7 then ?9/0 end if
+                sib += reg
+                if emitON then
+                    s5 &= {#F2,#0F,op,sib}
+                end if
+
             elsif ttidx=T_movsq then        -- 64-bit move (as per movsb, movsw, movsd)
                 if emitON then
                     s5 &= #48

@@ -1,0 +1,294 @@
+﻿--
+-- demo\theGUI\OpenGL_triangle.exw
+-- ===============================
+--
+--requires(64,true)
+include theGUI.e
+
+constant vertexShaderSource = `
+#version 330 core
+layout(location = 0) in vec3 aPos;
+layout(location = 1) in vec4 aCol;
+uniform mat4 uMVP;
+out vec4 vCol;
+void main()
+{
+    vCol = aCol;
+    gl_Position = uMVP * vec4(aPos,1.0);
+}`,
+        fragmentShaderSource = `
+#version 330 core
+in vec4 vCol;
+out vec4 fragColor;
+void main()
+{
+    fragColor = vCol;
+}`;
+
+function compile_shader(string src, integer sourcetype) -- crash on failure
+    integer shader = glCreateShader(sourcetype)
+    glShaderSource(shader,src)
+    glCompileShader(shader)
+    integer compiled = glGetShaderParameter(shader, GL_COMPILE_STATUS)
+    if not compiled then
+        ? glGetShaderInfoLog(shader)
+        ?9/0
+    end if
+    return shader
+end function
+
+integer shader_program = 0,
+        vertex_array_object = 0
+atom hDC = 0,   -- main window device context
+     hRC = 0    -- WGL rendering context (WM_CREATE -> WM_DESTROY)
+
+procedure init_opengl(atom hDC)
+
+    -- Set up the pixel format and context
+    glSetPixelFormat(hDC)
+    hRC = wglCreateContext(hDC)
+    wglMakeCurrent(hDC, hRC)
+
+    -- compile shaders & shader_program
+    integer vs = compile_shader(vertexShaderSource, GL_VERTEX_SHADER),
+            fs = compile_shader(fragmentShaderSource, GL_FRAGMENT_SHADER)
+    shader_program = glCreateProgram()
+    glAttachShader(shader_program, vs)
+    glAttachShader(shader_program, fs)
+    glLinkProgram(shader_program)
+    integer linked = glGetProgramParameter(shader_program, GL_LINK_STATUS)
+    if not linked then
+        ? glGetProgramInfoLog(shader_program)
+        ?9/0
+    end if
+    vs = glDeleteShader(vs)
+    fs = glDeleteShader(fs)
+    glUseProgram(shader_program)
+
+    -- uniform location
+    integer uMVP = glGetUniformLocation(shader_program, "uMVP")
+    if uMVP=-1 then crash("Could not find uMVP uniform") end if
+--  glUniformMatrix4fv(uMVP, 1, GL_FALSE, {  -- identity
+    sequence identity = {1,0,0,0,
+                         0,1,0,0,
+                         0,0,1,0,
+                         0,0,0,1}
+    glUniformMatrix4fv(uMVP,identity)
+
+    -- vertex data: 3 vertices, 3 floats each
+    --                     X    Y    Z
+    sequence vertices = {-0.8,-0.8, 0.0,
+                          0.8,-0.8, 0.0,
+                          0.0, 0.8, 0.0}
+    integer pos_size = length(vertices)*4
+    atom posData = glFloat32Array(vertices)
+    --              3 vertices, 4 floats each (RGBA), all greens
+    sequence colours = {0.0,0.2,0.0,1.0,
+                        0.0,0.4,0.0,1.0,
+                        0.0,0.6,0.0,1.0}
+    integer col_size = length(colours)*4
+    atom colData = glFloat32Array(colours)
+    -- VAO + VBOs
+    vertex_array_object = glCreateVertexArray()
+    glBindVertexArray(vertex_array_object)
+
+    glBindBuffer(GL_ARRAY_BUFFER, glCreateBuffer())
+    glBufferData(GL_ARRAY_BUFFER, pos_size, posData, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(0)          -- layout(location = 0)
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0)
+
+    glBindBuffer(GL_ARRAY_BUFFER, glCreateBuffer())
+    glBufferData(GL_ARRAY_BUFFER, col_size, colData, GL_STATIC_DRAW)
+    glEnableVertexAttribArray(1)          -- layout(location = 1)
+    glVertexAttribPointer(1, 4, GL_FLOAT, GL_FALSE, 0, 0)
+
+    -- unbind (good practice)
+--  glBindBuffer(GL_ARRAY_BUFFER, 0)
+--  glBindVertexArray(0)
+
+    -- free temporary arrays
+    free(posData)
+    free(colData)
+    glClearColor(1,1,224/255,1) -- parchment
+
+end procedure
+
+constant ppBits = allocate(machine_word()),
+         magenta = 0xFF00FF -- the transparent colour (almost but not TG_MAGENTA)
+--       fawn_brush = CreateSolidBrush(0xE08020)
+
+bool useOpenGL = true
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_CREATE:
+            hDC = GetDC(hWnd)
+if useOpenGL then
+            init_opengl(hDC)
+end if
+            return 0
+
+        case WM_SIZE:
+            integer {?,?,w,h} = GetClientRect(hWnd)   -- (sets pRECT)
+            if hRC!=0 then
+                glViewport(0,0,w,h)                  -- <<< adjust OpenGL viewport >>>
+--              glViewport(150,150,w-300,h-300)                  -- <<< adjust OpenGL viewport >>>
+            end if
+            InvalidateRect(hWnd,NULL,false)          -- trigger a repaint
+            return 0
+
+        case WM_PAINT:
+            atom h2DC = BeginPaint(hWnd, pPAINTSTRUCT) -- (not needed // ** use the OpenGL-bound hDC!! **)
+if useOpenGL then
+            -- Clear the backbuffer
+--          glClearColor(1,1,224/255,1) -- parchment
+            glClear(GL_COLOR_BUFFER_BIT)
+
+            -- Render the triangle
+--          glUseProgram(shader_program)
+--          glBindVertexArray(vertex_array_object)
+            glDrawArrays(GL_TRIANGLES,0,3)
+--          glBindVertexArray(0)
+
+            -- Make sure the GPU has finished before we start GDI calls
+            -- (without this resize mullers the border)
+            glFinish()
+
+            -- Present
+            glSwapBuffers(hDC)
+end if
+
+            -- Build the cyan-border bitmap (client-area sized)
+            -- (suitable one(s) will already be created in tg_draw_control_images)
+            integer {?,?,w,h} = GetClientRect(hWnd)   -- (sets pRECT)
+            -- create a memory DC compatible with the window DC
+            atom memDC = CreateCompatibleDC(hDC)
+            -- 32-bit DIB section (BGRA layout, alpha in the high byte)
+            integer bmihSize = get_struct_size(idBITMAPINFOHEADER)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSize",bmihSize)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biWidth",w)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biHeight",-h) -- top-down
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biPlanes",1)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biBitCount",32)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biCompression",BI_RGB)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSizeImage",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biXPelsPerMeter",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biYPelsPerMeter",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrUsed",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrImportant",0)
+            poken(ppBits,0)
+            atom hBitmap = CreateDIBSection(hDC,pBITMAPINFOHEADER,DIB_RGB_COLORS,ppBits,0,0),
+                 oldBmp = SelectObject(memDC, hBitmap)
+
+            -- Initialise whole bitmap to some background colour
+            atom pBits = peeknu(ppBits)
+            poke4(pBits,0xE08020) -- (any will do here, I'll call that fawn)
+            mem_copy(pBits+4,pBits,w*h*4-4)
+
+            -- Now create a transparent hole punch:
+            set_struct_field(idBITMAPINFOHEADER, pBITMAPINFOHEADER, "biWidth", w-10)
+            set_struct_field(idBITMAPINFOHEADER, pBITMAPINFOHEADER, "biHeight", -(h-10)) -- top-down
+            atom hHole = CreateDIBSection(hDC, pBITMAPINFOHEADER, DIB_RGB_COLORS, ppBits, 0, 0),
+                 holeDC = CreateCompatibleDC(hDC),
+                 holdBmp = SelectObject(holeDC, hHole)
+            pBits = peeknu(ppBits)
+            poke4(pBits,magenta)
+            mem_copy(pBits+4,pBits,(w-10)*(h-10)*4-4)
+
+            -- And punch the transparent hole (all the way up in the real thing):
+            BitBlt(memDC, 5,5,w,h, holeDC, 0,0, SRCCOPY)
+
+            -- Cleanup the hole punch:
+            {} = SelectObject(holeDC, holdBmp)
+            DeleteObject(hHole)
+            DeleteDC(holeDC)
+--/!*
+            -- 5 pixel border with a line running round it (now relies on bgclr)
+--          FillRect(memDC,{0,0,w,5},fawn_brush)        -- top strip
+--          FillRect(memDC,{0,h-5,w,h},fawn_brush)      -- bottom strip
+--          FillRect(memDC,{0,5,5,h-5},fawn_brush)      -- left strip
+--          FillRect(memDC,{w-5,5,w,h-5},fawn_brush)    -- right strip
+            MoveToEx(memDC, 2, 2, NULL)     -- tl
+            LineTo(memDC, w-3, 2)           -- tr
+            LineTo(memDC, w-3, h-3)         -- br
+            LineTo(memDC, 2, h-3)           -- bl
+            LineTo(memDC, 2, 2)             -- back to tl
+--*!/
+            TransparentBlt(hDC, 0,0,w,h, memDC, 0,0,w,h, magenta)
+
+            -- does not seem to be strictly necessary, but won't hurt to leave it it:
+            GdiFlush()                  -- make sure the GDI commands reach the screen
+            -- BeginPaint does this for us:
+--          ValidateRect(hWnd, NULL)    -- no further WM_PAINT unless we invalidate
+
+            {} = SelectObject(memDC, oldBmp)
+            DeleteObject(hBitmap)
+            DeleteDC(memDC)
+
+            EndPaint(hWnd,pPAINTSTRUCT) -- (not strictly needed)
+            return 0
+
+        case WM_CHAR:
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            if hRC!=0 then
+                wglMakeCurrent(NULL,NULL)
+                wglDeleteContext(hRC)
+                hRC = 0
+            end if
+            if hDC!=0 then
+                ReleaseDC(hWnd,hDC)
+                hDC = 0
+            end if
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd,msg,wParam,lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("ScrollCanvas",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0, "ScrollCanvas", "OpenGL Demo",
+                               WS_OVERLAPPEDWINDOW,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+                               NULL, NULL, 0, NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg,NULL,0,0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+
+--/*
+Excellent. The layout manager in theGUI uses a nested hierachy whereby each container creates a bitmap with some
+previously specified background colour, BitBlting any children onto that before being itself BitBlted onto its
+parent or the screen (with that last step now AlphaBlended). When OpenGL is drawing the entire client area we
+don't have to do any of that or in fact anything at all, however when it is (only) drawing some nested canvas, 
+I'm thinking of creating a fully transparent bitmap and using that to "punch transparent holes" into all of the
+parent cointainer bitmaps, once/whenever the size/positon changes, deliberately using BitBlt not AlphaBlend,
+with each container now having two bitmaps (working and initial state) and probably a "has holes" flag.
+Do you think that will work? (ANSWERED MYSELF)
+
+Phix runs on desktop/Windows, desktop/Linux, and in a web browser.
+On the desktop, interpretation works by creating a block of x86/x64 binary and executing it, whereas compilation
+works by laboriously writing PE/COFF and ELF binaries byte-by-byte.
+For the web browser, a separate transpiler generates a complete standalone HTML/JavaScript file. One day I hope
+to get the transpiler working in a web browser, and throw in some PHP snippets, to achieve something similar to
+CodePen, but that's not the priority right now.
+Two glaring holes are the ability to run (natively, not just in a browser) on Android and macOS.
+
+
+--*/
+

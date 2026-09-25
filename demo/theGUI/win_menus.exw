@@ -1,0 +1,709 @@
+--
+-- demo\theGUI\win_menus.exw
+-- =========================
+--
+--  Multiple menu demo
+--
+--       highlight = CreateSolidBrush(0x00FFD0A0),
+--(GTK2:#4B6983, GTK3:#4A90D9)
+--       highlight = CreateSolidBrush(0x00FEF0E8), -- (maybe)
+-- items: (with icon and submenu): 126x72, GTK2: 117x67, GTK3: 112x78
+-- {Normal, html-stripped}: 171x50, GTK2: 126x46, GTK3: 136x54
+--Windows height is 6+lines*22.
+--gGetGlobal("gPopup"), maybe... (internal, unsupported)
+
+--puts(1,"")
+--requires(64,true)
+without debug
+include builtins\cffi.e
+include builtins\VM\pcfunc.e
+include builtins\VM\pprntfN.e
+include theGUI.WINAPI.e
+with debug
+
+integer TG_MENUITEM_HEIGHT = 21 -- overwritten in create_menu_font() [WinAPI only]
+atom hMenuFont = NULL
+
+sequence menus = {}  -- all menus live here - flat version of supplied nested definitions.
+
+-- contents of each menus[i]:
+enum MX_ITEMS,      -- sequence of items
+     MX_PARENT,     -- parent menu index, or 0
+     MX_OWNER,      -- when ""!=0, use it's MX_POPUP, else this??
+     MX_POPUP,      -- HWND or GtkWidget*, or NULL
+     MX_WIDGET,     -- (GTK only)
+     MX_KEYMODE,    -- if keyboard used
+     MX_HOT,        -- hot item
+     MX_SEL,        -- selected item
+     MX_WIDTH,      -- widest+gutters
+     MX_HEIGHT,     -- 4+sum(7|ITEMH)+4
+     MX_X,          -- last position (optional)
+     MX_Y
+
+if MX_WIDGET then end if -- (suppress unused message)
+
+-- contents of each menus[i][MX_ITEMS]:
+enum MX_TEXT,       -- if "-", it's a separtator
+     MX_SUBMENU,    -- index into menus, or 0
+     MX_ENABLED -- t/f, false on separators
+
+-- example items:
+-- {"Open",0,true}
+-- {"Recent Files",submenu_id,false}
+
+local type mid(integer mdx)
+    return mdx>0
+end type
+
+procedure compute_menu_size(mid mdx)
+    integer width = 40,  -- padding baseline
+            height = 8   -- (4+4, top+btm)
+    atom hdc = GetDC(NULL),
+         oldfont = SelectObject(hdc, hMenuFont)
+    for text in vslice(menus[mdx][MX_ITEMS],MX_TEXT) do
+        if text="-" then
+            height += 7
+        else
+            integer {tw,th} = GetTextExtentPoint32(hdc,text)
+            width = max(width,tw)
+            height += TG_MENUITEM_HEIGHT
+        end if
+    end for
+    {} = SelectObject(hdc, oldfont)
+    ReleaseDC(NULL, hdc)
+    width += 52 -- add gutter
+    menus[mdx][MX_WIDTH] = width
+    menus[mdx][MX_HEIGHT] = height
+end procedure
+
+function top_position(mid mdx, integer n)
+    -- compute the top y-position of the n'th item in menus[mdx]
+    -- (obviously must match height calculation in compute_menu_size)
+    integer top = 4
+    for text in vslice(menus[mdx][MX_ITEMS][1..n-1],MX_TEXT) do
+        top += iff(text="-"?7:TG_MENUITEM_HEIGHT)
+    end for
+    return top
+end function
+
+function build_menu(sequence def, integer parent=0)
+    -- convert the nested structure passed to gMenu(children) into a flat linked table.
+    menus &= 0 -- reserve slot
+    mid mdx = length(menus)
+    sequence items = {}
+    for mitem in def do
+        if string(mitem) then
+            -- Aside: in the real thing, items w/o id are illegal...
+            -- plain item or separator
+            items &= {{mitem,0,mitem!="-"}}
+        else
+            -- submenu
+            integer sdx = build_menu(mitem[2],mdx)
+            bool enabled = length(menus[sdx][MX_ITEMS])>0
+            items &= {{mitem[1],sdx,enabled}}
+        end if
+    end for                   -- Ownr,hWnd,hWgt,keybd,hot,sel,w,h,x,y:
+    menus[mdx] = {items, parent, NULL,NULL,NULL,false,  0,  0,0,0,0,0}
+    compute_menu_size(mdx)
+    return mdx
+end function
+
+constant parchment = CreateSolidBrush(0x00E0FFFF),
+         highlight = CreateSolidBrush(0x00F0F0F0),
+             white = CreateSolidBrush(0x00FFFFFF),
+             black = CreateSolidBrush(0x00000000),
+       menu_border = CreateSolidBrush(0x00E5E5E5)
+
+procedure paint_menu(integer mdx)
+--?{"paint_menu",mdx}
+    atom hWnd = menus[mdx][MX_POPUP],
+          hdc = BeginPaint(hWnd, pPAINTSTRUCT),
+      oldfont = SelectObject(hdc, hMenuFont),
+      sep_pen = NULL -- separator pen, if needed
+    -- aside: GetClientRect sets pRECT as used by
+    --        FillRect, but the w,h are the same.
+    integer {?,?,w,h} = GetClientRect(hWnd),
+--          w = menus[mdx][MX_WIDTH],
+--          h = menus[mdx][MX_HEIGHT],
+           kb = menus[mdx][MX_KEYMODE],
+     hot_item = menus[mdx][MX_HOT]
+    FillRect(hdc,pRECT,white)
+    FrameRect(hdc, pRECT, menu_border)
+    SetBkMode(hdc, TRANSPARENT)
+    sequence items = menus[mdx][MX_ITEMS]
+--  pango_layout_set_text(layout,text,-1)
+    integer y = 4,
+--         th = pango_layout_get_pixel_size(layout)[2],
+           th = GetTextExtentPoint32(hdc, "Yy")[2],
+           hh = floor((TG_MENUITEM_HEIGHT-th)/2)
+    for i,item in items do
+        string text = item[MX_TEXT]
+        if text="-" then
+            y += 3
+            if sep_pen=NULL then
+                sep_pen = CreatePen(PS_SOLID,1,RGB(178,178,178))
+            end if
+            atom old = SelectObject(hdc,sep_pen)
+            MoveToEx(hdc, 6, y, NULL)
+            LineTo(hdc, w-6, y)
+            {} = SelectObject(hdc, old)
+            y += 4
+        else    
+            atom txtclr = 0x00000000 -- black
+            if i=hot_item then
+                set_struct_field(idRECT,pRECT,`left`,0+3*kb)
+                set_struct_field(idRECT,pRECT,`top`,y)
+                set_struct_field(idRECT,pRECT,`right`,w-3*kb)
+                set_struct_field(idRECT,pRECT,`bottom`,y+TG_MENUITEM_HEIGHT)
+                if kb then
+                    FrameRect(hdc,pRECT,black)
+                else
+                    FillRect(hdc,pRECT,highlight)
+                    --GTK white, ditto the submenu icon
+                    txtclr = 0x00000000 -- black
+                end if
+            end if
+            if not item[MX_ENABLED] then
+                txtclr = 0x00808080 -- grey
+            end if
+            SetTextColor(hdc, txtclr)
+            TextOut(hdc,38,y+hh,text,length(text))
+            y += TG_MENUITEM_HEIGHT
+        end if
+    end for
+    {} = SelectObject(hdc, oldfont)
+    if sep_pen then DeleteObject(sep_pen) end if
+    EndPaint(hWnd,pPAINTSTRUCT)
+end procedure
+
+local function get_menu_root(mid mdx)
+    integer parent = mdx
+    do
+        mdx = parent
+        parent = menus[mdx][MX_PARENT]
+    until parent<=0
+    return mdx
+end function
+
+local function get_menu_owner(mid mdx)
+    while menus[mdx][MX_PARENT]>0 do
+        mdx = menus[mdx][MX_PARENT]
+    end while
+    return menus[mdx][MX_OWNER]
+end function
+
+local function ensure_popup(mid mdx)
+--?{"ensure_popup",mdx}
+    atom hWnd = menus[mdx][MX_POPUP],
+         hOwn = get_menu_owner(mdx)
+    if hWnd=NULL then
+        atom hInst = NULL,
+         dwExStyle = WS_EX_TOPMOST+WS_EX_NOACTIVATE -- (for the popup only)
+        hWnd = CreateWindowEx(dwExStyle,"Popup","",WS_POPUP,0,0,100,100,hOwn,NULL,hInst,NULL)
+        menus[mdx][MX_POPUP] = hWnd
+    elsif GetParent(hWnd)!=hOwn then
+        if hOwn=NULL then ?9/0 end if
+        SetParent(hWnd,hOwn)
+    end if
+    return hWnd
+end function
+
+-- set by get_monitor_info()
+integer mon_left,
+        mon_top,
+        mon_right,
+        mon_bottom
+
+function adjust_menu_pos(integer x, y, w, h)
+    integer nx = x, ny = y
+    -- flip horizontally
+    if x + w > mon_right then nx = x - w end if
+    -- flip vertically
+    if y + h > mon_bottom then ny = y - h end if
+    -- clamp (important for tiny screens / extreme cases)
+    if nx < mon_left then nx = mon_left end if
+    if ny < mon_top  then ny = mon_top  end if
+    return {nx, ny}
+end function
+
+procedure show_menu(mid mdx, integer x, y, atom hOwner=NULL)
+    if menus[mdx][MX_PARENT]<=0 then
+        menus[mdx][MX_OWNER] = hOwner
+    end if
+    atom hPopup = ensure_popup(mdx)
+    menus[mdx][MX_HOT] = 0
+    menus[mdx][MX_SEL] = 0
+    integer w = menus[mdx][MX_WIDTH],
+            h = menus[mdx][MX_HEIGHT],
+       uFlags = SWP_SHOWWINDOW+SWP_NOACTIVATE,
+      {nx,ny} = adjust_menu_pos(x, y, w, h)
+    SetWindowPos(hPopup,HWND_TOPMOST,nx,ny,w,h,uFlags)
+    menus[mdx][MX_X] = nx
+    menus[mdx][MX_Y] = ny
+end procedure
+
+procedure hide_one_menu(mid mdx, bool bKeepKbd)
+    atom hWnd = menus[mdx][MX_POPUP]
+    if hWnd!=NULL then
+        ShowWindow(hWnd, SW_HIDE)
+        if bKeepKbd and menus[mdx][MX_KEYMODE] then
+            integer parent = menus[mdx][MX_PARENT]
+            if parent>0 then
+                menus[parent][MX_KEYMODE] = true
+                hWnd = menus[parent][MX_POPUP]
+                InvalidateRect(hWnd,NULL,false)
+            end if
+        end if
+-- optional, I think:
+--      menus[mdx][MX_KEYMODE] = false
+    end if
+    menus[mdx][MX_HOT] = 0
+end procedure
+
+function menu_visible(mid mdx, bool bLowest)
+    -- returns 0 if mdx is not visible, else the lowest(/topmost) visible submenu or mdx if none
+    atom hWnd = menus[mdx][MX_POPUP]
+    if hWnd!=NULL and IsWindow(hWnd) and IsWindowVisible(hWnd) then
+--  if hWnd!=NULL and gtk_widget_get_visible(hWnd) then
+        if bLowest then
+            for item in menus[mdx][MX_ITEMS] do
+                integer submenu = item[MX_SUBMENU]
+                if submenu then
+                    submenu = menu_visible(submenu,true)
+                    if submenu then return submenu end if
+                end if
+            end for
+        end if
+        return mdx
+    end if
+    return 0
+end function
+
+procedure hide_submenus(mid mdx, bool bAndItself)
+    -- hide any submenus when we hover on summat else (sometimes several levels up),
+    -- also used to close an entire menu from the root menu and everything downwards
+    while true do
+        integer submenu = menu_visible(mdx,true)
+        if submenu=0 or submenu=mdx then exit end if
+        hide_one_menu(submenu,false)
+    end while
+    if bAndItself then
+        hide_one_menu(mdx,false)
+    end if
+end procedure
+
+procedure hide_up(mid mdx)
+    -- hide the lowest level menu and all parents of it
+    integer parent = mdx
+    do
+        mdx = parent
+        hide_one_menu(mdx,false)
+        parent = menus[mdx][MX_PARENT]
+    until parent<=0
+end procedure
+
+function hit_test(mid mdx, integer x, y)
+    integer w = menus[mdx][MX_WIDTH],
+            h = menus[mdx][MX_HEIGHT]
+    if x>=0 and x<=w and y>=4 and y<=h-4 then
+        integer top = 4, btm
+        for i,item in menus[mdx][MX_ITEMS] do
+            btm = top+iff(item[MX_TEXT]="-"?7:TG_MENUITEM_HEIGHT)
+            if y<top then exit end if
+            if y<=btm then
+                return iff(item[MX_ENABLED]?i:0)
+            end if
+            top = btm
+        end for
+    end if
+    return 0
+end function
+
+procedure open_child_menu(mid submenu, menu, integer sel_item)
+    integer mx = menus[menu][MX_X],
+            my = menus[menu][MX_Y],
+            pw = menus[menu][MX_WIDTH],
+            cw = menus[submenu][MX_WIDTH],
+            ch = menus[submenu][MX_HEIGHT],
+            px = mx+pw-4, -- try right...
+            nx = iff(px+cw>mon_right?mx-cw+4:px),   
+            ny = my+top_position(menu,sel_item)
+    {nx,ny} = adjust_menu_pos(nx,ny,cw,ch)
+    show_menu(submenu,nx,ny)
+end procedure
+
+procedure update_recent_menu(mid mdx, string text)
+    -- mdx is new/open/close, Recent Files is on that same menu
+    integer ri = find("Recent Files",vslice(menus[mdx][MX_ITEMS],MX_TEXT)),
+           sdx = menus[mdx][MX_ITEMS][ri][MX_SUBMENU]
+    sequence items = menus[sdx][MX_ITEMS]
+    menus[sdx][MX_ITEMS] = 0 -- (kill refcount)
+    if text="Close" then
+        if length(items) then items = items[1..-2] end if
+    else
+        items &= {{lower(text),0,true}}
+    end if
+    menus[sdx][MX_ITEMS] = items
+    compute_menu_size(sdx)
+    -- and enable/disable Recent Files
+    menus[mdx][MX_ITEMS][ri][MX_ENABLED] = length(items)>0
+end procedure
+
+procedure menu_item_selected(mid mdx, string text)
+    integer rdx = get_menu_root(mdx)
+    atom handle = menus[rdx][MX_OWNER]
+--  c_proc(x_gtk_window_set_title,{handle,text})
+    c_proc(xSetWindowText,{handle,text})
+    if find(text,{"New","Open","Close"}) then
+        update_recent_menu(mdx,text)
+--  elsif text="Help" then ?9/0 -- (diag aid)
+    end if
+end procedure
+
+function next_enabled(sequence items, integer i, d)
+    integer l = length(items)
+    for k=1 to l do
+        i += d
+        if i<1 then
+            i = l
+        elsif i>l then
+            i = 1
+        end if
+        if items[i][MX_ENABLED] then
+            return i
+        end if
+    end for
+    return 0
+end function
+
+function process_menu_keydown(mid mdx, integer key)
+    -- invoked from main_key() rather than menu_key() (GTK)
+    -- invoked from WndProc rather than PopupWndProc (WinAPI)
+    sequence items = menus[mdx][MX_ITEMS]
+    integer sel_item = menus[mdx][MX_SEL]
+    atom hWnd = menus[mdx][MX_POPUP]
+--if key=VK_END then ?9/0 end if -- debug aid
+
+    if key=VK_UP
+    or key=VK_DOWN then
+        integer d = iff(key=VK_UP?-1:+1)
+        sel_item = next_enabled(items,sel_item,d)
+        if sel_item<0 then ?9/0 end if
+        menus[mdx][MX_SEL] = sel_item
+        menus[mdx][MX_HOT] = sel_item
+        menus[mdx][MX_KEYMODE] = true
+        InvalidateRect(hWnd,NULL,false)
+
+    elsif key=VK_RETURN
+      and sel_item>0
+      and items[sel_item][MX_SUBMENU]=0 then
+        menu_item_selected(mdx,items[sel_item][MX_TEXT])
+        hide_up(mdx)
+
+    elsif key=VK_RIGHT
+       or key=VK_RETURN then
+        if sel_item>0 then
+            integer submenu = items[sel_item][MX_SUBMENU]
+            if submenu and items[sel_item][MX_ENABLED] then
+                menus[mdx][MX_KEYMODE] = true
+                menus[mdx][MX_HOT] = 0
+                InvalidateRect(hWnd,NULL,false)
+                open_child_menu(submenu,mdx,sel_item)
+--              tg_open_child_menu(menu,submenu,mdx,sel_item)
+                -- auto-select top item:
+                menus[submenu][MX_KEYMODE] = true
+                integer first = next_enabled(menus[submenu][MX_ITEMS], 0, +1)
+                menus[submenu][MX_SEL] = first
+                menus[submenu][MX_HOT] = first
+            end if
+        end if
+
+    elsif key=VK_LEFT then
+        integer parent = menus[mdx][MX_PARENT]
+        if parent>0 then
+            hide_one_menu(mdx,false)
+            menus[parent][MX_HOT] = menus[parent][MX_SEL]
+            menus[parent][MX_KEYMODE] = true
+            hWnd = menus[parent][MX_POPUP]
+            InvalidateRect(hWnd,NULL,false)
+        end if
+
+--NO!! (not WinAPI, anyway) [??]
+--  elsif wParam=VK_ESCAPE then
+--      hide_popup()
+    end if
+
+    return 0
+end function
+
+procedure menu_mousemove(integer mdx, x, y)
+    integer hit = hit_test(mdx,x,y),
+       hot_item = menus[mdx][MX_HOT],
+           prev = menus[mdx][MX_SEL],
+            kbd = menus[mdx][MX_KEYMODE]
+    if hit<0 then ?9/0 end if
+    atom hWnd = menus[mdx][MX_POPUP]
+    if hot_item then
+        set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,`dwFlags`,TME_LEAVE)
+        set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,`hWndTrack`,hWnd)
+        TrackMouseEvent(pTRACKMOUSEEVENT)
+    end if
+    if hit then
+        sequence item = menus[mdx][MX_ITEMS][hit]
+        integer submenu = item[MX_SUBMENU]
+        if submenu=0 then
+            hide_submenus(mdx,false)
+        elsif hit!=prev and not kbd then
+--      elsif hit!=prev then
+            if prev then
+                hide_submenus(mdx,false)
+            end if
+            if item[MX_ENABLED] then
+                open_child_menu(submenu,mdx,hit)
+--              tg_open_child_menu(menu,submenu,mdx,hit)
+            end if
+        end if
+    end if
+    -- cancel MX_KEYMODE (only) when **ON** a different item,
+    -- else/not "", update on any change (inc on/off/in/out).
+    bool bRedraw = (hit or not kbd) and hit!=hot_item
+    if bRedraw then
+        menus[mdx][MX_KEYMODE] = false
+        menus[mdx][MX_HOT] = hit
+        menus[mdx][MX_SEL] = hit
+        InvalidateRect(hWnd,NULL,false)
+--      gtk_widget_queue_draw(widget)
+--      gtk_widget_queue_draw(menus[mdx][MX_WIDGET])
+    end if
+end procedure
+
+procedure menu_leftclick(integer mdx)
+    integer hot_item = menus[mdx][MX_HOT]
+    if hot_item>0 then
+        sequence item = menus[mdx][MX_ITEMS][hot_item]
+        if item[MX_ENABLED] and item[MX_SUBMENU]=0 then
+            menu_item_selected(mdx,item[MX_TEXT])
+            hide_up(mdx)
+        end if
+    end if
+end procedure
+
+procedure menu_leave(integer mdx)
+    if not menus[mdx][MX_KEYMODE] then
+        menus[mdx][MX_HOT] = 0
+        atom hWnd = menus[mdx][MX_POPUP]
+        InvalidateRect(hWnd,NULL,false)
+--      gtk_widget_queue_draw(widget)
+    end if
+end procedure
+
+--NO!!
+--local function popup_click_cb(atom widget, atom event, atom mdx)
+--  hide_all()
+--  return false
+--end function
+--popup_click = call_back({'+',popup_click_cb})
+
+atom hMain = NULL -- (HWND or GtkWindget* of main window, owner of the menus)
+integer main_menu_id = 0
+
+function PopupWndProc(atom hWnd, msg, wParam, lParam)
+    integer mdx = 0
+    for i,m in menus do
+        if m[MX_POPUP]=hWnd then
+            mdx = i
+            exit
+        end if
+    end for
+    if mdx then -- ignore eg WM_CREATE which arrives before any menus[mdx] gets the hWnd
+        switch msg do
+
+            case WM_ACTIVATE:  -- (not strictly needed, but safer)
+                if LOWORD(wParam)=WA_INACTIVE then
+                    hide_one_menu(mdx,false)
+                end if
+                return 0
+
+            case WM_SETFOCUS:  -- (not strictly needed, but safer)
+                return 0
+
+            case WM_NCACTIVATE:  -- (not strictly needed, but safer)
+                return true
+
+            case WM_MOUSEACTIVATE:
+                return MA_NOACTIVATE
+
+            case WM_MOUSEMOVE:
+                integer x = and_bits(lParam,#FFFF),
+                        y = floor(lParam/#10000)
+                menu_mousemove(mdx,x,y)
+
+            case WM_MOUSELEAVE:
+                menu_leave(mdx)
+                return 0
+
+            case WM_LBUTTONDOWN:
+                menu_leftclick(mdx)
+                return 0
+
+            case WM_PAINT:
+                paint_menu(mdx)
+                return 0
+
+            case WM_KEYDOWN:
+--              -- directly routed as if via this by WndProc:
+--              return process_menu_keydown(mdx,wParam)
+                return 0 -- (extra paranoia, let WndProc always do it)
+
+        end switch
+--elsif not find(msg,{WM_NCCREATE,WM_NCCALCSIZE,WM_CREATE,WM_SIZE,WM_MOVE}) then
+--?{"mdx0", hWnd, msg, wParam, lParam}
+
+    end if
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant PopupWndProc_cb = call_back(PopupWndProc)
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+            InvalidateRect(hWnd,NULL,false)
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+
+            -- main window: keep your original parchment + X
+            FillRect(hdc, pRECT, parchment)
+
+            -- Aside: these draw bresenham lines, whereas gtk_menus draws
+            --        antialiased lines, not something worth fixing here.
+            MoveToEx(hdc, 0, 0, NULL)
+            LineTo(hdc, w-1, h-1)
+
+            MoveToEx(hdc, w-1, 0, NULL)
+            LineTo(hdc, 0, h-1)
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_KILLFOCUS, WM_LBUTTONDOWN, WM_RBUTTONDOWN,
+             WM_ENTERSIZEMOVE, WM_MOVING, WM_SIZING, 
+             WM_SYSCOMMAND, WM_MOUSEWHEEL, WM_MOUSEHWHEEL,
+             WM_CAPTURECHANGED:
+            if menu_visible(main_menu_id,false) then
+                hide_submenus(main_menu_id,true)
+            end if
+            if msg=WM_RBUTTONDOWN then
+                GetCursorPos(pPOINT)
+                integer {mx,my} = get_struct_fields(idPOINT,pPOINT,{"x","y"})
+                show_menu(main_menu_id,mx,my,hWnd)
+--              show_menu(main_menu_id,mx,my,hMain) -- (same thing)
+                return 0
+            end if
+--          if msg!=WM_SYSCOMMAND 
+--          and msg!=WM_CAPTURECHANGED then
+--              return 0
+--          end if
+        case WM_KEYDOWN:
+            integer mdx = menu_visible(main_menu_id,true)
+            if mdx then
+                -- explicitly forward keys to the (non-focus-stealing) popup
+--              hWnd = menus[mdx][MX_POPUP]
+--              return PopupWndProc(hWnd,msg,wParam,lParam)
+                return process_menu_keydown(mdx,wParam) -- "" but direct
+            end if
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                integer mdx = menu_visible(main_menu_id,true)
+                if mdx then
+                    hide_one_menu(mdx,true)
+                else
+                    {} = SendMessage(hWnd,WM_CLOSE,0,0)
+                end if
+            end if
+
+        case WM_DESTROY:
+            if GetParent(hWnd)=NULL then
+                PostQuitMessage(0)
+                return 0
+            end if
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure create_menu_font()
+    atom pMENUFONT = get_struct_field_addr(idNONCLIENTMETRICS,pNONCLIENTMETRICS,"lfMenuFont")
+    SystemParametersInfo(SPI_GETNONCLIENTMETRICS,0,pNONCLIENTMETRICS,0)
+    hMenuFont = CreateFontIndirect(pMENUFONT)
+    TG_MENUITEM_HEIGHT = get_struct_field(idNONCLIENTMETRICS,pNONCLIENTMETRICS,"iMenuHeight")
+--?TG_MENUITEM_HEIGHT -- 19 last time I checked (ymmv)
+end procedure
+
+procedure get_monitor_info(atom hWnd)
+    GetWindowRect(hWnd,pRECT)
+    atom hMon = MonitorFromRect(pRECT,MONITOR_DEFAULTTONEAREST),
+          pMI = allocate_struct(idMONITORINFO),
+        pWork = get_struct_field_addr(idMONITORINFO,pMI,"rcWork")
+    set_struct_field(idMONITORINFO,pMI,"cbSize",get_struct_size(idMONITORINFO))
+    GetMonitorInfo(hMon,pMI)
+    mon_left   = get_struct_field(idRECT,pWork,"left")
+    mon_top    = get_struct_field(idRECT,pWork,"top")
+    mon_right  = get_struct_field(idRECT,pWork,"right")
+    mon_bottom = get_struct_field(idRECT,pWork,"bottom")
+    free(pMI)
+end procedure
+
+constant FILE_MENU = {"New",
+                      "Open",
+                      "-",
+                     {"Recent Files",{}},
+                      "Close"},
+         EDIT_MENU = {"Cut",
+                      "Copy",
+                     {"deep",FILE_MENU},
+                      "Paste"},
+         MAIN_MENU = {{"File",FILE_MENU},
+                      {"Edit",EDIT_MENU},
+                      "Help",
+                      "Exit"}
+
+procedure main()
+    create_menu_font() -- nb set TG_MENUITEM_HEIGHT b4 build:
+    main_menu_id = build_menu(MAIN_MENU)
+--pp(MAIN_MENU)
+--pp(menus)
+    RegisterClassEx("Window",WndProc_cb)
+    RegisterClassEx("Popup",PopupWndProc_cb)
+    atom hInst = NULL,
+         dwStyle = WS_OVERLAPPEDWINDOW  -- (for main window only)
+    hMain = CreateWindowEx(0,"Window","win_menu",dwStyle,100,100,500,300,NULL,NULL,hInst,NULL)
+
+    ShowWindow(hMain)
+    UpdateWindow(hMain)
+    get_monitor_info(hMain)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+
+main()
+
+--/*
+To avoid alt-tab issues, for any menu/popup avoid:
+SetActiveWindow(hPopup)
+SetForegroundWindow(hPopup)
+SetCapture(hPopup) (and thus ReleaseCapture)
+You don't need WM_ACTIVATE, WM_NCACTIVATE, or WM_SETFOCUS handlers
+You do need the WM_MOUSEACTIVATE handler [?]
+hWndParent must not be null on the CreateWindowEx(WS_EX_NOACTIVATE,WS_POPUP).
+SWP_NOACTIVATE is crucial in SetWindowPos()
+--*/

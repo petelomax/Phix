@@ -171,6 +171,7 @@ Ihandle canvas, timer
 cdCanvas cd_canvas
 
 constant fragment_shader = `
+#version 100
 precision mediump float;
 
 // Passed in from the vertex shader.
@@ -184,6 +185,7 @@ void main() {
 }`
 
 constant vertex_shader = `
+#version 100
 attribute vec4 a_position;
 attribute vec2 a_texcoord;
 
@@ -238,6 +240,9 @@ function canvas_action_cb(Ihandle /*canvas*/)
 
     if program=0 then -- (do this lot once only! but not before desktop/Phix is ready)
 
+--      IupGLMakeCurrent(canvas) -- NO 
+--      cd_canvas = cdCreateCanvas(CD_IUP, canvas)
+
         program = create_program({load_shader(vertex_shader, GL_VERTEX_SHADER),
                                   load_shader(fragment_shader, GL_FRAGMENT_SHADER)})
 
@@ -245,15 +250,19 @@ function canvas_action_cb(Ihandle /*canvas*/)
         integer position_buffer = glCreateBuffer()
         // Bind to ARRAY_BUFFER (think of it as ARRAY_BUFFER:=position_buffer)
         glBindBuffer(GL_ARRAY_BUFFER, position_buffer)
-        {integer size, atom pData} = glFloat32Array(F_positions)
+--      {integer size, atom pData} = glFloat32Array(F_positions)
+        integer size = length(F_positions)*4
+        atom pData = glFloat32Array(F_positions)
         glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
 
         // Create a matching buffer for the F_texture_coordinates and fill it
         integer texcoord_buffer = glCreateBuffer()
         glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer)
-        {size, pData} = glFloat32Array(F_texture_coordinates)
+--      {size, pData} = glFloat32Array(F_texture_coordinates)
+        size = length(F_texture_coordinates)*4
+        pData = glFloat32Array(F_texture_coordinates)
         glBufferData(GL_ARRAY_BUFFER, size, pData, GL_STATIC_DRAW)
-
+--/!*
         // Put some text in the center of a canvas/pixel array.
         // note this is a (bit of a|complete) hack, see docs...
         integer w = 100, h = 26
@@ -266,7 +275,7 @@ function canvas_action_cb(Ihandle /*canvas*/)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
-
+--*!/
         integer position_location = glGetAttribLocation(program, "a_position")
         glEnableVertexAttribArray(position_location)    // Turn on the position attribute
         glBindBuffer(GL_ARRAY_BUFFER, position_buffer)  // Bind the position buffer.
@@ -277,14 +286,14 @@ function canvas_action_cb(Ihandle /*canvas*/)
             stride = 0,         // 0 = move fwd size*sizeof(type) each iteration to get next
             offset = 0          // start at the beginning of the buffer
         glVertexAttribPointer(position_location, size3, datatype, normalize, stride, offset)
-
+--/!*
         integer texcoord_location = glGetAttribLocation(program, "a_texcoord")
         glEnableVertexAttribArray(texcoord_location)    // Turn on the texcoord attribute
         glBindBuffer(GL_ARRAY_BUFFER, texcoord_buffer)  // bind the texcoord buffer.
         // Tell the texcoord attribute how to get data out of texcoord_buffer (ARRAY_BUFFER)
         atom size2 = 2          // 2 components per iteration (the rest are same as above)
         glVertexAttribPointer(texcoord_location, size2, datatype, normalize, stride, offset)
-
+--*!/
         glEnable(GL_CULL_FACE)
         glEnable(GL_DEPTH_TEST)
 
@@ -337,7 +346,9 @@ function timer_cb(Ihandle /*ih*/)
       final_view_matrix = m4_yRotate(rotated_about_x, model_y_rotation_radians)
 
     // Set the final view matrix.
-    {integer size, atom pData} = glFloat32Array(final_view_matrix)
+--  {integer size, atom pData} = glFloat32Array(final_view_matrix)
+    integer size = length(final_view_matrix)*4
+    atom pData = glFloat32Array(final_view_matrix)
     glUniformMatrix4fv(glGetUniformLocation(program, "u_matrix"), false, pData)
 
     // Tell the shader to use texture unit 0 for u_texture

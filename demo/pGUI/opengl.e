@@ -1,4 +1,4 @@
---
+﻿--
 -- Copyright 1992-1997 Silicon Graphics, Inc.
 -- All Rights Reserved.
 --
@@ -35,8 +35,9 @@ include std/convert.e
 --*/
 --include validate.e
 
-include pGUI.e
+--include pGUI.e
 include glmath.e
+include cffi.e
 --DOH, this is not transpiled!
 --IupGLMakeCurrent(NULL)    -- signal pGUI.js that opengl.e /has/ been included 
                         -- note that disables canvasdraw, or risks doing so
@@ -1490,8 +1491,23 @@ global constant GL_VERSION_1_1                  = 1,
                 GL_FOG_COORDINATE_ARRAY_TYPE_EXT    = #8454,
                 GL_FOG_COORDINATE_ARRAY_STRIDE_EXT  = #8455,
                 GL_FOG_COORDINATE_ARRAY_POINTER_EXT = #8456,
-                GL_FOG_COORDINATE_ARRAY_EXT         = #8457
+                GL_FOG_COORDINATE_ARRAY_EXT         = #8457,
 
+                PFD_DOUBLEBUFFER   = 0x00000001,    --  The buffer is double-buffered. mutually exclusive to PFD_SUPPORT_GDI.
+                PFD_DRAW_TO_WINDOW = 0x00000004,    --  The buffer can draw to a window or device surface.
+--              PFD_DRAW_TO_BITMAP = 0x00000008,    --  The buffer can draw to a memory bitmap.
+                PFD_SUPPORT_OPENGL = 0x00000020,    --  The buffer supports OpenGL drawing.
+                PFD_TYPE_RGBA = 0,  -- RGBA pixels. Each pixel has four components in this order: red, green, blue, and alpha.
+                PFD_MAIN_PLANE = 0,
+
+                WGL_CONTEXT_MAJOR_VERSION_ARB       =   0x2091,
+                WGL_CONTEXT_MINOR_VERSION_ARB       =   0x2092,
+--              WGL_CONTEXT_LAYER_PLANE_ARB         =   0x2093,
+--              WGL_CONTEXT_FLAGS_ARB               =   0x2094,
+                WGL_CONTEXT_PROFILE_MASK_ARB        =   0x9126,
+                WGL_CONTEXT_CORE_PROFILE_BIT_ARB    =   0x00000001,
+
+$
 --***********************************************************
 
 
@@ -1668,9 +1684,128 @@ xglVertexPointer        = define_c_proc(opengl32,"glVertexPointer", {C_INT, C_UI
 xglViewport             = define_c_proc(opengl32,"glViewport",{C_INT,C_INT,C_INT,C_INT}),
 --WglGetProcAddress     = define_c_func(opengl32,"wglGetProcAddress", {C_PTR}, C_PTR),
 sglGetProcAddress       = iff(platform()=WINDOWS?"wglGetProcAddress":"glXGetProcAddress"),
-xglGetProcAddress       = define_c_func(opengl32,sglGetProcAddress, {C_PTR}, C_PTR)
+xglGetProcAddress       = define_c_func(opengl32,sglGetProcAddress, {C_PTR}, C_PTR),
+xwglMakeCurrent         = define_c_func(opengl32,"wglMakeCurrent", {C_PTR, C_PTR},C_BOOL),
+--BOOL wglMakeCurrent(
+--  HDC unnamedParam1,
+--  HGLRC unnamedParam2
+--);
+xwglDeleteContext       = define_c_func(opengl32,"wglDeleteContext", {C_PTR},C_BOOL)
+--BOOL wglDeleteContext(
+--  HGLRC unnamedParam1
+--);
 --WglUseFontOutlines        = define_c_func(opengl32,"wglUseFontOutlinesA",{C_UINT,C_INT,C_INT,C_INT,C_FLOAT,C_FLOAT,C_INT,C_PTR},C_INT)
 --xwglCreateContext     = define_c_func(opengl32,"wglCreateContext",{C_INT},C_INT)
+
+global constant 
+        idPIXELFORMATDESCRIPTOR = define_struct(`typedef struct tagPIXELFORMATDESCRIPTOR {
+                                                    WORD  nSize;
+                                                    WORD  nVersion;
+                                                    DWORD dwFlags;
+                                                    BYTE  iPixelType;
+                                                    BYTE  cColorBits;
+                                                    BYTE  cRedBits;
+                                                    BYTE  cRedShift;
+                                                    BYTE  cGreenBits;
+                                                    BYTE  cGreenShift;
+                                                    BYTE  cBlueBits;
+                                                    BYTE  cBlueShift;
+                                                    BYTE  cAlphaBits;
+                                                    BYTE  cAlphaShift;
+                                                    BYTE  cAccumBits;
+                                                    BYTE  cAccumRedBits;
+                                                    BYTE  cAccumGreenBits;
+                                                    BYTE  cAccumBlueBits;
+                                                    BYTE  cAccumAlphaBits;
+                                                    BYTE  cDepthBits;
+                                                    BYTE  cStencilBits;
+                                                    BYTE  cAuxBuffers;
+                                                    BYTE  iLayerType;
+                                                    BYTE  bReserved;
+                                                    DWORD dwLayerMask;
+                                                    DWORD dwVisibleMask;
+                                                    DWORD dwDamageMask;
+                                                 } PIXELFORMATDESCRIPTOR, *PPIXELFORMATDESCRIPTOR, *LPPIXELFORMATDESCRIPTOR;`)
+
+atom gdi32 = NULL
+
+local procedure open_gdi32()
+    gdi32 = open_dll("gdi32.dll")
+end procedure
+
+integer xChoosePixelFormat = NULL
+
+local function glChoosePixelFormat(atom hdc, pfd)
+    if platform()!=WINDOWS then ?9/0 end if -- placeholder?? (?glXChooseVisual?)
+    if gdi32=NULL then open_gdi32() end if
+    if xChoosePixelFormat=NULL then
+        xChoosePixelFormat = define_c_func(gdi32,"ChoosePixelFormat",
+            {C_PTR,     --  HDC hdc
+             C_PTR},    --  const PIXELFORMATDESCRIPTOR* ppfd
+            C_INT)      -- int
+    end if
+    integer res = c_func(xChoosePixelFormat,{hdc,pfd})
+    assert(res!=0)
+    return res
+end function
+
+integer xSetPixelFormat = NULL
+
+global procedure glSetPixelFormat(atom hDC, integer fmt=0, atom pfd=NULL)
+    bool bFree = fmt<=0 and pfd=NULL
+    if bFree then
+        pfd = allocate_struct(idPIXELFORMATDESCRIPTOR)
+--/*
+int pfdAttribs[] = {
+--  PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DRAW_TO_PBUFFER,
+--  PFD_TYPE_RGBA, 32,          // colour bits
+--  24,                         // depth bits
+--  0,                          // accumulation
+--  8,                          // stencil
+--  PFD_MAIN_PLANE,
+--  0,0,0,0
+};
+By PFD_DRAW_TO_PBUFFER did you mean PFD_DRAW_TO_BITMAP, and should that be used with or instead of PFD_DRAW_TO_WINDOW?
+--Can cost 0.5–2 ms (or more on integrated GPUs) per frame, destroying real-time performance if done every frame.
+OK, instead of any of that, can we continue to let OpenGl draw directly to screen, this time the client area less a
+5 pixel border, but create a client-area-sized bitmap as per the original, with a cream 5px border with a single black
+line in the middle, and a transparent central part, and BitBlit that over/after the OpenGL-drawn parts?
+--*/
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"nSize",get_struct_size(idPIXELFORMATDESCRIPTOR))
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"nVersion",1)
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"dwFlags",or_all({PFD_DRAW_TO_WINDOW,PFD_SUPPORT_OPENGL,PFD_DOUBLEBUFFER}))
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"iPixelType",PFD_TYPE_RGBA)
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"cColorBits",32)
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"cDepthBits",24)
+        set_struct_field(idPIXELFORMATDESCRIPTOR,pfd,"iLayerType",PFD_MAIN_PLANE)
+        fmt = glChoosePixelFormat(hDC, pfd)
+    end if
+    if xSetPixelFormat=NULL then
+        xSetPixelFormat = define_c_func(gdi32,"SetPixelFormat",
+            {C_PTR,     --  HDC hdc
+             C_INT,     --  int format
+             C_PTR},    --  const PIXELFORMATDESCRIPTOR* ppfd
+            C_INT)      -- BOOL
+    end if
+    bool res = c_func(xSetPixelFormat,{hDC,fmt,pfd})
+    assert(res)
+    if bFree then free(pfd) end if
+end procedure
+
+integer xSwapBuffers = NULL
+
+global procedure glSwapBuffers(atom hDC)
+--glXSwapBuffers?
+    if xSwapBuffers=NULL then
+        xSwapBuffers = define_c_func(gdi32,"SwapBuffers",
+            {C_PTR},    --  HDC unnamedParam1
+            C_INT)      -- BOOL
+    end if
+    bool res = c_func(xSwapBuffers,{hDC})
+    assert(res)
+end procedure
+
+
 
 --1/12/16 (WglUseFontOutlines is Windows-only)
 atom WglUseFontOutlines = NULL
@@ -1728,7 +1863,7 @@ global function glInt32Array(sequence data)
     return res
 end function
 
-
+--/*
 global function glFloat32Array(sequence data)
     integer size = length(data)*4
     atom pData = allocate(size)
@@ -1739,6 +1874,33 @@ global function glFloat32Array(sequence data)
     end for
     return res
 end function
+--*/
+global function glFloat32Array(sequence data)
+    integer size = length(data)*4
+    bool bFlat = atom(data[1])
+    if not bFlat then
+        size *= length(data[1])
+    end if
+    atom pData = allocate(size)
+--  sequence res = {size,pData}
+    atom res = pData
+    if bFlat then
+        -- data must be in column major order, ie {{1,2},{3,4}} == {1,3,2,4}.
+        for i=1 to length(data) do
+            poke(pData,atom_to_float32(data[i]))
+            pData += 4
+        end for
+    else
+        for c=1 to length(data[1]) do
+            for r=1 to length(data) do
+                poke(pData,atom_to_float32(data[r][c]))
+                pData += 4
+            end for
+        end for
+    end if
+    return res
+end function
+
 
 --/* (not [yet] used):
 procedure gl_pokef64(atom dest,sequence data)
@@ -1748,6 +1910,44 @@ procedure gl_pokef64(atom dest,sequence data)
     end for
 end procedure
 --*/
+
+atom wglCreateContextAttribsARB = -1,
+     pAttrib, xwglCreateContextAttribsARB,
+     xwglCreateContext = NULL
+
+global function wglCreateContext(atom hDC)
+--glXCreateContext?
+    -- Try to create a 3.3 core context (fallback to legacy if not supported)
+    if wglCreateContextAttribsARB=-1 then
+        -- wglCreateContextAttribsARB is an extension; fetch its address
+        wglCreateContextAttribsARB = wglGetProcAddress("wglCreateContextAttribsARB")
+        if wglCreateContextAttribsARB!=NULL then
+            xwglCreateContextAttribsARB = define_c_func({},wglCreateContextAttribsARB,
+                {C_PTR,     --  HDC hDC
+                 C_PTR,     --  HGLRC hShareContext
+                 C_PTR},    --  const int *attribList
+                 C_PTR)     -- HGLRC
+            pAttrib = glInt32Array({WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+                                    WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+                                    WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+                                    0})[2]
+        end if
+    end if
+    atom hRC
+    if wglCreateContextAttribsARB!=NULL then
+?9/0
+        hRC = c_func(xwglCreateContextAttribsARB,{hDC,0,pAttrib})
+    else
+        if xwglCreateContext=NULL then
+            xwglCreateContext = define_c_func(opengl32,"wglCreateContext",
+                {C_PTR},    --  HDC unnamedParam1
+                C_PTR)      -- HGLRC
+        end if
+        hRC = c_func(xwglCreateContext,{hDC})   -- legacy context (still works for GL 2.1)
+    end if
+    if hRC=0 then crash("wglCreateContext* failed") end if
+    return hRC
+end function
 
 global function glGetError()
     return c_func(xglGetError,{})
@@ -1791,6 +1991,18 @@ end procedure
 global procedure glBindTexture(integer target, atom texture)
     c_proc(xglBindTexture,{target,texture})
 end procedure
+
+
+integer xglBindVertexArray = 0
+
+global procedure glBindVertexArray(atom vao)
+    if xglBindVertexArray=0 then
+        xglBindVertexArray = link_glext_proc("glBindVertexArray",{C_PTR})
+--void glBindVertexArray( GLuint array);
+    end if
+    c_proc(xglBindVertexArray,{vao})
+end procedure
+ 
 
 global procedure glBitmap(integer width, height, atom xorig, yorig, xmove, ymove, bitmap)
     c_proc(xglBitmap,{width,height,xorig,yorig,xmove,ymove,bitmap})
@@ -1869,6 +2081,7 @@ integer xglCompileShader = 0
 global procedure glCompileShader(integer shader)
     if xglCompileShader=0 then
         xglCompileShader = link_glext_proc("glCompileShader",{GLuint})
+--void glCompileShader(GLuint shader);
     end if
     c_proc(xglCompileShader,{shader})
 end procedure
@@ -1901,7 +2114,7 @@ end function
 
 integer xglCreateShader = 0
 
-global function glCreateShader(integer shaderType)
+global function glCreateShader(integer shader_type)
     if xglCreateShader=0 then
         -- note that wglGetProcAddress requires an OpenGL rendering context; 
         -- wglCreateContext and wglMakeCurrent must be called prior to this.
@@ -1910,7 +2123,7 @@ global function glCreateShader(integer shaderType)
         --  and SDL_SetVideoMode() are required/enough to do beforehand.)
         xglCreateShader = link_glext_func("glCreateShader",{GLenum},GLuint)
     end if
-    integer id = c_func(xglCreateShader,{shaderType})
+    integer id = c_func(xglCreateShader,{shader_type})
     if id=0 then ?9/0 end if
     return id
 end function
@@ -1957,9 +2170,10 @@ integer xglDeleteShader = 0
 global function glDeleteShader(integer shader)
     if xglDeleteShader=0 then
         xglDeleteShader = link_glext_proc("glDeleteShader",{GLuint})
+--void glDeleteShader(GLuint shader);
     end if
     c_proc(xglDeleteShader,{shader})
-    return 0
+    return 0 -- use shader = glDeleteShader(shader); prevent mishaps
 end function
 
 integer xglDetachShader = 0
@@ -2075,6 +2289,26 @@ end procedure
 global function glGenLists(integer range)
     return c_func(xglGenLists,{range})
 end function
+
+integer xglGenVertexArrays = 0
+
+global function glGenVertexArrays()
+    if xglGenVertexArrays=0 then
+        xglGenVertexArrays = link_glext_proc("glGenVertexArrays",{GLuint,C_PTR})
+--void glGenVertexArrays( GLsizei n,
+--      GLuint *arrays);
+    end if
+    c_proc(xglGenVertexArrays,{1,pWord})
+    atom res = peek4u(pWord) -- always int32, I think...
+    return res
+end function
+
+--/*
+C++ / OpenGL (Desktop)          WebGL 2 Equivalent          WebGL 1 Equivalent (via Extension)
+glGenVertexArrays(1, &vao);     gl.createVertexArray()      ext.createVertexArrayOES()
+glBindVertexArray(vao);         gl.bindVertexArray(vao);    ext.bindVertexArrayOES(vao);
+glDeleteVertexArrays(1, &vao);  gl.deleteVertexArray(vao);
+--*/
 
 --now glCreateTexture():
 --global function glGenTextures(integer n=1)
@@ -2426,6 +2660,43 @@ global procedure glShadeModel(integer model)
     c_proc(xglShadeModel,{model})
 end procedure
 
+local function tg_raw_string_ptr(string s)
+--
+-- Returns a raw string pointer for s, somewhat like allocate_string(s) but using the existing memory.
+-- NOTE: The return is only valid as long as the value passed as the parameter remains in existence.
+--       In particular, callbacks must make a semi-permanent copy somewhere other than locals/temps.
+--       (one example in theGUI where that /still/ applies would be in setting say tvItem.pszText)
+--
+    atom res
+    #ilASM{
+        [32]
+            mov eax,[s]
+            lea edi,[res]
+            shl eax,2
+        [64]
+            mov rax,[s]
+            lea rdi,[res]
+            shl rax,2
+        []
+            call :%pStoreMint
+          }
+    return res
+end function
+
+--global function iup_string_pointer_array(sequence strings)
+local function XX_string_pointer_array(sequence strings)
+    integer W = machine_word()
+    atom pArray = allocate(length(strings)*W,true),
+         ptr = pArray
+    for i=1 to length(strings) do
+        string si = strings[i]
+--      pokeN(ptr,IupRawStringPtr(si),W)
+        pokeN(ptr,tg_raw_string_ptr(si),W)
+        ptr += W
+    end for
+    return pArray
+end function
+
 integer xglShaderSource = 0
 
 global procedure glShaderSource(integer shader, string source)
@@ -2435,7 +2706,8 @@ global procedure glShaderSource(integer shader, string source)
 --  integer count = length(strings)
 --  atom pStrings = iup_string_pointer_array(strings)   -- (automatically freed)
 --  c_proc(xglShaderSource,{shader,count,pStrings,NULL})
-    atom pShader = iup_string_pointer_array({source})
+--  atom pShader = iup_string_pointer_array({source})
+    atom pShader = XX_string_pointer_array({source})
     c_proc(xglShaderSource,{shader,1,pShader,NULL})
 end procedure
 
@@ -2527,6 +2799,7 @@ end procedure
 
 integer xglUniformMatrix4fv = 0
 
+--/*
 --global procedure glUniformMatrix4fv(integer location, count, transpose, atom pData)
 global procedure glUniformMatrix4fv(integer location, transpose, atom pData)
     if xglUniformMatrix4fv=0 then
@@ -2535,6 +2808,28 @@ global procedure glUniformMatrix4fv(integer location, transpose, atom pData)
 --  c_proc(xglUniformMatrix4fv,{location, count, transpose, pData})
     c_proc(xglUniformMatrix4fv,{location, 1, transpose, pData})
 end procedure
+--*/
+global procedure glUniformMatrix4fv(integer location, object count, transpose=NULL, pData=NULL)
+    if pData=NULL then
+        if transpose!=NULL then
+            assert(count==false)
+            pData = transpose
+        else
+            pData = count
+        end if
+        transpose = false
+        count = 1
+    end if
+    assert(count==1)
+    assert(transpose==false)
+--  if sequence(pData) then pData = glFloat32Array(pData)[2] end if
+    if sequence(pData) then pData = glFloat32Array(pData) end if
+    if xglUniformMatrix4fv=0 then
+        xglUniformMatrix4fv = link_glext_proc("glUniformMatrix4fv",{GLint,GLsizei,C_INT,C_PTR})
+    end if
+    c_proc(xglUniformMatrix4fv,{location, 1, transpose, pData})
+end procedure
+
 
 integer xglUseProgram = 0
 
@@ -2621,6 +2916,73 @@ end procedure
 global procedure glViewport(integer x, y, w, h)
     c_proc(xglViewport,{x,y,w,h})
 end procedure
+
+integer xwglGetCurrentContext = 0
+
+global procedure wglMakeCurrent(atom device_context, rendering_context=NULL)
+--glXMakeCurrent?
+    if rendering_context=NULL and device_context!=NULL then
+        if xwglGetCurrentContext=0 then
+            xwglGetCurrentContext = define_c_func(opengl32,"wglGetCurrentContext",{},C_PTR)
+--HGLRC wglGetCurrentContext();
+        end if
+        rendering_context = c_func(xwglGetCurrentContext,{})
+    end if
+    bool res = c_func(xwglMakeCurrent,{device_context,rendering_context})
+    assert(res)
+end procedure
+
+global procedure wglDeleteContext(atom hdc)
+--glXDestroyContext?
+    bool res = c_func(xwglDeleteContext,{hdc})
+    assert(res)
+end procedure
+
+--/*
+// 1. Choose a pixel format that supports PFD_DRAW_TO_PBUFFER
+int pfdAttribs[] = {
+    PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER | PFD_DRAW_TO_PBUFFER,
+    PFD_TYPE_RGBA, 32,          // colour bits
+    24,                         // depth bits
+    0,                          // accumulation
+    8,                          // stencil
+    PFD_MAIN_PLANE,
+    0,0,0,0
+};
+int pf = ChoosePixelFormat(hDC, &pfd);
+SetPixelFormat(hDC, pf, &pfd);
+
+// 2. Create the pbuffer
+int pbufAttribs[] = {
+    WGL_PBUFFER_LARGEST_ARB, FALSE,
+    WGL_WIDTH,  width,
+    WGL_HEIGHT, height,
+    WGL_TEXTURE_FORMAT_ARB, WGL_TEXTURE_RGBA_ARB,
+    WGL_TEXTURE_TARGET_ARB, WGL_TEXTURE_2D_ARB,
+    0
+};
+HPBUFFERARB hPbuffer = wglCreatePbufferARB(hDC, pf, pbufAttribs);
+HPBUFFERARB hOldPbuffer = wglGetCurrentPbufferARB();
+HDC hPbufferDC = wglGetPbufferDCARB(hPbuffer);
+
+// 3. Make a GL context current on the pbuffer
+HGLRC hRC = wglCreateContext(hPbufferDC);
+wglMakeCurrent(hPbufferDC, hRC);
+
+// … render as usual …
+
+// 4. Either read back or bind as texture
+glReadPixels(0,0,width,height,GL_RGBA,GL_UNSIGNED_BYTE,sysMemBuffer);
+// OR
+glBindTexture(GL_TEXTURE_2D, texName);
+glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,width,height);
+
+// 5. Cleanup
+wglMakeCurrent(NULL,NULL);
+wglDeleteContext(hRC);
+wglReleasePbufferDCARB(hPbuffer, hPbufferDC);
+wglDestroyPbufferARB(hPbuffer);
+--*/
 
 --/*
 --c:\windows\syswow64\OPENGL32.DLL

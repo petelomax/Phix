@@ -1845,6 +1845,8 @@ procedure set_crash_routine(integer rid)
     end if
 end procedure
 
+global integer Extend_Existsing_Error_File = 0
+
 --function diag(atom msg_id)
 procedure diag()
 --
@@ -3229,6 +3231,8 @@ end if
         fn = -1
     elsif not atom(crashfile) then
         fn = open(crashfile,"w")
+    elsif Extend_Existsing_Error_File then
+        fn = Extend_Existsing_Error_File
     else
         fn = open("ex.err","w")
     end if

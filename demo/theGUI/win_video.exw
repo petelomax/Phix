@@ -1,0 +1,1715 @@
+--requires(64,true)
+include theGUI.WINAPI.e
+include libmpv.e
+
+constant STDERR = 2
+--OK, that's all working, however I've noticed this little anomalie:
+constant VIDEO_FILE = `test_colorbars.mp4` -- (good)
+--constant VIDEO_FILE = `C:\Program Files (x86)\Phix\demo\theGUI\test_colorbars.mp4` -- bad
+--constant VIDEO_FILE = `C:/Program Files (x86)/Phix/demo/theGUI/test_colorbars.mp4` -- good!
+--constant VIDEO_FILE = `F:\misc\porn\Nadia\BestOfPixie.mp4`
+--constant VIDEO_FILE = `C:\Users\petel\Downloads\Porn Film Online - Jenna Haze Part 10 - Watching Free.mp4`
+
+-- Global State
+atom hWnd = 0
+--atom hBitmap = 0        -- Current frame bitmap (HBITMAP)
+--integer frame_w = 0, frame_h = 0
+atom duration = -1        -- Video duration in seconds
+--atom vid_fps_num, vid_fps_den
+--atom current_time = 0   -- Current playback position
+--bool playing = false
+--atom timer_id = 0       -- WinAPI timer ID
+--bool frame_ready = false  -- Whether we have a valid frame to render
+--string video_path = "test.mp4"    -- <-- CHANGE THIS TO YOUR TEST VIDEO
+--string video_path = `F:\misc\porn\Nadia\BestOfPixie.mp4`
+--string video_path = `test_colorbars.mp4`
+
+atom hVideoWnd = 0  -- Handle for our dedicated video child window
+constant VIDEO_MARGIN_PCT = 0.1  -- 10% margin on sides/top
+constant VIDEO_HEIGHT_PCT = 0.7  -- Video takes 70% of window height
+
+atom mpv_ctx
+
+procedure create_hVideoWnd()
+    if hWnd=NULL then ?9/0 end if -- (for gVidCut use)
+    -- CREATE DEDICATED VIDEO CHILD WINDOW (STATIC CLASS)
+    hVideoWnd = CreateWindowEx(
+                    0,                            -- dwExStyle
+                    "STATIC",                     -- lpClassName (predefined static control)
+                    NULL,                         -- lpWindowName (no text)
+                    WS_CHILD || WS_VISIBLE,       -- dwStyle (child + visible)
+                    0, 0, 0, 0,                   -- x, y, width, height (we'll size in WM_SIZE)
+                    hWnd,                         -- hWndParent (our main window)
+                    NULL,                         -- hMenu
+--                  ((LPCREATESTRUCT)lParam)->hInstance, -- hInstance
+                    instance(),
+                    NULL                          -- lpParam
+                );
+    
+    if hVideoWnd = 0 then
+--      puts(STDERR, "Failed to create video child window\n")
+        crash("Failed to create video child window")
+--      return -1  -- Fail window creation
+    end if
+    
+    -- Initialize mpv AFTER creating video window (but BEFORE showing main window)
+    mpv_ctx = mpv_create()
+--  if mpv_ctx = NULL then ... end if
+    
+    -- CRITICAL: Pass CHILD WINDOW HANDLE to mpv (NOT main window!)
+--  mpv_set_option_string(mpv_ctx, "wid", sprintf("%p", hVideoWnd))
+--  mpv_set_option_string(mpv_ctx, "wid", sprintf("%x", hVideoWnd))
+--  mpv_set_option_string(mpv_ctx, "wid", sprintf("%X", hVideoWnd))
+    mpv_set_option_string(mpv_ctx, "wid", sprintf("%d", hVideoWnd))
+    mpv_set_option_string(mpv_ctx, "vo", "gpu")
+    mpv_set_option_string(mpv_ctx, "keep-open", "yes")
+    mpv_set_option_string(mpv_ctx, "pause", "yes")  -- Start paused
+    
+    mpv_initialize(mpv_ctx)
+    -- ... [loadfile and rest of init] ...
+    
+--  mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {mpv_normalize_path(VIDEO_FILE)}))
+    mpv_command_string(mpv_ctx, sprintf("loadfile %Q", {VIDEO_FILE}))
+end procedure
+
+procedure handle_resize(atom lParam)
+    integer client_w = LOWORD(lParam)
+    integer client_h = HIWORD(lParam)
+--?{"handle_resize",client_w,client_h}
+    
+    -- CALCULATE VIDEO AREA (top-centered with margins)
+--  integer video_w = floor(client_w * (1.0 - 2.0 * VIDEO_H_MARGIN_PCT))
+    integer video_w = floor(client_w * (1.0 - 2.0 * VIDEO_MARGIN_PCT))
+    integer video_h = floor(client_h * VIDEO_HEIGHT_PCT)
+--  integer video_x = floor(client_w * VIDEO_H_MARGIN_PCT)
+    integer video_x = floor(client_w * VIDEO_MARGIN_PCT)
+--  integer video_y = floor(client_h * VIDEO_TOP_PCT)
+    integer video_y = floor(client_h * VIDEO_MARGIN_PCT)
+    
+    -- RESIZE/MOVE VIDEO CHILD WINDOW
+--?{"SetWindowPos", video_x, video_y, video_w, video_h}
+--{"handle_resize",784,561} -- (full window)
+--{"SetWindowPos",78,56,627,392}
+    SetWindowPos(hVideoWnd, NULL, video_x, video_y, video_w, video_h, 
+                 SWP_NOZORDER || SWP_NOACTIVATE)
+    
+    -- NOTIFY MPV OF NEW SIZE (critical for proper rendering)
+    mpv_set_option_string(mpv_ctx, "video-zoom", "0")
+    mpv_set_option_string(mpv_ctx, "video-pan-x", "0")
+    mpv_set_option_string(mpv_ctx, "video-pan-y", "0")
+    mpv_set_option_string(mpv_ctx, "video-unscaled", "no")
+    mpv_command_string(mpv_ctx, "set video-zoom 0")  -- Trigger resize
+end procedure
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+
+            handle_resize(lParam)
+    
+            InvalidateRect(hWnd, NULL, true)
+            return 0
+
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+--          atom hdc, hmemdc, holdbmp
+--          atom ps = allocate_struct(idPAINTSTRUCT)
+--          hdc = BeginPaint(hWnd, ps)
+--          integer client_w, client_h
+--          integer {?,?,w,h} = GetClientRect(hWnd)
+            integer {?,?,client_w,client_h} = GetClientRect(hWnd)
+--          GetClientRect(hWnd, ps)
+--          client_w = ps.right - ps.left
+--          client_h = ps.bottom - ps.top
+
+            -- Clear background
+--          FillRect(hdc, ps, GetStockObject(BLACK_BRUSH))
+            FillRect(hdc, pPAINTSTRUCT, GetStockObject(BLACK_BRUSH))
+
+            -- Draw overlay text (time/progress)
+--          string time_text = format_time(current_time) & " / " & format_time(duration)
+--          SetTextColor(hdc, 0xFFFFFF)  -- White text
+--          SetBkMode(hdc, TRANSPARENT)
+--          TextOut(hdc, 10, 10, time_text, length(time_text))
+            
+--          EndPaint(hWnd, ps)
+            EndPaint(hWnd, pPAINTSTRUCT)
+            return 0
+
+--      case WM_TIMER:
+--          if wParam = timer_id then
+--              if playing then
+--                  -- Advance time by 1 frame (using approximate fps)
+--                  atom fps = vid_fps_num / vid_fps_den
+--                  current_time += 1.0 / fps
+--                  if current_time >= duration then
+--                      current_time = duration
+----                        stop_playback()
+--                  end if
+----                    frame_ready = (hBitmap != 0)
+--                  InvalidateRect(hWnd, NULL, true)
+--              end if
+--          end if
+--          return 0
+
+        case WM_CHAR:
+--?{"WM_CHAR",wParam}
+--?{VK_ADD, VK_OEM_PLUS, VK_RIGHT}
+--**NB** these keys don't all work, but I don't care... (see gVidCut.exw)
+
+            switch wParam do
+                case VK_SPACE: mpv_command_string(mpv_ctx, "cycle pause")
+--mpv_set_option_string(mpv_ctx, "fullscreen", "yes")
+                case VK_ADD, VK_OEM_PLUS:  -- '+' key
+                case VK_RIGHT: mpv_command_string(mpv_ctx, "seek +5 relative")
+                case VK_SUBTRACT, VK_OEM_MINUS:  -- '-' key
+                case VK_LEFT: mpv_command_string(mpv_ctx, "seek -5 relative")
+                case VK_HOME: mpv_command_string(mpv_ctx, "seek 0 absolute")
+                case VK_END: mpv_command_string(mpv_ctx, sprintf("seek %f absolute", {duration}))
+                case VK_ESCAPE: {} = SendMessage(hWnd, WM_CLOSE, 0, 0)
+            end switch
+            return 0
+
+        case WM_DESTROY:
+
+            mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+            DestroyWindow(hVideoWnd)  -- Clean up child window
+
+            PostQuitMessage(0)
+            return 0
+    end switch
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+-- Main
+procedure main()
+
+    RegisterClassEx("VideoCanvas", WndProc_cb)
+    
+    hWnd = CreateWindowEx(
+        0, "VideoCanvas", "Phix Video Player",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        NULL, NULL, 0, NULL
+    )
+    
+    if hWnd = 0 then
+        puts(STDERR, "Failed to create window\n")
+        abort(1)
+    end if
+
+    create_hVideoWnd()
+    
+    ShowWindow(hWnd, SW_SHOWNORMAL)
+    UpdateWindow(hWnd)
+    
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+--*!/
+
+--/*
+>>>>>
+--requires(64,true)
+include libmpv.e   -- You'll need to create this binding (see notes below)
+--include std/console.e
+
+constant VIDEO_FILE = `test_colorbars.mp4`
+constant VK_SPACE = ' '
+constant VK_ESCAPE = 27
+constant VK_LEFT = 331
+constant VK_RIGHT = 333
+constant VK_HOME = 327
+constant VK_END = 325
+
+-- Initialize mpv
+atom mpv_ctx = mpv_create()
+
+-- Essential options for playback
+mpv_set_option_string(mpv_ctx, "input-default-bindings", "yes")
+--I'm also getting MPV_ERROR_OPTION_NOT_FOUND from
+--mpv_set_option_string(mpv_ctx, "input-cmd-prefix", "")
+--The next trick is to get it displaying inside a window of my own creation
+-- CRITICAL: Tell mpv to use YOUR window (not create its own)
+--/*
+mpv_set_option_string(mpv_ctx, "wid", sprintf("%x", hWnd))  -- Pass window handle as hex string
+
+-- Required for proper embedding on Windows
+mpv_set_option_string(mpv_ctx, "vo", "gpu")          -- or "direct3d" for better Windows perf
+mpv_set_option_string(mpv_ctx, "keep-open", "yes")   -- Prevents mpv from exiting on EOF
+mpv_set_option_string(mpv_ctx, "pause", "yes")       -- Start paused (unpause after load)
+--*/
+
+mpv_initialize(mpv_ctx)
+
+-- Load file
+mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE}))
+--if mpv_command_string(mpv_ctx, sprintf("loadfile \"%s\"", {VIDEO_FILE})) < 0 then
+--  puts(STDERR, sprintf("Failed to load: %s\n", {VIDEO_FILE}))
+--  mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+--  abort(1)
+--end if
+
+-- Get duration (mpv reports via property)
+--atom duration = mpv_get_property(mpv_ctx, "duration", MPV_FORMAT_DOUBLE)
+atom duration = -1
+-- AFTER mpv_initialize() but BEFORE loadfile:
+--mpv_observe_property(mpv_ctx, 0, "duration", MPV_FORMAT_DOUBLE)
+--mpv_get_property(mpv_ctx, "fps", MPV_FORMAT_DOUBLE, &fps)  -- Then: frame = time * fps
+
+
+--printf(1, "Duration: %.2fs\n", {duration})
+--printf(1, "Duration: %v\n", {duration})
+
+atom last_time = time()
+-- Main loop
+bool running = true
+while running do
+--?"loop"
+    switch get_key() do
+        case VK_SPACE:  -- Toggle pause
+            mpv_command_string(mpv_ctx, "cycle pause")
+        case VK_LEFT:   -- Seek -5s
+            mpv_command_string(mpv_ctx, "seek -5 relative")
+        case VK_RIGHT:  -- Seek +5s
+            mpv_command_string(mpv_ctx, "seek +5 relative")
+        case VK_HOME:   -- Start
+            mpv_command_string(mpv_ctx, "seek 0 absolute")
+        case VK_END:    -- End
+            mpv_command_string(mpv_ctx, sprintf("seek %f absolute", {duration}))
+        case VK_ESCAPE: -- Quit
+            running = false
+    end switch
+    
+--/* bust:
+--              MPV_EVENT_PROPERTY_CHANGE   = 22
+    -- CHECK FOR MPV EVENTS (non-blocking!)
+--  mpv_event* event = mpv_wait_event(mpv_ctx, 0)  -- 0 = poll immediately
+    atom event = mpv_wait_event(mpv_ctx, 0)  -- 0 = poll immediately
+    if event!=NULL 
+--  and event.event_id == MPV_EVENT_PROPERTY_CHANGE then
+    and get_struct_field(id_mpv_event,event,"event_id")==MPV_EVENT_PROPERTY_CHANGE then
+        atom pProperty = get_struct_field(id_mpv_event,event,"data"),
+             pName = get_struct_field(id_mpv_event_property,pProperty,"name")
+--      string name = get_struct_field(id_mpv_event_property,pProperty,"name")
+--      string name = get_struct_string(id_mpv_event_property,pProperty,"name")
+        string name = peek_string(pName)
+--?name -- "duration", good
+--      if event.data.property_change.name == "duration" then
+        if name == "duration" then
+--          atom duration = 0
+-- still fecking -10:!!!
+            duration = mpv_get_property(mpv_ctx, "duration", MPV_FORMAT_DOUBLE)
+            printf(1, "\nDuration updated: %.2fs\n", {duration})  -- Or store for UI
+        end if
+    end if
+--*/
+
+    -- Optional: Display time
+    atom now = time()
+    if now - last_time > 0.25 then
+--  if false then
+        if duration=-1 then
+            duration = mpv_get_property(mpv_ctx, "duration", MPV_FORMAT_DOUBLE)
+        end if
+        atom pos = mpv_get_property(mpv_ctx, "playback-time", MPV_FORMAT_DOUBLE)
+--      printf(1, "\rTime: %.2fs / %.2fs    ", {pos, duration})
+        printf(1, "\rTime: %.2fs / %.2fs   (%v) ", {pos, duration,now})
+--      flush()
+        last_time = now
+    end if
+    
+    sleep(0.10)
+end while
+
+mpv_ctx = mpv_terminate_destroy(mpv_ctx)
+--*/
+
+--/*
+--requires(64,true)
+include libvlc.e
+--include std/console.e -- For get_key() non-blocking input
+
+constant VIDEO_FILE = `test_colorbars.mp4`  -- Must exist in cwd or full path
+constant STDERR = 2
+constant VK_SPACE = ' '
+constant VK_ESCAPE = 27
+constant VK_LEFT = 331
+constant VK_RIGHT = 333
+constant VK_HOME = 327
+constant VK_END = 325
+
+-- Initialize VLC (with plugin path fix for Windows)
+atom inst = libvlc_new()
+if inst = NULL then
+    puts(STDERR, "VLC initialization failed! Check libvlc.dll is in PATH\n")
+    abort(1)
+end if
+
+-- Load media
+atom media = libvlc_media_new_path(inst, VIDEO_FILE)
+if media = NULL then
+    puts(STDERR, sprintf("Failed to load media: %s\n", {VIDEO_FILE}))
+    libvlc_release(inst)
+    abort(1)
+end if
+
+-- Parse media to get duration (non-blocking would be better in real app)
+{} = libvlc_media_parse(media)
+atom duration_ms = libvlc_media_get_duration(media)
+printf(1, "Duration: %s\n", {elapsed_short(duration_ms/1000)})
+
+-- Create player
+--atom player = libvlc_media_player_new_from_media(media)
+atom player = libvlc_media_player_new_from_media(media,NULL)
+libvlc_media_release(media)  -- Safe to release now
+
+-- Start playing
+if libvlc_media_player_play(player) != 0 then
+    puts(STDERR, "Failed to start playback\n")
+    {} = libvlc_media_player_release(player)
+    libvlc_release(inst)
+    abort(1)
+end if
+
+-- Main loop: Handle keyboard input
+bool running = true
+while running do
+    integer ch = get_key()
+    switch ch do
+        case VK_SPACE:  -- Play/pause toggle
+            if libvlc_media_player_is_playing(player) then
+                libvlc_media_player_pause(player)
+            else
+                {} = libvlc_media_player_play(player)
+            end if
+--      else
+--          if ch!=-1 then ?ch end if
+        case VK_LEFT:   -- Seek -5s
+            libvlc_media_player_set_time(player, 
+                max(0, libvlc_media_player_get_time(player) - 5000))
+        case VK_RIGHT:  -- Seek +5s
+            libvlc_media_player_set_time(player, 
+                min(duration_ms, libvlc_media_player_get_time(player) + 5000))
+        case VK_HOME:   -- Jump to start
+            libvlc_media_player_set_time(player, 0)
+        case VK_END:    -- Jump to end
+            libvlc_media_player_set_time(player, duration_ms)
+        case VK_ESCAPE: -- Quit
+            running = false
+    end switch
+    
+    -- Optional: Display current time (every 250ms to avoid spam)
+    atom last_time = 0
+    atom now = time()
+    if now - last_time > 0.25 then
+        atom current_ms = libvlc_media_player_get_time(player)
+        printf(1, "\rTime: %s / %s    ", 
+            {elapsed_short(current_ms/1000), elapsed_short(duration_ms/1000)})
+--      flush()
+        last_time = now
+    end if
+    
+    sleep(0.010)  -- Yield CPU
+end while
+
+-- Cleanup
+libvlc_media_player_stop(player)
+{} = libvlc_media_player_release(player)
+libvlc_release(inst)
+*/
+
+--/*
+Well, that all got pretty ridiculous pretty quickly, so I'm knocking all that nonsense on the head right now.
+Last year I wrote a simple libvlc wrapper, as you can see below at least a hundred times easier.
+However, I've just heard about libmpv, and I tyhink that's worth giving a shot.
+
+include libvlc.e
+?libvlc_get_version() -- "3.0.21 Vetinari" (32bit)
+
+constant path = `test_colorbars.mp4`
+
+/* Load the VLC engine */
+--atom inst = libvlc_new (0, NULL);
+atom inst = libvlc_new(),
+     m = libvlc_media_new_path(inst,path),
+
+     p = libvlc_media_parse(m);
+printf(1,"Duration: %s\n",{elapsed_short(libvlc_media_get_duration(m)/1000)})
+ 
+--atom mp = libvlc_media_player_new_from_media(inst, m);
+atom mp = libvlc_media_player_new_from_media(m, NULL);
+ 
+/* No need to keep the media now */
+libvlc_media_release(m);
+ 
+integer res = libvlc_media_player_play(mp)
+assert(res=0)
+do 
+    sleep(1)
+    printf(1,"%s\n",{elapsed_short(libvlc_media_player_get_time(mp)/1000)})
+until not libvlc_media_player_is_playing(mp)
+
+libvlc_media_player_stop(mp);
+mp = libvlc_media_player_release(mp);
+libvlc_release(inst);
+--*/
+
+--*!/
+--/*
+// Build with: gcc -o simple simple.c `pkg-config --libs --cflags mpv`
+
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include <mpv/client.h>
+
+static inline void check_error(int status)
+{
+    if (status < 0) {
+        printf("mpv API error: %s\n", mpv_error_string(status));
+        exit(1);
+    }
+}
+
+int main(int argc, char *argv[])
+{
+    if (argc != 2) {
+        printf("pass a single media file as argument\n");
+        return 1;
+    }
+
+    mpv_handle *mpv_ctx = mpv_create();
+    if (!mpv_ctx) {
+        printf("failed creating context\n");
+        return 1;
+    }
+
+    // Enable default key bindings, so the user can actually interact with
+    // the player (and e.g. close the window).
+    check_error(mpv_set_option_string(mpv_ctx, "input-default-bindings", "yes"));
+    mpv_set_option_string(mpv_ctx, "input-vo-keyboard", "yes");
+    int val = 1;
+    check_error(mpv_set_option(mpv_ctx, "osc", MPV_FORMAT_FLAG, &val));
+
+    // Done setting up options.
+    check_error(mpv_initialize(mpv_ctx));
+
+    // Play this file.
+    const char *cmd[] = {"loadfile", argv[1], NULL};
+    check_error(mpv_command(mpv_ctx, cmd));
+
+    // Let it play, and wait until the user quits.
+    while (1) {
+        mpv_event *event = mpv_wait_event(mpv_ctx, 10000);
+        printf("event: %s\n", mpv_event_name(event->event_id));
+        if (event->event_id == MPV_EVENT_SHUTDOWN)
+            break;
+    }
+
+    mpv_ctx = mpv_terminate_destroy(mpv_ctx);
+    return 0;
+}
+
+-- demo\theGUI\win_video_ex.exw
+-- ===========================
+-- A minimal video player using ffmpeg/ffprobe for media ops and WinAPI/GDI+ for rendering
+-- Features: Play/pause (space), step +/-5s, jump to start/end (home/end)
+-- Requires: ffmpeg/ffprobe in PATH, gdiplus.dll (standard on Windows)
+
+include theGUI.WINAPI.e
+include theGUI.gdiplus.e
+--include std/filesys.e
+--include std/convert.e
+--include std/regex.e
+include builtins\pipeio.e
+include builtins\json.e 
+
+
+-- GDI+ Constants and Structures
+constant GDIP_OK = 0
+constant gdiplusToken = allocate_word()
+constant PixelFormat24bppRGB = 0x00020000
+constant PixelFormat32bppARGB = 0x00020006
+constant PixelFormat32bppPARGB = 0x000E200B
+
+--type GpGraphics pointer
+--type GpBitmap pointer
+--type GpImage pointer
+--type CLSID atom(16)
+
+-- Global State
+atom hWnd = 0
+atom hBitmap = 0          -- Current frame bitmap (HBITMAP)
+integer frame_w = 0, frame_h = 0
+atom duration = 0         -- Video duration in seconds
+atom vid_fps_num, vid_fps_den
+atom current_time = 0     -- Current playback position
+bool playing = false
+atom timer_id = 0         -- WinAPI timer ID
+bool frame_ready = false  -- Whether we have a valid frame to render
+--string video_path = "test.mp4"    -- <-- CHANGE THIS TO YOUR TEST VIDEO
+--string video_path = `F:\misc\porn\Nadia\BestOfPixie.mp4`
+string video_path = `test_colorbars.mp4`
+
+function ReadFromPipe(atom hPipe, hProc) 
+-- Read output from the child process's pipe for stdout
+-- and write to (the parent process's pipe for) stdout. 
+-- Stop when there is no more data. 
+    string res = ""
+    while true do
+        object buff = read_from_pipe(hPipe,hProc)
+        if buff=-1 then exit end if
+--      puts(1,buff)
+        res &= buff
+--DEV/fudge...
+        if platform()=LINUX then
+            if find('!',buff) then exit end if
+        end if
+    end while
+    return res
+end function
+
+-- Forward declarations
+--atom load_frame_at_time(atom t_sec)
+-- Frame Loading (using ffmpeg)
+function load_frame_at_time(atom t_sec)
+    -- Build ffmpeg command to extract single frame as RGB24
+--  string cmd = sprintf(
+--      "ffmpeg -hide_banner -loglevel error -ss %.3f -i \"%s\" -vframes 1 -f rawvideo -pix_fmt rgb24 -",
+--      {t_sec, video_path}
+--  )
+-- Extract as BGRA32 (guaranteed 4-byte aligned, no stride issues!)
+    string cmd = sprintf(
+        "ffmpeg -hide_banner -loglevel error -ss %.3f -i \"%s\" -vframes 1 -f rawvideo -pix_fmt bgra -",
+        {t_sec, video_path}
+    )
+    
+    sequence pipes = repeat(0,3)
+    -- You can comment out one or more of these...
+--  pipes[PIPEIN] = create_pipe(INHERIT_WRITE)
+    pipes[PIPOUT] = create_pipe(INHERIT_READ)
+--  pipes[PIPERR] = create_pipe(INHERIT_READ)
+
+    atom hProc = system_exec(cmd, 12, pipes)
+
+        -- Read from pipe that is the standard output for child process. 
+        printf(1,"\n->Contents of child process stdout:\n\n")
+        string frame_data = ReadFromPipe(pipes[PIPOUT][READ_PIPE],hProc)
+--      puts(1,res)
+
+--/*
+    -- Execute ffmpeg and capture raw frame data
+    atom pipe = popen(cmd, "r")
+    if pipe = NULL then return 0 end if
+--*/    
+    -- Expected data size: width * height * 3 (RGB24)
+    integer expected_size = frame_w * frame_h * 3
+--  string frame_data = allocate(expected_size)
+--  integer bytes_read = fread(frame_data, 1, expected_size, pipe)
+    integer bytes_read = length(frame_data)
+--  integer exit_code = pclose(pipe)
+
+    if platform()=WINDOWS then
+        hProc = close_handles(hProc)
+    end if
+
+    -- The remaining open handles are cleaned up when this process terminates. 
+    -- To avoid resource leaks in a larger application, close handles explicitly. 
+    pipes = close_handles(pipes)
+    
+--  if bytes_read != expected_size or exit_code != 0 then
+    if bytes_read != expected_size then
+--      free(frame_data)
+        return 0  -- Failed to extract frame
+    end if
+    
+    -- Convert RGB24 to HBITMAP using GDI+
+--  atom bitmap = 0
+    atom pBitmap = allocate(machine_word())
+--I'm getting a status of 2 which is InvalidParameter from GdipCreateBitmapFromScan0 but everything looks pukka to me.
+--Can you suggest a suitable clip for me to download and try, ideally one you know a few stats about, has the right codex, etc.
+-- CRITICAL FIX: Calculate 4-byte aligned stride for GDI+
+--  integer stride = ((frame_w * 3 + 3) / 4) * 4;  -- Round UP to next multiple of 4
+--  integer stride = floor((frame_w * 3 + 3) / 4) * 4;  -- Round UP to next multiple of 4
+    integer stride = frame_w * 4
+    
+--printf(1, "Stride calc: raw=%d, aligned=%d\n", {frame_w*3, stride})
+
+-- AFTER fread() but BEFORE GdipCreateBitmapFromScan0:
+string dump_path = "frame_dump.rgb";
+atom dump_file = open(dump_path, "wb");
+--if dump_file then
+--  fwrite(frame_data, 1, raw_size, dump_file);
+    puts(dump_file,frame_data);
+--  fclose(dump_file);
+    close(dump_file);
+--end if
+--
+--/*
+--ffplay -f rawvideo -pix_fmt rgb24 -video_size 640x360 frame_dump.rgb 
+ffplay -f rawvideo -pixel_format rgb24 -video_size 640x360 frame_test.rgb
+
+
+Failing as follows, which looks more like a command line issue than the frame_dump.rgb file to me
+
+C:\Program Files (x86)\Phix\demo\theGUI>ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_r
+ate,codec_name -of json test_colorbars.mp4
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "codec_name": "h264",
+            "width": 640,
+            "height": 360,
+            "r_frame_rate": "30/1"
+        }
+    ]
+}
+
+C:\Program Files (x86)\Phix\demo\theGUI>ffplay -f rawvideo -pix_fmt rgb24 -video_size 640x360 frame_dump.rgb
+ffplay version 7.1-full_build-www.gyan.dev Copyright (c) 2003-2024 the FFmpeg developers
+  built with gcc 14.2.0 (Rev1, Built by MSYS2 project)
+  configuration: --enable-gpl --enable-version3 --enable-static --disable-w32threads --disable-autodetect --enable-fontc
+onfig --enable-iconv --enable-gnutls --enable-libxml2 --enable-gmp --enable-bzlib --enable-lzma --enable-libsnappy --ena
+ble-zlib --enable-librist --enable-libsrt --enable-libssh --enable-libzmq --enable-avisynth --enable-libbluray --enable-
+libcaca --enable-sdl2 --enable-libaribb24 --enable-libaribcaption --enable-libdav1d --enable-libdavs2 --enable-libopenjp
+eg --enable-libquirc --enable-libuavs3d --enable-libxevd --enable-libzvbi --enable-libqrencode --enable-librav1e --enabl
+e-libsvtav1 --enable-libvvenc --enable-libwebp --enable-libx264 --enable-libx265 --enable-libxavs2 --enable-libxeve --en
+able-libxvid --enable-libaom --enable-libjxl --enable-libvpx --enable-mediafoundation --enable-libass --enable-frei0r --
+enable-libfreetype --enable-libfribidi --enable-libharfbuzz --enable-liblensfun --enable-libvidstab --enable-libvmaf --e
+nable-libzimg --enable-amf --enable-cuda-llvm --enable-cuvid --enable-dxva2 --enable-d3d11va --enable-d3d12va --enable-f
+fnvcodec --enable-libvpl --enable-nvdec --enable-nvenc --enable-vaapi --enable-libshaderc --enable-vulkan --enable-libpl
+acebo --enable-opencl --enable-libcdio --enable-libgme --enable-libmodplug --enable-libopenmpt --enable-libopencore-amrw
+b --enable-libmp3lame --enable-libshine --enable-libtheora --enable-libtwolame --enable-libvo-amrwbenc --enable-libcodec
+2 --enable-libilbc --enable-libgsm --enable-liblc3 --enable-libopencore-amrnb --enable-libopus --enable-libspeex --enabl
+e-libvorbis --enable-ladspa --enable-libbs2b --enable-libflite --enable-libmysofa --enable-librubberband --enable-libsox
+r --enable-chromaprint
+  libavutil      59. 39.100 / 59. 39.100
+  libavcodec     61. 19.100 / 61. 19.100
+  libavformat    61.  7.100 / 61.  7.100
+  libavdevice    61.  3.100 / 61.  3.100
+  libavfilter    10.  4.100 / 10.  4.100
+  libswscale      8.  3.100 /  8.  3.100
+  libswresample   5.  3.100 /  5.  3.100
+  libpostproc    58.  3.100 / 58.  3.100
+Failed to set value 'rgb24' for option 'pix_fmt': Option not found
+
+C:\Program Files (x86)\Phix\demo\theGUI>dir *bars.mp4
+20/07/2026  22:41           286,508 test_colorbars.mp4
+
+C:\Program Files (x86)\Phix\demo\theGUI>dir *.rgb
+20/07/2026  22:48           691,200 frame_dump.rgb
+
+C:\Program Files (x86)\Phix\demo\theGUI>
+--*/
+
+    atom status = GdipCreateBitmapFromScan0(
+        frame_w, frame_h, 
+--      frame_w * 3,  -- Stride (bytes per row)
+        stride,
+--      frame_w * 4,  -- Stride (bytes per row)
+--      PixelFormat24bppRGB,
+--      PixelFormat32bppARGB,
+        PixelFormat32bppPARGB,
+--      cast(string, frame_data),
+        frame_data,
+--      &bitmap
+        pBitmap
+    )
+    atom bitmap = peekns(pBitmap)
+    
+--  free(frame_data)  -- Free raw data after GDI+ copy
+    
+    if status != GDIP_OK then
+?{"status",status,"bitmap",bitmap} -- 2
+
+if bitmap then
+        GdipDisposeImage(bitmap)
+end if
+--      GdipDisposeImage(pBitmap)
+        return 0
+    end if
+    
+    -- Convert GDI+ bitmap to HBITMAP for GDI rendering
+--  atom hbmp = 0
+--  status = GdipCreateHBITMAPFromBitmap(bitmap, &hbmp, 0xFFFFFFFF)  -- White background
+    status = GdipCreateHBITMAPFromBitmap(bitmap, pBitmap, 0xFFFFFFFF)  -- White background
+    GdipDisposeImage(bitmap)
+    atom hbmp = peekns(pBitmap)
+    free(pBitmap)
+?{"status",status,"bitmap",bitmap,"hbmp",hbmp} -- 2
+--ffmpeg -f lavfi -i "testsrc=duration=10:size=640x360:rate=30,format=yuv420p" -f lavfi -i "sine=frequency=1000:duration=10" -c:v libx264 -profile:v baseline -level 3.0 -pix_fmt yuv420p -r 30 -c:a aac -b:a 128k -shortest test_colorbars.mp4
+
+    
+    if status != GDIP_OK then
+
+        return 0
+    end if
+    
+    return hbmp
+end function
+
+--void cleanup_frame()
+procedure cleanup_frame()
+    if hBitmap != 0 then
+        DeleteObject(hBitmap)
+        hBitmap = 0
+        frame_ready = false
+    end if
+end procedure
+
+--void start_playback()
+procedure start_playback()
+    playing = true
+    -- Set timer to fire at approximate frame rate (we'll use 30fps as fallback)
+    atom fps = 30.0  -- In real app, get from video info
+    timer_id = SetTimer(hWnd, 1, floor(1000.0 / fps), NULL)
+    InvalidateRect(hWnd, NULL, true)  -- Force immediate redraw
+end procedure
+
+--void stop_playback()
+procedure stop_playback()
+    playing = false
+    if timer_id != 0 then
+        KillTimer(hWnd, timer_id)
+        timer_id = 0
+    end if
+end procedure
+
+--bool get_video_info(out atom width, out atom height, out atom dur, out atom fps_num, out atom fps_den)
+function get_video_info()
+    atom width, height, dur, fps_num, fps_den
+    string cmd = sprintf(
+        "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -show_entries format=duration -of json \"%s\"",
+        {video_path}
+    )
+    
+--/*
+--
+-- demo/capture_console.exw
+--
+--  see also child.ex
+--  DEV: not quite right on linux: doubles-up on output, hangs on eof (fudge below [find '!'])
+--       Update 18/2/21: it is now quite badly broken on Linux; there have been significant
+--                       changes to c_func() and the like on linux in the past 3 months...
+--
+
+procedure WriteToPipe(integer infd, atom hPipe)
+-- Read from a file and write its contents to the pipe for the child's stdin.
+-- Stop when there is no more data. 
+    while true do
+        object x = gets(infd)
+        if atom(x) then exit end if
+        if not write_to_pipe(hPipe,x) then exit end if
+    end while
+end procedure
+
+ 
+--  printf(1,"\n->Start of parent execution.\n");
+
+    -- Create pipes for the child process's stdin/out/err. 
+--*/ 
+    sequence pipes = repeat(0,3)
+    -- You can comment out one or more of these...
+--  pipes[PIPEIN] = create_pipe(INHERIT_WRITE)
+    pipes[PIPOUT] = create_pipe(INHERIT_READ)
+    pipes[PIPERR] = create_pipe(INHERIT_READ)
+
+    -- Create the child process, with replacement stdin/stdout/stderr. 
+--  string cmd = iff(platform()=WINDOWS?`..\p child.ex`:"./p child")
+--  string cmd = iff(platform()=WINDOWS?`dir`:"./p child")
+
+    atom hProc = system_exec(cmd, 12, pipes)
+--/*
+    if sequence(pipes[PIPEIN]) then -- (not commented out above)
+        -- Use any (plain text) input file to verify the data flow.
+        string filename = "child.ex"
+        integer infd = open(filename,"r")
+        if infd=-1 then crash("cannot open %s",{filename}) end if
+
+        -- Write to the pipe that is the standard input for a child process. 
+        -- Data is written to the pipe's buffers, so it is not necessary to wait
+        -- until the child process is running before writing data.
+ 
+        WriteToPipe(infd,pipes[PIPEIN][WRITE_PIPE])
+        close(infd)
+        -- Close the pipe handle so the child process stops reading. 
+        pipes[PIPEIN][WRITE_PIPE] = close_handles(pipes[PIPEIN][WRITE_PIPE])
+
+        printf(1,"\n->Contents of %s written to child stdin pipe.\n", {filename})
+    end if
+--*/
+    -- (you can start the child process before or after writing to pipes)
+--  atom hProc = system_exec(cmd, 12, pipes)  -- (12 === shell + nowait)
+
+--  if sequence(pipes[PIPOUT]) then -- (not commented out above)
+        -- Read from pipe that is the standard output for child process. 
+--      printf(1,"\n->Contents of child process stdout:\n\n")
+--      string res = ReadFromPipe(pipes[PIPOUT][READ_PIPE],hProc)
+--      puts(1,res)
+--  end if
+
+    if sequence(pipes[PIPERR]) then -- (not commented out above)
+        -- Read from pipe that is the error output for child process. 
+        printf(1,"\n->Contents of child process stderr:\n\n")
+        string err = ReadFromPipe(pipes[PIPERR][READ_PIPE],hProc)
+        if length(err) then
+            puts(1,err)
+            return repeat(false,6)
+        end if
+    end if
+
+    string json = ReadFromPipe(pipes[PIPOUT][READ_PIPE],hProc)
+
+    printf(1,"\n->End of parent execution.\n")
+
+    if platform()=WINDOWS then
+        hProc = close_handles(hProc)
+    end if
+
+    -- The remaining open handles are cleaned up when this process terminates. 
+    -- To avoid resource leaks in a larger application, close handles explicitly. 
+    pipes = close_handles(pipes)
+
+    object res = parse_json(json),
+       streams = extract_json_field(res,"streams"),
+       vformat = extract_json_field(res,"format")
+--     vformat = extract_json_field(res,"format")
+    assert(streams[1]=JSON_ARRAY and length(streams)=2)
+    streams = streams[2]
+    width = extract_json_field(streams,"width")
+    height = extract_json_field(streams,"height")
+    string fr_str = extract_json_field(streams,"r_frame_rate")
+    integer slash = find('/', fr_str)
+    if slash then
+        fps_num = to_number(fr_str[1..slash-1])
+        fps_den = to_number(fr_str[slash+1..$])
+    else
+        fps_num = to_number(fr_str)
+        fps_den = 1
+    end if
+    dur = to_number(extract_json_field(vformat,"duration"))
+--?streams
+--*!/
+--/*
+>>>
+
+->Contents of child process stderr:
+
+
+->End of parent execution.
+{-1,{"programs",{-2}},{"stream_groups",{-2}},{"streams",{-2,{-1,{"width",466},{"height",352},{"r_frame_rate","30/1"}}}},
+    {"format",{-1,{"duration","1829.900000"}}}}
+
+C:\Program Files (x86)\Phix\demo\theGUI\win_video.exw:354 in function get_video_info()
+variable width has not been assigned a value
+    width = <novalue>
+    height = <novalue>
+    dur = <novalue>
+    fps_num = <novalue>
+    fps_den = <novalue>
+    cmd = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -show_entries format=duration -"..
+    pipes = {0,{0,0},{0,0}}
+    hProc = 0
+    err = ""
+    json = "{\r\n    \"programs\": [\r\n\r\n    ],\r\n    \"stream_groups\": [\r\n\r\n    ],\r\n    \"streams\": [\r\n        {\r\n            \"width\""..
+    res = {-1,{"programs",{-2}},{"stream_groups",{-2}},{"streams",{-2,{-1,{"width",466},{"height",352},{"r_frame_rate","30/1"}}..
+    bOK = <novalue>
+
+Global & Local Variables
+
+--> see C:\Program Files (x86)\Phix\demo\theGUI\ex.err
+Press Enter...
+
+->Contents of child process stdout:
+
+{
+    "programs": [
+
+    ],
+    "stream_groups": [
+
+    ],
+    "streams": [
+        {
+            "width": 466,
+            "height": 352,
+            "r_frame_rate": "30/1"
+        }
+    ],
+    "format": {
+        "duration": "1829.900000"
+    }
+}
+
+->Contents of child process stderr:
+
+
+->End of parent execution.
+
+C:\Program Files (x86)\Phix\demo\theGUI\win_video.exw:302 in function get_video_info()
+variable width has not been assigned a value
+    width = <novalue>
+    height = <novalue>
+    dur = <novalue>
+    fps_num = <novalue>
+    fps_den = <novalue>
+    cmd = "ffprobe -v error -select_streams v:0 -show_entries stream=width,height,r_frame_rate -show_entries format=duration -"..
+    pipes = {0,{0,0},{0,0}}
+    hProc = 0
+    res = "{\r\n    \"programs\": [\r\n\r\n    ],\r\n    \"stream_groups\": [\r\n\r\n    ],\r\n    \"streams\": [\r\n        {\r\n            \"width\":"..
+    err = ""
+    bOK = <novalue>
+... called from
+Global & Local Variables
+
+--> see C:\Program Files (x86)\Phix\demo\theGUI\ex.err
+Press Enter...
+<<<
+    atom pipe = popen(cmd, "r")
+    if pipe = NULL then return 0 end if
+    
+    string json = read_all(pipe)
+    integer exit_code = pclose(pipe)
+    if exit_code != 0 then return 0 end if
+    
+    -- Parse JSON (simplified - in production use proper JSON parser)
+    width = 0; height = 0; dur = 0.0; fps_num = 30; fps_den = 1
+    
+    -- Extract width
+    atom w_match = match_regex(json, """"width"":\s*(\d+)""")
+    if w_match != NULL then width = value(w_match[2]) end if
+    
+    -- Extract height
+    atom h_match = match_regex(json, """"height"":\s*(\d+)""")
+    if h_match != NULL then height = value(h_match[2]) end if
+    
+    -- Extract duration
+    atom d_match = match_regex(json, """"duration"":\s*([\d.]+)""")
+    if d_match != NULL then dur = value(d_match[2]) end if
+    
+    -- Extract frame rate (e.g., "30/1")
+    atom fr_match = match_regex(json, """"r_frame_rate"":\s*""([\d/]+)""""")
+    if fr_match != NULL then
+        string fr_str = fr_match[2]
+        atom slash = find("/", fr_str)
+        if slash > 0 then
+            fps_num = value(fr_str[1..slash-1])
+            fps_den = value(fr_str[slash+1..$])
+        else
+            fps_num = value(fr_str)
+            fps_den = 1
+        end if
+    end if
+--*/
+    
+    bool bOK = (width > 0 and height > 0 and dur > 0)
+    return {bOK,width,height,dur,fps_num,fps_den}
+end function
+
+--string format_time(atom secs)
+function format_time(atom secs)
+    integer total_seconds = floor(secs),
+            hours = floor(total_seconds/3600),
+            minutes = floor(rmdr(total_seconds,3600)/60),
+            seconds = rmdr(total_seconds,60)
+    string res = sprintf("%02d:%02d:%02d", {hours, minutes, seconds})
+    return res
+end function
+
+
+-- Main Window Procedure
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+        case WM_CREATE:
+--/*
+            -- Initialize GDI+
+            atom gdiplus_token = 0
+            atom gdiplus_input = allocate_struct("GG")
+            p_GdiplusStartupVersion{gdiplus_input} = 1
+            p_GdiplusStartup{gdiplus_input} = 0
+            if GdiplusStartup(&gdiplus_token, gdiplus_input, NULL) != GDIP_OK then
+                MessageBox(hWnd, "GDI+ initialization failed!", "Error", MB_ICONERROR)
+                return -1
+            end if
+--          #pragma weakref gdiplus_token  -- Prevent cleanup during window life
+--*/
+            
+            -- Get video info and load first frame
+--          atom {bOK, vid_w, vid_h, vid_dur, vid_fps_num, vid_fps_den} = get_video_info()
+            bool bOK
+--          atom vid_fps_num, vid_fps_den
+            {bOK, frame_w, frame_h, duration, vid_fps_num, vid_fps_den} = get_video_info()
+            if not bOK then
+--              MessageBox(hWnd, sprintf("Failed to load video info from %s\nCheck ffmpeg/ffprobe is in PATH", {video_path}), "Error", MB_ICONERROR)
+--              return -1
+                ?9/0
+            end if
+printf(1, "Video: %dx%d @ %.2ffps (duration: %.2fs)\n", {frame_w, frame_h, vid_fps_num/vid_fps_den, duration})
+
+--          frame_w = vid_w
+--          frame_h = vid_h
+--          duration = vid_dur
+            current_time = 0
+            hBitmap = load_frame_at_time(current_time)
+            frame_ready = (hBitmap != 0)
+            InvalidateRect(hWnd, NULL, true)
+            return 0
+
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, true)
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT)
+--          atom hdc, hmemdc, holdbmp
+--          atom ps = allocate_struct(idPAINTSTRUCT)
+--          hdc = BeginPaint(hWnd, ps)
+--          integer client_w, client_h
+--          integer {?,?,w,h} = GetClientRect(hWnd)
+            integer {?,?,client_w,client_h} = GetClientRect(hWnd)
+--          GetClientRect(hWnd, ps)
+--          client_w = ps.right - ps.left
+--          client_h = ps.bottom - ps.top
+
+            -- Clear background
+--          FillRect(hdc, ps, GetStockObject(BLACK_BRUSH))
+            FillRect(hdc, pPAINTSTRUCT, GetStockObject(BLACK_BRUSH))
+
+            -- Draw video frame if available
+            if frame_ready and hBitmap != 0 then
+                atom hmemdc = CreateCompatibleDC(hdc),
+                    holdbmp = SelectObject(hmemdc, hBitmap)
+                
+                -- Calculate scaling to maintain aspect ratio
+                atom scale_w = client_w / frame_w
+                atom scale_h = client_h / frame_h
+                atom scale = min(scale_w, scale_h)
+                integer draw_w = floor(frame_w * scale)
+                integer draw_h = floor(frame_h * scale)
+                integer offset_x = (client_w - draw_w) / 2
+                integer offset_y = (client_h - draw_h) / 2
+                
+                StretchBlt(hdc, offset_x, offset_y, draw_w, draw_h, 
+                          hmemdc, 0, 0, frame_w, frame_h, SRCCOPY)
+                
+                {} = SelectObject(hmemdc, holdbmp)
+                DeleteObject(hmemdc)
+            end if
+            
+            -- Draw overlay text (time/progress)
+            string time_text = format_time(current_time) & " / " & format_time(duration)
+            SetTextColor(hdc, 0xFFFFFF)  -- White text
+            SetBkMode(hdc, TRANSPARENT)
+            TextOut(hdc, 10, 10, time_text, length(time_text))
+            
+--          EndPaint(hWnd, ps)
+            EndPaint(hWnd, pPAINTSTRUCT)
+            return 0
+
+        case WM_TIMER:
+            if wParam = timer_id then
+                if playing then
+                    -- Advance time by 1 frame (using approximate fps)
+                    atom fps = vid_fps_num / vid_fps_den
+                    current_time += 1.0 / fps
+                    if current_time >= duration then
+                        current_time = duration
+                        stop_playback()
+                    end if
+                    -- Load new frame
+                    cleanup_frame()
+                    hBitmap = load_frame_at_time(current_time)
+                    frame_ready = (hBitmap != 0)
+                    InvalidateRect(hWnd, NULL, true)
+                end if
+            end if
+            return 0
+
+        case WM_CHAR:
+            switch wParam do
+                case VK_SPACE:
+                    if playing then
+                        stop_playback()
+                    else
+                        start_playback()
+                    end if
+                case VK_ADD, VK_OEM_PLUS:  -- '+' key
+                    playing = false
+                    KillTimer(hWnd, timer_id)
+                    current_time = min(duration, current_time + 5.0)
+                    cleanup_frame()
+                    hBitmap = load_frame_at_time(current_time)
+                    frame_ready = (hBitmap != 0)
+                    InvalidateRect(hWnd, NULL, true)
+                case VK_SUBTRACT, VK_OEM_MINUS:  -- '-' key
+                    playing = false
+                    KillTimer(hWnd, timer_id)
+                    current_time = max(0.0, current_time - 5.0)
+                    cleanup_frame()
+                    hBitmap = load_frame_at_time(current_time)
+                    frame_ready = (hBitmap != 0)
+                    InvalidateRect(hWnd, NULL, true)
+                case VK_HOME:
+                    playing = false
+                    KillTimer(hWnd, timer_id)
+                    current_time = 0.0
+                    cleanup_frame()
+                    hBitmap = load_frame_at_time(current_time)
+                    frame_ready = (hBitmap != 0)
+                    InvalidateRect(hWnd, NULL, true)
+                case VK_END:
+                    playing = false
+                    KillTimer(hWnd, timer_id)
+                    current_time = duration
+                    cleanup_frame()
+                    hBitmap = load_frame_at_time(current_time)
+                    frame_ready = (hBitmap != 0)
+                    InvalidateRect(hWnd, NULL, true)
+                case VK_ESCAPE:
+                    {} = SendMessage(hWnd, WM_CLOSE, 0, 0)
+            end switch
+            return 0
+
+        case WM_DESTROY:
+            stop_playback()
+            cleanup_frame()
+            -- GDI+ shutdown would go here in a real app (omitted for brevity in demo)
+            PostQuitMessage(0)
+            return 0
+    end switch
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+-- Main
+procedure main()
+    GdiplusStartup(gdiplusToken, pGdiplusStartupInput, NULL)
+
+    RegisterClassEx("VideoCanvas", WndProc_cb)
+    
+    hWnd = CreateWindowEx(
+        0, "VideoCanvas", "Phix Video Player",
+        WS_OVERLAPPEDWINDOW,
+        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        NULL, NULL, 0, NULL
+    )
+    
+    if hWnd = 0 then
+        puts(STDERR, "Failed to create window\n")
+        abort(1)
+    end if
+    
+    ShowWindow(hWnd, SW_SHOWNORMAL)
+    UpdateWindow(hWnd)
+    
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+--*/
+
+--/*
+--
+-- demo\theGUI\win_clip.exw
+-- ========================
+--
+--  Clipboard demo, auto-crops the four corners of all me doc images for me.
+--  Also supports drag and drop, with full image loading support via gdiplus (png,jpg,etc).
+--                                (however image save was all a bit too C++ssy for me)
+--
+--  See also gtk_clip.exw and ..\..\pwa\js\poc\clip.htm (clipp.html adds paste, drag and
+--                                                       drop, and a Choose file button)
+--
+--requires(64,true)
+include theGUI.WINAPI.e
+include theGUI.gdiplus.e
+
+constant BORDER = 10,
+         ppBits = allocate(machine_word()),
+         bmiLen = get_struct_size(idBITMAPINFOHEADER),
+         pBMI = allocate(bmiLen),
+         gdiplusToken = allocate_word(),
+         highlight_brush = CreateSolidBrush(0x00E5E5E5)
+
+local procedure set_BMI(atom pBMI, integer w, h)
+    -- (common code) pBMI may be the constant or the pMem going to the clipboard
+    mem_set(pBMI,0,bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biSize",bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biWidth",w)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biHeight",h)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biPlanes",1)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biBitCount",32)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biCompression",BI_RGB)
+end procedure
+
+function get_bitmap_from_clipboard()
+    atom hNew=0, pBits=0, w=0, h=0
+    if OpenClipboard(NULL) then
+        atom hDIB = GetClipboardData(CF_DIB)
+        if hDIB!=NULL then
+            atom pDIB = GlobalLock(hDIB),
+                  hdc = CreateCompatibleDC(NULL)
+            integer biSize = get_struct_field(idBITMAPINFOHEADER,pDIB,"biSize"),
+                       bpp = get_struct_field(idBITMAPINFOHEADER,pDIB,"biBitCount"),
+               compression = get_struct_field(idBITMAPINFOHEADER,pDIB,"biCompression"),
+                   clrUsed = get_struct_field(idBITMAPINFOHEADER,pDIB,"biClrUsed")
+            if find(bpp,{32,24,8,1}) then -- (just quietly ignore anything else!)
+                {w,h} = get_struct_fields(idBITMAPINFOHEADER,pDIB,{"biWidth","biHeight"})
+                h = abs(h)
+                set_BMI(pBMI, w, h)
+                hNew = CreateDIBSection(hdc,pBMI,DIB_RGB_COLORS,ppBits,NULL,0)
+                pBits = peeknu(ppBits)
+
+                atom pSrc = pDIB + biSize, palette = pSrc
+                -- CF_DIBV5 already includes masks, so don't skip them again
+                if biSize!=get_struct_size(idBITMAPV5HEADER) then
+                    -- skip bitfields (for 16/32-bit BI_BITFIELDS)
+                    if compression = BI_BITFIELDS then
+                        pSrc += 3*4 -- 3 DWORD masks
+                    end if
+
+                    -- skip color table
+                    integer nColors
+                    if clrUsed!=0 then
+                        nColors = clrUsed
+                    elsif bpp<=8 then
+                        nColors = power(2,bpp)
+                    else
+                        nColors = 0
+                    end if
+
+                    pSrc += nColors*4
+                end if
+
+                integer stride = floor((bpp*w+31)/32)*4
+                for y=0 to h-1 do
+                    atom src_row = pSrc + y*stride,
+                         dst_row = pBits + y*w*4
+                    if bpp=32 then
+                        mem_copy(dst_row,src_row,w*4)
+                    else
+                        atom clr
+                        for x=0 to w-1 do
+                            if bpp=24 then
+                                integer {b,g,r} = peek({src_row+x*3,3})
+                                clr = r+g*#100+b*#10000
+                            else
+                                integer idx
+                                if bpp=8 then
+                                    idx = peek(src_row+x)*4
+                                elsif bpp=1 then
+                                    integer byte_ = peek(src_row+floor(x/8)),
+                                          mask = power(2,7-mod(x,8)),   
+                                       bit = and_bits(byte_,mask)!=0
+                                    idx = iff(bit?4:0)
+                                else
+                                    ?9/0 -- cannot trigger
+                                end if
+                                clr = peek4u(palette+idx)
+                            end if
+                            poke4(dst_row+x*4,clr)
+                        end for
+                    end if
+                end for
+            end if
+            DeleteDC(hdc)
+            GlobalUnlock(hDIB)
+        end if
+        CloseClipboard()
+    end if
+    return {hNew,pBits,w,h}
+end function
+
+--/* never got this anywhere near working... mime_ptr is garbage except for the first...
+function get_encoder_clsid(string mime)
+    -- enumerate encoders and find "image/png"
+    -- (standard GDI+ boilerplate)
+
+    atom pNum = allocate(4),
+         pSize = allocate(4)
+
+    GdipGetImageEncodersSize(pNum, pSize)
+
+    integer num = peek4u(pNum),
+            size = peek4u(pSize)
+    free(pNum)
+    free(pSize)
+
+    atom pEncoders = allocate(size)
+
+    GdipGetImageEncoders(num, size, pEncoders)
+
+    integer esz = get_struct_size(idImageCodecInfo)
+--  integer esz = size/num
+?{num,size,esz,esz*num}
+
+    for i=0 to num-1 do
+        atom p = pEncoders + i*esz
+        atom mime_ptr = get_struct_field(idImageCodecInfo,p,"MimeType")
+
+--      sequence ms = peek_string(mime_ptr)
+        sequence ms = peek_wstring(mime_ptr)
+        ?ms
+        if ms=mime then
+            atom clsid = allocate(16)
+            mem_copy(clsid, get_struct_field(idImageCodecInfo,p,"Clsid"), 16)
+            return clsid
+        end if
+    end for
+
+    return NULL
+end function
+
+procedure save_bitmap_to_png(atom hBitmap, string filename)
+
+--  atom gpBitmap = NULL
+    atom gpBitmap = allocate_word()
+
+    -- create GDI+ bitmap from HBITMAP
+    integer status = GdipCreateBitmapFromHBITMAP(hBitmap,NULL,gpBitmap)
+    if status!=0 then
+        ? "GdipCreateBitmapFromHBITMAP failed"
+    else
+        -- get PNG encoder CLSID
+        atom clsid = get_encoder_clsid("image/png")
+
+        status = GdipSaveImageToFile(gpBitmap,filename,clsid,NULL)
+        if status!=0 then
+            ? "GdipSaveImageToFile failed"
+        end if
+        GdipDisposeImage(gpBitmap)
+-- maybe (untried)
+--      GdipDisposeImage(peeknu(gpBitmap))
+    end if
+    free(gpBitmap)
+end procedure
+--*/
+
+procedure set_clipboard_dib(integer w, h, atom pBits)
+    integer dataSize = w*h*4
+    atom hMem = GlobalAlloc(GMEM_MOVEABLE,bmiLen+dataSize),
+         pMem = GlobalLock(hMem)
+
+    set_BMI(pMem, w, h)
+    mem_copy(pMem+bmiLen,pBits,dataSize)
+
+    GlobalUnlock(hMem)
+
+    if OpenClipboard(NULL) then
+        EmptyClipboard()
+        -- Aside: CF_DIB is mspaint compatible, CF_DIBV5 ain't.
+        SetClipboardData(CF_DIB,hMem)
+        CloseClipboard()
+    end if
+end procedure
+
+procedure toggle_corners(atom pBits, integer w, h)
+    if pBits!=NULL then
+
+        integer white = #00FFFFFF
+        integer black = #00000000
+
+        sequence corners = {peek4u(pBits + 0),
+                            peek4u(pBits + (w-1)*4),
+                            peek4u(pBits + (h-1)*w*4),
+                            peek4u(pBits + ((h-1)*w + w-1)*4)}
+        bool all_white = unique(corners)={white}
+        integer clr = iff(all_white?black:white)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for i,n in {5,3,2,1,1} do
+            integer im1w = (i-1)*w,
+                    hmiw = (h-i)*w
+            for j=0 to n-1 do
+                integer w1j = w-1-j
+                        -- tl,      tr,     bl,     br
+                for k in {im1w+j,im1w+w1j,hmiw+j,hmiw+w1j} do
+                    poke4(pBits+k*4,clr)
+                end for
+            end for
+        end for
+    end if
+end procedure
+
+function load_image_file(string filename)
+    atom pImage = GdipLoadImageFromFile(filename),
+            hdc = CreateCompatibleDC(NULL)
+    integer w = GdipGetImageWidth(pImage),
+            h = GdipGetImageHeight(pImage)
+    set_BMI(pBMI, w, -h)
+    atom hNew = CreateDIBSection(hdc,pBMI,DIB_RGB_COLORS,ppBits,NULL,0),
+        pBits = peeknu(ppBits),
+         rect = allocate(16),
+      bmpData = allocate(32) -- BitmapData
+    poke4(rect,{0,0,w,h})
+
+    GdipBitmapLockBits(pImage,rect,ImageLockModeRead,PixelFormat32bppARGB,bmpData)
+
+    atom srcScan0 = peeknu(bmpData+16) -- Scan0
+    integer srcStride = peek4s(bmpData+8)
+    if srcStride<0 then
+        srcScan0 += (h-1)*srcStride
+        srcStride = -srcStride
+    end if
+
+    -- copy rows (respect stride!)
+    for y=0 to h-1 do
+        atom src = srcScan0 + y*srcStride
+        atom dst = pBits + y*w*4
+        mem_copy(dst, src, w*4)
+    end for
+
+    GdipBitmapUnlockBits(pImage, bmpData)
+    GdipDisposeImage(pImage)
+
+    DeleteDC(hdc)
+    free(pBMI)
+    free(bmpData)
+    free(rect)
+
+    atom hBmp = hNew
+
+    return {hBmp,pBits,w,h}
+end function
+
+atom hBmp = NULL,
+     pBits = NULL
+integer imgW = 0, 
+        imgH = 0
+
+local procedure toggle_and_show(atom hWnd)
+--  integer w = 240, h = 80
+    integer w = 254, h = 87
+    if hBmp!=0 then
+        toggle_corners(pBits,imgW,imgH)
+        w = imgW+BORDER*2+14
+        h = imgH+BORDER*2+7+32
+    end if
+    SetWindowPos(hWnd,NULL,0,0,w,h,SWP_NOMOVE)
+end procedure
+
+--integer drag_hover = 0
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_CREATE:
+            {hBmp,pBits,imgW,imgH} = get_bitmap_from_clipboard()
+            toggle_and_show(hWnd)
+            DragAcceptFiles(hWnd,TRUE)
+            return 0
+
+----        case WM_DRAGENTER:
+--      case WM_MOUSEMOVE:
+--?{"MOUSEMOVE",drag_hover}
+--          if not drag_hover then
+--              drag_hover = 1
+--              InvalidateRect(hWnd,NULL,TRUE)
+--              return 0
+--          end if
+--
+----        case WM_DRAGLEAVE:
+--      case WM_MOUSELEAVE:
+--?"MOUSELEAVE"
+--          drag_hover = 0
+--          InvalidateRect(hWnd,NULL,TRUE)
+--          return 0
+
+        case WM_DROPFILES:
+            atom hDrop = wParam
+            integer count = DragQueryFile(hDrop, -1, NULL, 0)
+            if count>0 then
+                integer len = DragQueryFile(hDrop, 0, NULL, 0)
+                atom buffer = allocate(len+1)
+                {} = DragQueryFile(hDrop, 0, buffer, len+1)
+                string filename = peek_string(buffer)
+                {hBmp,pBits,imgW,imgH} = load_image_file(filename)
+                toggle_and_show(hWnd)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            DragFinish(hDrop)
+            return 0
+
+        case WM_LBUTTONDOWN:
+            if hBmp!=0 then
+                toggle_corners(pBits,imgW,imgH)
+--?"SAVING"
+--save_bitmap_to_png(hBmp, "win_clip.png")
+--?"SAVED"
+                set_clipboard_dib(imgW,imgH,pBits)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd,pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+            FillRect(hdc,pRECT,GetStockObject(WHITE_BRUSH))
+--          if drag_hover then
+--              FrameRect(hdc, pRECT, highlight_brush)
+--          end if
+            if hBmp!=0 then
+                atom mem = CreateCompatibleDC(hdc)
+                {} = SelectObject(mem,hBmp)
+                BitBlt(hdc,BORDER,BORDER,imgW,imgH,mem,0,0,SRCCOPY)
+                DeleteDC(mem)
+            else
+                string noimage = "No image in clipboard"
+                integer l = length(noimage),
+                        x = floor((w-8*l)/2),
+                        y = floor((h-16)/2)
+                TextOut(hdc,x,y,noimage,l)
+            end if
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            GdiplusShutdown(gdiplusToken)
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd,msg,wParam,lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    GdiplusStartup(gdiplusToken, pGdiplusStartupInput, NULL)
+
+    RegisterClassEx("clipdemo",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0,"clipdemo","Clip img",
+        WS_OVERLAPPEDWINDOW,
+        100,100,300,200,
+        NULL,NULL,NULL,NULL)
+
+    ShowWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg,NULL,0,0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+
+main()
+*/
+
+
+--/*
+Sure, that sounds good. To actually implement it, I'm going to start with the following template,
+and as a first step I'd like to get ffplay working in that window, using some simple keyboard 
+commands as per 'C' (which I'm going to remove) but ' ' to play/pause and +/- step back/fwd 5s
+and home/end to jump to start/end time/frames.
+--
+-- demo\theGUI\win_video.exw
+-- =========================
+--
+--  A resizeable canvas on WinAPI...
+--  It draws an X on it, to make sure it's doing the resizing stuff right.
+--
+--requires(64,true)
+include theGUI.WINAPI.e
+
+bool clip = false -- type 'C' to toggle
+
+constant wyte = CreateSolidBrush(0x00E0FFFF) -- TG_PARCHMENT (as bgr)
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, false)
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT), hClip
+            integer {?,?,w,h} = GetClientRect(hWnd)
+
+            if clip then
+                FillRect(hdc, pRECT, wyte) -- blank whole (this demo only!)
+                hClip = CreateRectRgn(w/8, h/8, w*7/8, h*7/8)
+                SelectClipRgn(hdc, hClip)
+            end if
+
+            FillRect(hdc, pRECT, wyte)
+
+            -- Draw X
+            // Draw the first diagonal \
+            MoveToEx(hdc, 0, 0, NULL);      LineTo(hdc, w-1, h-1)
+            // Draw the second diagonal /
+            MoveToEx(hdc, w-1, 0, NULL);    LineTo(hdc,   0, h-1)
+
+            if clip then
+                SelectClipRgn(hdc, NULL)
+                DeleteObject(hClip)
+            end if
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            elsif upper(wParam)='C' then
+                clip = not clip
+                InvalidateRect(hWnd, NULL, false)
+            end if
+
+        case WM_DESTROY:
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("CanvasX",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0, "CanvasX", "X Canvas",
+                               WS_OVERLAPPEDWINDOW,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 400, 400,
+                               NULL, NULL, 0, NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+--*/
+

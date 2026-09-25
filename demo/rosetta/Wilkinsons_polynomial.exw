@@ -1,0 +1,246 @@
+﻿--
+-- demo\rosetta\Wilkinsons_polynomial.exw
+-- ======================================
+--
+requires(`1.0.6`)
+include mpfr.e
+--mpfr_set_default_precision(64) -- (minimum needed for coeffs)
+--mpfr_set_default_precision(-20) -- (minimum needed to show modified x^19 coeff)
+mpfr_set_default_precision(-128) -- (to get most accurate evaluation results)
+
+constant mpfr_complex one = mpfr_complex_init(1,0)
+constant mpfr tmp = mpfr_init()
+
+function poly_eval(sequence coeffs, mpfr_complex z)
+    -- Evaluates the polynomial P(z) = coeffs[1] + coeffs[2]*z + ... using Horner's method
+    mpfr_complex res = mpfr_complex_init()
+    mpfr_set(res[1],coeffs[length(coeffs)])
+    for i=length(coeffs)-1 to 1 by -1 do
+        mpfr_complex_mul(res,res,z)
+        mpfr_add(res[1],res[1],coeffs[i])
+    end for
+    return res
+end function
+
+-- Evaluates the derivative P'(z)
+function poly_eval_deriv(sequence coeffs, mpfr_complex z)
+    integer degree = length(coeffs)-1
+    mpfr_complex res = mpfr_complex_init()
+    mpfr_mul_si(res[1],coeffs[$],degree)
+    for i=degree to 2 by -1 do
+        mpfr_complex_mul(res,res,z)
+        mpfr_mul_si(tmp,coeffs[i],i-1)
+        mpfr_add(res[1],res[1],tmp)
+    end for
+    return res
+end function
+
+-- -----------------------------------------
+--  Aberth-Ehrlich Simultaneous Root Finder
+-- -----------------------------------------
+constant max_iterations = 500
+
+function find_roots(sequence coeffs)
+    integer degree = length(coeffs)-1
+    sequence roots = repeat(0,degree)
+    
+    -- Initialize roots on a slightly perturbed radius to break symmetry
+    for i=1 to degree do
+        atom a = (2*PI*(i-0.5))/degree
+        roots[i] = mpfr_complex_init(10*cos(a),10*sin(a))
+    end for
+    
+    mpfr_complex sum_aberth = mpfr_complex_init(),
+                   inv_diff = mpfr_complex_init(),
+                      denom = mpfr_complex_init(),
+                      ratio = mpfr_complex_init()
+    
+    for iter = 1 to max_iterations do
+        integer total_converged = 0
+        sequence offsets = repeat(0,degree)
+        
+        for i,root in roots do --- (i=1 to degree)
+            offsets[i] = mpfr_complex_init()
+            mpfr_complex p_z = poly_eval(coeffs,root)
+            mpfr_complex dp_z = poly_eval_deriv(coeffs,root)
+            mpfr_complex_div(ratio,p_z,dp_z)
+            
+            if mpfr_complex_abs(p_z)<1e-25 then
+                total_converged += 1
+            else
+            
+                -- Aberth correction term computation
+                mpfr_complex_set_d(sum_aberth,0,0)
+                for j = 1 to degree do
+                    if i != j then
+                        mpfr_complex_sub(inv_diff,root,roots[j])
+                        mpfr_complex_div(inv_diff,one,inv_diff)
+                        mpfr_complex_add(sum_aberth,sum_aberth,inv_diff)
+                    end if
+                end for
+            
+                mpfr_complex_mul(denom,ratio,sum_aberth)
+                mpfr_complex_sub(denom,one,denom)
+                mpfr_complex_div(offsets[i],ratio,denom)
+            end if
+        end for
+        
+        if total_converged == degree then exit end if
+        
+        -- Apply adjustments (Copy-on-write friendly update pattern)
+        for i,root in roots do --- (i=1 to degree)
+            mpfr_complex_sub(root,root,offsets[i])
+        end for
+    end for
+    
+    return roots
+end function
+
+function sane(string s)
+    integer z = iff(s[1]='-'?2:1)
+    if length(s)>4 and s[z..z+2]=`0.0` then
+        -- sanitize eg "0.0000123456321" to "1.23456e-5"
+        for i,c in s from z+3 do
+            if c!='0' then
+                s[z] = c
+                s[z+2..i] = "" -- remove middle "000000c"
+                if length(s)>z+6 then s = s[1..z+6] end if
+                s &= sprintf("e%d",z-i+1)
+                exit
+            end if
+        end for
+    elsif find('.',s) and not find('e',s) then
+        -- eg "1.00000" -> "1"
+        s= trim_tail(s,'0')
+        if s[$]='.' then s = s[1..$-1] end if
+    end if
+    return s
+end function
+
+function pretty_print_complex(mpfr_complex root)
+    atom r = mpfr_get_d(root[1]),
+         c = mpfr_get_d(root[2])
+    if abs(c)<1e-4 then
+        if abs(r)<1e-5 and r!=0 then
+            -- Format clean tiny floating points safely
+            return sprintf("%.1e",{r})
+        end if
+        return sane(sprintf("%.5f",{r}))
+    end if
+    string s = iff(c<0?" - ":" + ")
+    return sprintf("%.5f%s%.5fi",{r,s,abs(c)})
+end function
+
+procedure pretty_print_roots(sequence roots, coeffs)
+    roots = custom_sort(mpfr_complex_cmp,roots)
+    for root in roots do
+        string r = pretty_print_complex(root),
+               e = pretty_print_complex(poly_eval(coeffs,root))
+        printf(1,"%s evaluates to %s\n",{r,e})      
+    end for
+end procedure
+
+function poly_print(sequence poly)
+    string res = sane(mpfr_get_str(poly[1]))
+    for i,c in poly from 2 do
+        mpfr_abs(tmp,c)
+        res &= iff(mpfr_cmp_si(c,0)<0?" - ":" + ")
+        string ts = sane(mpfr_get_str(tmp))
+        if ts!="1" then res &= ts&"*" end if
+        res &= "x"
+        if i>2 then res &= sprintf("^%d",i-1) end if
+    end for
+    return res
+end function
+
+procedure main()
+    ---------- Wilkinson's first polynomial ----------
+    printf(1,"Example 1:\n\n")
+    mpfr one = mpfr_init(1), mk = mpfr_init()
+    sequence coeffs = {one}
+    for k=1 to 20 do
+        mpfr_set_si(mk,-k)
+        sequence r = mpfr_inits(length(coeffs)+1)
+        for i,p in coeffs do
+            for j,q in {mk,one} do
+                mpfr_mul(tmp,p,q)
+                mpfr_add(r[i+j-1],r[i+j-1],tmp) -- r[i+j-1] += p*q
+            end for
+        end for
+        coeffs = r
+    end for
+    printf(1,"The initial polynomial is %s\n",{poly_print(coeffs)})
+    printf(1,"The coefficient of x^19 is: %s\n",{mpfr_get_str(coeffs[20])})
+    printf(1,"The initial roots are:\n")
+    pretty_print_roots(find_roots(coeffs),coeffs)
+
+    mpfr delta = mpfr_init()
+    mpfr_set_d(delta, power(2, -23))
+    mpfr_sub(coeffs[20], coeffs[20], delta)
+    printf(1,"\nThe modified coefficient of x^19 is: %s\n",{mpfr_get_str(coeffs[20])})
+    printf(1,"The 20 resulting roots are:\n")
+    pretty_print_roots(find_roots(coeffs),coeffs)
+
+    --  Since I got different results for Wilkinson's second example to Julia, 
+    --  the Julia and REXX samples seem to disagree on what it actually is, and 
+    --  having nothing on the Wikipedia page to verify the results against, I 
+    --  removed it rather than adding to the confusion.
+
+end procedure
+
+main()
+
+?"done"
+wait_key()
+
+--/*
+Example 1:
+
+The initial polynomial is 2432902008176640000 - 8752948036761600000*x + 13803759753640704000*x^2 - 12870931245150988800*x^3 + 8037811822645051776*x^4 - 3599979517947607200*x^5 + 1206647803780373360*x^6 - 311333643161390640*x^7 + 63030812099294896*x^8 - 10142299865511450*x^9 + 1307535010540395*x^10 - 135585182899530*x^11 + 11310276995381*x^12 - 756111184500*x^13 + 40171771630*x^14 - 1672280820*x^15 + 53327946*x^16 - 1256850*x^17 + 20615*x^18 - 210*x^19 + x^20
+The coefficient of x^19 is: -210
+The initial roots are:
+1 evaluates to 1.2e-52
+2 evaluates to -1.3e-57
+3 evaluates to 1.7e-58
+4 evaluates to -2.8e-70
+5 evaluates to -2.9e-45
+6 evaluates to 1.1e-62
+7 evaluates to -1.0e-39
+8 evaluates to 4.2e-35
+9 evaluates to -8.6e-38
+10 evaluates to 1.5e-31
+11 evaluates to -3.0e-41
+12 evaluates to 1.6e-34
+13 evaluates to 3.4e-47
+14 evaluates to -1.7e-56
+15 evaluates to 6.2e-28
+16 evaluates to -7.6e-41
+17 evaluates to -5.9e-60
+18 evaluates to -1.5e-102
+19 evaluates to -1.9e-57
+20 evaluates to 2.0e-97
+
+The modified coefficient of x^19 is: -210.00000011920928955078125
+The 20 resulting roots are:
+1 evaluates to -1.0e-35
+2 evaluates to -3.7e-69
+3 evaluates to -2.8e-42
+4 evaluates to -1.3e-93
+5 evaluates to 1.3e-45
+6.00001 evaluates to -1.1e-43
+6.9997 evaluates to 2.8e-61
+8.00727 evaluates to 1.3e-44
+8.91725 evaluates to 1.1e-42
+10.09527 - 0.64350i evaluates to 3.0e-54
+10.09527 + 0.64350i evaluates to 3.0e-54
+11.79363 - 1.65233i evaluates to 2.6e-54
+11.79363 + 1.65233i evaluates to 2.6e-54
+13.99236 - 2.51883i evaluates to 4.0e-30
+13.99236 + 2.51883i evaluates to 4.0e-30
+16.73074 - 2.81262i evaluates to 5.7e-65
+16.73074 + 2.81262i evaluates to 5.7e-65
+19.50244 - 1.94033i evaluates to -6.1e-54
+19.50244 + 1.94033i evaluates to -6.1e-54
+20.84691 evaluates to -1.7e-88
+"done"
+--*/

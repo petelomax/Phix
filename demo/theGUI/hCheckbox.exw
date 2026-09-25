@@ -5,36 +5,46 @@
 --  The canvas-based implementation of gCheckbox (including gRadio).
 --
 --requires(64,true)
-puts(1,``)
+--puts(1,``)
 with javascript_semantics
---include theGUI.e
-include hGUI.e
+include theGUI.e
 gSetGlobal(`DIAGNOSTICS`,true)
+--/*
+"WM_SETFOCUS"
+id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [19230, gShow]
+ 1 gCanvas      8   9  41  23  41  23  41  23  6  0          CF_CANFOCUS+CANVAS
+ 2 gCanvas     49   9  36  23  36  23  36  23  6  0          CF_CANFOCUS+CANVAS
+ 3 gCanvas     85   9  29  23  29  23  29  23  6  0          CF_CANFOCUS+CANVAS
+ 4 gCanvas    114   9  36  23  36  23  36  23  6  0          CF_CANFOCUS+CANVAS
+ 5 gCanvas    150   9  45  23  45  23  45  23  6  0          CF_CANFOCUS+CANVAS
+ 6 gHbox        8   9 222  30 187  23   0   0  7  {1..5}     CF_EXPANDB+CTNR
+ 7 gDialog    840 500 240  80 210  73 240  80  0  {6}        CF_CTNR+RESIZE+MODAL+CLESC
+--*/
 --gUseGTK()
 
-constant {ucb,ccb,urb,crb,irb} = get_checks() -- unchecked and checked gImages, all 13x13
-
-rtn chk_click -- (OK since only ever the same 'action')
+rtn chk_click -- (in lieu of hSetHandler(`VALUE_CHANGED`), OK since only ever the same 'action')
 constant backend = gVersion(-1),
          backver = gVersion(-2)
 
+gdn ucb = NULL, ccb, urb, crb, irb
+
 --/*
--- ctrl_xtra[CX_GTL_ATTRS] for gCheckbox():
-local constant chk_attrs = {{      CXCHK_TITLE:=$,'S',`TITLE`       }, -- title
+-- ctrl_xtra[] for gCheckbox():
+local constant chk_attrs = {
+--                          {      CXCHK_TITLE:=$,'S',`TITLE`       }, -- title
                             {      CXCHK_RADIO:=$,'i',`[radio]`     }}, -- group-id
                             {      CXCHK_VALUE:=$,'B',`VALUE`       }}, -- checked
                    CXCHK__LEN = length(chk_attrs),
 --*/
 
 sequence ctrl_xtra = {} -- hCheckbox-specific
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
-enum CXCHK_TITLE,
+enum --CXCHK_TITLE,
      CXCHK_RADIO,
      CXCHK_VALUE,
      CXCHK_LEN = $
 
-sequence radio_sets = {},
-         radio_selected = {}
+local sequence radio_sets = {},
+           radio_selected = {}
 
 --function tg_chk_key(gdx chk, integer c, bool ctrl, shift, alt)
 procedure tg_chk_key(gdx chk, integer c)
@@ -49,18 +59,18 @@ procedure tg_chk_key(gdx chk, integer c)
 --      end if
     if c=' ' and gGetAttribute(chk,`ACTIVE`) then
         bool bState = true
-        integer radio = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO]
+        integer radio = ctrl_xtra[chk][CXCHK_RADIO]
         if radio then
             gdx prv = radio_selected[radio]
-            ctrl_xtra[prv][CX_GTL_ATTRS][CXCHK_VALUE] = false
-            ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE] = true
+            ctrl_xtra[prv][CXCHK_VALUE] = false
+            ctrl_xtra[chk][CXCHK_VALUE] = true
             radio_selected[radio] = chk
         else
-            bState = not ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE]
-            ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE] = bState
+            bState = not ctrl_xtra[chk][CXCHK_VALUE]
+            ctrl_xtra[chk][CXCHK_VALUE] = bState
         end if
         gRedraw(gGetDialog(chk))
---      atom handler = gGetHandler(chk,`ACTION`)
+--      atom handler = gGetHandler(chk,`VALUE_CHANGED`)
         if chk_click then
 --          handler(chk,bState)
             chk_click(chk,bState)
@@ -77,16 +87,21 @@ local procedure tg_chk_mouse_click(gdx chk, sequence status)
 end procedure
 
 procedure tg_chk_redraw(gdx chk, integer w, h)
-    string chk_txt = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_TITLE]
+--  string chk_txt = ctrl_xtra[chk][CXCHK_TITLE]
+    string chk_txt = gGetAttribute(chk,`TITLE`)
     integer {tw,th} = gGetAttribute(chk,`SIZE`), tx=6, ty=12
 --DEV unused...
     bool bActive = gGetAttribute(chk,`ACTIVE`),
-         bChecked = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE],
-         bRadio = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO]
+         bChecked = ctrl_xtra[chk][CXCHK_VALUE],
+         bRadio = ctrl_xtra[chk][CXCHK_RADIO]
     if backend=TG_GTK then
         {tx,ty,tw,th} = {4,11,tw-1,th-4}
     elsif backend!=TG_WINAPI then
         ?9/0
+    end if
+    if ucb=NULL then
+        {ucb,ccb,urb,crb,irb} = gGetGlobal(`chk_xpm`) -- unchecked and checked gImages, all 13x13
+                                         -- ^^^^^^^ -- otherwise not documented anywhere
     end if
     gdm image = iff(bRadio?iff(bChecked?crb:urb)
                           :iff(bChecked?ccb:ucb))
@@ -103,7 +118,7 @@ procedure tg_chk_redraw(gdx chk, integer w, h)
     atom txtclr = iff(bActive?TG_BLACK:TG_DARK_GREY)
     gDrawText(chk,tx+16,ty,chk_txt,colour:=txtclr)
     if gGetFocus()==chk and bActive then
-        gDrawRect(chk,2,2,tw,th-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
+        gDrawRect(chk,2,2,tw-1,th-2,rc:=2,colour:=TG_BLACK,style:=TG_DOTTED)
     end if
 end procedure   
 
@@ -116,30 +131,35 @@ function hCheckbox(nullable_string title=NULL, rtn value_changed=NULL)
     if platform()!=JS then
         ctrl_xtra &= repeat(0,chk-length(ctrl_xtra))
     end if
-    ctrl_xtra[chk] = repeat(0,CX_GTL_ATTRS)
     object chk_attr = repeat(0,CXCHK_LEN)
-    chk_attr[CXCHK_TITLE] = title
-    ctrl_xtra[chk][CX_GTL_ATTRS] = chk_attr
+--  chk_attr[CXCHK_TITLE] = title
+    ctrl_xtra[chk] = chk_attr
     chk_attr = 0
 --  tg_set_mnemonic(title,chk)
+    gSetAttribute(chk,`TITLE`,title)
     gSetAttribute(chk,`CANFOCUS`,true)
     gSetHandler(chk,`CLICK`,tg_chk_mouse_click)
     gSetHandler(chk,`KEY`,tg_chk_key)
+--  gSetHandler(chk,`VALUE_CHANGED`,value_changed)
     chk_click = value_changed
     return chk
 end function
 
 local procedure set_chk_sizes(sequence chks)
+    -- (to be done by gShow, for any CXCHK_RADIO it finds)
     for chk in chks do
---      string title = gGetAttribute(id,`TITLE`)
-        string title = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_TITLE]
+        string title = gGetAttribute(chk,`TITLE`)
         integer {tw,th} = gGetTextExtent(title,chk)
         if backend=TG_GTK then
             tw += 5
-        elsif backend!=TG_WINAPI then
+        elsif backend=TG_WINAPI then
+            tw += 7
+        else
             ?9/0
         end if
         gSetAttribute(chk,`SIZE`,{tw+19,th+8})
+--          ctrl_size[id][SZ_USER_W] = tw+19
+--          ctrl_size[id][SZ_USER_H] = th+8
     end for
 end procedure
 
@@ -155,26 +175,25 @@ procedure hRadio(gdx chks)
     integer rdx = length(radio_sets), sdx = 0
     for chk in chks do
 --assert it is a gCheckbox...
-        if ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO] then ?9/0 end if
-        ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO] = rdx
-        bool bState = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE]
+        -- not already part of any other radio group:
+        if ctrl_xtra[chk][CXCHK_RADIO] then ?9/0 end if
+        ctrl_xtra[chk][CXCHK_RADIO] = rdx
+        bool bState = ctrl_xtra[chk][CXCHK_VALUE]
         if bState then
             if sdx=0 then sdx = chk else ?9/0 end if
         end if
     end for
     if sdx=0 then 
         sdx = chks[1]
-        ctrl_xtra[sdx][CX_GTL_ATTRS][CXCHK_VALUE] = true
+        ctrl_xtra[sdx][CXCHK_VALUE] = true
     end if
     radio_selected = append(radio_selected,sdx)
 end procedure
 
---/* untested:
-function gRadioItem(gdx id)
-    integer rdx = ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_RADIO]
+function hRadioItem(gdx id)
+    integer rdx = ctrl_xtra[id][CXCHK_RADIO]
     return radio_selected[rdx]
 end function
---*/
 
 --/*
 -- if not <included by gRadio.exw?> then
@@ -186,7 +205,8 @@ gdx chk = hCheckbox(`Is this c&hecked?`,value_changed),
     hbx = gHbox(chks,`SPACE=AROUND`),
     dlg = gDialog(hbx,`gCheckbox`,`SIZE=240x80`)
 --gSetAttribute(chk,`VALUE`,true)
---ctrl_xtra[chk][CX_GTL_ATTRS][CXCHK_VALUE] = true
+--ctrl_xtra[chk][CXCHK_VALUE] = true
+--gSetAttribute(chk,`BGCLR`,TG_RED)
 --gSetAttribute(chk,`ACTIVE`,false)
 --?gGetAttribute(chk,`VALUE`)
 set_chk_sizes(chks)
@@ -197,9 +217,13 @@ gMainLoop()
 -- gRadio:
 procedure radio_changed(gdx toggle, bool bState)
 --?9/0
---  string title = gGetAttribute(toggle,`TITLE`)
-    string title = ctrl_xtra[toggle][CX_GTL_ATTRS][CXCHK_TITLE]
+    string title = gGetAttribute(toggle,`TITLE`)
+--  string title = ctrl_xtra[toggle][CXCHK_TITLE]
     printf(1,"toggle(%s), state:%t\n",{title,bState})
+    -- (since we know they are in a hbox, not necc always true)
+    gdx hbox = gGetParent(toggle),
+        rchk = gGetChild(hbox,rand(gGetChildCount(hbox)))
+    assert(hRadioItem(rchk)==toggle)
 end procedure
 
 --string yattr = `VALUE=ON, FONT="Arial, italic 9"`
@@ -212,17 +236,18 @@ gdx ygitb = {hCheckbox(`&You`,radio_changed),
      hbox = gHbox(ygitb,`MARGIN=9x8`),
       dlg = gDialog(hbox,`gRadio`,`SIZE=240x80`)
 gSetAttribute(ygitb[1],`FONT`,`Arial, italic 9`)
---ctrl_xtra[ygitb[2]][CX_GTL_ATTRS][CXCHK_VALUE] = true
+--ctrl_xtra[ygitb[2]][CXCHK_VALUE] = true
 --gRadio(ygitb)
 hRadio(ygitb)
 --gSetAttribute(ygitb[1],`ACTIVE`,false)
 --gSetAttribute(ygitb[1],`VALUE`,false) -- illegal!
 --gSetAttribute(ygitb[1],`VALUE`,true) -- (ok if we no-attr g)
+--?{ygitb,hRadioItem(ygitb[$])}
 --gShow(dlg)
 --gSetAttribute(ygitb[2],`VALUE`,false) -- still illegal
 --gSetAttribute(ygitb[3],`VALUE`,true) - ok
 --gdx selected = gRadioItem(ygitb[5])
 --?gGetAttribute(selected,`TITLE`)
-set_chk_sizes(ygitb)
+set_chk_sizes(ygitb) -- (to be done by gShow)
 gMainLoop(dlg)
 --*!/

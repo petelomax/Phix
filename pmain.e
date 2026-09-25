@@ -3803,6 +3803,8 @@ string emsg
 --4/10/2020:
 if Q_Routine>0 and Q_Routine<=T_Asm then
     Q_Routine = get_hll_stub(Q_Routine)
+--31/8/26!
+    builtinsReferenced = 1          
 end if
 --  if Q_Routine!=0 then
     if Q_Routine>T_object then
@@ -8059,9 +8061,11 @@ object sig
 --                          N = 9/0
 --                          ?"line 7291 pmain.e, N<=T_Asm"
                             N = get_hll_stub(N)
+--31/8/26!
+                            builtinsReferenced = 1          
                             if N=0 then Aborp("invalid") end if
                         end if
-                        Or_K_ridt(N, S_used+K_ridt)
+                        Or_K_ridt(N,S_used+K_ridt)
                         integer k = addRoutineId(N)
                         PushFactor(k,true,T_integer)
                         if Ch!=-1 then

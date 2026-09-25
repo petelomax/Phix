@@ -1,0 +1,430 @@
+--
+-- demo\theGUI\win_scroller.exw
+-- ============================
+--
+--  Port of scrolla.exw (arwen) to theGUI.WINAPI.e
+--
+--?""
+--requires(64,true)
+
+--/*
+It's about time I integrated OpenGL into my new "theGUI", which is based on raw WinAPI (or GTK, but that's not the focus here). 
+I had it working with the older "pGUI", which wrapped IUP, and in particular replacing IupGLMakeCurrent() is defeating me.
+
+First up, a simple html demo I'd like to match in desktop/Phix, below that a simple template to use, which I expect most if not 
+all changes to be inside draw_stuff (which can be passed mBmp if that helps). Note that I'm not using glut/glew or anything similar,
+and I would certainly prefer that the final audience need not install extra stuff.
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebGL 2.0 Triangle Test</title>
+<style>
+    body { margin:0; overflow:hidden; background:#000; }
+    #hud {
+        position:absolute; top:0; left:0; width:100%; height:45px;
+        background:rgba(15,15,15,0.55); color:#fff; padding:8px 12px;
+        box-sizing:border-box; pointer-events:none;
+        display:flex; align-items:center; gap:12px; font-size:14px;
+    }
+    #hud .dot { width:12px; height:12px; background:#e00; border-radius:50%; }
+    #fps { margin-left:auto; font-family:monospace; }
+</style>
+</head>
+<body>
+<div id="hud">
+    <div class="dot"></div>
+    <div>WEBGL TRIANGLE TEST</div>
+    <div id="fps"></div>
+</div>
+
+<canvas id="glcanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2');
+if (!gl) {
+    alert('WebGL 2.0 not supported');
+    throw new Error('WebGL 2.0 not supported');
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// Shaders - ultra simple pass-through
+const vertexShaderSource = `#version 300 es
+precision mediump float;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec4 aColor;
+uniform mat4 uMVP;
+out vec4 vColor;
+void main() {
+    vColor = aColor;
+    gl_Position = uMVP * vec4(aPosition, 1.0);
+}`;
+
+const fragmentShaderSource = `#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 fragColor;
+void main() {
+    fragColor = vColor;
+}`;
+
+function compileShader(source, type) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        throw new Error('Shader compile failed: ' + gl.getShaderInfoLog(shader));
+    }
+    return shader;
+}
+
+const shaderProgram = gl.createProgram();
+gl.attachShader(shaderProgram, compileShader(vertexShaderSource, gl.VERTEX_SHADER));
+gl.attachShader(shaderProgram, compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER));
+gl.linkProgram(shaderProgram);
+if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    throw new Error('Program link failed: ' + gl.getProgramInfoLog(shaderProgram));
+}
+gl.useProgram(shaderProgram);
+
+const uMVP = gl.getUniformLocation(shaderProgram, 'uMVP');
+
+// Set up a single triangle in clip space (so we know exactly where it appears)
+// This triangle covers: bottom-left (-0.8,-0.8), bottom-right (0.8,-0.8), top (0,0.8)
+const triangleVertices = new Float32Array([
+    // X, Y, Z
+    -0.8, -0.8, 0.0,
+     0.8, -0.8, 0.0,
+      0.0,  0.8, 0.0
+]);
+
+// Solid red color for all vertices (RGBA)
+const triangleColors = new Float32Array([
+    // R, G, B, A
+    1.0, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 1.0
+]);
+
+// Create and bind buffers
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, triangleVertices, gl.STATIC_DRAW);
+
+const colorBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, triangleColors, gl.STATIC_DRAW);
+
+// Get attribute locations
+const positionLoc = gl.getAttribLocation(shaderProgram, 'aPosition');
+const colorLoc = gl.getAttribLocation(shaderProgram, 'aColor');
+
+// Enable attributes
+gl.enableVertexAttribArray(positionLoc);
+gl.enableVertexAttribArray(colorLoc);
+
+// Set attribute pointers (CRITICAL: must match buffer data)
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+
+// Set MVP to identity (no transformation)
+gl.uniformMatrix4fv(uMVP, false, new Float32Array([
+    1,0,0,0,
+    0,1,0,0,
+    0,0,1,0,
+    0,0,0,1
+]));
+
+// Clear color
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
+
+let lastTime = 0;
+let fps = 0;
+let frameCount = 0;
+
+function updateFPS(time) {
+    frameCount++;
+    if (time - lastTime >= 1000) {
+        fps = Math.round((frameCount * 1000) / (time - lastTime));
+        frameCount = 0;
+        lastTime = time;
+        document.getElementById('fps').textContent = `FPS: ${fps}`;
+    }
+}
+
+function render(time) {
+    updateFPS(time);
+    
+    // Clear
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    // Draw triangle
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+    
+    requestAnimationFrame(render);
+}
+
+// Start
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
+
+And here is the promised Phix template program:
+--*/
+
+include theGUI.WINAPI.e
+--include opengl.e
+
+constant white = 0xFFFFFFFF
+
+procedure draw_stuff(atom mDC,integer w, h)
+    // Draw an X
+    MoveToEx(mDC, 0, 0, NULL);      LineTo(mDC, w-1, h-1)
+    MoveToEx(mDC, w-1, 0, NULL);    LineTo(mDC, 0, h-1)
+end procedure
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, false)
+            return 0
+
+        case WM_PAINT:
+            integer {?,?,w,h} = GetClientRect(hWnd) -- (sets pRECT)
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT),
+                 mDC = CreateCompatibleDC(hdc),
+                mBmp = CreateCompatibleBitmap(hdc, w, h),
+                pBmp = SelectObject(mDC, mBmp)
+            // Clear background
+            FillRect(mDC, pRECT, white) -- (pRECT already set "")
+
+            draw_stuff(mDC, w, h)
+
+            // Blit backbuffer to screen
+            BitBlt(hdc, 0, 0, w, h, mDC, 0, 0, SRCCOPY)
+
+            // Cleanup
+            {} = SelectObject(mDC, pBmp)
+            DeleteObject(mBmp)
+            DeleteDC(mDC)
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("ScrollCanvas",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0, "ScrollCanvas", "Virtual Window Demo",
+                               WS_OVERLAPPEDWINDOW,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+                               NULL, NULL, 0, NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+
+--/*
+-- scrolla.exw
+-- ============
+--  Ported to Arwen from a Win32lib demo posted on EuForum (see file of same name in ..\win32libdemo\)
+--  Completely rewrote the focus handling, added double buffered display and zooming.
+--
+--include arwen.ew
+--include axtra.ew  -- setPenColor/drawRectangleh (bit of a hack to be honest)
+
+-- Terminology:
+--  main: the (resizeable) window (X/Y/DC).
+--  view: the display buffer bitmap, at least as large as main (X/Y/DC/BM).
+--  image: the (fixed) object being scrolled/panned/zoomed (X/Y/DC/BM).
+--  focus: the point in the image corresponding to the centre of the view.
+
+integer mainX = 640,    -- (x size of window, less borders, scrollbars etc.)
+        mainY = 480,    --  y                   ""
+        viewX,          -- (x size of viewBM, kept >= size of window, ie mainX)
+        viewY           --  y                   ""                          Y
+atom viewBM = NULL      -- display buffer (from xCreateCompatibleBitmap).
+
+constant Main = create(Window, "Virtual Window Demo", 0, 0, 25, 25, mainX, mainY, {{WS_HSCROLL,WS_VSCROLL},0}),
+         mainDC = getPrivateDC(Main),
+         imageX = 1280,
+         imageY = 960,
+         imageDC = c_func(xCreateCompatibleDC,{mainDC}),
+         imageBM = c_func(xCreateCompatibleBitmap,{mainDC, imageX, imageY}),
+         viewDC = c_func(xCreateCompatibleDC,{mainDC})
+
+--
+-- {focusX,focusY} represents the logical focus point, moved by scrolling, but *not* by resizing or zooming.
+-- As an example, if we were viewing a map, zoomed in to Hampstead, as we zoom out that stays in the centre, until we hit an 
+--  edge of the map, after which futher zooming pulls Hamstead towards that edge, until eventually the whole map fits on the 
+--  screen, centred, with Muswell Hill slap in the middle. Now, as we zoom back in or un-maximise the window, then it should 
+--  return to Hampstead rather than Muswell Hill. The same idea is good for any image or document, obviously in the latter 
+--  it is a sentence or paragraph, whereas things like google maps, fractal images and artificial worlds don't necessarily
+--  have any edges, in which case this would still work fine just not really achieve anything.
+--
+atom focusX, focusY         -- (stored as atoms so that single-step scroll at very high magnification still works)
+bool firsttime = true,      -- (controls setting of {focusX, focusY}, and calling drawImage)
+     drawfocus = false
+
+procedure drawImage()
+-- initialise imageBM, and optionally redraw when the focus changes
+    if firsttime then
+        {} = c_func(xDeleteObject,{c_func(xSelectObject,{imageDC, imageBM})})
+    end if
+    setPenColor(BrightWhite)    drawRectangleh(imageDC, True, 0, 0, imageX, imageY)
+    setPenColor(Black)          drawRectangleh(imageDC, False, 10, 10, floor((imageX-80)/2), floor((imageY-130)/2))
+    setPenColor(BrightRed)      drawRectangleh(imageDC, False, floor(imageX/4), floor(imageY/4), imageX-75, imageY-75)
+    setPenColor(Green)          drawRectangleh(imageDC, False, 5, 5, imageX-5, imageY-5)
+    if drawfocus then
+        setPenColor(Green)      drawRectangleh(imageDC, False, floor(focusX-2), floor(focusY-2), floor(focusX+2), floor(focusY+2))
+    end if
+end procedure
+
+integer zoom = 10   -- in tenths (1..1000+, upper limit depends solely on how quickly you get bored), or -1= fit to screen
+
+function Zoom(atom v)       return v*zoom/10            end function
+function Zoomf(atom v)      return floor(Zoom(v)+0.5)   end function
+function UnZoom(integer v)  return v*10/zoom            end function
+function UnZoomf(integer v) return floor(UnZoom(v)+0.5) end function
+
+function mainHandler(integer id, integer msg, atom wParam, object /*lParam*/)
+    if msg=WM_PAINT then
+        integer ZimageX = Zoomf(imageX),
+                ZimageY = Zoomf(imageY),
+                ZfocusX, ZfocusY, halfX, halfY
+        if not firsttime then
+            ZfocusX = Zoomf(focusX)
+            ZfocusY = Zoomf(focusY)
+        end if
+        for max_iterations=1 to 2 do                -- (repeat if the scrollbar visibility changes)
+            sequence mcr = getClientRect(Main)      -- (less scroll bars, status line, and menu)
+            {halfX,halfY,mainX,mainY} = mcr
+            assert(halfX=0 and halfY=0)             -- sanity check
+            halfX = floor(mainX/2)
+            halfY = floor(mainY/2)
+            if firsttime then
+                {focusX,focusY} = {halfX,halfY}
+                ZfocusX = Zoomf(focusX)
+                ZfocusY = Zoomf(focusY)
+            end if
+            -- (a zoom of -1 is fit to screen, so deliberately disable/hide the scrollbars)
+            sequence six = {1,100,100,1}, siy = six             -- scroll info (scratch)
+            if zoom!=-1 then 
+                six = {halfX,ZimageX+halfX,mainX,ZfocusX}       -- {Min/Max/Pagesize/Pos}
+                siy = {halfY,ZimageY+halfY,mainY,ZfocusY}
+            end if
+            setScrollInfo({id,SB_HORZ},six,1)
+            setScrollInfo({id,SB_VERT},siy,1)
+            if getClientRect(Main)=mcr then exit end if
+        end for
+        if viewBM=NULL
+        or mainX>viewX
+        or mainY>viewY then
+            {viewX,viewY} = {mainX,mainY}
+            viewBM = c_func(xCreateCompatibleBitmap,{mainDC, viewX, viewY})
+            {} = c_func(xDeleteObject,{c_func(xSelectObject,{viewDC, viewBM})})
+        end if
+
+        integer dstX = 0, dstY = 0, dstW = mainX, dstH = mainY,
+                srcX = 0, srcY = 0, srcW = imageX, srcH = imageY
+        if zoom!=-1 then
+            if firsttime or drawfocus then
+                drawImage()
+            end if
+
+            setPenColor(Parchment)
+            drawRectangleh(viewDC, True, 0, 0, mainX, mainY)        -- clear background
+
+            srcX = ZfocusX-halfX
+            integer gap = mainX-ZimageX
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstX = floor(gap/2)         -- so just center it
+                dstW = ZimageX
+                srcX = 0
+            elsif srcX<=0 then              -- gap on lhs? (and overhang>gap on rhs)
+                srcX = 0                    -- so move to "hard left" (some overhang remains on rhs)
+            elsif srcX>ZimageX-mainX then   -- gap on rhs? (and overhang>gap on lhs)
+                srcX = ZimageX-mainX        -- so move to "hard right" (some overhang remains on lhs)
+            end if
+            srcY = ZfocusY-halfY
+            gap = mainY-ZimageY
+            if gap>=0 then                  -- (enough for) gap on both sides
+                dstY = floor(gap/2)         -- so just center it
+                dstH = ZimageY
+                srcY = 0
+            elsif srcY<=0 then              -- gap on top? (and overhang>gap on btm)
+                srcY = 0                    -- so move to "hard top" (some overhang remains on btm)
+            elsif srcY>ZimageY-mainY then   -- gap on btm? (and overhang>gap on top)
+                srcY = ZimageY-mainY        -- so move to "hard btm" (some overhang remains on top)
+            end if
+            srcX = UnZoomf(srcX)
+            srcY = UnZoomf(srcY)
+            srcW = UnZoomf(dstW)
+            srcH = UnZoomf(dstH)
+        end if
+        {} = c_func(xStretchBlt, {viewDC,dstX,dstY,dstW,dstH,imageDC,srcX,srcY,srcW,srcH,SRCCOPY})
+        {} = c_func(xBitBlt, {mainDC, 0, 0, mainX, mainY, viewDC, 0, 0, SRCCOPY})
+        firsttime = false
+    elsif msg=WM_HSCROLL then
+        focusX = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_VSCROLL then
+        focusY = UnZoom(wParam)
+        repaintWindow(Main,False)
+    elsif msg=WM_CHAR then
+        if wParam=VK_ESCAPE then
+            closeWindow(Main)
+        elsif find(wParam,"=#-+fF") then
+            integer oldzoom = zoom
+            if    wParam='#'            then zoom = -1
+            elsif wParam='=' or zoom<0  then zoom = 10
+            elsif wParam='-' and zoom>1 then zoom -= 1
+            elsif wParam='+'            then zoom += 1
+            elsif lower(wParam)='f'     then 
+                drawfocus = not drawfocus; oldzoom = 0
+                drawImage()
+            end if
+            if zoom!=oldzoom then
+                repaintWindow(Main,False)
+            end if
+        end if
+    end if
+    return 0
+end function
+setHandler(Main, mainHandler)
+
+WinMain(Main, SW_NORMAL) 
+--*/

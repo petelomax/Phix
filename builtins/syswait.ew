@@ -27,12 +27,13 @@ constant
 --  INFINITE = #FFFFFFFF,    -- Infinite timeout
     FORTYMS = 40,            -- Forty milliseconds, 1/25th of a second
 --  ONE32TH = 0.03125        -- 1/32 second (31.25 ms) (for linux)
---  STARTF_USESHOWWINDOW = 1,
+    STARTF_USESHOWWINDOW = 1,
     STARTF_USESTDHANDLES = #100,
 --  STD_OUTPUT_HANDLE   = -11,  -- #FFFFFFF5
 --  STD_INPUT_HANDLE    = -10,  -- #FFFFFFF6
 --  STD_ERROR_HANDLE    = -12,
-    STILL_ACTIVE = 259
+    STILL_ACTIVE = 259,
+    SW_HIDE = 0
 --  ,
 --  PROCESS_QUERY_INFORMATION=#400
 --  CREATE_NEW_CONSOLE=#10
@@ -70,6 +71,7 @@ constant    -- TYPE STARTUPINFO
 --  dwFlags         = 44,       -- DWORD
     dwFlags         = 4*W+28,   -- DWORD
 --  wShowWindow     = 48,       -- WORD
+    wShowWindow     = 4*W+32,   -- WORD
 --  cbReserved2     = 50,       -- WORD
 --  lpReserved2     = 52,       -- BYTE PTR
 --  hStdInput       = 56,       -- DWORD
@@ -109,7 +111,8 @@ procedure initsw()
         kernel32 = open_dll("kernel32.dll")
 
 --#without reformat
-        xCreateProcess = define_c_func(kernel32, "CreateProcessA",
+--      xCreateProcess = define_c_func(kernel32, "CreateProcessA",
+        xCreateProcess = define_c_func(kernel32, "CreateProcessW",
             {C_PTR,     --  LPCTSTR lpApplicationName, // pointer to name of executable module
              C_PTR,     --  LPTSTR lpCommandLine, // pointer to command line string
              C_PTR,     --  LPSECURITY_ATTRIBUTES lpProcessAttributes, // pointer to process security attributes
@@ -149,7 +152,8 @@ procedure initsw()
 
         shell32 = open_dll("shell32.dll")
 
-        xShellExecute = define_c_func(shell32, "ShellExecuteA",
+--      xShellExecute = define_c_func(shell32, "ShellExecuteA",
+        xShellExecute = define_c_func(shell32, "ShellExecuteW",
             {C_PTR,     --  HWND  hwnd, // handle to parent window
              C_PTR,     --  LPCTSTR  lpOperation,   // pointer to string that specifies operation to perform
              C_PTR,     --  LPCTSTR  lpFile,    // pointer to filename string
@@ -281,8 +285,9 @@ atom ret, void, hProc
 , hThr
 --integer doevents
 atom si, pi, pError
-atom child = allocate_string(child_process)
+--atom child = allocate_string(child_process)
     if platform()=WINDOWS then
+        atom child = allocate_wstring(utf8_to_utf16(child_process))
         if not swinit then initsw() end if
         si = allocate(SIZEOF_STARTUPINFO)
         mem_set(si,0,SIZEOF_STARTUPINFO)
@@ -300,7 +305,9 @@ atom child = allocate_string(child_process)
             if length(pipes)>=PIPERR and sequence(pipes[PIPERR]) then
                 pokeN(si+hStdError,pipes[PIPERR][WRITE_PIPE],W)
             end if
-            poke4(si+dwFlags,STARTF_USESTDHANDLES)
+--          poke4(si+dwFlags,STARTF_USESTDHANDLES)
+            poke4(si+dwFlags,or_bits(STARTF_USESTDHANDLES,STARTF_USESHOWWINDOW))
+            poke2(si+wShowWindow,SW_HIDE)
         end if
 
         pi = allocate(SIZEOF_PROCESS_INFORMATION)
@@ -405,9 +412,10 @@ atom child = allocate_string(child_process)
             void = c_func(xCloseHandle, {hProc})
         end if
         void = c_func(xCloseHandle, {hThr})
+--      free(child)
 
     elsif platform()=LINUX then
-
+        atom child = allocate_string(child_process)
         if Wait<=0 then
             #ilASM{
                 [ELF32]
@@ -468,6 +476,7 @@ atom child = allocate_string(child_process)
                 []
                   }
         end if
+        free(child)
 --  char *const argv[] = {
 --      "sh",
 --      "-c", "ls | wc",  // Command to execute.
@@ -845,7 +854,11 @@ end procedure
 global procedure system_open(sequence filename)
     if platform()=WINDOWS then
         if not swinit then initsw() end if
-        {} = c_func(xShellExecute,{0,"open",filename,0,0,SW_NORMAL})
+--      {} = c_func(xShellExecute,{0,"open",filename,0,0,SW_NORMAL})
+        atom pOpen = allocate_wstring("open"),
+             pFilename = allocate_wstring(utf8_to_utf16(filename))
+        {} = c_func(xShellExecute,{0,pOpen,pFilename,0,0,SW_NORMAL})
+        free({pOpen,pFilename})
     else
         system("xdg-open "&filename)
     end if

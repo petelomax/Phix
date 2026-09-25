@@ -69,12 +69,12 @@ constant
 --       I  = iff(machine_bits()=32 ? C_INT  : C_INT64),
 --       L  = C_LONG,
          P  = C_PTR, 
-         $
 --       F  = C_FLOAT,
 --       L  = C_LONG,
 --       U  = C_UINT,
 --       UC = C_UCHAR,
 --       UL = C_ULONG,
+         $
 
 --DEV remove if slowdown is neglible... [DEV it is]
 constant debug_types = true
@@ -302,6 +302,12 @@ global function mpir_open_dll(string dll_name="", boolean mpir_only=false)
         return missing_dll
     end if
     return ""   -- OK
+end function
+
+--DEV undocumented as yet:
+global function get_mpir_dll()
+    if mpir_dll=NULL then open_mpir_dll() end if
+    return mpir_dll
 end function
 
 integer x_mpfr_get_version = NULL   -- (aka mpfr_version)
@@ -538,13 +544,17 @@ end procedure
 
 integer x_mpz_clear = NULL
 
-procedure _mpz_clear(mpz x)
+--procedure _mpz_clear(mpz x)
+procedure _mpz_clear(object x)
 --
 -- (internal)
 -- Frees any mpz-side memory associated with x, but not the phix-side
 -- as was allocated within mpz_init(); mpz_clear() below does both.
 --
     if x=NULL then ?9/0 end if
+    if not mpz(x) then
+        crash("type check failure, x is %v",nFrames:=3)
+    end if 
     if x_mpz_clear=NULL then
         x_mpz_clear = define_c_proc(mpir_dll, "+__gmpz_clear", {P})
     end if
@@ -970,10 +980,26 @@ global procedure mpz_fdiv_qr(mpz q, r, n, d)
     if n=NULL then ?9/0 end if
     if d=NULL then ?9/0 end if
     if x_mpz_fdiv_qr=NULL then
-        x_mpz_fdiv_qr = define_c_proc(mpir_dll, "+__gmpz_fdiv_qr", {P,P,P,P})
+        x_mpz_fdiv_qr = define_c_proc(mpir_dll, "+__gmpz_fdiv_qr",{P,P,P,P})
     end if
     c_proc(x_mpz_fdiv_qr,{q,r,n,d})
 end procedure
+
+integer x_mpz_tdiv_ui = NULL
+
+global function mpz_tdiv_ui(mpz n, integer b)
+-- integer remainder := abs(trunc(n/b))
+    if n=NULL then ?9/0 end if
+    if b=NULL then ?9/0 end if
+    if x_mpz_tdiv_ui=NULL then
+--      x_mpz_tdiv_ui = define_c_func(mpir_dll, "+__gmpz_tdiv_ui",{P,I},I)
+--       U  = C_UINT,
+--       UL = C_ULONG,
+        x_mpz_tdiv_ui = define_c_func(mpir_dll, "+__gmpz_tdiv_ui",{P,I},C_UINT)
+    end if
+    integer res = c_func(x_mpz_tdiv_ui,{n,b})
+    return res
+end function
 
 integer x_mpz_tdiv_q_2exp = NULL
 
@@ -4262,6 +4288,85 @@ if not find(res,{-1,0,+1}) then ?9/0 end if
     return res
 end function
 
+-- A complex number is represented as a sequence of two mpfr objects: {real, imag}
+global type mpfr_complex(sequence s)
+    return length(s) == 2 and mpfr(s[1]) and mpfr(s[2])
+end type
+
+--global function mpfr_complex_init(atom r=0, i=0, integer prec=256)
+global function mpfr_complex_init(atom r=0, i=0)
+--  mpfr_complex c = {mpfr_init(r, prec),mpfr_init(i, prec)}
+    mpfr_complex c = {mpfr_init(r),mpfr_init(i)}
+    return c
+end function
+
+global procedure mpfr_complex_set(mpfr_complex c, mpfr r, i)
+    mpfr_set(c[1], r)
+    mpfr_set(c[2], i)
+end procedure
+
+global procedure mpfr_complex_set_d(mpfr_complex c, atom r, i=0)
+    mpfr_set_d(c[1], r)
+    mpfr_set_d(c[2], i)
+end procedure
+
+global procedure mpfr_complex_add(mpfr_complex res, a, b)
+    mpfr_add(res[1], a[1], b[1])
+    mpfr_add(res[2], a[2], b[2])
+end procedure
+
+global procedure mpfr_complex_sub(mpfr_complex res, a, b)
+    mpfr_sub(res[1], a[1], b[1])
+    mpfr_sub(res[2], a[2], b[2])
+end procedure
+
+global procedure mpfr_complex_mul(mpfr_complex res, a, b)
+    mpfr r1 = mpfr_init(), r2 = mpfr_init(), 
+         i1 = mpfr_init(), i2 = mpfr_init(),
+         {ar,ai} = a,
+         {br,bi} = b    
+    mpfr_mul(r1, ar, br)
+    mpfr_mul(r2, ai, bi)
+    mpfr_mul(i1, ar, bi)
+    mpfr_mul(i2, ai, br)
+    mpfr_sub(res[1], r1, r2) -- real = ar*br - ai*bi
+    mpfr_add(res[2], i1, i2) -- imag = ar*bi + ai*br
+end procedure
+
+global procedure mpfr_complex_div(mpfr_complex res, a, b)
+    mpfr denom = mpfr_init(), t1 = mpfr_init(), t2 = mpfr_init()
+    
+    mpfr_mul(t1, b[1], b[1])
+    mpfr_mul(t2, b[2], b[2])
+    mpfr_add(denom, t1, t2) -- denom = c^2 + d^2
+    
+    mpfr_mul(t1, a[1], b[1])
+    mpfr_mul(t2, a[2], b[2])
+    mpfr_add(t1, t1, t2)
+    mpfr_div(res[1], t1, denom) -- real = (ac + bd) / denom
+    
+    mpfr_mul(t1, a[2], b[1])
+    mpfr_mul(t2, a[1], b[2])
+    mpfr_sub(t1, t1, t2)
+    mpfr_div(res[2], t1, denom) -- imag = (bc - ad) / denom
+end procedure
+
+global function mpfr_complex_abs(mpfr_complex a)
+    mpfr res = mpfr_init(), t1 = mpfr_init(), t2 = mpfr_init()
+    mpfr_mul(t1, a[1], a[1])
+    mpfr_mul(t2, a[2], a[2])
+    mpfr_add(res, t1, t2)
+    mpfr_sqrt(res, res)
+    return mpfr_get_d(res)
+end function
+
+global function mpfr_complex_cmp(mpfr_complex a, b)
+    integer c = mpfr_cmp(a[1],b[1])
+    if c=0 then c = mpfr_cmp(a[2],b[2]) end if
+    return c
+end function
+
+
 --/*
 mpfr_cmp
 __MPFR_DECLSPEC int mpfr_cmp_ui (mpfr_srcptr, unsigned long);
@@ -4359,11 +4464,54 @@ global procedure mpq_set_si(mpq tgt, integer n, d=1)
     if tgt=NULL then ?9/0 end if
     if d<=0 then ?9/0 end if
     if x_mpq_set_si=NULL then
-        x_mpq_set_si = define_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
+--      x_mpq_set_si = define_c_proc(mpir_dll, "+__gmpq_set_si", {P,I,I})
 --      x_mpq_set_si = define_c_proc(mpir_dll, "+__gmpq_set_ui", {P,I,I})
+--      x_mpq_set_si = get_proc_address(mpir_dll,"__gmpq_set_si")[1]/4
+        x_mpq_set_si = get_proc_address(mpir_dll,"__gmpq_set_si")/4
     end if
-    c_proc(x_mpq_set_si,{tgt,n,d})
-    if d!=1 then
+--  c_proc(x_mpq_set_si,{tgt,n,d})
+    #ilASM{
+        [32]
+            mov ecx,[x_mpq_set_si]
+            mov eax,[d]
+            shl ecx,2
+            call :%pLoadMint
+            push eax
+            mov eax,[n]
+            call :%pLoadMint
+            push eax
+            mov eax,[tgt]
+            call :%pLoadMint
+            push eax
+            call ecx
+            add esp,12
+        [64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+            sub rsp,40
+            -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
+            mov rax,[d]
+            call :%pLoadMint
+            mov r8,rax
+            mov rax,[n]
+            call :%pLoadMint
+            mov rdx,rax
+            mov rax,[tgt]
+            call :%pLoadMint
+            mov rcx,rax
+            mov rax,[x_mpq_set_si]
+            shl rax,2
+            call rax
+            mov rsp,[rsp+40]
+        []
+    }
+--  if d!=1 then
+    if d!=1 and (n!=1 or d<0) then
         mpq_canonicalize(tgt)
     end if
 end procedure
@@ -4515,7 +4663,6 @@ global function mpq_get_d(mpq op)
     return res
 end function
 
-
 integer x_mpq_add = NULL
 
 global procedure mpq_add(mpq rop, op1, op2)
@@ -4524,9 +4671,51 @@ global procedure mpq_add(mpq rop, op1, op2)
     if op1=NULL then ?9/0 end if
     if op2=NULL then ?9/0 end if
     if x_mpq_add=NULL then
-        x_mpq_add = define_c_proc(mpir_dll, "+__gmpq_add", {P,P,P})
+--      x_mpq_add = define_c_proc(mpir_dll, "+__gmpq_add", {P,P,P})
+--      x_mpq_add = get_proc_address(mpir_dll,"__gmpq_add")[1]/4
+        x_mpq_add = get_proc_address(mpir_dll,"__gmpq_add")/4
     end if
-    c_proc(x_mpq_add,{rop,op1,op2})
+--  c_proc(x_mpq_add,{rop,op1,op2})
+    #ilASM{
+        [32]
+            mov ecx,[x_mpq_add]
+            mov eax,[op2]
+            shl ecx,2
+            call :%pLoadMint
+            push eax
+            mov eax,[op1]
+            call :%pLoadMint
+            push eax
+            mov eax,[rop]
+            call :%pLoadMint
+            push eax
+            call ecx
+            add esp,12
+        [64]
+            mov rcx,rsp -- put 2 copies of rsp onto the stack...
+            push rsp
+            push rcx
+            or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                        -- if on entry rsp was xxx8: both copies remain on the stack
+                        -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                        -- obviously rsp is now xxx8, whatever alignment we started with
+            sub rsp,40
+            -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
+            mov rax,[op2]
+            call :%pLoadMint
+            mov r8,rax
+            mov rax,[op1]
+            call :%pLoadMint
+            mov rcx,rax
+            mov rax,[rop]
+            call :%pLoadMint
+            mov rdx,rax
+            mov rax,[x_mpq_add]
+            shl rax,2
+            call rax
+            mov rsp,[rsp+40]
+        []
+    }
 end procedure
 
 integer x_mpq_sub = NULL
@@ -5512,7 +5701,7 @@ __gmpz_tdiv_qr_ui
 __gmpz_tdiv_r
 --__gmpz_tdiv_r_2exp
 __gmpz_tdiv_r_ui
-__gmpz_tdiv_ui
+--__gmpz_tdiv_ui
 __gmpz_trial_division
 --__gmpz_tstbit
 __gmpz_ui_kronecker
@@ -8118,7 +8307,7 @@ void mpz_tdiv_qr (mpz_t q, mpz_t r, mpz_t n, mpz_t d)
 mpir_ui mpz_tdiv_q_ui (mpz_t q, mpz_t n, mpir_ui d) 
 mpir_ui mpz_tdiv_r_ui (mpz_t r, mpz_t n, mpir_ui d) 
 mpir_ui mpz_tdiv_qr_ui (mpz_t q, mpz_t r, mpz_t n, mpir_ui d) 
-mpir_ui mpz_tdiv_ui (mpz_t n, mpir_ui d) 
+--mpir_ui mpz_tdiv_ui (mpz_t n, mpir_ui d) 
 --void mpz_tdiv_q_2exp (mpz_t q, mpz_t n, mp_bitcnt_t b) 
 --void mpz_tdiv_r_2exp (mpz_t r, mpz_t n, mp_bitcnt_t b) 
 Divide n by d, forming a quotient q and/or remainder r. For the 2exp functions, d = 2b. The

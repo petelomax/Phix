@@ -1,0 +1,345 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Holey Menger Sponge (Cantor Dust) – WebGL2</title>
+<style>
+  body {margin:0;overflow:hidden;background:#111;}
+  canvas {display:block;width:100vw;height:100vh;}
+</style>
+</head>
+<body>
+<canvas id="glcanvas"></canvas>
+<script>
+/* ==============================================================
+   Tiny column-major 4×4 matrix helpers (WebGL expects column-major)
+   ============================================================== */
+function mat4Identity() {
+  return new Float32Array([
+    1,0,0,0,
+    0,1,0,0,
+    0,0,1,0,
+    0,0,0,1
+  ]);
+}
+function mat4Copy(out, src) { out.set(src); }
+
+/* out = a * b   (column-major) */
+function mat4Multiply(out, a, b) {
+  const a00=a[0], a01=a[1], a02=a[2], a03=a[3];
+  const a10=a[4], a11=a[5], a12=a[6], a13=a[7];
+  const a20=a[8], a21=a[9], a22=a[10], a23=a[11];
+  const a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+
+  const b00=b[0], b01=b[1], b02=b[2], b03=b[3];
+  const b10=b[4], b11=b[5], b12=b[6], b13=b[7];
+  const b20=b[8], b21=b[9], b22=b[10], b23=b[11];
+  const b30=b[12],b31=b[13],b32=b[14],b33=b[15];
+
+  out[0]  = a00*b00 + a10*b01 + a20*b02 + a30*b03;
+  out[1]  = a01*b00 + a11*b01 + a21*b02 + a31*b03;
+  out[2]  = a02*b00 + a12*b01 + a22*b02 + a32*b03;
+  out[3]  = a03*b00 + a13*b01 + a23*b02 + a33*b03;
+  out[4]  = a00*b10 + a10*b11 + a20*b12 + a30*b13;
+  out[5]  = a01*b10 + a11*b11 + a21*b12 + a31*b13;
+  out[6]  = a02*b10 + a12*b11 + a22*b12 + a32*b13;
+  out[7]  = a03*b10 + a13*b11 + a23*b12 + a33*b13;
+  out[8]  = a00*b20 + a10*b21 + a20*b22 + a30*b23;
+  out[9]  = a01*b20 + a11*b21 + a21*b22 + a31*b23;
+  out[10] = a02*b20 + a12*b21 + a22*b22 + a32*b23;
+  out[11] = a03*b20 + a13*b21 + a23*b22 + a33*b23;
+  out[12] = a00*b30 + a10*b31 + a20*b32 + a30*b33;
+  out[13] = a01*b30 + a11*b31 + a21*b32 + a31*b33;
+  out[14] = a02*b30 + a12*b31 + a22*b32 + a32*b33;
+  out[15] = a03*b30 + a13*b31 + a23*b32 + a33*b33;
+  return out;
+}
+function mat4Translate(out, a, v) {
+  const x=v[0], y=v[1], z=v[2];
+  const a00=a[0], a01=a[1], a02=a[2], a03=a[3];
+  const a10=a[4], a11=a[5], a12=a[6], a13=a[7];
+  const a20=a[8], a21=a[9], a22=a[10], a23=a[11];
+  const a30=a[12],a31=a[13],a32=a[14],a33=a[15];
+
+  out[0] = a00; out[1] = a01; out[2] = a02; out[3] = a03 + x*a00 + y*a01 + z*a02;
+  out[4] = a10; out[5] = a11; out[6] = a12; out[7] = a13 + x*a10 + y*a11 + z*a12;
+  out[8] = a20; out[9] = a21; out[10]= a22; out[11]= a23 + x*a20 + y*a21 + z*a22;
+  out[12]= a30; out[13]= a31; out[14]= a32; out[15]= a33 + x*a30 + y*a31 + z*a32;
+  return out;
+}
+function mat4Scale(out, a, v) {
+  const x=v[0], y=v[1], z=v[2];
+  out[0] = a[0]*x; out[1] = a[1]*x; out[2] = a[2]*x; out[3] = a[3]*x;
+  out[4] = a[4]*y; out[5] = a[5]*y; out[6] = a[6]*y; out[7] = a[7]*y;
+  out[8] = a[8]*z; out[9] = a[9]*z; out[10]= a[10]*z; out[11]= a[11]*z;
+  out[12]= a[12]; out[13]= a[13]; out[14]= a[14]; out[15]= a[15];
+  return out;
+}
+function mat4Perspective(fovy, aspect, near, far) {
+  const f = 1.0/Math.tan(fovy/2);
+  const nf = 1/(near-far);
+  return new Float32Array([
+    f/aspect, 0, 0, 0,
+    0, f, 0, 0,
+    0, 0, (far+near)*nf, -1,
+    0, 0, (2*far*near)*nf, 0
+  ]);
+}
+function mat4LookAt(eye, center, up) {
+  const z0 = eye[0]-center[0], z1 = eye[1]-center[1], z2 = eye[2]-center[2];
+  let len = 1/Math.hypot(z0,z1,z2);
+  const zx = z0*len, zy = z1*len, zz = z2*len;
+
+  const x0 = up[1]*zz - up[2]*zy;
+  const x1 = up[2]*zx - up[0]*zz;
+  const x2 = up[0]*zy - up[1]*zx;
+  len = 1/Math.hypot(x0,x1,x2);
+  const xx = x0*len, xy = x1*len, xz = x2*len;
+
+  const y0 = zy*xz - zz*xy;
+  const y1 = zz*xx - zx*xz;
+  const y2 = zx*xy - zy*xx;
+
+  const m = new Float32Array(16);
+  m[0] = xx; m[1] = y0; m[2] = zx; m[3] = 0;
+  m[4] = xy; m[5] = y1; m[6] = zy; m[7] = 0;
+  m[8] = xz; m[9] = y2; m[10]= zz; m[11]= 0;
+  m[12]= -(xx*eye[0] + xy*eye[1] + xz*eye[2]);
+//  m[13]= -(yx*eye[0] + yy*eye[1] + yz*eye[2]);
+  m[13]= -(y0*eye[0] + y1*eye[1] + y2*eye[2]);
+  m[14]= -(zx*eye[0] + zy*eye[1] + zz*eye[2]);
+  m[15]= 1;
+  return m;
+}
+
+/* ==============================================================
+   Shaders (GLSL ES 3.00 – WebGL2)
+   ============================================================== */
+const vsSource = `#version 300 es
+layout(location = 0) in vec3 aPos;
+uniform mat4 uMVP;
+uniform vec3 uColor;
+out vec3 vColor;
+void main() {
+    vColor = uColor;
+    gl_Position = uMVP * vec4(aPos, 1.0);
+}
+`;
+
+const fsSource = `#version 300 es
+precision mediump float;
+in vec3 vColor;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(vColor, 1.0);
+}
+`;
+
+/* ==============================================================
+   WebGL setup
+   ============================================================== */
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2');
+if (!gl) {
+    alert('WebGL2 not supported');
+    throw new Error('WebGL2 not available');
+}
+
+// ----- shader compilation helpers -----
+function compileShader(src, type) {
+    const sh = gl.createShader(type);
+    gl.shaderSource(sh, src);
+    gl.compileShader(sh);
+    if (!gl.getShaderParameter(sh, gl.COMPILE_STATUS)) {
+        console.error('Shader compile error:', gl.getShaderInfoLog(sh));
+        gl.deleteShader(sh);
+        return null;
+    }
+    return sh;
+}
+function linkProgram(vs, fs) {
+    const prog = gl.createProgram();
+    gl.attachShader(prog, vs);
+    gl.attachShader(prog, fs);
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+        console.error('Program link error:', gl.getProgramInfoLog(prog));
+        return null;
+    }
+    return prog;
+}
+const vert = compileShader(vsSource, gl.VERTEX_SHADER);
+const frag = compileShader(fsSource, gl.FRAGMENT_SHADER);
+if (!vert || !frag) throw new Error('Shader compilation failed');
+const program = linkProgram(vert, frag);
+if (!program) throw new Error('Program linking failed');
+gl.useProgram(program);
+
+// ----- attribute & uniform locations -----
+const posLoc = gl.getAttribLocation(program, 'aPos');
+const mvpLoc = gl.getUniformLocation(program, 'uMVP');
+const colorLoc = gl.getUniformLocation(program, 'uColor');
+if (posLoc < 0) console.warn('Attribute aPos not found');
+if (mvpLoc < 0) console.warn('Uniform uMVP not found');
+if (colorLoc < 0) console.warn('Uniform uColor not found');
+
+/* ==============================================================
+   Cube geometry (unit cube centred at origin, half-size = 0.5)
+   ============================================================== */
+const cubePositions = new Float32Array([
+  // 8 corners
+  -0.5, -0.5, -0.5,
+   0.5, -0.5, -0.5,
+   0.5,  0.5, -0.5,
+  -0.5,  0.5, -0.5,
+  -0.5, -0.5,  0.5,
+   0.5, -0.5,  0.5,
+   0.5,  0.5,  0.5,
+  -0.5,  0.5,  0.5
+]);
+
+// solid faces → 12 triangles (36 indices)
+const solidIndices = new Uint16Array([
+  // front
+  0,1,2, 2,3,0,
+  // back
+  4,6,5, 5,6,4,
+  // left
+  4,0,3, 3,7,4,
+  // right
+  1,5,6, 6,2,1,
+  // bottom
+  4,5,1, 1,0,4,
+  // top
+  3,2,6, 6,7,3
+]);
+
+// wireframe → 12 edges (24 indices)
+const wireIndices = new Uint16Array([
+  0,1, 1,2, 2,3, 3,0,   // front square
+  4,5, 5,6, 6,7, 7,4,   // back square
+  0,4, 1,5, 2,6, 3,7    // connecting edges
+]);
+
+function createBuffer(data, usage) {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ARRAY_BUFFER, data, usage);
+    return buf;
+}
+function createIndexBuffer(data) {
+    const buf = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buf);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    return buf;
+}
+const posBuf = createBuffer(cubePositions, gl.STATIC_DRAW);
+const solidIdxBuf = createIndexBuffer(solidIndices);
+const wireIdxBuf = createIndexBuffer(wireIndices);
+
+/* ----- VAO that captures the attribute state ----- */
+const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);
+gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(posLoc, 3, gl.FLOAT, false, 0, 0);
+// note: the ELEMENT_ARRAY_BUFFER binding is *also* stored in the VAO
+gl.bindVertexArray(null);
+
+/* ==============================================================
+   Drawing helpers
+   ============================================================== */
+function setMatrices(proj, view, model) {
+    const mvp = new Float32Array(16);
+    mat4Multiply(mvp, proj, view);   // proj * view
+    mat4Multiply(mvp, mvp, model);   // * model
+    gl.uniformMatrix4fv(mvpLoc, false, mvp);
+}
+function drawCube(modelMatrix, solid) {
+    gl.useProgram(program);
+    gl.bindVertexArray(vao);               // <-- VAO binds both VBO and IBO
+    if (solid) {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, solidIdxBuf);
+        gl.uniform3fv(colorLoc, new Float32Array([1.0, 1.0, 1.0])); // white
+        gl.drawElements(gl.TRIANGLES, solidIndices.length, gl.UNSIGNED_SHORT, 0);
+    } else {
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, wireIdxBuf);
+        gl.uniform3fv(colorLoc, new Float32Array([160/255, 170/255, 185/255])); // wire colour
+        gl.drawElements(gl.LINES, wireIndices.length, gl.UNSIGNED_SHORT, 0);
+    }
+    gl.bindVertexArray(null);
+}
+
+/* ==============================================================
+   Recursive sponge drawer (same rule as the FreeBASIC code)
+   ============================================================== */
+function drawHoleySponge(x, y, z, size, level) {
+    if (level === 0) {
+        const model = mat4Identity();
+        mat4Translate(model, model, [x, y, z]);
+        mat4Scale(model, model, [size, size, size]);
+        drawCube(model, true);  // solid
+        drawCube(model, false); // wire
+    } else {
+        const newSize = size / 3;
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                for (let dz = -1; dz <= 1; dz++) {
+                    // keep only the 8 corners (dx,dy,dz all non-zero)
+                    if (dx !== 0 && dy !== 0 && dz !== 0) {
+                        drawHoleySponge(
+                            x + dx * newSize,
+                            y + dy * newSize,
+                            z + dz * newSize,
+                            newSize,
+                            level - 1
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
+/* ==============================================================
+   Animation loop
+   ============================================================== */
+let angle = 0;
+function resize() {
+    canvas.width  = canvas.clientWidth;
+    canvas.height = canvas.clientHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+window.addEventListener('resize', resize);
+resize();
+
+const aspect = canvas.width / canvas.height;
+const projMat = mat4Perspective(45 * Math.PI/180, aspect, 0.1, 100.0);
+
+function animate() {
+    angle += 0.01;
+
+    // camera orbiting
+    const camX = 6.5 * Math.cos(angle);
+    const camZ = 6.5 * Math.sin(angle);
+    const eye = [camX, 6.5, camZ];
+    const center = [0, 0, 0];
+    const up = [0, 1, 0];
+    const viewMat = mat4LookAt(eye, center, up);
+
+//  gl.clearColor(245/255, 247/255, 250/255, 1.0);
+    gl.clearColor(245/255, 27/255, 250/255, 1.0);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+
+    drawHoleySponge(0, 0, 0, 4.2, 2); // level-2 sponge
+
+    requestAnimationFrame(animate);
+}
+requestAnimationFrame(animate);
+</script>
+</body>
+</html>
+

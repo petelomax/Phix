@@ -6,7 +6,7 @@
 with javascript_semantics
 requires("1.0.3")
 include theGUI.e -- DEV: GTK needs "if backend=TG_GTK then" at end of tg_lm_disperse_user_sizes(), and hints thing is off...
---include ..\theGUI\hGUI.e -- gMsgBox
+--include ..\theGUI\hGUI.e
 --include ..\theGUI\tg_xpm.e
 --include ..\theGUI\backup\theGUI.0100.e -- OK
 --include ..\theGUI\backup\theGUI.0767.e -- OK
@@ -60,14 +60,22 @@ Uparrow moves the tile below the hole (upwards) into it.
 Downarrow moves the tile above the hole (downwards) into it.
 Press 'N' to start a new game.
 """
+gdx mbx = NULL
 
 function show_help(gdx dlg)
-    gMsgBox(dlg,title,help_text)
+    if mbx=NULL then
+        gdx lbl = gLabel(help_text),
+            btn = gButton("OK",gQuit),
+           hbox = gHbox({btn},"SPACE=LEFT"),
+           vbox = gVbox({lbl,hbox},"MARGIN=10")
+        mbx = gDialog(vbox,dlg,title)
+        gSetAttribute(mbx,`DEFAULTENTER`,TG_CLOSE)
+    end if
+    gShow(mbx)
     return TG_IGNORE -- (don't open browser help!)
 end function
 
 --gdx canvas, dialog
---cdCanvas cddbuffer, cdcanvas
 
 constant solved = tagset(15)&0
 --sequence solved = tagset(15)&0, board
@@ -101,17 +109,17 @@ integer angle = 0
 integer bz = 5,
         fz = 32
 
-procedure redraw(gdx canvas)
---procedure redraw(gdx /*ih*/, integer dw,dh)
-    integer {dw,dh} = gGetIntInt(canvas, "SIZE")
+--procedure redraw(gdx canvas)
+procedure redraw(gdx canvas, integer dw,dh)
+--  integer {dw,dh} = gGetIntInt(canvas, "SIZE")
     integer cx = floor(dw/2),
             cy = floor(dh/2),
 --          oz = min(dw,dh),
             oz = floor(min(dw,dh)/2),
 --          tz = floor(oz/4)
-            tz = floor(oz/2)
+            tz = floor(oz/2),
 --?{canvas,dw,dh,tz}
-    integer --{dw,dh} = gGetIntInt(canvas, "SIZE"),
+--  integer --{dw,dh} = gGetIntInt(canvas, "SIZE"),
             ox,oy,              -- top right coords
             os,ts,              -- overall and tile size
             m,                  -- margin
@@ -165,8 +173,6 @@ gSetAttribute(canvas, "FONT", "Calibri, bold %d",{fz})
 end procedure
 
 function key_handler(gdx dlg, integer c)
---  if c=VK_ESC then return TG_CLOSE end if -- (standard practice for me)
---  if c=VK_F5 then return TG_DEFAULT end if -- (let browser reload work)
     if c=VK_F1 then return show_help(dlg) end if
     move(find(upper(c),{VK_UP,VK_LEFT,VK_RIGHT,VK_DOWN,'N'}))
 --  IupUpdate(canvas)
@@ -187,8 +193,9 @@ end function
 
 --DEV w sticky but h not...
 --gdx canvas = gCanvas(redraw,"SIZE=520x540")
-gdx canvas = gCanvas(redraw)
-gSetAttribute(canvas,"BGCLR",#FAF8EF)
+--gdx canvas = gCanvas(redraw)
+gdx canvas = gCanvas(redraw,"MARGIN=5x5")
+--gSetAttribute(canvas,"BGCLR",#FAF8EF)
 gSetAttribute(canvas, "FONT", "Calibri, bold 8")    -- min
 --gSetAttribute(canvas, "FONT", "Calibri, bold 48")
 --gSetAttribute(canvas, "FONT", "Calibri, bold 128")
@@ -200,6 +207,8 @@ gSetAttribute(canvas, "FONT", "Calibri, bold 8")    -- min
 --gdx dialog = gDialog(canvas,title,"SIZE=520x540")
 --gdx dialog = gDialog(canvas,title,"SIZE=520x540, MINSIZE=275x90")
 gdx dialog = gDialog(canvas,title,"SIZE=510x540, MINSIZE=273x58")
+--gSetAttribute({canvas,dialog},"BGCLR",#FAF8EF)
+--gSetAttribute({canvas,dialog},"BGCLR",TG_RED)
 gSetHandler(dialog, `KEY`, key_handler);
 
 gShow(dialog)

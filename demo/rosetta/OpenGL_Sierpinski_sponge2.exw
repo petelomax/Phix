@@ -1,0 +1,173 @@
+﻿--
+-- demo\rosetta\OpenGL_Sierpinski_sponge2.exw
+-- ==========================================
+--
+--  Translation of https://rosettacode.org/wiki/Sierpinski_sponge_of_the_2nd_order#FreeBASIC
+--  Converted to theGUI by Pete Lomax
+--
+--{{trans|FreeBASIC}}
+--This can be run online <here>, and also works on desktop/Phix
+requires(`1.0.6`) -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant fragment_shader = `
+#version 300 es
+precision mediump float;
+in vec3 vColor;
+out vec4 fragColor;
+void main() {
+    fragColor = vec4(vColor, 1.0);
+}`,      vertex_shader = `
+#version 300 es
+layout(location = 0) in vec3 aPos;
+uniform mat4 uMVP;
+uniform vec3 uColor;
+out vec3 vColor;
+void main() {
+    vColor = uColor;
+    gl_Position = uMVP * vec4(aPos, 1.0);
+}`
+
+function compile_shader(string shader_source, integer stype)
+    if not begins(`#version`,shader_source," \t\r\n") then
+        shader_source = "#version 100\n" & shader_source
+    end if
+    integer shader = glCreateShader(stype)
+    glShaderSource(shader, shader_source)
+    glCompileShader(shader)
+    if not glGetShaderParameter(shader, GL_COMPILE_STATUS) then
+        crash(glGetShaderInfoLog(shader))
+    end if
+    return shader
+end function
+
+constant cubePositions = {  // 8 corners
+  -0.5, -0.5, -0.5,
+   0.5, -0.5, -0.5,
+   0.5,  0.5, -0.5,
+  -0.5,  0.5, -0.5,
+  -0.5, -0.5,  0.5,
+   0.5, -0.5,  0.5,
+   0.5,  0.5,  0.5,
+  -0.5,  0.5,  0.5}
+
+constant solidIndices = {
+  0,2,1, 0,3,2, // front  (+z) – outward normal points -z
+  4,6,7, 4,5,6, // back   (-z) – outward normal points +z
+  0,4,7, 0,7,3, // left   (-x) – outward normal points -x
+  1,2,6, 1,6,5, // right  (+x) – outward normal points +x
+  0,1,5, 0,5,4, // bottom (-y) – outward normal points -y
+  7,6,2, 7,2,3} // top    (+y) – outward normal points +y
+
+constant wireIndices = { // wireframe → 12 edges (24 indices)
+  0,1, 1,2, 2,3, 3,0,    // front square
+  4,5, 5,6, 6,7, 7,4,    // back square
+  0,4, 1,5, 2,6, 3,7}    // connecting edges
+
+integer program, posBuf, posLoc, mvpLoc, colorLoc, solidIdx, wireIdx
+bool drawn = false
+
+procedure set_shader(gdx canvas)
+    drawn = true
+    glMakeCurrent(canvas)
+    program = glCreateProgram()
+    glAttachShader(program, compile_shader(vertex_shader,GL_VERTEX_SHADER))
+    glAttachShader(program, compile_shader(fragment_shader,GL_FRAGMENT_SHADER))
+    glLinkProgram(program)
+    glUseProgram(program)
+
+    posLoc = glGetAttribLocation(program,`aPos`)
+    mvpLoc = glGetUniformLocation(program,`uMVP`)
+    colorLoc = glGetUniformLocation(program,`uColor`)
+    posBuf = glCreateBuffer()
+    solidIdx = glCreateBuffer()
+    wireIdx = glCreateBuffer()
+
+    glBindBuffer(GL_ARRAY_BUFFER,posBuf)
+    glBufferData(GL_ARRAY_BUFFER,glFloat32Array(cubePositions,true),GL_STATIC_DRAW)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,solidIdx)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,glUint16Array(solidIndices,true),GL_STATIC_DRAW)
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,wireIdx)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,glUint16Array(wireIndices,true),GL_STATIC_DRAW)
+end procedure
+
+sequence currentProj, currentView // set each frame
+
+procedure drawCube(sequence model, bool solid)
+    glUseProgram(program)
+    glBindBuffer(GL_ARRAY_BUFFER,posBuf)
+    glEnableVertexAttribArray(posLoc)
+    glVertexAttribPointer(posLoc,3,GL_FLOAT,false,0,0)
+    sequence mvp = m4_multiply(m4_multiply(currentProj,currentView),model) // proj * view * model
+    glUniformMatrix4fv(mvpLoc,false,mvp)
+    if solid then
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,solidIdx)
+        glUniform3f(colorLoc, 1.0, 1.0, 1.0) // white
+        glDrawElements(GL_TRIANGLES,length(solidIndices),GL_UNSIGNED_SHORT,0)
+    else
+        glBindBuffer(GL_ELEMENT_ARRAY_BUFFER,wireIdx)
+        glUniform3f(colorLoc,160/255,170/255,185/255) // wire colour
+        glDrawElements(GL_LINES,length(wireIndices),GL_UNSIGNED_SHORT,0)
+    end if
+end procedure
+
+procedure drawHoleySponge(atom x, y, z, size, integer level)
+    if level==0 then
+        sequence model = m4_identity()
+        model = m4_translate(model,{x,y,z})
+        model = m4_scale(model,{size,size,size})
+        drawCube(model,true)    // solid
+        drawCube(model,false) // wire
+    else
+        atom newSize = size/3
+        for dx=-1 to 1 do
+            for dy=-1 to 1 do
+                for dz=-1 to 1 do
+                    // keep only the 8 corners (dx,dy,dz all non-zero)
+                    if dx!=0 and dy!=0 and dz!=0 then
+                        atom nx = x + dx*newSize,
+                             ny = y + dy*newSize,
+                             nz = z + dz*newSize
+                        drawHoleySponge(nx,ny,nz,newSize,level-1)
+                    end if
+                end for
+            end for
+        end for
+    end if
+end procedure
+
+atom angle = 0
+
+procedure redraw(gdx canvas, integer w, h)
+    if not drawn then set_shader(canvas) end if
+    glViewport(0,0,w,h)
+    glClearColor(245/255,247/255,250/255,1.0)
+    glClear(GL_COLOR_BUFFER_BIT || GL_DEPTH_BUFFER_BIT)
+    glEnable(GL_DEPTH_TEST)
+    glEnable(GL_CULL_FACE)
+    glCullFace(GL_BACK)
+    atom aspect = w/h,
+           camX = 6.5 * cos(angle),
+           camZ = 6.5 * sin(angle)
+    sequence eye = {camX, 6.5, camZ},
+          center = {0, 0, 0},
+              up = {0, 1, 0}
+    currentView = m4_inverse(m4_lookAt(eye, center, up))
+    currentProj = m4_perspective(45*PI/180,aspect,0.1,100)
+    drawHoleySponge(0, 0, 0, 4.2, 2) // level-2 sponge
+    glBindVertexArray(null)
+    glSwapBuffers(canvas)
+end procedure
+
+procedure action(gdx timer)
+    angle += 0.01
+    gdx dlg = gGetAttribute(timer,`USER_DATA`)
+    gRedraw(dlg)
+end procedure
+
+gdx canvas = gCanvas(redraw),
+    dlg = gDialog(canvas,`Sierpinski sponge of the 2nd order`,`SIZE=615x615`),
+    timer = gTimer(action,40,true,dlg)
+gMainLoop(dlg)
+

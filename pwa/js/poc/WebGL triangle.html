@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebGL 2.0 Triangle Test</title>
+<style>
+    body { margin:0; overflow:hidden; background:#000; }
+    #hud {
+        position:absolute; top:0; left:0; width:100%; height:45px;
+        background:rgba(15,15,15,0.55); color:#fff; padding:8px 12px;
+        box-sizing:border-box; pointer-events:none;
+        display:flex; align-items:center; gap:12px; font-size:14px;
+    }
+    #hud .dot { width:12px; height:12px; background:#e00; border-radius:50%; }
+    #fps { margin-left:auto; font-family:monospace; }
+</style>
+</head>
+<body>
+<div id="hud">
+    <div class="dot"></div>
+    <div>WEBGL TRIANGLE TEST</div>
+    <div id="fps"></div>
+</div>
+
+<canvas id="glcanvas"></canvas>
+
+<script>
+const canvas = document.getElementById('glcanvas');
+const gl = canvas.getContext('webgl2');
+if (!gl) {
+    alert('WebGL 2.0 not supported');
+    throw new Error('WebGL 2.0 not supported');
+}
+
+// Shaders - ultra simple pass-through
+const vertexShaderSource = `#version 300 es
+precision mediump float;
+layout(location = 0) in vec3 aPosition;
+layout(location = 1) in vec4 aColor;
+uniform mat4 uMVP;
+out vec4 vColor;
+void main() {
+    vColor = aColor;
+    gl_Position = uMVP * vec4(aPosition, 1.0);
+}`;
+
+const fragmentShaderSource = `#version 300 es
+precision mediump float;
+in vec4 vColor;
+out vec4 fragColor;
+void main() {
+    fragColor = vColor;
+}`;
+
+function compileShader(source, shadertype) {
+    const shader = gl.createShader(shadertype);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        throw new Error('Shader compile failed: ' + gl.getShaderInfoLog(shader));
+    }
+    return shader;
+}
+
+const shaderProgram = gl.createProgram();
+gl.attachShader(shaderProgram, compileShader(vertexShaderSource, gl.VERTEX_SHADER));
+gl.attachShader(shaderProgram, compileShader(fragmentShaderSource, gl.FRAGMENT_SHADER));
+gl.linkProgram(shaderProgram);
+if (!gl.getProgramParameter(shaderProgram, gl.LINK_STATUS)) {
+    throw new Error('Program link failed: ' + gl.getProgramInfoLog(shaderProgram));
+}
+gl.useProgram(shaderProgram);
+
+const uMVP = gl.getUniformLocation(shaderProgram, 'uMVP');
+
+// Set up a single triangle in clip space (so we know exactly where it appears)
+// This triangle covers: bottom-left (-0.8,-0.8), bottom-right (0.8,-0.8), top (0,0.8)
+const triangleVertices = new Float32Array([
+    // X, Y, Z
+    -0.8, -0.8, 0.0,
+     0.8, -0.8, 0.0,
+     0.0,  0.8, 0.0
+]);
+
+// Solid red color for all vertices (RGBA)
+const triangleColors = new Float32Array([
+    // R, G, B, A
+    1.0, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 1.0,
+    1.0, 0.0, 0.0, 1.0
+]);
+
+// Create and bind buffers
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, triangleVertices, gl.STATIC_DRAW);
+
+const colorBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, triangleColors, gl.STATIC_DRAW);
+
+// Get attribute locations
+const positionLoc = gl.getAttribLocation(shaderProgram, 'aPosition');
+const colorLoc = gl.getAttribLocation(shaderProgram, 'aColor');
+
+// Enable attributes
+gl.enableVertexAttribArray(positionLoc);
+gl.enableVertexAttribArray(colorLoc);
+
+// Set attribute pointers (CRITICAL: must match buffer data)
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.vertexAttribPointer(positionLoc, 3, gl.FLOAT, false, 0, 0);
+
+gl.bindBuffer(gl.ARRAY_BUFFER, colorBuffer);
+gl.vertexAttribPointer(colorLoc, 4, gl.FLOAT, false, 0, 0);
+
+// Set MVP to identity (no transformation)
+gl.uniformMatrix4fv(uMVP, false, new Float32Array([
+    1,0,0,0,
+    0,1,0,0,
+    0,0,1,0,
+    0,0,0,1
+]));
+
+// Clear color
+gl.clearColor(0.0, 0.0, 0.0, 1.0); // Black background
+
+let lastTime = 0;
+let fps = 0;
+let frameCount = 0;
+
+function updateFPS(time) {
+    frameCount++;
+    if (time - lastTime >= 1000) {
+        fps = Math.round((frameCount * 1000) / (time - lastTime));
+        frameCount = 0;
+        lastTime = time;
+        document.getElementById('fps').textContent = `FPS: ${fps}`;
+    }
+}
+
+function render(time) {
+    updateFPS(time);
+    
+    // Clear
+    gl.clear(gl.COLOR_BUFFER_BIT);
+    
+    // Draw triangle
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    gl.finish();
+    
+//  requestAnimationFrame(render);
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    requestAnimationFrame(render);
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+
+// Start
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
+

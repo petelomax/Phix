@@ -1629,15 +1629,19 @@ end procedure
 sequence hll_stubs
 
 global function get_hll_stub(integer N)
+--31/8/26 reverted, plus K_ridt: (no help...)
 --29/4/24: (no help)
-    return hll_stubs[N]
---  integer r = hll_stubs[N],
---          u = symtab[r][S_State]
---  if not and_bits(u,S_used) then
+--  return hll_stubs[N]
+    integer r = hll_stubs[N]
+--/*
+            u = symtab[r][S_State]
+    if not and_bits(u,S_used) then
 --      symtab[r][S_State] = u+S_used
---  end if
---  agchecktt(symtab[r][S_Name])
---  return r
+        symtab[r][S_State] = or_bits(u,S_used+K_ridt)
+    end if
+    agchecktt(symtab[r][S_Name])
+--*/
+    return r
 end function
 
 without trace
@@ -1829,6 +1833,7 @@ global procedure syminit()
 --  initialConstant("C_WIDEPTR",    #02020004) [DEV/SUG]
     initialConstant("C_FLOAT",      #03000004)  -- a 32-bit float
     initialConstant("C_DOUBLE",     #03000008)  -- a 64-bit float
+    Alias("C_DBL",symlimit)
 --  initialConstant("C_FLT32",      #03000004)  -- (DEV/SUG)
 --  initialConstant("C_FLT64",      #03000008)  -- (DEV/SUG)
 --  initialConstant("C_FLT80",      #0300000A)  -- (DEV/SUG)??
@@ -2669,9 +2674,8 @@ end if
     IAEType = T_integer
 
     initialAutoEntry("bankers_rounding",        S_Func,"FNI",   "pmaths.e",0,E_none,1)
---  initialAutoEntry("begins",                  S_Func,"FOP",   "pvlookup.e",0,E_none)
-    initialAutoEntry("begins",                  S_Func,"FOPI",  "match.e",0,E_none,2)
-    initialAutoEntry("ends",                    S_Func,"FOPI",  "match.e",0,E_none,2)
+    initialAutoEntry("begins",                  S_Func,"FOPO",  "match.e",0,E_none,2)
+    initialAutoEntry("ends",                    S_Func,"FOPO",  "match.e",0,E_none,2)
 --9/4/22:
 --  initialAutoEntry("binary_search",           S_Func,"FOP",   "bsearch.e",0,E_none)
     initialAutoEntry("binary_index",            S_Func,"FOPIII","bsearch.e",0,E_none,2)

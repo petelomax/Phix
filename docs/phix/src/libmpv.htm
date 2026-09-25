@@ -1,0 +1,293 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">libmpv</h1>
+      <div id="mainSection">
+        mpv is a free (as in freedom) media player for the command line. <br>
+        libmpv provides a C API for embedding mpv&apos;s playback engine into other applications. <br>
+        The API is licensed under ISC (legally identical to MIT but ~350 chars shorter), while mpv core is GPLv2+.<br>
+        The file builtins\libmpv.e (not an autoinclude) contains a fairly rudimentary wrapper for libmpv.<br>
+        Note this page proudly documents ~0.0001% of everything you actually need to know<br>
+        - the rest is <i>buried</i> on <a id="ext593" style="color:#9B5565" href="javascript:ExternalLink('ext593');"
+        >https://mpv.io/manual/master</a> - and don&apos;t forget your shovel. <img src="images/sad.png" alt="sad" /><br>
+        The api docs in client.h, quite understandably, refer you to the cli (command line interface) docs, which<br>
+        means scant type information and you often have to guess which are options, properties, or commands.<br>
+        That is perhaps an unfair criticism, it is all properly organised, just not in the way I&apos;d prefer it to be.<br>
+        This page effectively replaces the client.h part of the documentation, and only that specific part.
+        <br>
+        <br>
+        The distro includes builtins\libmpv-2.(32|64)bit.ca25.dll which are client api version 2.5 from 19/8/2025, <br>
+        the repo also contains 2.0(/ca20) versions from 24/04/2022 in case they help. Should you find or make other <br>
+        useful [32&amp;64 bit] builds let me know. Linux users are expected to build and install from source on their own.
+        <br>
+        <br>
+        See demo\theGUI\gVidCut.exw for example use. Windows-only at the time of writing.
+        <br>
+        <br>
+        Use <a href>gSetAttribute</a>(<i>video_canvas</i>,`<a href>MPV_INIT</a>`,<i>mpv_init</i>) to specify the output.
+        <br>
+        <br>
+        None of these routines are [as yet] supported by <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js</b></span></a>.
+        <br>
+        <a name=constants></a>
+        <h2>constants</h2>
+        <style type="text/css">
+          dl {margin:0;padding:0;}
+          dt {margin:0;padding:0;}
+          dd {margin:0;padding:0;}
+          dd.pad {padding-left:12em;}
+        </style>
+        <div id="nopad" class="nopad" align="left">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            <nobr>MPV_FORMAT_STRING&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 1,
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            MPV_FORMAT_FLAG&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 3,
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            MPV_FORMAT_INT&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 4,
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            MPV_FORMAT_DOUBLE&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 5,
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+            MPV_ERROR_SUCCESS&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            = 0     -- (normally checked inside libmpv.e itself for you)
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+
+        <a name=routines></a>
+        <h2>routines</h2>
+
+        <div id="nopad" class="nopad" align="center">
+         <table cellspacing="0" cellpadding="0" border="0" style="padding: 0; border-style: none;">
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_client_api_version></a>
+            <nobr>object res =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_client_api_version</b>(string rtype="")
+            </dt><dd class="pad">
+            <br>
+            Returns eg `2.5` by default, but can be made to return {2,5} or #00020005 via rtype of `mm` and `ulong` respectively,
+            in case those forms are more practical for you.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_create></a>
+            <nobr>integer mpv_ctx =&nbsp;</nobr>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_create</b>(<a href>bool</a> bCrash=<a href>true</a>)
+            </dt><dd class="pad">
+            <br>
+            By default simply crashes when anything goes wrong.<br>
+            Graceful handling of a NULL result (when bCrash is <a href>false</a>) left as an exercise...<br>
+            <small>&nbsp&nbsp(which would probably involve throw/catch an exception to unwind call stack properly)</small><br>
+            Explicitly bound via the `wid` option(see next) to the platform-specific<br>
+            handle as gets passed to the mpv_init() procedure mentioned above.<br>
+            Returns an index to the internal ctx_table (or null).
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_set_option_string></a>
+            <i>procedure&nbsp;</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_set_option_string</b>(integer ctx, string name, data)
+            </dt><dd class="pad">
+            <br>
+            Sets a named option. Crashes on error.<br>
+            Known working name,data pairs include `wid`,sprintf(`%d`,handle), `vo`,`gpu`, `keep-open`,`yes`, 
+            `pause`,`yes|no`, `video-zoom`,`0`, `video-pan-x`,`0`, `video-pan-y`,`0`, `video-unscaled`,`no`, 
+            and `mute`,`yes|no`.
+            <br>
+            <br>
+            For more information about the handle needed for wid, see <a href>MPV_INIT</a>.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_initialize></a>
+            <i>procedure&nbsp;</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_initialize</b>(integer ctx)
+            </dt><dd class="pad">
+            <br>
+            Typically several options are explicitly set between mpv_create() and mpv_initialize().<br>
+            Some options must be set before initialisation (wid, vo), others can be changed anytime.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_normalize_path></a>
+            string path =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_normalize_path</b>(string raw_path)
+            </dt><dd class="pad">
+            <br>
+            Converts backslashes to forward slashes (Windows-safe + mpv-safe) as required by mpv.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_command_string></a>
+            <i>procedure&nbsp;</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_command_string</b>(integer ctx, string command)
+            </dt><dd class="pad">
+            <br>
+            Retries every 0.1s for up to 5s before crashing on failure.<br>
+            Known working commands include `cycle mute`, `cycle pause`, `frame-step`, `frame-back-step`,
+            `loadfile "%s"`, `seek %f relative|absolute`, `set pause yes|no`, `set video-aspect 16/9`, 
+            and `set video-zoom 0`.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_get_property></a>
+            object res =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_get_property</b>(integer ctx, string name, integer mpv_format=MPV_FORMAT_STRING, object dflt=`?9/0`)
+            </dt><dd class="pad">
+            <br>
+            Retrieves a named property as a bool, integer, floating-point, or string.<br>
+            <small>[Aside: just so you know, it actually always gets MPV_FORMAT_STRING and converts that.]</small><br>
+            When dflt is overridden it is returned immediately on failure.<br>
+            A dflt of `?9/0` retries every 0.1s for up to 5s before crashing.<br>
+            Known working properties include `duration`, `pause`, and `playback-time`.<br>
+            <small><b>mpv_get_property_string</b>(integer ctx, string name) -- trivial shim (as per C)<br>
+            - in practice a lose/lose compared to using mpv_get_property() directly</small>.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_set_property></a>
+            <i>procedure&nbsp;</i>
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_set_property</b>(integer ctx, string name, integer mpv_format, object data)
+            </dt><dd class="pad">
+            <br>
+            Sets a named property. Always uses mpv_set_property_string() internally. Crashes on error.<br>
+            Known working examples include `volume`,MPV_FORMAT_DOUBLE,v*100, `pause`,MPV_FORMAT_FLAG,true,
+            `video-align-y`,MPV_FORMAT_INT,-1|0, `pause`,MPV_FORMAT_STRING,`yes`, and 
+            `sub-color`,MPV_FORMAT_STRING,`#FF0000`.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+          <tr><td align="right" style="padding: 0; border-style: none;">
+           <a name=mpv_terminate_destroy></a>
+            integer ctx =&nbsp;
+          </td><td align="left" style="padding: 0; border-style: none;">
+            <dl><dt>
+            <b>mpv_terminate_destroy</b>(integer ctx)
+            </dt><dd class="pad">
+            <br>
+            It is good practice to nullify things you destroy (returns NULL).<br>
+            Quietly does nothing if ctx already null/was never created.
+            <br>
+            <br>
+            </dd></dl>
+          </td></tr>
+         </table>
+        </div>
+        <div style="clear:both;height:1px;"> </div>
+<!-- (from sockets:)
+        <br>
+        Note that none of these routines have yet undergone any significant real-world testing, but should be fairly easy to fix/enhance as needed.<br>
+        Error handling is most likely wholly inadequate, and many constants are as yet missing, as no doubt are some other useful routines.
+-->
+        Additional bCrash flags when/where/if ever actually needed are not expected to be particularly difficult.
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+        <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

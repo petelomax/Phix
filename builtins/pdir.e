@@ -25,7 +25,8 @@ constant
 --  FDwReserved1        = 40,   --  DWORD    dwReserved1
     FDcFileName         = 44,   --  rb 260  ;[ MAX_PATH ]; TCHAR     cFileName[ MAX_PATH ]
 --  FDcAltFileName      = 304,  --  rb 14   TCHAR    cAlternateFileName[ 14 ]
-    FDsize              = 318,
+--  FDsize              = 318,
+    FDsize              = 592,  -- (widechar size)
     -- SYSTEMTIME structure:
     STwYear             = 0,    --  WORD wYear
     STwMonth            = 2,    --  WORD wMonth
@@ -112,13 +113,15 @@ procedure initD()
         kernel32 = open_dll("kernel32.dll")
 
     --#without reformat
-        xFindFirstFile = define_c_func(kernel32,"FindFirstFileA",
+--      xFindFirstFile = define_c_func(kernel32,"FindFirstFileA",
+        xFindFirstFile = define_c_func(kernel32,"FindFirstFileW",
             {C_PTR,     --  LPCTSTR  lpFileName, // address of name of file to search for
              C_PTR},    --  LPWIN32_FIND_DATA  lpFindFileData   // address of returned information
     --      C_PTR)      -- HANDLE for FindNextFile/FindClose
             C_INT)      -- HANDLE for FindNextFile/FindClose
 
-        xFindNextFile = define_c_func(kernel32,"FindNextFileA",
+--      xFindNextFile = define_c_func(kernel32,"FindNextFileA",
+        xFindNextFile = define_c_func(kernel32,"FindNextFileW",
             {C_PTR,     --  HANDLE  hFindFile, // handle of search
              C_PTR},    --  LPWIN32_FIND_DATA lpFindFileData // address of structure for data on found file
             C_INT)      -- BOOL
@@ -360,7 +363,8 @@ atom xFindData
             -- Check if the passed path is a directory
             --
 --DEV:      if list_directory then
-            lpPath = allocate_string(path)
+--          lpPath = allocate_string(path)
+            lpPath = allocate_wstring(utf8_to_utf16(path))
 --?path
 --if path=`C:\Program Files\Phix\pw.exe` then
 --  ?1
@@ -383,7 +387,8 @@ atom xFindData
         end if
 --DEV 
 --"argument to dir must be string\n",   -- e68atcdmbs
-        lpPath = allocate_string(path)
+--      lpPath = allocate_string(path)
+        lpPath = allocate_wstring(utf8_to_utf16(path))
         h = c_func(xFindFirstFile,{lpPath,xFindData})
 --?{h}
         free(lpPath)
@@ -401,7 +406,8 @@ atom xFindData
             atom xSystemTime = allocate(STsize),
                  xLocalFileTime = allocate(8)
             while 1 do
-                this = peek_string(xFindData+FDcFileName)
+--              this = peek_string(xFindData+FDcFileName)
+                this = utf16_to_utf8(peek_wstring(xFindData+FDcFileName))
                 if wildcard_file(pattern,this) then
 --                  if c_func(xFileTimeToLocalFileTime,{xFindData+FDtLastWriteTime,xLocalFileTime}) then end if
                     integer date_offset = FDtLastWriteTime+{-16,-8,0}[date_type]

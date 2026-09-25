@@ -1,0 +1,711 @@
+﻿--
+-- demo\rosetta\Sierpinski_cube.exw
+--
+without debug -- (simplify the error file)
+{} = sprint(0,9)
+puts(1,"")
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+--requires(64,true)
+include theGUI.e
+include builtins\VM\pprntfN.e
+include builtins\pdates.e
+include builtins\syswait.ew
+include builtins\VM\pcmdlnN.e
+include builtins\pdate.e
+include builtins\penv.e
+include builtins\get_interpreter.e
+with debug
+--gUseGTK() -- ugh! [DEV]
+
+constant TITLE = "Sierpinski Cube"
+
+bool bFill = true -- false for wireframe view ('W' key toggles)
+
+integer LEVEL = 2               -- recursion depth (0 = just the big cube)
+bool    bHollow = false         -- toggle with key 'H' (filled ↔ wireframe)
+enum X,Y--Z?
+
+--======================================================================
+--  Sierpinski-cube generator – replaces VERTICES, POLYGONS, DRAW_ORDER
+--======================================================================
+
+--integer LEVEL = 4             -- recursion depth (0 = just the big cube)
+--bool  bHollow = false         -- toggle with key 'H' (solid ↔ outer-wire)
+
+-- -----------------------------------------------------------------
+--  Test whether a cubie at lattice coordinates (x,y,z) survives the
+--  Sierpinski rule (no base-3 digit equal to 1).
+-- -----------------------------------------------------------------
+function keep_cubie(atom x, y, z)
+    integer ix = floor(x), iy = floor(y), iz = floor(z)
+    while ix!=0 or iy!=0 or iz!=0 do
+        if remainder(ix,3)=1 or remainder(iy,3)=1 or remainder(iz,3)=1 then
+            return 0
+        end if
+        ix = floor(ix/3)
+        iy = floor(iy/3)
+        iz = floor(iz/3)
+    end while
+    return 1
+end function
+
+-- -----------------------------------------------------------------
+--  Build the vertex list and the list of visible faces.
+--  Vertices are stored in the range [0,1]³; later we shift them to
+--  [-0.5,0.5]³ so that rotation occurs about the cube centre.
+-- -----------------------------------------------------------------
+sequence g_vertices   -- flat list of {x,y,z}
+sequence g_polys      -- each element: {colour, {v1,v2,v3,v4}}
+
+procedure build_geometry()
+    sequence verts = {}
+    sequence polys = {}
+
+    atom size = power(3, LEVEL)          -- number of sub-divisions per axis
+    atom inv  = 1.0 / size               -- length of a sub-cubie in [0,1] units
+
+    for ix = 0 to power(3,LEVEL)-1 do
+        for iy = 0 to power(3,LEVEL)-1 do
+            for iz = 0 to power(3,LEVEL)-1 do
+                if keep_cubie(ix,iy,iz)!=bHollow then
+
+                    -- lower-front-left corner of this cubie in [0,1] space
+                    atom cx = ix * inv
+                    atom cy = iy * inv
+                    atom cz = iz * inv
+                    atom s  = inv                -- edge length of the sub-cubie
+
+                    integer base = length(verts)+1
+                    verts &= {{cx,  cy,   cz},
+                              {cx+s, cy,   cz},
+                              {cx+s, cy+s, cz},
+                              {cx,  cy+s, cz},
+                              {cx,  cy,   cz+s},
+                              {cx+s, cy,   cz+s},
+                              {cx+s, cy+s, cz+s},
+                              {cx,  cy+s, cz+s}}
+
+                    -- ----  Faces ------------------------------------------------
+                    -- emit a face only when the neighbour in that direction is
+                    -- missing (or we are at the outer boundary).
+
+                    -- +X
+                    if ix = power(3,LEVEL)-1 or not keep_cubie(ix+1,iy,iz) then
+                        polys &= {{ #e0e0e0, {base+0, base+3, base+7, base+4} }}
+                    end if
+                    -- -X
+                    if ix = 0 or not keep_cubie(ix-1,iy,iz) then
+                        polys &= {{ #c8c8c8, {base+1, base+2, base+6, base+5} }}
+                    end if
+                    -- +Y
+                    if iy = power(3,LEVEL)-1 or not keep_cubie(ix,iy+1,iz) then
+                        polys &= {{ #d0d0d0, {base+2, base+3, base+7, base+6} }}
+                    end if
+                    -- -Y
+                    if iy = 0 or not keep_cubie(ix,iy-1,iz) then
+                        polys &= {{ #b8b8b8, {base+0, base+1, base+5, base+4} }}
+                    end if
+                    -- +Z
+                    if iz = power(3,LEVEL)-1 or not keep_cubie(ix,iy,iz+1) then
+                        polys &= {{ #e8e8e8, {base+4, base+5, base+6, base+7} }}
+                    end if
+                    -- -Z
+                    if iz = 0 or not keep_cubie(ix,iy,iz-1) then
+                        polys &= {{ #a8a8a8, {base+0, base+1, base+2, base+3} }}
+                    end if
+                end if
+            end for
+        end for
+    end for
+
+    g_vertices = verts
+    g_polys    = polys
+end procedure
+
+-- Build the geometry once (before the first frame)
+--if not defined('g_vertices') then
+    build_geometry()
+--end if
+
+function transpose(sequence points, atom dx, dy, dz)
+    -- shift all points left/right/up/down/fwd/back or all three
+    -- no rotation of any kind occurs
+    sequence res = {} 
+    for p in points do
+        atom {x,y,z} = p
+        res = append(res,{x+dx,y+dy,z+dz})
+    end for
+    return res
+end function
+
+atom scale = 120
+sequence currentOrientation = {1,0,0,0} -- identity quaternion (no rotation)
+
+-- -----------------------------------------------------------------
+--  Redraw routine – now works with the dynamically built data.
+-- -----------------------------------------------------------------
+procedure redraw(gdx canvas, integer width, height)
+    integer lv = length(g_vertices),
+            lp = length(g_polys),
+            cx = floor(width/2),
+            cy = floor(height/2)
+
+    atom {w, x, y, z} = currentOrientation,
+         m11 = 1 - 2*y*y - 2*z*z,
+         m12 =     2*x*y - 2*w*z,
+         m13 =     2*x*z + 2*w*y,
+         m21 =     2*x*y + 2*w*z,
+         m22 = 1 - 2*x*x - 2*z*z,
+         m23 =     2*y*z - 2*w*x,
+         m31 =     2*x*z - 2*w*y,
+         m32 =     2*y*z + 2*w*x,
+         m33 = 1 - 2*x*x - 2*y*y,
+         yaw = arcsin(max(min(2*(w*y-z*x),1),-1))*TG_RAD2DEG,
+         pitch = -atan2(2*(w*z+x*y),1-2*(y*y+z*z))*TG_RAD2DEG,
+         roll = -atan2(2*(w*x+y*z),1-2*(x*x+y*y))*TG_RAD2DEG
+
+    gDrawText(canvas,10,10,
+              "↔ yaw:%f, ↕ pitch:%f, ± roll:%f (quaternion-derived)",
+              {yaw,pitch,roll})
+
+    --------------------------------------------------------------
+    --  Rotate all vertices.
+    --  We first shift the vertices from [0,1] to [-0.5,0.5] so that the
+    --  rotation happens about the cube centre, then we translate to
+    --  screen centre (cx,cy).
+    --------------------------------------------------------------
+    sequence verts = {}
+    for i = 1 to lv do
+        atom {vx,vy,vz} = g_vertices[i]
+        verts &= {{
+              (m11*(vx-0.5) + m12*(vy-0.5) + m13*(vz-0.5))*scale,
+              (m21*(vx-0.5) + m22*(vy-0.5) + m23*(vz-0.5))*scale,
+              (m31*(vx-0.5) + m32*(vy-0.5) + m33*(vz-0.5))*scale
+        }}
+    end for
+    verts = transpose(verts, cx, cy, 0)
+
+    --------------------------------------------------------------
+    --  If we are in "hollow" mode we draw only the outer cube edges.
+    --  Otherwise we draw the fractal faces (painter's algorithm).
+    --------------------------------------------------------------
+    if false then
+        ----  Outer cube (-0.5 … +0.5) ------------------------------------------------
+        sequence corners = {
+            {-0.5,-0.5,-0.5},
+            { 0.5,-0.5,-0.5},
+            { 0.5, 0.5,-0.5},
+            {-0.5, 0.5,-0.5},
+            {-0.5,-0.5, 0.5},
+            { 0.5,-0.5, 0.5},
+            { 0.5, 0.5, 0.5},
+            {-0.5, 0.5, 0.5}
+        }
+        sequence rot_c = {}
+        for c in corners do
+--          atom {x,y,z}=c
+            {x,y,z} = c
+            rot_c &= {{
+                  (m11*(x) + m12*(y) + m13*(z))*scale,
+                  (m21*(x) + m22*(y) + m23*(z))*scale,
+                  (m31*(x) + m32*(y) + m33*(z))*scale
+            }}
+        end for
+        rot_c = transpose(rot_c, cx, cy, 0)
+
+        sequence edges = {
+            {0,1},{1,2},{2,3},{3,0},   -- bottom
+            {4,5},{5,6},{6,7},{7,4},   -- top
+            {0,4},{1,5},{2,6},{3,7}    -- sides
+        }
+        for e in edges do
+            atom {x1,y1} = rot_c[e[1]+1]
+            atom {x2,y2} = rot_c[e[2]+1]
+            gDrawLine(canvas, x1, y1, x2, y2, #000000)  -- 1-pixel black line
+        end for
+    else
+        ----  Normal face drawing (painter's algorithm) -----------------------------
+        -- compute average Z of each polygon
+        sequence poly_z   = {}
+        sequence poly_idx = {}
+        for p = 1 to lp do
+            sequence v = g_polys[p][2]          -- four vertex numbers
+            atom zavg = (verts[v[1]][3] +
+                         verts[v[2]][3] +
+                         verts[v[3]][3] +
+                         verts[v[4]][3]) / 4
+            poly_z   &= zavg
+            poly_idx &= p
+        end for
+        poly_idx = custom_sort(poly_z, poly_idx)   -- back-to-front
+
+        for pidx in poly_idx do
+            sequence poly = g_polys[pidx]
+            atom colour  = poly[1]
+            sequence v    = poly[2]          -- four vertex indices
+            sequence pts  = {}
+            for vi in v do
+                pts &= { verts[vi][X..Y] }
+            end for
+            gDrawPolygon(canvas, pts, bFill, colour)
+        end for
+    end if
+end procedure
+
+-- -----------------------------------------------------------------
+--  Key handling – add:
+--        H : toggle hollow / solid outer-cube view
+--        Ctrl + '+' / '-' : increase / decrease recursion depth
+--  The original camera keys are left untouched.
+-- -----------------------------------------------------------------
+procedure key_handler(gdx dlg, integer c, bool ctrl)
+    c = upper(c)
+    if ctrl then
+        if c='+' then
+            if LEVEL < 6 then LEVEL += 1 end if
+            build_geometry()
+        elsif c='-' then
+            if LEVEL > 0 then LEVEL -= 1 end if
+            build_geometry()
+        end if
+    elsif c='H' then
+        bHollow = not bHollow          -- switch between fractal faces & outer cube
+    elsif c='W' then                   -- keep original wire / solid toggle
+        bFill = not bFill
+    else
+        -- original camera-key handling (unchanged)
+        integer k = find(c,{'+','-',VK_RIGHT,VK_LEFT,VK_UP,VK_DOWN,'S','T','B','P'})
+        if k>6 then
+            atom c45 = cos(45*TG_DEG2RAD)
+            currentOrientation = {{1,0,0,0},
+                                  {c45,-c45,0,0},
+                                  {c45,c45,0,0},
+                                  {0,0,1,0}}[k-6]
+        elsif k then
+            integer axis = (k+odd(k))/2
+            atom rotation_speed = 0.025,
+                 halfAngle = (1-2*odd(k))*rotation_speed,
+                 {cw,cx,cy,cz} = currentOrientation,
+                 dw = cos(halfAngle),
+                 {dx,dy,dz} = reinstate({0,0,0},axis,sin(halfAngle)),
+                 nw = cw*dw - cx*dx - cy*dy - cz*dz,
+                 nx = cw*dx + cx*dw + cy*dz - cz*dy,
+                 ny = cw*dy - cx*dz + cy*dw + cz*dx,
+                 nz = cw*dz + cx*dy - cy*dx + cz*dw,
+                 l  = sqrt(nw*nw + nx*nx + ny*ny + nz*nz)
+            currentOrientation = {nw/l,nx/l,ny/l,nz/l}
+        end if
+    end if
+    gRedraw(dlg)
+end procedure
+--/*
+# Super-holey (Gridded) Menger sponge design in Ring language - FIXED, STABLE VERSION
+load "raylib.ring"
+
+SCREEN_WIDTH  = 800
+SCREEN_HEIGHT = 600
+
+# Global structure to prevent memory leaks during recursion
+global_pos = new Vector3(0,0,0) 
+
+func main()
+    # Enable anti-aliasing for clean rendering of thin grids
+    SetConfigFlags(FLAG_MSAA_4X_HINT)
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Super-holey Menger Sponge (Cantor Dust) - Ring")
+    SetTargetFPS(60)
+
+    # Camera initialization
+    camera          = new Camera3D
+    camera.position = new Vector3(6.5, 6.5, 6.5)
+    camera.target   = new Vector3(0.0, 0.0, 0.0)
+    camera.up       = new Vector3(0.0, 1.0, 0.0)
+    camera.fovy     = 45.0
+    camera.projection = CAMERA_PERSPECTIVE
+
+    # Clean studio colors
+    bgColor    = new Color(245, 247, 250, 255) # Light gray background
+    cubeColor  = RAYWHITE                      # Matte white surfaces
+    wireColor  = new Color(160, 170, 185, 255) # High-contrast gray edges for the grid
+
+    # Manual camera rotation angle to avoid UpdateCamera memory bugs
+    angle = 0.0
+
+    while !WindowShouldClose()
+        # Safe camera rotation (instead of using UpdateCamera)
+        angle = angle + 0.01
+        camera.position.x = 6.5 * cos(angle)
+        camera.position.z = 6.5 * sin(angle)
+
+        BeginDrawing()
+            ClearBackground(bgColor)
+
+            BeginMode3D(camera)
+                # Center: (0,0,0), Size: 4.2, Depth: 2 (Safe up to Level 3)
+                drawHoleySponge(0, 0, 0, 4.2, 2, cubeColor, wireColor)
+            EndMode3D()
+        EndDrawing()
+    end
+
+    CloseWindow()
+
+func drawHoleySponge(x, y, z, size, level, cColor, wColor)
+    # If base level is reached, draw the remaining thin cube
+    if level = 0
+        # INSTEAD of creating a new object, modify the existing global object's values
+        global_pos.x = x
+        global_pos.y = y
+        global_pos.z = z
+        
+        DrawCube(global_pos, size, size, size, cColor)
+        DrawCubeWires(global_pos, size, size, size, wColor)
+        return
+    ok
+
+    newSize = size / 3.0
+
+    for dx = -1 to 1
+        for dy = -1 to 1
+            for dz = -1 to 1
+                
+                # Center detection
+                cx = 0 cy = 0 cz = 0
+                if dx = 0 cx = 1 ok
+                if dy = 0 cy = 1 ok
+                if dz = 0 cz = 1 ok
+
+                # MORE HOLES LOGIC:
+                # Keep only the 8 corner cubes (Cantor dust logic)
+                if (cx + cy + cz) < 1
+                    drawHoleySponge(
+                        x + (dx * newSize), 
+                        y + (dy * newSize), 
+                        z + (dz * newSize), 
+                        newSize, 
+                        level - 1,
+                        cColor,
+                        wColor
+                    )
+                ok
+            next
+        next
+    next
+
+# Aesthetic Menger Sponge design in Ring language
+load "raylib.ring"
+
+SCREEN_WIDTH  = 800
+SCREEN_HEIGHT = 600
+
+func main()
+    # Enable Anti-aliasing (MSAA 4X) for smoother edges
+    SetConfigFlags(FLAG_MSAA_4X_HINT)
+    
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Aesthetic Menger Sponge - Ring")
+    SetTargetFPS(60)
+
+    # Camera setup
+    camera = new Camera3D
+    camera.position   = new Vector3(9.0, 9.0, 9.0)
+    camera.target     = new Vector3(0.0, 0.0, 0.0)
+    camera.up         = new Vector3(0.0, 1.0, 0.0)
+    camera.fovy       = 45.0
+    camera.projection = CAMERA_PERSPECTIVE
+
+    while !WindowShouldClose()
+        UpdateCamera(camera, CAMERA_ORBITAL)
+
+        BeginDrawing()
+            # Clean, bright studio background
+            ClearBackground(new Color(245, 247, 250, 255))
+
+            BeginMode3D(camera)
+                # Draw the sponge (Center position, initial size, recursion level)
+                drawMengerSponge(0, 0, 0, 5.0, 2)
+            EndMode3D()
+        EndDrawing()
+    end
+
+    CloseWindow()
+
+func drawMengerSponge(x, y, z, size, level)
+    # Base case: draw the solid cube at the lowest level
+    if level = 0
+        # Solid parts: clean matte white with soft gray wireframe contours
+        DrawCube(new Vector3(x, y, z), size, size, size, RAYWHITE)
+        DrawCubeWires(new Vector3(x, y, z), size, size, size, new Color(200, 200, 200, 255))
+        return
+    ok
+
+    # Calculate the size of the smaller sub-cubes (divide by 3)
+    newSize = size / 3
+
+    # Iterate through the 3x3x3 grid
+    for dx = -1 to 1
+        for dy = -1 to 1
+            for dz = -1 to 1
+                
+                # Check if the sub-cube is on the center line of any axis
+                cx = (dx = 0)
+                cy = (dy = 0)
+                cz = (dz = 0)
+
+                # IF IT IS A HOLLOW CUBE (At least two coordinates are at the center)
+                if (cx + cy + cz) >= 2
+                    # Subtle, translucent smoke color (deep gray/blue) to simulate ambient shadows
+                    holeColor = ColorAlpha(new Color(40, 50, 70, 255), 0.35)
+                    
+                    # Draw only the solid volume without wireframe to keep the view clean
+                    DrawCube(new Vector3(x + (dx * newSize), y + (dy * newSize), z + (dz * newSize)), newSize, newSize, newSize, holeColor)
+                
+                # IF IT IS A SOLID CUBE
+                else
+                    # Recursive call for the remaining solid sub-cubes
+                    drawMengerSponge(
+                        x + (dx * newSize), 
+                        y + (dy * newSize), 
+                        z + (dz * newSize), 
+                        newSize, 
+                        level - 1
+                    )
+                ok
+            next
+        next
+    next
+        
+-- -----------------------------------------------------------------
+--  Helper: test whether a cubie at lattice coordinates (x,y,z) survives
+--  the Sierpinski rule (no coordinate contains a base-3 digit 1).
+-- -----------------------------------------------------------------
+function keep_cubie(atom x, y, z)
+    integer ix = floor(x), iy = floor(y), iz = floor(z)   -- lattice indices
+    while ix!=0 or iy!=0 or iz!=0 do
+        if remainder(ix,3)=1 or remainder(iy,3)=1 or remainder(iz,3)=1 then
+            return 0
+        end if
+        ix = floor(ix/3)
+        iy = floor(iy/3)
+        iz = floor(iz/3)
+    end while
+    return 1
+end function
+
+-- -----------------------------------------------------------------
+--  Generate the list of vertices for *all* kept cubies.
+--  Each cubie contributes its 8 corners; we store them in a flat
+--  sequence and later refer to them by index.
+-- -----------------------------------------------------------------
+sequence g_vertices   -- will be filled in `build_geometry()`
+sequence g_polys      -- each element: {colour, {v1,v2,v3,v4}}
+
+bool bTruth = true
+
+procedure build_geometry()
+    -- temporary containers while we iterate
+    sequence verts = {}          -- list of {x,y,z}
+    sequence polys = {}          -- list of {colour, {v1,v2,v3,v4}}
+
+    -- scale the whole fractal to fit inside the [-1,1]³ cube (later we will
+    -- translate/rotate with the existing camera code)
+    atom size = power(3, LEVEL)          -- number of subdivisions per axis
+    atom inv  = 1.0 / size               -- so that coordinates are in [0,1]
+
+    -- iterate over every lattice position in the 3^LEVEL grid
+    for ix = 0 to power(3,LEVEL)-1 do
+        for iy = 0 to power(3,LEVEL)-1 do
+            for iz = 0 to power(3,LEVEL)-1 do
+--              if not keep_cubie(ix,iy,iz) then continue end if
+                if keep_cubie(ix,iy,iz) then
+
+                    -- the cubie's lower-front-left corner in *unit* coordinates
+                    atom cx = ix * inv
+                    atom cy = iy * inv
+                    atom cz = iz * inv
+                    atom s  = inv                -- edge length of a sub-cubie
+
+                    -- 8 corners (order: 0…7 as shown in the comment)
+                    --   0: (x,   y,   z)          4: (x+s, y,   z)
+                    --   1: (x+s, y,   z)          5: (x+s, y+s, z)
+                    --   2: (x+s, y+s, z)          6: (x,   y+s, z)
+                    --   3: (x,   y+s, z)          7: (x,   y,   z+s)
+                    --   … and the same with +s in Z for the back face
+                    integer base = length(verts)+1
+                    verts &= {{cx,   cy,   cz},
+                              {cx+s, cy,   cz},
+                              {cx+s, cy+s, cz},
+                              {cx,   cy+s, cz},
+                              {cx,   cy,   cz+s},
+                              {cx+s, cy,   cz+s},
+                              {cx+s, cy+s, cz+s},
+                              {cx,   cy+s, cz+s}}
+
+                    -- ----  Faces ------------------------------------------------
+                    -- we add a face only when the neighbour in that direction
+                    -- is missing (or we are at the outer boundary).
+                    -- The colour is chosen by the outward normal.
+
+                    -- +X face  (normal = +1,0,0)
+                    if (ix = power(3,LEVEL)-1 or not keep_cubie(ix+1,iy,iz))=bTruth then
+                        polys &= {{ #e0e0e0, {base+0, base+3, base+7, base+4} }}
+                    end if
+                    -- -X face  (normal = -1,0,0)
+                    if (ix = 0 or not keep_cubie(ix-1,iy,iz))=bTruth then
+                        polys &= {{ #c8c8c8, {base+1, base+2, base+6, base+5} }}
+                    end if
+                    -- +Y face  (normal = 0,+1,0)
+                    if (iy = power(3,LEVEL)-1 or not keep_cubie(ix,iy+1,iz))=bTruth then
+                        polys &= {{ #d0d0d0, {base+2, base+3, base+7, base+6} }}
+                    end if
+                    -- -Y face  (normal = 0,-1,0)
+                    if (iy = 0 or not keep_cubie(ix,iy-1,iz))=bTruth then
+                        polys &= {{ #b8b8b8, {base+0, base+1, base+5, base+4} }}
+                    end if
+                    -- +Z face  (normal = 0,0,+1)
+                    if (iz = power(3,LEVEL)-1 or not keep_cubie(ix,iy,iz+1))=bTruth then
+                        polys &= {{ #e8e8e8, {base+4, base+5, base+6, base+7} }}
+                    end if
+                    -- -Z face  (normal = 0,0,-1)
+                    if (iz = 0 or not keep_cubie(ix,iy,iz-1))=bTruth then
+                        polys &= {{ #a8a8a8, {base+0, base+1, base+2, base+3} }}
+                    end if
+                end if
+            end for
+        end for
+    end for
+
+    g_vertices = verts
+    g_polys    = polys
+end procedure
+
+-- -----------------------------------------------------------------
+--  Build the geometry once (called from `redraw` before the first frame)
+-- -----------------------------------------------------------------
+--if not defined('g_vertices') then
+    build_geometry()
+--end if
+
+-- -----------------------------------------------------------------
+--  In the draw routine we no longer use the static VERTICES/POLYGONS/
+--  DRAW_ORDER constants – we work with the dynamically built arrays.
+-- -----------------------------------------------------------------
+procedure redraw(gdx canvas, integer width, height)
+    -- (the existing quaternion-camera code stays exactly the same)
+    integer lv = length(g_vertices),
+            lp = length(g_polys),
+            cx = floor(width/2),
+            cy = floor(height/2)
+
+    atom {w, x, y, z} = currentOrientation,
+         m11 = 1 - 2*y*y - 2*z*z,
+         m12 =     2*x*y - 2*w*z,
+         m13 =     2*x*z + 2*w*y,
+         m21 =     2*x*y + 2*w*z,
+         m22 = 1 - 2*x*x - 2*z*z,
+         m23 =     2*y*z - 2*w*x,
+         m31 =     2*x*z - 2*w*y,
+         m32 =     2*y*z + 2*w*x,
+         m33 = 1 - 2*x*x - 2*y*y,
+         yaw = arcsin(max(min(2*(w*y-z*x),1),-1))*TG_RAD2DEG,
+         pitch = -atan2(2*(w*z+x*y),1-2*(y*y+z*z))*TG_RAD2DEG,
+         roll = -atan2(2*(w*x+y*z),1-2*(x*x+y*y))*TG_RAD2DEG
+
+    gDrawText(canvas,10,10,
+              "↔ yaw:%f, ↕ pitch:%f, ± roll:%f (quaternion-derived)",
+              {yaw,pitch,roll})
+
+    -- ----  rotate all vertices ------------------------------------------------
+    sequence verts = {}
+    for i = 1 to lv do
+        atom {vx,vy,vz} = g_vertices[i]
+>>
+        verts &= {{ (m11*vx + m12*vy + m13*vz)*scale,
+                    (m21*vx + m22*vy + m23*vz)*scale,
+                    (m31*vx + m32*vy + m33*vz)*scale}}
+    end for
+    verts = transpose(verts, cx, cy, 0)   -- centre on screen
+
+    -- ----  painter's order: sort polygons by average Z -----------------------
+    sequence poly_z   = {}
+    sequence poly_idx = {}
+    for p = 1 to lp do
+        sequence v = g_polys[p][2]          -- the four vertex indices
+        atom zavg = (verts[v[1]][3] +
+                     verts[v[2]][3] +
+                     verts[v[3]][3] +
+                     verts[v[4]][3]) / 4
+        poly_z   &= zavg
+        poly_idx &= p
+    end for
+    -- custom_sort sorts `poly_idx` according to the keys in `poly_z`
+    poly_idx = custom_sort(poly_z, poly_idx)
+
+    -- ----  draw --------------------------------------------------------------
+    for pidx in poly_idx do
+        sequence poly = g_polys[pidx]
+        atom colour  = poly[1]
+        sequence v    = poly[2]          -- four vertex numbers
+        sequence pts  = {}
+        for vi in v do
+--          pts &= { verts[vi][1], verts[vi][2] }   -- only X,Y needed
+            pts &= { verts[vi][X..Y] }  -- only X,Y needed
+--                  poly = append(poly,vertices[vdx][X..Y])
+        end for
+        gDrawPolygon(canvas, pts, bFill, colour)
+--      gDrawPolygon(canvas, pts, bFill, TG_RED)
+--?{"gDrawPolygon",pts, bFill, colour}
+    end for
+end procedure
+
+-- -----------------------------------------------------------------
+--  Key handling – add a toggle for hollow / solid and let the user
+--  change the recursion depth with ‘+' / ‘-' (when Ctrl is held).
+-- -----------------------------------------------------------------
+procedure key_handler(gdx dlg, integer c, bool ctrl)
+    c = upper(c)
+    if ctrl then
+        if c='+' then
+            if LEVEL < 6 then LEVEL += 1 end if
+            build_geometry()          -- rebuild with new depth
+        elsif c='-' then
+            if LEVEL > 0 then LEVEL -= 1 end if
+            build_geometry()
+        end if
+    elsif c='H' then
+        bHollow = not bHollow
+--      bFill   = not bHollow      -- solid when !bHollow, wire when bHollow
+        bTruth = bHollow
+    elsif c='W' then               -- keep original wire/fill toggle as well
+        bFill = not bFill
+    else
+        -- let the original camera-key handling run
+        integer k = find(c,{'+','-',VK_RIGHT,VK_LEFT,VK_UP,VK_DOWN,'S','T','B','P'})
+        if k>6 then
+            atom c45 = cos(45*TG_DEG2RAD)
+            currentOrientation = {{1,0,0,0},
+                                  {c45,-c45,0,0},
+                                  {c45,c45,0,0},
+                                  {0,0,1,0}}[k-6]
+        elsif k then
+            integer axis = (k+odd(k))/2
+            atom rotation_speed = 0.025,
+                 halfAngle = (1-2*odd(k))*rotation_speed,
+                 {cw,cx,cy,cz} = currentOrientation,
+                 dw = cos(halfAngle),
+                 {dx,dy,dz} = reinstate({0,0,0},axis,sin(halfAngle)),
+                 nw = cw*dw - cx*dx - cy*dy - cz*dz,
+                 nx = cw*dx + cx*dw + cy*dz - cz*dy,
+                 ny = cw*dy - cx*dz + cy*dw + cz*dx,
+                 nz = cw*dz + cx*dy - cy*dx + cz*dw,
+                 l  = sqrt(nw*nw + nx*nx + ny*ny + nz*nz)
+            currentOrientation = {nw/l,nx/l,ny/l,nz/l}
+        end if
+    end if
+    gRedraw(dlg)
+end procedure
+--*/
+
+gdx canvas = gCanvas(redraw,`BGCLR=PARCHMENT`),
+    dialog = gDialog(canvas,TITLE,`SIZE=800x560`)
+gSetHandler(dialog,`KEY`,key_handler)
+gMainLoop(dialog)
+

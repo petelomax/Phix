@@ -4,9 +4,7 @@
 --
 -- Author Pete Lomax, November 2023
 --
---/!*
 with javascript_semantics
-requires("1.0.3")
 include theGUI.e
 --gUseGTK()
 
@@ -14,64 +12,47 @@ constant full = false   -- set true for full swing to near-vertical.
                         -- false performs swing to horizontal only.
                         -- (adjusts the starting angle, pivot point,
                         --  and canvas size, only.)
-
-gdx dlg, canvas, timer
---cdCanvas cdcanvas
-
 constant g = 50
 
 atom angle = iff(full?PI-0.01:PI/2),  -- (near_vertical | horiz)
      velocity = 0
-integer w = 0, h = 0, len = 0
+integer len = 0
 
---procedure redraw(gdx /*canvas*/, integer w, h) -- no, see above!
-procedure redraw(gdx /*canvas*/)
-    {w, h} = gGetIntInt(canvas, "SIZE")
-    -- new suspension point:
+procedure redraw(gdx canvas, integer w, h)
+    -- new suspension and bob points:
     integer sX = floor(w/2),
             sY = floor(h/iff(full?2:16)),  -- (mid | top)
-    -- repaint:
-            eX = floor(len*sin(angle)+sX),
-            eY = floor(len*cos(angle)+sY)
-    gDrawLine(canvas, sX, sY, eX, eY, colour:=TG_CYAN)
+            bX = floor(len*sin(angle)+sX),
+            bY = floor(len*cos(angle)+sY)
+    gDrawLine(canvas, sX, sY, bX, bY, colour:=TG_CYAN)
     gDrawCircle(canvas, sX, sY, 3, true, colour:=TG_DARK_GREEN)
-    gDrawCircle(canvas, eX, eY, 18, true, colour:=TG_BLUE)
+    gDrawCircle(canvas, bX, bY, 18, true, colour:=TG_BLUE)
 end procedure
 
-procedure timer_action(gdx /*timer*/)
-    if w!=0 then
-        integer newlen = floor(w/2)-30
-        if newlen!=len then
-            len = newlen
+procedure timer_action(gdx timer)
+    gdx canvas = gGetAttribute(timer,`USER_DATA`)
+    integer {w,h} = gGetIntInt(canvas, "SIZE"),
+           newlen = floor(w/2)-30
+    if newlen!=len then
+        len = newlen
+        if not full then
+            -- keep half-swing in control, whereas
+            -- the full swing can go loop-the-loop
             atom tmp = 2*g*len*(cos(angle))
             velocity = iff(tmp<0?0:sqrt(tmp)*sign(velocity))
         end if
-        atom dt = 0.2/w
-        atom acceleration = -len*sin(angle)*g
-        velocity += dt*acceleration
-        angle += dt*velocity
-        gRedraw(canvas)
     end if
+    atom dt = 0.2/w, acceleration = -len*sin(angle)*g
+    velocity += dt*acceleration
+    angle += dt*velocity
+    gRedraw(canvas)
 end procedure
 
-procedure main()
-    
-    canvas = gCanvas(redraw)
-    gSetAttribute(canvas,"SIZE",iff(full?"640x640":"640x340")) -- (fit 360|180)
-    gSetAttribute(canvas,"BGCLR",TG_PARCHMENT)
-
-    timer = gTimer(timer_action, 20)
-
+gdx canvas = gCanvas(redraw, "BGCLR=PARCHMENT"),
+    timer = gTimer(timer_action,20,true,canvas),
     dlg = gDialog(canvas,"Animated Pendulum")
---  gSetAttribute(dlg, "TITLE", "Animated Pendulum")
-
-    gShow(dlg)
---  gSetAttribute(canvas, "SIZE", NULL)
-    gMainLoop()
-end procedure
-
-main()
---*!/
+gSetAttribute(dlg,"SIZE",iff(full?"642x672":"642x372")) -- (fit 360|180)
+gMainLoop(dlg)
 
 --/*
 -- Author Pete Lomax, March 2017

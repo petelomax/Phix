@@ -7,9 +7,12 @@
 --  BUG: BGHOV not cleared like it is for scrollbars... [FIXED]
 --
 with javascript_semantics
---requires("1.0.3")
+--requires(`1.0.3`)
 --requires(64,true)
 include theGUI.e
+--include theGOLD.e
+--include hGUI.bg.e
+--include hGUI.e -- gList
 --include ..\theGUI\tg_xpm.e
 --include ..\theGUI\backup\tg_xpm.2899.e
 --include ..\theGUI\backup\theGUI.2897.e    -- no scroll...
@@ -39,9 +42,13 @@ include theGUI.e
 --include ..\theGUI\backup\theGUI.7650.e    -- loopy
 --gUseGTK()
 
---sequence data = {"one","too","three"}
---sequence data = {"one",{{"too",TG_RED,TG_ITALIC}},"three"}
-sequence data = get_text("gList.exw",GT_LF_STRIPPED)
+--sequence data = {`one`,`too`,`three`}
+--sequence data = {`one`,{{`too`,TG_RED,TG_ITALIC}},`three`}
+--sequence data = {`one`,{{`too`,TG_RED,TG_ITALIC}},{{`three`,TG_BLACK,TG_SQUIGGLE}}}
+--sequence data = {`one`,{{`twu`,TG_RED,TG_SQUIGGLE}},`three`}
+sequence data = {`one`,{{`tuw`,TG_BLUE,TG_SQUIGGLE}},`three`}
+--sequence data = get_text(`gList.exw`,GT_LF_STRIPPED)
+--sequence data = get_text(`gList.exw`,GT_LF_STRIPPED)[1..8]
 
 integer maxlen = largest(apply(data,length),return_index:=true)
 
@@ -50,10 +57,10 @@ function get_data(integer idx)
 --  if idx=-1 then return maxlen end if
     if idx=-1 then return 0 end if
     sequence res = data[idx]
-    if res="too" then -- spelling mistake?
+    if res=`too` then -- spelling mistake?
         -- (see note 1 below)
-        res = {{"too",TG_RED,TG_ITALIC}}
---      res = {{"too",{TG_BLUE,TG_RED},TG_ITALIC}}
+        res = {{`too`,TG_RED,TG_ITALIC}}
+--      res = {{`too`,{TG_BLUE,TG_RED},TG_ITALIC}}
     end if
     return res
 end function
@@ -61,14 +68,15 @@ end function
 --DEV not yet supported, nor is any mouse/key entry, line highlighting, or [scrolling - FIXED(ish)]
 --procedure selected(integer idx)
 procedure selected(object idx)
---  ?{"selected",idx,data[idx]}
-    ?{"selected",idx}
+--  ?{`selected`,idx,data[idx]}
+    ?{`selected`,idx}
+--?9/0
 end procedure
 
 --procedure listclick(gdx list, sequence status, integer x, y)
---  integer cx = gGetAttribute(list,"CURSORX"),
---          cy = gGetAttribute(list,"CURSORY")
---  ?{"listclick", status, x, y, cx, cy}
+--  integer cx = gGetAttribute(list,`CURSORX`),
+--          cy = gGetAttribute(list,`CURSORY`)
+--  ?{`listclick`, status, x, y, cx, cy}
 --end procedure
 
 --NO, kills it:
@@ -83,59 +91,59 @@ end procedure
 gdx list = gList(get_data,selected,`FONT="Consolas, 12"`),
 --gdx list = gList(get_data,`FONT="Consolas, 12"`),
 --DEV should not need this...
---gdx list = gList(get_data,"SIZE=240x80"),
+--gdx list = gList(get_data,`SIZE=240x80`),
         -- gList(data,selected), -- (fine too)
-    dlg = gDialog(list,"gList",`SIZE=240x80`)
---  dlg = gDialog(list,"gList",`SIZE=550x350`)
---gSetAttribute(list,"BGCLR",#F0F0F0)
-gSetAttribute(list,"BGCLR",TG_LIGHT_PARCHMENT)
---gSetAttribute(list,"BGCLR",TG_LIGHT_GREY)
---gSetAttribute(list,"FONT","Consolas, 12")
---gSetHandler(list,"CLICK",listclick)
---gSetHandler(list,"REDRAW",cross) -- NO! (added to docs)
---gSetAttribute(list,"MULTIPLE",true)
---gSetAttribute(list,"TOPITEM",2) -- nope! (no effect)
-gSetAttribute(list,"CARET",true) -- fine, but it don't ever stop...
+    dlg = gDialog(list,`gList`,`SIZE=240x80`)
+--  dlg = gDialog(list,`gList`,`SIZE=240x132`)
+--  dlg = gDialog(list,`gList`,`SIZE=550x350`)
+--gSetAttribute(list,`BGCLR`,#F0F0F0)
+gSetAttribute(list,`BGCLR`,TG_LIGHT_PARCHMENT)
+--gSetAttribute(list,`BGCLR`,TG_LIGHT_GREY)
+--gSetAttribute(list,`FONT`,`Consolas, 12`)
+--gSetHandler(list,`CLICK`,listclick)
+--gSetAttribute(list,`MULTIPLE`,true)
+--gSetAttribute(list,`TOPITEM`,2) -- nope! (no effect)
+gSetAttribute(list,`CARET`,true) -- fine, but it don't ever stop...
 puts(1,"")
 gShow(dlg)
---?gGetAttribute(list,"EXPAND","YES")
+--?gGetAttribute(list,`EXPAND`,`YES`)
 gMainLoop()
 
 --/*
-constant items = {"Item 1 Text",
-                  "Item 2 Text",
-                  "Item 3 Text"}
+constant items = {`Item 1 Text`,
+                  `Item 2 Text`,
+                  `Item 3 Text`}
 
 gdx list = gList(items)
---gSetAttribute(list,"EXPAND","YES")
---gSetAttribute(list,"VALUE","1")
---gSetAttribute(list,"1","Item 1 Text")
---gSetAttribute(list,"2","Item 2 Text")
---gSetAttribute(list,"3","Item 3 Text")
-gSetAttribute(list,"TIP","List 1")
---gSetAttribute(list,"BGCLR",TG_PARCHMENT)
+--gSetAttribute(list,`EXPAND`,`YES`)
+--gSetAttribute(list,`VALUE`,`1`)
+--gSetAttribute(list,`1`,`Item 1 Text`)
+--gSetAttribute(list,`2`,`Item 2 Text`)
+--gSetAttribute(list,`3`,`Item 3 Text`)
+gSetAttribute(list,`TIP`,`List 1`)
+--gSetAttribute(list,`BGCLR`,TG_PARCHMENT)
 
 --/*
 gdx dropdn = gDropDown(items)
---gSetAttribute(dropdn,"DROPDOWN","YES")
---gSetAttribute(dropdn,"EXPAND","YES")
---gSetAttribute(dropdn,"VALUE","2")
---gSetAttribute(dropdn,"1","Item 1 Text")
---gSetAttribute(dropdn,"2","Item 2 Text")
---gSetAttribute(dropdn,"3","Item 3 Text")
-gSetAttribute(dropdn,"TIP","List 2")
---gSetAttribute(dropdn,"VISIBLE",false)
+--gSetAttribute(dropdn,`DROPDOWN`,`YES`)
+--gSetAttribute(dropdn,`EXPAND`,`YES`)
+--gSetAttribute(dropdn,`VALUE`,`2`)
+--gSetAttribute(dropdn,`1`,`Item 1 Text`)
+--gSetAttribute(dropdn,`2`,`Item 2 Text`)
+--gSetAttribute(dropdn,`3`,`Item 3 Text`)
+gSetAttribute(dropdn,`TIP`,`List 2`)
+--gSetAttribute(dropdn,`VISIBLE`,false)
 
---gdx frame = gFrame(gVbox({list,dropdn},"MARGIN=20x20,GAP=15"))
-gdx frame = gFrame(gVbox({list,dropdn},"MARGIN=20x20"))
-gSetAttribute(frame,"TITLE","gList")
+--gdx frame = gFrame(gVbox({list,dropdn},`MARGIN=20x20,GAP=15`))
+gdx frame = gFrame(gVbox({list,dropdn},`MARGIN=20x20`))
+gSetAttribute(frame,`TITLE`,`gList`)
 
-gdx hbox = gHbox({frame},"MARGIN=10x10")
+gdx hbox = gHbox({frame},`MARGIN=10x10`)
 
 --gdx dlg = gDialog(hbox,"SIZE[*charsize]=200x200")
-gdx dlg = gDialog(hbox,"gList tests","SIZE=200x200")
+gdx dlg = gDialog(hbox,`gList tests`,`SIZE=200x200`)
 --*/
-gdx dlg = gDialog(list,"gList","SIZE=210x80")
+gdx dlg = gDialog(list,`gList`,`SIZE=210x80`)
 gShow(dlg)
 gMainLoop()
 --*/

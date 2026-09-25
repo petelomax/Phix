@@ -17,42 +17,54 @@
          <li> the first item of a (non-empty) sequence s is 1 and the last is <a href>length</a>(s) </li>
          <li> numbering from the head 1..n is symmetrical to numbering from the tail -n..-1 </li>
          <li> when searching a result of 0 means "item not found" <small>(and certainly not -1 == "last")</small> </li>
-         <li> false=0, true=1 work well with index calculations, were 0 a valid idx, you&apos;d want false == -1</li>
-         <li> a slice is inclusive from the first index to the last index <small>(and not half-in-half-out)</small></li>
-         <li> it is in fact <i>not possible</i> to define the opening zero-length slice using pure 0-based indices</li>
-         <li> there are no<small>(well, fewer)</small> off-by-one complications as found with 0-based indexing </li>
          <li> there is no need to explain 1-based indexing to anyone and you certainly don&apos;t need a diagram </li>
+<!--         <li> false=0, true=1 work well with 1-based indexing, whereas for 0-based false shd be -1</li>-->
+         <li> a slice is inclusive from the first index to the last index <small>(and not half-in-half-out)</small></li>
+<!--         <li> it is in fact <i>not possible</i> to define the opening zero-length slice using pure 0-based indices</li>-->
+<!--         <li> there are no<small>(well, fewer)</small> off-by-one complications as found with 0-based indexing </li>-->
          <li> avoiding fencepost errors via the clumsy math of half-open intervals is just plain stupid </li>
+         <li> letting NULL be a perfectly valid subscript index is way beyond any measure of stupid </li>
+         <li> having <i>no</i> "not a valid index value" <i>at all</i> is an extra level of stupid on top of that </li>
+         <li> making zero raise a subscript error immediately catches most of them, for free </li>
         </ul>   
-        Since phix does not have unsigned integers (aka zero minus one is <i>never</i> MAXINT), there is no equivalent for 
-        the dirty trick of <code>"idx&lt;len"</code> checking both bounds, instead (fairly rarely)
-        <code>"idx&gt;=1 and idx&lt;=len"</code> must be used, plus abs() to permit -ve indexes.<br>
+        Since phix does not have unsigned integers (aka zero minus one is always -1 and <i>never</i> MAXINT), there is no 
+        equivalent for the dirty trick of <code>"(uint)idx&lt;len"</code> checking both bounds, instead (fairly rarely)
+        <code>"idx&gt;=1 and idx&lt;=len"</code> must be used, plus abs() to permit -ve indexes. However even if Phix used
+        0-based indexing, it&apos; still need <code>"idx&gt;=0 and idx&lt;len"</code> <i>unless</i> it also had uints.<br>
+        Conversely, since 0==false, you can just say "if idx then", instead of say "if (idx != std::string::npos) {"
+        and similar such nonsense.<br>
+<!-- erm, is it ++i%n vs. rmdr|mod(i,n)+1 - which rather tips the balance somewhat...
+        Also, I just simply don&apos;t agree that <code>(i+1)%n</code> is easier than <code>i%n+1</code>, in fact I
+        would strongly argue it is rather obviously harder!<br>-->
+<!--
         In phix, s[1..1] is a length-1 slice containing the first element. In other (0-based) languages the equivalent is
         s[0:1] and while I am sure you can quickly get used to it, and it makes some sense in terms of length calculation
         and when viewing <i>slice</i> extents as the gaps between elements (without implying that fairness applies to the
         indexes to the elements themselves), the idea that start is 0-based and end is 1-based is clearly the very definition
         of deliberate insanity. Apart from matching that madness, I certainly cannot think of anything nice to say about the 
         thinking behind say <code>for i in range(0,7)</code> stopping when i is 6.
-<!--
+[!--
          <small>(In phix you would just use 
         <code>for i=0 to 6 do </code> or maybe <code>for i in {0,1,2,3,4,5,6} do</code> and with some irony I accept that 
         <a href>tagstart</a>(0,7) gets you that length-7 {0,..6}, but at least that 7 is explicitly a length and
         not the "end of range" that <a href>tagset</a>(7,0) already provides perfectly, otherwise there is 
         no such "unexpected cropping")</small>. 
--->
-        Both a phix <code>"i=1 to 5"</code> and a C <code>"i=0; i<5;"</code> iterate 5 times, the stupid in the last point 
-        refers to claims that <code>"5-0"</code> is easy but <code>"(5-1)+1"</code> is hard. Presumably whenever they hold
+--]
+        Both a phix <code>"i=1 to 5"</code> and a C <code>"i=0; i<5;"</code> iterate 5 times, and somehow I disagree with
+        claims that <code>"5-0"</code> is easy but <code>"(5-1)+1"</code> is hard. Presumably whenever they hold
         one, these people think "I&apos;ll just drop off those barbecue invites to numbers 5 to 9", and take 4 of them.
         I have read <a href="javascript:ExternalLink('ext175');" id="ext175" style="color:#9B5565" 
                        title='https://www.cs.utexas.edu/~EWD/transcriptions/EWD08xx/EWD831.html'>EWD831</a> several times
         and my main objection is that for the empty subsequence s[1..0], he brazenly decrees that the 0 is "unnatural" and
-        "ugly" without <i><b>any</b></i> further justification or discussion at all, before picking 0 for the start index.
+        "ugly" without <i><b>any</b></i> further justification or discussion at all, before picking 0 for the start index,
+        .
         It is worth pointing out that note is a response to "an emotional outburst" over the status quo, and probably an
         angry defence rather than, as many seem to interpret it, the result of a carefully thought through design process.
         It cannot help either that I just cannot swallow the line that 0&lt;=i&lt;N is somehow "nicer" than 1&lt;=i&lt;N+1,
         and sadly/somehow 1&lt;=i&lt;=N isn&apos;t even considered in that note.
-        Ultimately I suppose in a language like C that heavily depends and relies on pointer maths, 0-based makes sense 
-        and is useful, but in one that doesn&apos;t, it isn&apos;t.<br>
+-->
+        Ultimately I suppose in a language like C that heavily depends and relies on pointer maths, 0-based makes some
+        sense and is useful, but in one that doesn&apos;t, it isn&apos;t.
 <!--
          The fencepost errors mentioned 
         are usually caused by performing <i>mental</i> arithmetic when none is needed at all... or worse, without thinking...<br>

@@ -1,6 +1,6 @@
 --
--- utfconv.e
--- =========
+-- builtins\utfconv.e
+-- ==================
 --
 -- Simple unicode conversion routines, originally written for edix.
 --  Based heavily on the work by Shian Lee, but reworked to use Phix string types, and
@@ -103,7 +103,8 @@
 
 constant INVALID_UTF8 = #FFFD
 
-global function utf8_to_utf32(string utf8, integer fail_flag=0)
+--global function utf8_to_utf32(string utf8, integer fail_flag=0)
+global function utf8_to_utf32(sequence utf8, integer fail_flag=0)
 --
 -- convert a utf8 string to utf32 (one element per character)
 --  note result may be string for pure-ascii input (all chars 0..#7F).
@@ -357,7 +358,7 @@ integer ch
     return utf16
 end function
 
-global function utf8_to_utf16(string utf8)
+global function utf8_to_utf16(sequence utf8)
     return utf32_to_utf16(utf8_to_utf32(utf8))
 end function
 
@@ -607,3 +608,5 @@ func reverse(s string) string {
         return string(rv)
 }
 --*/
+
+

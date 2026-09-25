@@ -24,7 +24,7 @@ global constant
 --      AC_SRC_OVER = 0,
 --      AC_SRC_ALPHA = 1,
         BI_RGB = 0,
---      BI_BITFIELDS = 3,
+        BI_BITFIELDS = 3,
         BLACK_BRUSH = 4,
         BS_PUSHBUTTON = 0,
         BS_DEFPUSHBUTTON = 1,
@@ -643,17 +643,17 @@ global atom
             C_PTR)      -- HBITMAP
 
         xCreateCompatibleBitmap = define_c_func(GDI32,`CreateCompatibleBitmap`,
-            {C_PTR,     --  HDC hdc
+            {C_PTR,     --  HDC hDC
              C_INT,     --  int nWidth
              C_INT},    --  int nHeight
             C_PTR)      -- HBITMAP
 
         xCreateCompatibleDC = define_c_func(GDI32,`CreateCompatibleDC`,
-            {C_PTR},    --  HDC hdc // handle of memory device context
+            {C_PTR},    --  HDC hDC // handle of memory device context
             C_PTR)      -- HDC
 
         xCreateDIBSection = define_c_func(GDI32,`CreateDIBSection`,
-            {C_PTR,     --  HDC hdc
+            {C_PTR,     --  HDC hDC
              C_PTR,     --  BITMAPINFO *pbmi
              C_UINT,    --  UINT iUsage
              C_PTR,     --  VOID **ppvBits
@@ -735,7 +735,7 @@ global atom
             C_PTR)      -- LRESULT
 
         xDeleteDC = define_c_func(GDI32,`DeleteDC`,
-            {C_PTR},    --  HDC  hdc    // handle of device context 
+            {C_PTR},    --  HDC hDC // handle of device context 
             C_BOOL)     -- BOOL
 
         xDeleteObject = define_c_proc(GDI32,`DeleteObject`,
@@ -824,12 +824,12 @@ global atom
             C_PTR)      -- HDC
 
         xGetDeviceCaps = define_c_func(GDI32,`GetDeviceCaps`,
-            {C_PTR,     --  HDC hdc,    // device-context handle
+            {C_PTR,     --  HDC hDC,    // device-context handle
              C_INT},    --  int nIndex // index of capability to query
             C_INT)      -- int
 
         xGetDIBits = define_c_func(GDI32,`GetDIBits`,
-            {C_PTR,     --  HDC hdc
+            {C_PTR,     --  HDC hDC
              C_PTR,     --  HBITMAP hbmp
              C_INT,     --  UINT uStartScan
              C_INT,     --  UINT cScanLines
@@ -882,14 +882,14 @@ global atom
             C_INT)      -- int
 
         xGetTextExtentPoint32W = define_c_func(GDI32,`GetTextExtentPoint32W`,
-            {C_PTR,     --  HDC  hdc,   // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_PTR,     --  LPCTSTR  lpString,  // address of text string
              C_INT,     --  int  cbString,  // number of characters in string
              C_PTR},    --  LPSIZE  lpSize  // address of structure for string size
             C_BOOL)     -- BOOL
 
         xGetTextMetrics = define_c_func(GDI32,`GetTextMetricsW`,
-            {C_PTR,     --  HDC  hdc,   // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_PTR},    --  LPTEXTMETRIC lptm
             C_BOOL)     -- BOOL
 
@@ -947,9 +947,9 @@ global atom
             C_BOOL)     -- BOOL
 
         xLineTo = define_c_func(GDI32,`LineTo`,
-            {C_PTR,     --  HDC  hdc,   // device context handle
-             C_INT,     --  int  nXEnd, // x-coordinate of line's ending point
-             C_INT},    --  int  nYEnd  // y-coordinate of line's ending point
+            {C_PTR,     --  HDC hDC,    // device context handle
+             C_INT,     --  int nXEnd, // x-coordinate of line's ending point
+             C_INT},    --  int nYEnd   // y-coordinate of line's ending point
             C_BOOL)     -- BOOL
 
         xLoadCursor = define_c_func(USER32,`LoadCursorW`,
@@ -982,10 +982,10 @@ global atom
             C_PTR)      -- HMONITOR
            
         xMoveToEx = define_c_func(GDI32,`MoveToEx`,
-            {C_PTR,     --  HDC  hdc,   // handle of device context
-             C_INT,     --  int  X, // x-coordinate of new current position
-             C_INT,     --  int  Y, // y-coordinate of new current position
-             C_PTR},    --  LPPOINT  lpPoint    // address of old current position
+            {C_PTR,     --  HDC hDC,    // handle of device context
+             C_INT,     --  int X, // x-coordinate of new current position
+             C_INT,     --  int Y, // y-coordinate of new current position
+             C_PTR},    --  LPPOINT lpPoint // address of old current position
             C_BOOL)     -- BOOL
 
         xMoveWindow = define_c_proc(USER32,`MoveWindow`,
@@ -1033,8 +1033,8 @@ global atom
 --          C_BOOL)     -- BOOL (ignored)
 
         xReleaseDC = define_c_func(USER32,`ReleaseDC`,
-            {C_PTR,     --  HWND  hwnd, // handle of window
-             C_PTR},    --  HDC  hdc    // handle of device context
+            {C_PTR,     --  HWND hwnd, // handle of window
+             C_PTR},    --  HDC hDC // handle of device context
             C_BOOL)     -- BOOL
 
         xScreenToClient = define_c_func(USER32,`ScreenToClient`,
@@ -1050,12 +1050,12 @@ global atom
             C_LONG)     -- LRESULT
 
         xSelectClipRgn = define_c_func(GDI32,`SelectClipRgn`,
-            {C_PTR,     --  HDC  hdc,   // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_PTR},    --  HRGN hrgn
             C_PTR)      -- int complexity
 
         xSelectObject = define_c_func(GDI32,`SelectObject`,
-            {C_PTR,     --  HDC  hdc,   // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_PTR},    --  HGDIOBJ  hgdiobj    // handle of object
             C_PTR)      -- HGDIOBJ
 
@@ -1064,7 +1064,7 @@ global atom
             C_PTR)      -- HWND
            
         xSetBkMode = define_c_func(GDI32,`SetBkMode`,
-            {C_PTR,     --  HDC hdc,    // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_INT},    --  int iBkMode // flag specifying background mode
             C_INT)      -- int
 
@@ -1094,12 +1094,12 @@ global atom
             C_PTR)      -- HWND (previous)
            
         xSetStretchBltMode = define_c_func(GDI32, `SetStretchBltMode`,
-            {C_PTR,     --  HDC hdc
+            {C_PTR,     --  HDC hDC
              C_INT},    --  int iStretchMode
             C_INT)      -- int
            
         xSetTextColor = define_c_func(GDI32,`SetTextColor`,
-            {C_PTR,     --  HDC hdc, // handle of device context
+            {C_PTR,     --  HDC hDC, // handle of device context
              C_PTR},    --  COLORREF crColor // text color
             C_PTR)      -- COLORREF
 
@@ -1163,7 +1163,7 @@ global atom
             C_INT)      -- BOOL
 
         xTextOut = define_c_func(GDI32,`TextOutW`,
-            {C_PTR,     --  HDC hdc,    // handle of device context
+            {C_PTR,     --  HDC hDC,    // handle of device context
              C_INT,     --  int nXStart,        // x-coordinate of starting position
              C_INT,     --  int nYStart,        // y-coordinate of starting position
              C_PTR,     --  LPCTSTR lpString,   // address of string
@@ -1223,7 +1223,7 @@ global atom
                                     } LOGBRUSH, *PLOGBRUSH;`)
            
         idPAINTSTRUCT = define_struct(`typedef struct tagPAINTSTRUCT {
-                                         HDC  hdc;
+                                         HDC hDC;
                                          BOOL fErase;
                                          RECT rcPaint;
                                          BOOL fRestore;
@@ -1384,8 +1384,8 @@ global procedure AddClipboardFormatListener(atom hWnd)
 end procedure
 
 global function BeginPaint(atom hWnd, pRECT)
-    atom hdc = c_func(xBeginPaint,{hWnd,pRECT})
-    return hdc
+    atom hDC = c_func(xBeginPaint,{hWnd,pRECT})
+    return hDC
 end function
 
 global procedure BitBlt(atom hdcDest, nXDest, nYDest, nWidth, nHeight, hdcSrc, nXSrc, nYSrc, dwRop)
@@ -1412,8 +1412,8 @@ global function CreateBitmap(integer w, h, planes, bpp, atom pPixels)
     return hBitmap
 end function
 
-global function CreateCompatibleBitmap(atom hdc, integer w, h)
-    atom hBitmap = c_func(xCreateCompatibleBitmap,{hdc,w,h})
+global function CreateCompatibleBitmap(atom hDC, integer w, h)
+    atom hBitmap = c_func(xCreateCompatibleBitmap,{hDC,w,h})
     assert(hBitmap!=NULL)
     return hBitmap
 end function
@@ -1423,8 +1423,8 @@ local procedure crashee(string msg)
     crash(`%s failed (%d [%08x])`,{msg,e,e})
 end procedure
 
-global function CreateCompatibleDC(atom hdc)
-    atom res = c_func(xCreateCompatibleDC,{hdc})
+global function CreateCompatibleDC(atom hDC)
+    atom res = c_func(xCreateCompatibleDC,{hDC})
     if res=NULL then crashee(`CreateCompatibleDC`) end if
     return res
 end function
@@ -1500,8 +1500,8 @@ global function DefWindowProc(atom hWnd, Msg, wParam, lParam)
     return res
 end function
 
-global procedure DeleteDC(atom hdc)
-    integer res = c_func(xDeleteDC,{hdc})
+global procedure DeleteDC(atom hDC)
+    integer res = c_func(xDeleteDC,{hDC})
     assert(res!=0)
 end procedure
 
@@ -1610,13 +1610,13 @@ global function GetDC(atom hWnd)
     return hDC
 end function
 
-global function GetDeviceCaps(atom hdc, integer nIndex)
-    integer res = c_func(xGetDeviceCaps,{hdc,nIndex})
+global function GetDeviceCaps(atom hDC, integer nIndex)
+    integer res = c_func(xGetDeviceCaps,{hDC,nIndex})
     return res
 end function
 
-global procedure GetDIBits(atom hdc, hBmp, integer uStartScan, cScanLines, atom lpvBits, lpbi, integer uUsage)
-    integer res = c_func(xGetDIBits,{hdc, hBmp, uStartScan, cScanLines, lpvBits, lpbi, uUsage})
+global procedure GetDIBits(atom hDC, hBmp, integer uStartScan, cScanLines, atom lpvBits, lpbi, integer uUsage)
+    integer res = c_func(xGetDIBits,{hDC, hBmp, uStartScan, cScanLines, lpvBits, lpbi, uUsage})
     assert(res!=0)
 end procedure
 
@@ -1707,8 +1707,8 @@ global function GetTextExtentPoint32(atom hDC, string s)
     return {cx,cy}
 end function
 
-global procedure GetTextMetrics(atom hdc, lptm)
-    bool res = c_func(xGetTextMetrics,{hdc,lptm})
+global procedure GetTextMetrics(atom hDC, lptm)
+    bool res = c_func(xGetTextMetrics,{hDC,lptm})
     assert(res!=0)
 end procedure
 
@@ -1770,8 +1770,8 @@ global procedure KillTimer(atom hWnd, integer uIDEvent)
     assert(res)
 end procedure
 
-global procedure LineTo(atom hdc, x, y)
-    bool res = c_func(xLineTo,{hdc,x,y})
+global procedure LineTo(atom hDC, x, y)
+    bool res = c_func(xLineTo,{hDC,x,y})
     assert(res)
 end procedure
 
@@ -1803,8 +1803,8 @@ global function MonitorFromRect(atom pRECT, dwFlags)
     return hMon
 end function
 
-global procedure MoveToEx(atom hdc, x, y, pPOINT)
-    bool res = c_func(xMoveToEx,{hdc,x,y,pPOINT})
+global procedure MoveToEx(atom hDC, x, y, pPOINT)
+    bool res = c_func(xMoveToEx,{hDC,x,y,pPOINT})
     assert(res)
 end procedure
 
@@ -1882,8 +1882,8 @@ global procedure ScreenToClient(atom hWnd, pPt)
     assert(res) 
 end procedure
 
-global function SelectObject(atom hdc, hgdiobj)
-    atom old = c_func(xSelectObject,{hdc, hgdiobj})
+global function SelectObject(atom hDC, hgdiobj)
+    atom old = c_func(xSelectObject,{hDC, hgdiobj})
     return old
 end function
 
@@ -1914,8 +1914,8 @@ end procedure
 
 constant SIMPLEREGION = 2
 
-global procedure SelectClipRgn(atom hdc, hClip)
-    integer complexity = c_func(xSelectClipRgn,{hdc,hClip})
+global procedure SelectClipRgn(atom hDC, hClip)
+    integer complexity = c_func(xSelectClipRgn,{hDC,hClip})
 --?{`SelectClipRgn`,hClip,complexity}
     assert(complexity=SIMPLEREGION) -- ? not NULLREGION ?
 --#define ERROR             0

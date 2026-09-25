@@ -161,7 +161,7 @@ global function ffree(object addr)
 end function
 
 global function allocate(integer size, bool cleanup=false)
-atom res
+    atom res
     if size<0 then
         #ilASM{
             [32]

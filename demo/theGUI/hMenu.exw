@@ -1,0 +1,261 @@
+﻿--
+--  demo\theGUI\hMenu.exw
+--  =====================
+--
+--  NOTE: It is seriously impractical to extract all the code in theGUI.e that deals with the
+--        focus and alt-tab aspects of menu handling, see (eg) the comment above the forward
+--        definition of tg_ensure_popup() should you need proof. What I have done is allow
+--        just 1 of the 47 routines (not counting changes to the core WndProc and equivalent
+--        GTK scatterings) needed to deal with menus, being the draw_menu, via an otherwise 
+--        undocumented gSetGlobal("drawmenu"), with no option to override size or position.
+--        Therefore, as-is, this is only concerned with / demonstrates custom drawing.
+--
+--        You could of course factor out other code fragments in a similar fashion, but my 
+--        strongest advice would be to leave all the inter-routine linkage stuff well alone.
+--         [One of these days I'm going to write meself one of those call graph doobries.]
+--        For instance you might want to change mousemove to something which determines if
+--        the mouse is on the icon/text/keyboard shortcut, factoring out the when and why
+--        they should be called is one thing, but the actual calls to tg_hide_submenus()
+--        and tg_open_child_menu() should remain in theGUI/tg_menu_mousemove(), iyswim,
+--        aka if moving a call here causes insurmountable issues then don't move it here.
+--
+--        Should you be interested in how it works, see win_menus.exw, gtk_menus.exw, and
+--        pwa\js\poc\menus.html for the absolute bare minimum code required.
+--
+--       toggle checked and radio menu items, w/o closing the menu. [DONE!]
+--
+-- TODO: menubar hover/keyboard stuff [close done]
+--       (here) new/open/close update recent items
+--       empty submenus should be auto-disabled [now initially good, check again when update_recent_menu() done]
+--       hovering on the menubar is using "previous hover open" when it should be using "any".
+--
+--requires(64,true)
+with javascript_semantics
+--include theGUI.e
+include theGUI.e
+--puts(1,"")
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gSetGlobal(`DIAGNOSTICS`,`MARGINS`)
+--gSetGlobal(`DIAGNOSTICS`,`DUMPONREDRAW`)
+--gSetGlobal(`DIAGNOSTICS`,`DUMPONRESIZE`)
+--gSetGlobal(`DIAGNOSTICS`,`SET_NORM`)
+--gSetGlobal(`DIAGNOSTICS`,`DF_SET_WH`)
+--gUseGTK()
+
+constant cut_xpm_txt = """
+16 16 2 1
+. c None
+* c #000000
+................
+................
+.............*..
+............*...
+...........**...
+..........**....
+.****....**.....
+*...**..**......
+*...******......
+.****...*******.
+.......**.......
+......***.......
+.....*..*.......
+....*...*.......
+....*..*........
+....***.........
+""",
+cut_xpm = gImage_from_XPM(cut_xpm_txt)
+
+--/*
+constant MAIN_MENU = {{"&File",{{"&New\t",M_CTRL+'N'},
+                                {"&Open",M_CTRL+'O'},
+                                {"&Recent Files",M_NOT_KEY+'R',{}},
+                                {"&Close",M_CTRL+VK_F4},
+                                '|',
+                                {"E&xit",M_ALT+VK_F4}}},
+                      {"&Edit",false,M_NOT_KEY+'E',
+                               {{"Copy",M_CTRL+'C'}}},
+                      {"&Help",VK_F1}}
+--*/
+constant FILE_MENU = {{"&New\t",M_CTRL+'N'},
+                      {"&Open\t",M_CTRL+'O'},
+                      {"&Recent Files",M_NOT_KEY+'R',{}},
+                      {"&Close",M_CTRL+VK_F4},
+                      "|",
+                      {"E&xit\t",M_ALT+VK_F4}},
+         EDIT_MENU = {{"&Copy\t",M_CTRL+'C'},
+--                    {"Cut\t",cut_xpm_txt,M_CTRL+'X'},
+                      {"Cut\t",cut_xpm,M_CTRL+'X'},
+                      {"Chon","?",true,1},
+                      {"Choff","?",2},
+                      {"&Ron","??",true,3},
+                      {"Roff","??",4},
+                      {"N/A","??",false,false,5}},
+--                    {"N/A","??",5}},
+--       HOP_MENU = {{"Hop",'H'}},
+         MAIN_MENU = {{"&File",FILE_MENU},
+                      {"&Edit",M_NOT_KEY+'E',EDIT_MENU},
+--                    {"Empty",false,'E',{}},
+--                    {"Hop",'H',HOP_MENU},
+                      {"&Help\t",VK_F1}}
+
+procedure update_recent_menu(gdx menu, string txt)
+    integer {mdx,hit} = gMenuGetAttribute(menu,M_NOT_KEY+'R',`MDXHIT`)
+    assert(hit=3) -- and use|assume 1/2/4 for new/open/close
+    sequence norc = gMenuGetAttribute(menu,mdx,`DATA`) -- (read-only)
+    integer submenu = norc[MX_ITEMS][hit][MX_SUBMENU]
+    -- aside: there is also `DATA*` for the mxtra, if needed
+    sequence recent = gMenuGetAttribute(menu,submenu,`DATA+`)
+    sequence items = recent[MX_ITEMS]
+    recent[MX_ITEMS] = 0 -- (kill refcount)
+    if txt="Close" then
+        if length(items) then items = items[1..-2] end if
+    else
+        -- text, no submenu, no image, enabled, no id[, no check]
+        items &= {{lower(txt),0,0,true,0}}
+        -- nb: for a real recent items menu, you'd need to invent
+        --     some ids so menu_handler knows what to do with em,
+        --     and technically adding ids of zero here is illegal.
+    end if
+    recent[MX_ITEMS] = items
+    gMenuSetAttribute(menu,submenu,`DATA`,recent) -- (replace asap)
+end procedure
+
+function menu_handler(gdx menu, integer id)
+    string txt = gMenuGetAttribute(menu,id,`TITLE`)
+    -- eg "&Help\t(F1)" -> "Help":
+    txt = filter(split(txt,'\t')[1],"out","&")
+    -- aside: gGetDialog(menu) won't work on a popup:
+    --         (or you could just use a local var)
+    gdx dlg = gGetAttribute(menu,`USER_DATA`)
+    gSetAttribute(dlg,`TITLE`,txt)
+    if find(txt,{"New","Open","Close"}) then
+        update_recent_menu(menu,txt)
+    end if
+    return iff(id==M_ALT+VK_F4 ? TG_CLOSE : TG_DEFAULT)
+end function
+
+-- the following is (currently) the exact same code as theGUI.e/tg_draw_one_menu():
+
+local sequence menu_images = {} -- from tg_xpm.e/`chk_xpm` (when/if actually needed).
+
+procedure draw_menu_override(gdx menu, gdm img, sequence items, mxtra)
+    integer w = mxtra[MX_WIDTH],
+            h = mxtra[MX_HEIGHT],
+           kb = mxtra[MX_KEYMODE],
+     hot_item = mxtra[MX_HOT],
+           hh = floor(TG_MENUITEM_HEIGHT/2),
+            y = 4
+    bool bAnyImages = false
+    for item in items do
+        if item[MX_IMAGE]!=NULL then
+            bAnyImages = true
+            exit
+        end if
+    end for
+    for i,item in items do
+        string text = item[MX_TEXT], shortcutkey
+        if text="-" then
+            y += 3
+            gDrawLine(img,4,y,w-4,y,TG_MENUSEP_FGCLR)
+            y += 3
+        else
+            if i=hot_item then
+                if kb then
+                    gDrawRect(img,3,y,w-3,y+TG_MENUITEM_HEIGHT,colour:=TG_BLACK)
+                else
+                    gDrawRect(img,0,y,w-1,y+TG_MENUITEM_HEIGHT,true,colour:=TG_MENUHOV_BGCLR)
+                end if
+            end if
+            bool enabled = item[MX_ENABLED]
+            integer submenu = item[MX_SUBMENU]
+            if submenu and length(gMenuGetAttribute(menu,submenu,`DATA`)[MX_ITEMS])=0 then
+                enabled = false
+            end if
+            object image = item[MX_IMAGE]
+            if string(image) then
+                if length(menu_images)=0 then
+                    menu_images = gGetGlobal("chk_xpm")
+                    -- {ucb,ccb,urb,crb,irb}
+                end if
+                bool checked = item[MX_CHECKED]
+                integer l = length(image)
+                image = menu_images[l*2-1+checked]
+                if not enabled then
+                    image = iff(l=2?menu_images[5]:gGreyscale_XPM(image))
+                end if
+            end if
+            if image then
+                integer {iw,ih} = gGetAttribute(image,`SIZE`)
+                gDrawImage(image,img,16-iw/2,y+hh-ih/2)
+            end if
+            integer k = find('\t',text),
+                   id = item[MX_ID]
+            if k then
+                shortcutkey = text[k+1..$]
+                text = text[1..k-1]
+                if shortcutkey="" then
+                    if not and_bits(id,M_NOT_KEY) then
+                        shortcutkey = sprintf("(%s)",gGetKeyName(id))
+                    else
+                        k = 0 -- (don't show it then)
+                    end if
+                end if
+            end if
+            atom clr = iff(i==hot_item?TG_MENUHOV_FGCLR
+                      :iff(enabled?TG_BLACK:TG_DARK_GREY))
+            gDrawText(img,iff(bAnyImages?30:7),y+hh,text,colour:=clr)
+            if submenu then
+--menu_images[6]?
+                gDrawText(img,w-16,y+hh,">",colour:=clr)
+            elsif k then
+                gDrawText(img,w-6,y+hh,shortcutkey,align:=TG_W,colour:=clr,style:=TG_MENU_KEY_FONT)
+            end if
+            y += TG_MENUITEM_HEIGHT
+        end if
+    end for
+    gDrawRect(img,0,0,w-1,h-1,colour:=0x00E5E5E5)
+end procedure
+gSetGlobal("drawmenu",draw_menu_override)
+
+procedure dlg_click_handler(gdx canvas, sequence status)
+    if status[1..2]=`RS` then
+        gdx popmenu = gGetAttribute(canvas,`USER_DATA`)
+        gPopupMenu(gGetDialog(canvas),popmenu)
+    end if
+end procedure
+
+--procedure dlg_key_handler(gdx dlg, integer c)
+--?{"tg_dialog_key_handler",dlg,gGetKeyName(c)}
+--  if c='?' then ?9/0 end if
+--end procedure
+
+
+gdx mnu = gMenu(MAIN_MENU,menu_handler), 
+--  pmn = gMenu(FILE_MENU,menu_handler), 
+    pmn = gMenu(MAIN_MENU,menu_handler), 
+    cnv = gCanvas(`BGCLR=PARCHMENT`), 
+    box = gVbox({mnu,cnv}),
+    dlg = gDialog(box,`hMenu`,`SIZE = 502x332`)
+gSetHandler(cnv,`CLICK`,dlg_click_handler)
+--gSetAttribute({cnv,dlg},`USER_DATA`,mnu) -- NO (as per docs, gPopupMenu objects)
+-- A real app would probably just use local vars instead*2:
+gSetAttribute({cnv,dlg},`USER_DATA`,pmn)
+gSetAttribute({mnu,pmn},`USER_DATA`,dlg)
+--gSetHandler(dlg,`KEY`,dlg_key_handler)
+--/*
+gMenuSetAttribute(gdx menu, object id, string name, object v)
+object v = gMenuGetAttribute(gdx menu, integer id, string name)
+gMenuToggleInt(gdx menu, object id, string name)
+--*/
+--?gMenuGetAttribute(mnu,VK_F1,`ACTIVE`)
+--gMenuSetAttribute(mnu,VK_F1,`ACTIVE`,false)
+--?gMenuGetAttribute(mnu,VK_F1,`ACTIVE`)
+--?gMenuGetAttribute(mnu,M_NOT_KEY+'E',`ACTIVE`)
+--gMenuSetAttribute(mnu,M_NOT_KEY+'E',`ACTIVE`,false)
+--?gMenuGetAttribute(mnu,M_NOT_KEY+'E',`ACTIVE`)
+--?gGetAttribute(mnu,`ACTIVE`)
+--gSetAttribute(mnu,`ACTIVE`,false)
+--?gGetAttribute(mnu,`ACTIVE`)
+gMainLoop(dlg)
+
+

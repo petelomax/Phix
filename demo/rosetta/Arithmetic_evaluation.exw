@@ -15,10 +15,11 @@ sequence opstack = {}       -- atom elements are literals,
                             -- on completion length(opstack) should be 1
 object token
 
-constant op_p_p = 1         --  1: expressions stored as op,p1,p2
-    --   p_op_p             --  0: expressions stored as p1,op,p2
-    --   p_p_op             -- -1: expressions stored as p1,p2,op
-
+constant p_p_op = -1,       -- expressions stored as p1,p2,op
+         p_op_p =  0,       -- expressions stored as p1,op,p2
+         op_p_p = +1,       -- expressions stored as op,p1,p2
+         opp = op_p_p
+         
 object op = 0   -- 0 if none, else "+", "-", "*", "/", "^", "%", or "u-"
 
 string s        -- the expression being parsed
@@ -26,9 +27,7 @@ integer ch
 integer sidx
 
 procedure err(string msg)
-    printf(1,"%s\n%s^ %s\n\nPressEnter...",{s,repeat(' ',sidx-1),msg})
-    {} = wait_key()
-    abort(0)
+    crash("%s\n%s^ %s\n\nPressEnter...",{s,repeat(' ',sidx-1),msg})
 end procedure
 
 procedure nxtch(object msg="eof")
@@ -42,31 +41,29 @@ procedure nxtch(object msg="eof")
 end procedure
 
 procedure skipspaces()
-    while find(ch,{' ','\t','\r','\n'})!=0 do nxtch(0) end while
+    while find(ch," \t\r\n") do nxtch(0) end while
 end procedure
 
 procedure get_token()
-atom n, fraction
-integer dec
     skipspaces()
     if ch=-1 then token = "eof" return end if
     if ch>='0' and ch<='9' then
-        n = ch-'0'
+        atom n = ch-'0'
         while 1 do
             nxtch(0)
             if ch<'0' or ch>'9' then exit end if
             n = n*10+(ch-'0')
         end while
         if ch='.' then
-            dec = 1
-            fraction = 0
-            while 1 do
+            integer decimal = 1
+            atom fraction = 0
+            while true do
                 nxtch(0)
                 if ch<'0' or ch>'9' then exit end if
                 fraction = fraction*10 + (ch-'0')
-                dec *= 10
+                decimal *= 10
             end while
-            n += fraction/dec
+            n += fraction/decimal
         end if
 --      if find(ch,"eE") then   -- you get the idea
 --      end if
@@ -85,20 +82,19 @@ procedure Match(string t)
 end procedure
 
 procedure PopFactor()
-    object p1, p2 = opstack[$]
+    object p1, p2 = opstack[$], f
     if op="u-" then
         p1 = 0
     else
         opstack = opstack[1..$-1]
         p1 = opstack[$]
     end if
-    if op_p_p=1 then
-        opstack[$] = {op,p1,p2}  -- op_p_p
-    elsif op_p_p=0 then
-        opstack[$] = {p1,op,p2}  -- p_op_p
-    else -- -1
-        opstack[$] = {p1,p2,op}  -- p_p_op
-    end if
+    switch opp do
+        case op_p_p:    f = {op,p1,p2}
+        case p_op_p:    f = {p1,op,p2}
+        case p_p_op:    f = {p1,p2,op}
+    end switch
+    opstack[$] = f
     op = 0
 end procedure
 
@@ -164,12 +160,11 @@ procedure Expr(integer p)
 --      0: full expression (effectively the same as 1)
 --  obviously, parentheses override any setting of p.
 --
-integer k, thisp
     Factor()
     while 1 do
-        k = find(token,operators) -- *,/,+,-
+        integer k = find(token,operators) -- *,/,+,-
         if k=0 then exit end if
-        thisp = precedence[k]
+        integer thisp = precedence[k]
         if thisp<p then exit end if
         get_token()
         Expr(thisp+associativity[k])
@@ -178,36 +173,25 @@ integer k, thisp
 end procedure
 
 function evaluate(object s)
-object lhs, rhs
-string op
-    if atom(s) then
-        return s
-    end if
-    if op_p_p=1 then            -- op_p_p
-        {op,lhs,rhs} = s
-    elsif op_p_p=0 then         -- p_op_p
-        {lhs,op,rhs} = s
-    else -- -1                  -- p_p_op
-        {lhs,rhs,op} = s
-    end if
+    object lhs, rhs
+    string op
+    if atom(s) then return s end if
+    switch opp do
+        case op_p_p:    {op,lhs,rhs} = s
+        case p_op_p:    {lhs,op,rhs} = s
+        case p_p_op:    {lhs,rhs,op} = s
+        default: ?9/0
+    end switch
     if sequence(lhs) then lhs = evaluate(lhs) end if
     if sequence(rhs) then rhs = evaluate(rhs) end if
-    if op="+" then
-        return lhs+rhs
-    elsif op="-" then
-        return lhs-rhs
-    elsif op="*" then
-        return lhs*rhs
-    elsif op="/" then
-        return lhs/rhs
-    elsif op="^" then
-        return power(lhs,rhs)
-    elsif op="%" then
-        return remainder(lhs,rhs)
-    elsif op="u-" then
-        return -rhs
-    else
-        ?9/0
+    if op="+" then      return lhs+rhs
+    elsif op="-" then   return lhs-rhs
+    elsif op="*" then   return lhs*rhs
+    elsif op="/" then   return lhs/rhs
+    elsif op="^" then   return power(lhs,rhs)
+    elsif op="%" then   return rmdr(lhs,rhs)
+    elsif op="u-" then  return -rhs
+    else ?9/0
     end if
 end function
 

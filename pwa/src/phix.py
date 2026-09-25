@@ -76,7 +76,7 @@ for phix.py... [DEV]
         'getd_partial_key', 'gFrame', 'gGetAttribute', 'gGetChild',
         'gGetDialog', 'gGetDouble', 'gGetFileText', 'gGetFocus', 'gGetGlobal',
         'gGetGlobalIntInt', 'gGetHandler', 'gGetInt', 'gGetIntInt',
-        'gGetKeyName', 'gGetOpenFileName', 'gGetParent', 'gGetSetAttribute',
+        'gGetKeyName', 'gOpenFile', 'gGetParent', 'gGetSetAttribute',
         'gGetTextExtent', 'gGetTextExtent32', 'gGraph', 'gGreyscale_XPM',
         'gHbox', 'gImage', 'gImage_from_Pixbuf', 'gImage_from_XPM',
         'gImage_get_wh', 'gImageDestroy', 'gLabel', 'glAttachShader',

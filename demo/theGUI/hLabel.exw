@@ -1,34 +1,33 @@
 --
--- demo\theGUI\gLabel.exw
+-- demo\theGUI\hLabel.exw
 -- ======================
 -- 
 --  The canvas-based implementation of gLabel.
 -- 
 --requires(64,true)
-puts(1,"")
+--puts(1,"")
 with javascript_semantics
 --with trace
 --include theGUI.e
-include hGUI.e
-gSetGlobal("DIAGNOSTICS",true)
+include theGUI.e
+--gSetGlobal("DIAGNOSTICS",true)
 --gUseGTK()
 --win32/64: 77x15
 --gtk32/64: 71x14
 
 --/*
--- ctrl_xtra[CX_GTL_ATTRS] for gLabel():
-local constant lbl_attrs = {{      CXLBL_TITLE:=$,'S',`TITLE`       }}, -- title
-                   CXLBL_LEN = length(lbl_attrs),
+-- ctrl_xtra[] for gLabel():
+Xlocal constant lbl_attrs = {{     CXLBL_TITLE:=$,'S',`TITLE`       }}, -- title
+X              CXLBL_LEN = length(lbl_attrs),
 --*/
 
-sequence ctrl_xtra = {} -- hCheckbox-specific
-enum CX_GTL_ATTRS -- (fake version of the same-named thing in theGUI.e)
-enum CXLBL_TITLE,
-     CXLBL_LEN = $
+--sequence ctrl_xtra = {} -- hLabel-specific
+--enum CXLBL_TITLE,
+--   CXLBL_LEN = $
 
 procedure tg_lbl_redraw(gdx lbl, integer w, h)
---  string title = gGetAttribute(id,`TITLE`)
-    string title = ctrl_xtra[lbl][CX_GTL_ATTRS][CXLBL_TITLE]
+    string title = gGetAttribute(lbl,`TITLE`)
+--  string title = ctrl_xtra[lbl][CXLBL_TITLE]
     bool bActive = gGetAttribute(lbl,`ACTIVE`)
     atom fgclr = gGetAttribute(lbl,`FGCLR`)
     if not bActive then fgclr = gGreyscale(fgclr,true) end if
@@ -40,15 +39,16 @@ function hLabel(nullable_string title=NULL, string attributes="", sequence args=
 --  {title,attributes,args} = paranormalise_taa(title,attributes,args)
 --  if not bInit then tg_Init() end if
     gdx lbl = gCanvas(tg_lbl_redraw)
+--  ctrl_types[lbl] = LABEL
     gSetAttribute(lbl,"EXPAND",false) -- (or maybe horiz?) [nah, docs say default is NONE]
-    if platform()!=JS then
-        ctrl_xtra &= repeat(0,lbl-length(ctrl_xtra))
-    end if
-    ctrl_xtra[lbl] = repeat(0,CX_GTL_ATTRS)
-    object lbl_attr = repeat(0,CXLBL_LEN)
-    lbl_attr[CXLBL_TITLE] = title
-    ctrl_xtra[lbl][CX_GTL_ATTRS] = lbl_attr
-    lbl_attr = 0
+--  if platform()!=JS then
+--      ctrl_xtra &= repeat(0,lbl-length(ctrl_xtra))
+--  end if
+--  object lbl_attr = repeat(0,CXLBL_LEN)
+--  lbl_attr[CXLBL_TITLE] = title
+--  ctrl_xtra[lbl] = lbl_attr
+--  lbl_attr = 0
+    gSetAttribute(lbl,`TITLE`,title)
     if length(attributes) then
         gSetAttributes(lbl,attributes,args)
     end if
@@ -59,8 +59,8 @@ end function
 -- real one does a full traversal with this for any labels:
 local procedure set_lbl_sizes(sequence lbls)
     for lbl in lbls do
---      string title = gGetAttribute(id,`TITLE`)
-        string title = ctrl_xtra[lbl][CX_GTL_ATTRS][CXLBL_TITLE]
+        string title = gGetAttribute(lbl,`TITLE`)
+--      string title = ctrl_xtra[lbl][CXLBL_TITLE]
         integer {tw,th} = gGetTextExtent(title,lbl)
         gSetAttribute(lbl,`SIZE`,{tw+4,th})
     end for

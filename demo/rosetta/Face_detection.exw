@@ -1,0 +1,168 @@
+--
+-- demo\rosetta\Face_detection.exw
+-- ===============================
+--
+--  Uses the same strategy as Wren, ie run python facedetect2.py <img>, which is
+--  facedetect.py lightly modified so it runs on Windows, then draw the results.
+--
+--  Simply drag and drop an image file onto the main window.
+--
+requires(`1.0.6`) -- (not yet shipped)
+requires(WINDOWS) -- (others may follow)
+include theGUI.e
+gdn img = NULL
+sequence faces = {}
+
+procedure redraw(gdx canvas, integer cw, ch)
+    if img then
+        gDrawImage(img,canvas,10,10)
+        for f in faces do
+            integer {x,y,w,h} = f; x += 10; y += 10;
+            gDrawRect(canvas,x,y,x+w,y+h,colour:=TG_YELLOW)
+        end for
+    else
+        gDrawText(canvas,cw/2,ch/2,"drop image here",{},TG_C)
+    end if
+end procedure
+
+include builtins\pipeio.e
+
+procedure drop(gdx dlg, string filename)
+    gSetGlobal(`CLIPIMG`,NULL)
+    gSetGlobal(`CLIPIMGFILE`,filename)
+    img = gGetGlobal(`CLIPIMG`)
+    if img then
+        string cmd = sprintf(`python facedetect2.py "%s"`,{filename})
+        faces = {}
+        for face in apply(split(read_stdin_pipe(cmd),'\n'),trim) do
+            faces = append(faces,apply(split(face,' '),to_integer))
+        end for
+        integer {w,h} = gGetAttribute(img,`SIZE`)
+        gSetAttribute(dlg,`SIZE`,{w+20+2,h+20+32})
+    end if
+end procedure
+
+gdx canvas = gCanvas(redraw,"BGCLR=LIGHT_PARCHMENT"),
+    dialog = gDialog(canvas,`Face detection`,`SIZE=240x80`)
+gSetHandler(dialog,`DROP`,drop)
+gShow(dialog,50,50)
+gMainLoop()
+--/*
+
+Because opencv-contrib-python version 5 is currently bugged, you have two ways to fix this.
+Option 1: Downgrade OpenCV (Recommended)The absolute easiest and cleanest solution is to step 
+back to the stable OpenCV 4.x branch, which fully includes all the missing .xml classifiers natively.
+Open your Command Prompt and run this command:
+pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+pip install opencv-contrib-python==4.13.0.92
+
+python facedetect.py --cascade="%USERPROFILE%\AppData\Local\Programs\Python\Python311\Lib\site-packages\cv2\data\haarcascade_frontalface_alt2.xml" path\to\image.jpg
+python facedetect.py --cascade="%USERPROFILE%\AppData\Local\Programs\Python\Python311\Lib\site-packages\cv2\data\haarcascade_frontalface_alt2.xml" AOBABA176.jpg
+python facedetect.py --cascade "%USERPROFILE%\AppData\Local\Programs\Python\Python311\Lib\site-packages\cv2\data\haarcascade_frontalface_alt2.xml" AOBABA176.jpg
+                               C:\Users\petel\AppData\Local\Programs\Python\Python312\Lib\site-packages\cv2\data
+
+
+usage: facedetect.py [-h] [--biggest] [--best] [-c] [--data-dir DIRECTORY] [-q] [-s FILE] [--search-threshold PERCENT]
+                     [-o OUTPUT] [-d]
+                     file
+facedetect.py: error: unrecognized arguments: --cascade AOBABA176.jpg
+
+pip uninstall -y opencv-python opencv-python-headless
+pip install opencv-contrib-python
+
+C:\Program Files (x86)\Phix\demo\rosetta>python facedetect2.py AOBABA176.jpg
+[ERROR:0@0.031] global persistence.cpp:584 cv::FileStorage::Impl::open Can't open file: 'C:\Users\petel\AppData\Local\Pr
+ograms\Python\Python312\Lib\site-packages\cv2\data\haarcascade_frontalface_alt2.xml' in read mode
+Error: Could not load classifier from C:\Users\petel\AppData\Local\Programs\Python\Python312\Lib\site-packages\cv2\data\
+haarcascade_frontalface_alt2.xml
+
+Now when I look in that directory, it has deleted all the .xml files and replaced them with a __pycache__ directory and 
+an __init__.py file
+
+pip uninstall -y opencv-python opencv-contrib-python opencv-python-headless
+pip install opencv-contrib-python==4.13.0.92
+
+YAY!:
+
+C:\Program Files (x86)\Phix\demo\rosetta>python facedetect2.py AOBABA176.jpg
+414 164 49 49
+499 169 46 46
+588 167 44 44
+495 305 45 45
+619 267 46 46
+248 194 50 50
+695 150 43 43
+
+
+--*/
+--/*
+--gSetGlobal(`CLIPFILE`,filename)
+        case WM_CREATE:
+            DragAcceptFiles(hWnd,TRUE)
+        case WM_DROPFILES:
+            atom hDrop = wParam
+            integer count = DragQueryFile(hDrop, -1, NULL, 0)
+            if count>0 then
+                integer len = DragQueryFile(hDrop, 0, NULL, 0)
+                atom buffer = allocate(len+1)
+                {} = DragQueryFile(hDrop, 0, buffer, len+1)
+                string filename = peek_string(buffer)
+<--             {hBmp,pBits,imgW,imgH} = load_image_file(filename)
+<--             toggle_and_show(hWnd)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            DragFinish(hDrop)
+            return 0
+
+function drag_data_received(atom widget, context, x, y, seldata, info, time_, id)
+    atom data = gtk_selection_data_get_data(seldata)
+    if data=NULL then return false end if
+    for uri in split(peek_string(data),'\n') do
+        -- crude URI -> filename
+--      if length(uri)>=7 and uri[1..7]="file://" then
+        if length(uri)>=8 and uri[1..8]="file:///" then
+-- (or maybe the kength 7 version and a secondary check for eg "/C:"->strip leading /)
+            string filename = trim_tail(uri[9..$],'\r')
+            filename = substitute(filename,"%20"," ")
+<--         load_image_file(filename)
+            exit
+        end if
+    end for
+    return true
+end function
+constant drag_data_received_cb = call_back({'+',drag_data_received})
+    area = gtk_drawing_area_new()
+    g_signal_connect_data(area,"drag-data-received",drag_data_received_cb,id)
+
+--Windows:
+GTK:
+--procedure update_globals()
+--  imgW   = gdk_pixbuf_get_width(pixbuf)
+--  imgH   = gdk_pixbuf_get_height(pixbuf)
+--  stride = gdk_pixbuf_get_rowstride(pixbuf)
+--  n_chan = gdk_pixbuf_get_n_channels(pixbuf)
+--  pixels = gdk_pixbuf_get_pixels(pixbuf)
+--end procedure
+--
+--procedure load_image_file(string filename)
+--  atom err = NULL
+--  pixbuf = gdk_pixbuf_new_from_file(filename, err)
+--  if pixbuf=NULL then
+--      ?{"load failed",filename}
+--  else
+--      update_globals()
+----        set_area_size(true)
+----        gtk_widget_queue_draw(area)
+--  end if
+--end procedure
+--
+--procedure save_to_clipboard()
+--  if pixbuf!=NULL and gdk_pixbuf_get_width(pixbuf) then
+--      atom clip = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD)
+--      c_proc(x_gtk_clipboard_set_image,{clip,pixbuf})
+--  end if
+--end procedure
+--
+
+--*/
+

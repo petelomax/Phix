@@ -83,7 +83,7 @@ for cm.js... [DEV]
         'gGetDouble':true, 'gGetFileText':true, 'gGetFocus':true,
         'gGetGlobal':true, 'gGetGlobalIntInt':true, 'gGetHandler':true,
         'gGetInt':true, 'gGetIntInt':true, 'gGetKeyName':true,
-        'gGetOpenFileName':true, 'gGetParent':true, 'gGetSetAttribute':true,
+        'gOpenFile':true, 'gGetParent':true, 'gGetSetAttribute':true,
         'gGetTextExtent':true, 'gGetTextExtent32':true, 'gGraph':true,
         'gGreyscale_XPM':true, 'gHbox':true, 'gImage':true,
         'gImage_from_Pixbuf':true, 'gImage_from_XPM':true, 'gImage_get_wh':true,

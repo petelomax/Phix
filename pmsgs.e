@@ -180,8 +180,6 @@ integer li
 --  return idx-linestarts[tokline]+1
 end procedure
 
-
-
 sequence warnmsgs
          warnmsgs={}
 --  warnmsgs = append(warnmsgs,{txtline,tokcol,{msg,currFile(),tokline}})
@@ -387,7 +385,7 @@ with trace
 global procedure Abort(sequence msg)
 -- error with source line
 sequence errline, txtline, fni
-integer lt, k, fn, sli, sfi
+integer lt, fn, sli, sfi
 --trace(1)
     expandf()
 --?linestarts
@@ -422,37 +420,34 @@ integer lt, k, fn, sli, sfi
     if lt and txtline[lt] = '\n' then
         txtline=txtline[1..lt-1]
     end if
---  pr = open("p.err","w")
     fn = open("ex.err","w")
     if r_proemh=-1 then
 if not batchmode then
         puts(1,"\n")    -- just in case
 end if
-        k = find('\n',msg)
-        if k=0 then
-            k = length(msg)
+        integer msglen = find('\n',msg)
+        if msglen=0 then
+            msglen = length(msg)
         end if
-        k = tokcol+1+k-80
---31/1/17:
---      if k>0 then
-        if k>0 
-        and k+3<length(txtline) then
-            tokcol-=k
-            txtline=".."&txtline[k+3..length(txtline)]
+        integer console_width = max(video_config()[VC_SCRNCOLS],80),
+                overhang = eCol+msglen+3-console_width
+        if overhang>0 then
+            integer start = min(overhang,eCol-1)
+            eCol -= start-3
+            txtline=".."&txtline[start..$]
         end if
-        k = length(txtline)
-        if k>78 then
-            txtline=txtline[1..77]&".."
+        lt = length(txtline)
+        if lt>console_width-2 then
+            txtline=txtline[1..console_width-3]&".."
         end if
     end if
---DEV this may prove easier:
-    if tokcol>0 then errline = repeat(' ',tokcol-1) else errline = "" end if -- avoid -ve repeat count
+--  if eCol>0 then errline = repeat(' ',eCol-1) else errline = "" end if -- avoid -ve repeat count
+    errline = repeat(' ',max(eCol-1,0))
 if repl then
     errline = sprintf("%s\n%s^ %s\n",{txtline,errline,msg})
 else
     errline = sprintf("%s:%d\n%s\n%s^ %s\n",{currFile(),tokline,txtline,errline,msg})
 end if
---  errline = sprintf("%s:%d\n%s\n%s^ %s\n",{currFile(),tokline,txtline,repeat(' ',tokcol-1),msg})
 
     if match("edita\\builtins\\",lower(errline)) then
         -- Stack frame and #ilasm changes mean Phix >=0.6.3 is incompatible with
@@ -496,7 +491,10 @@ if not batchmode and not repl then
 --  if DEBUG then
             puts(1,"\nPress Enter, or d for diagnostics...")
             if not find("-nopause",lower(command_line(true))) then
-                if find(wait_key(),"dD") then ?9/0 end if
+                if find(wait_key(),"dD") then
+                    Extend_Existsing_Error_File = fn
+                    ?9/0
+                end if
             end if
 --  else
 --          puts(1,"\nPress Enter...")
@@ -505,20 +503,21 @@ if not batchmode and not repl then
             puts(1,"\n")
 end if
         else
-            k = 6 -- 5 (sourcefile/line\n,
-                  --    source text\n,
-                  --    hat/error message\n,
-                  --    puts(1,\n\n) above)
-                  -- plus one for luck,
-            for i=1 to length(msg) do
-                if msg[i]='\n' then
-                    -- plus one for any embedded \n's
-                    k+=1
-                end if
-            end for
-            -- equivalent to k/3 warnings (as each is lineno/txt/hat)
---          nshown = floor(k/3)
-            nshown = k
+--          k = 6 -- 5 (sourcefile/line\n,
+--                --    source text\n,
+--                --    hat/error message\n,
+--                --    puts(1,\n\n) above)
+--                -- plus one for luck,
+--          for i=1 to length(msg) do
+--              if msg[i]='\n' then
+--                  -- plus one for any embedded \n's
+--                  k+=1
+--              end if
+--          end for
+--          -- equivalent to k/3 warnings (as each is lineno/txt/hat)
+----            nshown = floor(k/3)
+--          nshown = k
+            nshown = 6 + sum(sq_eq(msg,'\n'))
         end if
     else
         errline = sprintf("%s\n\n%s:%d",{msg,currFile(),tokline})
@@ -608,7 +607,8 @@ sequence AST = {"Program",
         expandf()
         convertToLineColumn(s_err)
 --      see = sprintf(", see %s: %d",{currFile(),symtab[N][edx][3]})
-        see = sprintf(", see %s: %v",{currFile(),eLine})
+--      see = sprintf(", see %s: %v",{currFile(),eLine})
+        see = sprintf(", see line %d",eLine)
     else
         see = ": "&getname(ttidx,-2)
     end if

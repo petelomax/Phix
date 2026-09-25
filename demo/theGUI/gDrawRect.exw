@@ -1,0 +1,280 @@
+--
+-- demo\theGUI\gDrawRect.exw
+-- =========================
+-- 
+--  When run using 32 bit, opens up two/four windows which are... well, you'll see.
+--  Obviously the aim here is (reasonable but not quite perfect) backend consistency.
+--  Note that I don't expect gUseGTK() to work anywhere other than on *MY* machine...
+--   (maybe I should factor out the gInit code to load/find GTK dlls -> gGetGlobal?)
+--
+-- NOTE: Any "X-Effects" are almost inevitable, especially for small rounded corners
+-- a bit too near each other. Should anyone think that should be improved, the first
+-- step would be to open a screenshot in your favourite image editing software, and
+-- see what (if anything) can be achieved by hand or all those clever little tools.
+--
+-- DEV this doesn't test LINEWIDTH other than 1... (or LINESTYLE!=TG_CONTINUOUS)
+--puts(1,"")
+--?""
+{} = sprint(0,9)
+with javascript_semantics
+--requires(64,true)
+include theGUI.e
+sequence cl = command_line()
+bool bGTK = find(`-GTK`,cl) or platform()!=WINDOWS,
+--bool bGTK = true,
+     b32 = machine_bits()=32
+string title = sprintf("gDrawText (%s, %d bit)",{iff(bGTK?"GTK":"WinAPI"),machine_bits()})
+--/X*
+if bGTK then
+    gUseGTK()
+end if
+if b32 and not find(`-GTK`,cl) then
+    string i64 = get_interpreter(false,{64})
+    if i64!="" then
+        {} = system_exec(sprintf(`"%s" "%s"`,{i64,cl[2]}),8)
+        sleep(0.1)
+    end if
+end if
+if not bGTK and gVersion(-1)=TG_WINAPI then -- nb only test this /after/ invoking gUseGTK()!
+    string d = join_path({get_proper_dir(cl[1]),sprintf(`demo\theGUI\win_gtk%d`,machine_bits())})
+    if file_exists(d) then
+        string gtk32cmd = sprintf(`"%s" "%s" -GTK`,cl)
+--if not b32 then
+        {} = system_exec(gtk32cmd,8)
+--end if
+    end if
+end if
+
+local procedure hDrawRect(gcps canvas, atom xmin, ymin, xmax, ymax, bool bFill=false, atom rc=0, colour=-1, object style=-1, width=-1)
+--?{"hDrawRect",canvas, xmin, ymin, xmax, ymax, bFill, rc, colour, width, style}
+    assert(not sequence(canvas),`gPixbuf must be theGUI-owned`,nFrames:=2)
+    if colour=-1 then colour = gGetAttribute(canvas,`FGCLR`) end if
+    if bFill then {width,style} = {1,TG_CONTINUOUS}
+    else
+        if rc!=0 then width = 1
+        elsif width=-1 then width = gGetAttribute(canvas,`LINEWIDTH`) end if
+        if style=-1 then style = gGetAttribute(canvas,`LINESTYLE`) end if
+    end if
+--  if canvas>0 then
+--      canvas = ctrl_images[canvas]
+--  end if
+    if rc then
+        integer wh = rc*2+1,
+--      integer wh = rc*2,
+--DEV this suggests gDrawArc params are wrong?? -- errm...
+                 l = xmin+rc+1,
+--               l = xmin+rc,
+                 t = ymin+rc+1,
+--               t = ymin+rc,
+                 r = xmax-rc-1,
+                 b = ymax-rc-1,
+                 f = TG_FILLED+TG_SECTOR
+if bFill then
+        gDrawArc(canvas,l,t,wh,wh,180,270,0,f,colour,style)
+        gDrawArc(canvas,r,t,wh,wh,270,360,0,f,colour,style)
+        gDrawArc(canvas,l,b,wh,wh, 90,180,0,f,colour,style)
+        gDrawArc(canvas,r,b,wh,wh,  0, 90,0,f,colour,style)
+else
+        gDrawCubicBezier(canvas,xmin,ymin+rc,xmin,ymin+rc/2,xmin+rc/2,ymin,xmin+rc,ymin,colour,style,width)
+        gDrawCubicBezier(canvas,xmax-rc,ymin,xmax-rc/2,ymin,xmax,ymin+rc/2,xmax,ymin+rc,colour,style,width)
+        gDrawCubicBezier(canvas,xmax,ymax-rc,xmax,ymax-rc/2,xmax-rc/2,ymax,xmax-rc,ymax,colour,style,width)
+        gDrawCubicBezier(canvas,xmin+rc,ymax,xmin+rc/2,ymax,xmin,ymax-rc/2,xmin,ymax-rc,colour,style,width)
+end if
+        l = xmin+rc
+        t = ymin
+        r = xmax-rc
+        b = ymax--1
+
+        if bFill then
+            for i=ymin to ymin+rc do
+                gDrawLine(canvas,l,i,r,i,colour,style,width)    -- top
+                gDrawLine(canvas,l,b,r,b,colour,style,width)    -- btn
+                b -= 1
+            end for
+            l = xmin
+            r = xmax
+            for i=ymin+rc+1 to ymax-rc-1 do
+                gDrawLine(canvas,l,i,r,i,colour,style,width)    -- mid
+            end for
+        else
+            gDrawLine(canvas,l,t,r,t,colour,style,width)    -- top
+            gDrawLine(canvas,l,b,r,b,colour,style,width)    -- btn
+            l = xmin
+            t = ymin+rc
+            r = xmax
+            b = ymax-rc
+--?{l,t,l,b}
+            gDrawLine(canvas,l,t,l,b,colour,style,width)    -- left
+            gDrawLine(canvas,r,t,r,b,colour,style,width)    -- right
+        end if
+    elsif bFill then
+        for i=ymin to ymax do
+            gDrawLine(canvas,xmin,i,xmax,i,colour,style,width)
+        end for         
+    else -- square unfilled rect    
+        gDrawLine(canvas,xmin,ymin,xmax,ymin,colour,style,width)    -- top
+        gDrawLine(canvas,xmin,ymax,xmax,ymax,colour,style,width)    -- btm
+        ymin += 1
+        ymax -= 1
+--?{xmin,ymin,xmin,ymax}
+        gDrawLine(canvas,xmin,ymin,xmin,ymax,colour,style,width)    -- left
+        gDrawLine(canvas,xmax,ymin,xmax,ymax,colour,style,width)    -- right
+--      gDrawLine(canvas,l,t,r,t,colour,style,width)    -- top
+--      gDrawLine(canvas,l,b,r,b,colour,style,width)    -- btm
+--      t += 1
+--      b -= 1
+--      gDrawLine(canvas,l,t,l,b,colour,style,width)    -- left
+--      gDrawLine(canvas,r,t,r,b,colour,style,width)    -- right
+
+    end if
+end procedure
+
+integer xDrawRect = hDrawRect
+
+constant --degrees = utf32_to_utf8({#00B0}),
+         {sw,sh} = gGetGlobal(`SCREENSIZE`),
+--       dw = 340, dh = 156,
+--       dw = 540, dh = 456,
+--       dw = 482, dh = 496, -- 5
+         dw = 410, dh = 432, -- 4   -- (72,64)
+--       dw = 290, dh = 312, -- 3   -- (120,120)
+--       dw = 226, dh = 256, -- 2   -- (64,56)
+--       dw = 128, dh = 160, -- 1   -- (98,96)
+--       dw = 60, dh = 60, -- 1
+         dx = floor(sw/2)-iff(bGTK?0:dw),
+         dy = floor(sh/2)-iff(b32?dh,0)
+
+--if degrees then end if -- (avoid pointless warning if/when we temporarily comment use out)
+
+constant colours = {TG_RED,TG_ORANGE,TG_OLIVE,TG_TEAL,TG_BLUE,TG_MAROON,TG_PURPLE,TG_VIOLET}
+
+
+procedure redraw(gdx canvas, integer w, h)
+    integer rw = floor((w-2)/8),
+            rh = floor((h-2)/8),
+            iw = rw*8,
+            ih = rh*8
+--  w -= 10
+--  h -= 10
+    integer cx = floor(w/2),
+            cy = floor(h/2)
+--          , tw, th
+
+    -- aside: creating our own image now makes almost no difference, just a wee bit slower
+--  gdn image = gImage(w-10,h-10,TG_PARCHMENT)
+    gdn image = gImage(iw,ih,TG_PARCHMENT)
+--  gdx image = canvas
+--gSetAttribute(image,`FONT`,`Meiryo, 9`)
+--gSetAttribute(image,`FONT`,`Yu Gothic, 9`)
+--gSetAttribute(image,`FONT`,`MS Gothic, 9`)
+--gSetAttribute(image,`FONT`,`Noto Sans CJK JP, 9`)
+--  gdn image = gImage(w,h,TG_BLUE)
+
+--/!*
+--  for rc=0 to 5 do
+--  for rc=0 to 4 do
+--  for rc=0 to 3 do
+--  for rc=0 to 2 do
+--  for rc=0 to 1 do
+--  for rc=0 to 0 do
+--  for rc=2 to 2 do
+--  for rc=5 to 5 do
+--      hDrawRect(image,rc,rc,w-1-rc,h-1-rc,rc:=rc,colour:=colours[rc+1])
+--      integer r = 2*rc
+--      integer r = 3*rc
+--      hDrawRect(image,r,r,rw-1-r,rh-1-r,rc:=r,colour:=colours[rc+1])
+--      hDrawRect(image,r,r,w-1-r,h-1-r,rc:=0,colour:=colours[rc+1])
+--      hDrawRect(image,r,r,w-1-r,h-1-r,true,rc:=r,colour:=colours[rc+1])
+--      hDrawRect(image,rc,rc,w-1-rc,h-1-rc,true,rc:=rc,colour:=colours[rc+1])
+--      hDrawRect(image,rc,rc,w-1-rc,h-1-rc,true,rc:=0,colour:=colours[rc+1])
+--  end for 
+--  hDrawRect(image,2,2,w-3,h-3,rc:=2,colour:=TG_BLUE)
+--  hDrawRect(image,4,4,w-5,h-5,rc:=4,colour:=TG_GREEN)
+--  hDrawRect(image,6,6,w-7,h-7,rc:=6,colour:=TG_ORANGE)
+--  hDrawRect(image,8,8,w-9,h-9,rc:=8,colour:=TG_TEAL)
+--  hDrawRect(image,10,10,w-11,h-11,rc:=10,colour:=TG_MAGENTA)
+    -- increasing rounded corners across
+    for rc=0 to 7 do
+--  for i = 0 to 0 do
+        integer x = rc*rw
+        if rc>0 then
+            gDrawLine(image,x-1,0,x-1,ih-1,TG_GREEN)
+        end if
+        -- increasing gap, alternating fill, down
+        for j=0 to 7 do
+--      for j=0 to 2 do
+--      for j=2 to 2 do
+--      for j=0 to 0 do
+            bool bFill = odd(j)
+            integer y=j*rh,
+                    gap = ceil((j+1)/2)
+            if rc=0 and y>0 then
+                gDrawLine(image,0,y-1,iw-1,y-1,TG_GREEN)
+            end if
+--          for rc=0 to min(6,8-j) do
+--          for rc=0 to 12 do
+--          for rc=6 to 0 by -1 do
+--          for rc=6 to 6 by -1 do
+--          for rc=3 to 3 by -1 do
+--          for rc=1 to 1 do
+            -- nested boxes get different colours
+            integer xmin = x+gap-1,
+                    xmax = x+rw-gap-1,
+                    ymin = y+gap-1,
+                    ymax = y+rh-gap-1
+            for c=1 to min(rw,rh) do
+--          for c=1 to 1 do
+                integer r = (j+1)*rc
+--              if (rw-2*r-2)-(r)<2*r then exit end if
+--              if r-4>rw/4 then exit end if
+--              hDrawRect(image,x+r,y+r,x+rw-2-2*rc,y+(rh-2-2*rc),rc:=rc,colour:=colours[rc+1])
+--              atom clr = colours[rmdr(rc,5)+1]
+                atom clr = colours[rmdr(c,length(colours))+1]
+--              atom clr = colours[c]
+--              hDrawRect(image,x+r,y+r,x+rw-r-2,y+rh-r-2,rc:=rc,colour:=clr)
+                xDrawRect(image,xmin,ymin,xmax,ymax,bFill,rc,clr)
+                xmin += gap
+                xmax -= gap
+                ymin += gap
+                ymax -= gap
+                if xmax-xmin<2*rc
+                or ymax-ymin<2*rc then
+                    exit
+                end if
+--              hDrawRect(image,x+r,y+r,x+rw-r-2,y+rh-r-2,true,rc:=rc,colour:=clr)
+--              gDrawCircle(image,x+rw/2,y+rh/2,r,true,colour:=clr)
+--              gDrawCircle(image,x+rw/2,y+rh/2,r,colour:=clr)
+            end for
+        end for
+    end for
+--*!/
+--  hDrawRect(image 
+-- erm, what about widths and styles?
+-- tl: gap of 1
+-- tr: gap of 1, filled
+-- bl: gap of 2
+-- br: gap of 2, filled
+    if image!=canvas then
+--      gDrawImage(image,canvas,5,5)
+--?{{w,h},{iw,ih},{(w-iw)/2,(h-ih)/2},{rw,rh}}
+        gDrawImage(image,canvas,(w-iw)/2,(h-ih)/2)
+--      gDrawImage(image,canvas)
+        image = gImageDestroy(image)
+    end if
+end procedure
+
+procedure key_handler(gdx canvas, integer c)
+    if c=' ' then
+        xDrawRect = iff(xDrawRect==hDrawRect?gDrawRect:hDrawRect)
+        gRedraw(canvas)
+    end if
+end procedure
+
+gdx canvas = gCanvas(redraw,`BGCLR=CYAN`),
+    dialog = gDialog(canvas,title)
+gSetAttribute(dialog,`SIZE`,{dw,dh})
+gSetHandler(canvas,`KEY`,key_handler)
+
+gShow(dialog,dx,dy)
+gMainLoop()
+

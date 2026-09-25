@@ -1,0 +1,62 @@
+--
+-- demo\rosetta\Catenoid_surface.exw
+-- =================================
+--
+requires("1.0.6") -- (not yet shipped)
+without javascript -- (shd be when "")
+include theGUI.e
+
+constant title = "Catenoid surface",
+         chalf = cos(0.5), cpt4 = cos(0.4),
+         shalf = sin(0.5), spt4 = sin(0.4),
+         uSteps = 30, uMin = -1.5, vMin = 0,
+         vSteps = 24, uMax =  1.5, vMax = 2*PI,
+         uStep = (uMax - uMin) / uSteps,
+         vStep = (vMax - vMin) / vSteps
+
+function cosh(atom x) return (exp(x)+exp(-x))/2 end function
+
+atom r,v,u, lX,lY, cx,cy,scale
+
+procedure project3D(gdx canvas)
+    atom x = r * cos(v),
+         y = u,
+         z = r * sin(v),
+         rYX = x*chalf - z*shalf,
+         rYZ = x*shalf + z*chalf,
+         rXY = y*cpt4 - rYZ*spt4,
+         pX = cx + rYX * scale,
+         pY = cy + rXY * scale
+    if lX!=-1 then
+        gDrawLine(canvas,lX,lY,pX,pY,TG_BLUE)
+    end if
+    {lX,lY} = {pX,pY}
+end procedure
+
+procedure redraw(gdx canvas, integer w, h)
+    {cx,cy,scale} = {w/2, h/2, min(w,h)/5}
+    for i=0 to uSteps do
+        u = uMin + i * uStep
+        r = cosh(u)
+        lX = -1
+        for j=0 to vSteps do
+            v = vMin + j * vStep
+            project3D(canvas)
+        end for
+    end for
+    for i=0 to vSteps do
+        v = vMin + i * vStep
+        lX = -1
+        for j=0 to uSteps do
+            u = uMin + j * uStep
+            r = cosh(u)
+            project3D(canvas)
+        end for
+    end for
+end procedure
+
+gdx canvas = gCanvas(redraw),
+    dialog = gDialog(canvas,title,"SIZE=800x600")
+gMainLoop(dialog)
+
+

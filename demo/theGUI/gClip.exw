@@ -1,0 +1,1026 @@
+--
+-- gClip.exw
+-- =========
+--
+--  change focus... gGet/SetGlobal(CLIPIMG/TXT[?])... theGUI.fileio.e??
+--  gCanvas/gList, only one of which is visible, with different [default] sizes/
+--  gList has Strip Html/Fix qpe/Hex View/Update Clipboard buttons beneath it.
+--  focus in/out of main window...
+--  support drag/drop of img/text file onto the main window...
+--
+include theGUI.e
+--gUseGTK()
+gdn img = gGetGlobal(`CLIPIMG`)
+
+procedure redraw(gdx canvas, integer w, h)
+    if img then
+        gDrawImage(img,canvas,10,10)
+    else
+        gDrawText(canvas,w/2,h/2,"no image",{},TG_C)
+    end if
+end procedure
+
+procedure click(gdx canvas, sequence status)
+    if img and begins("LR",status) then
+        integer {w,h} = gGetAttribute(img,`SIZE`)
+        sequence corners = {gGetPixel(img,0,0),
+                            gGetPixel(img,w-1,0),
+                            gGetPixel(img,0,h-1),
+                            gGetPixel(img,w-1,h-1)}
+--?corners
+        bool all_white = unique(corners)={TG_WHITE}
+        integer clr = iff(all_white?TG_BLACK:TG_WHITE)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for i,n in {5,3,2,1,1} do
+            for j=1 to n do
+                gDrawPixel(img,j-1,i-1,clr)
+                gDrawPixel(img,w-j,i-1,clr)
+                gDrawPixel(img,j-1,h-i,clr)
+                gDrawPixel(img,w-j,h-i,clr)
+            end for
+        end for
+--/*
+atom t1 = time()+1, n = 0
+while time()<t1 do
+--  gDrawPixel(img,0,0,clr) -- 3.5m/s
+    {} = gGetPixel(img,0,0) -- 3.2m/s
+    n += 1
+end while
+?{"pps:",n}
+--*/
+        gSetGlobal(`CLIPIMG`,img)
+        gRedraw(canvas)
+    end if
+end procedure
+
+
+gdx canvas = gCanvas(redraw,"BGCLR=LIGHT_PARCHMENT"),
+    dialog = gDialog(canvas,`gClip`,`SIZE=240x80`)
+    if img then
+        integer {w,h} = gGetAttribute(img,`SIZE`)
+        gSetAttribute(canvas,`SIZE`,{w+20,h+20})
+    end if
+    gSetHandler(canvas,`CLICK`,click)
+--gSetAttribute(dialog,"MINSIZE",{230,70}) -- all good
+--gSetAttribute(dialog,"MAXSIZE",{250,90})  --  """
+--gSetAttribute(canvas,"SIZE",{200,200})      --  ... no scrolbars yet ... [DEV]
+--gSetAttribute(canvas,"SCROLLSIZE",{400,400})  --  ...
+--?gGetTextExtent(txt,canvas)
+--?gGetTextExtent(txt,cut_xpm)
+--?gVersion()
+gMainLoop(dialog)
+
+--/*
+include hGUI.e -- needs gList...
+
+sequence data = {"some","stuff"}
+
+integer maxlen = 0
+
+function get_data(integer idx)
+    if idx=0 then return length(data) end if
+    if idx=-1 then return maxlen end if
+    return data[idx]
+end function
+
+procedure btn_handler(gdx btn)
+    ?gGetAttribute(btn,`TITLE`)
+end procedure
+
+procedure dlg_focus(gdx dlg)
+    gdx {vbox,canv} = gGetAttribute(dlg,`USER_DATA`)
+    bool bImg = gGetGlobal(`CLIPIMG?`)
+    gSetAttribute(vbox,`VISIBLE`,not bImg)
+    gSetAttribute(canv,`VISIBLE`,bImg)
+    if bImg then
+        gdm img = gGetGlobal(`CLIPIMG`)
+    elsif gGetGlobal(`CLIPTXT?`) then
+        data = split(gGetGlobal(`CLIPTXT`),'\n')
+        maxlen = largest(apply(data,length),return_index:=true)
+    else
+        data = {}
+    end if
+end procedure
+
+gdx list = gList(get_data),
+    btns = gHbox({gButton("&Strip Html",btn_handler),
+                  gButton("&Fix qpe",btn_handler),
+                  gButton("&Hex view",btn_handler),
+                  gButton("&Update Clipboard",btn_handler)}),
+    canv = gCanvas(`VISIBLE=NO`),
+    vbox = gVbox({list,btns}),
+    hbox = gHbox({vbox,canv}),
+    dlg = gDialog(hbox,`gClip`,`SIZE=550x350`)
+gSetAttribute(list,`FONT`,`Consolas, 12`)
+gSetAttribute(list,`BGCLR`,TG_LIGHT_PARCHMENT)
+gSetAttribute(dlg,`USER_DATA`,{vbox,canv})
+gSetHandler(dlg,`FOCUS`,dlg_focus)
+gMainLoop(dlg)
+--*/
+
+--/*
+--
+-- demo\theGUI\win_clip.exw
+-- ========================
+--
+--  Clipboard demo, auto-crops the four corners of all me doc images for me.
+--  Also supports drag and drop, with full image loading support via gdiplus (png,jpg,etc).
+--                                (however image save was all a bit too C++ssy for me)
+--
+--  See also gtk_clip.exw and ..\..\pwa\js\poc\clip.htm (clipp.html adds paste, drag and
+--                                                       drop, and a Choose file button)
+--
+--requires(64,true)
+include theGUI.WINAPI.e
+include theGUI.gdiplus.e
+
+constant BORDER = 10,
+         ppBits = allocate(machine_word()),
+         bmiLen = get_struct_size(idBITMAPINFOHEADER),
+         pBMI = allocate(bmiLen),
+         gdiplusToken = allocate_word(),
+         highlight_brush = CreateSolidBrush(0x00E5E5E5)
+
+local procedure set_BMI(atom pBMI, integer w, h)
+    -- (common code) pBMI may be the constant or the pMem going to the clipboard
+    mem_set(pBMI,0,bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biSize",bmiLen)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biWidth",w)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biHeight",h)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biPlanes",1)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biBitCount",32)
+    set_struct_field(idBITMAPINFOHEADER,pBMI,"biCompression",BI_RGB)
+end procedure
+
+function get_bitmap_from_clipboard()
+    atom hNew=0, pBits=0, w=0, h=0
+    if OpenClipboard(NULL) then
+        atom hDIB = GetClipboardData(CF_DIB)
+        if hDIB!=NULL then
+            atom pDIB = GlobalLock(hDIB),
+                  hdc = CreateCompatibleDC(NULL)
+            integer biSize = get_struct_field(idBITMAPINFOHEADER,pDIB,"biSize"),
+                       bpp = get_struct_field(idBITMAPINFOHEADER,pDIB,"biBitCount"),
+               compression = get_struct_field(idBITMAPINFOHEADER,pDIB,"biCompression"),
+                   clrUsed = get_struct_field(idBITMAPINFOHEADER,pDIB,"biClrUsed")
+            if find(bpp,{32,24,8,1}) then -- (just quietly ignore anything else!)
+                {w,h} = get_struct_fields(idBITMAPINFOHEADER,pDIB,{"biWidth","biHeight"})
+                h = abs(h)
+                set_BMI(pBMI, w, h)
+                hNew = CreateDIBSection(hdc,pBMI,DIB_RGB_COLORS,ppBits,NULL,0)
+                pBits = peeknu(ppBits)
+
+                atom pSrc = pDIB + biSize, palette = pSrc
+                -- CF_DIBV5 already includes masks, so don't skip them again
+                if biSize!=get_struct_size(idBITMAPV5HEADER) then
+                    -- skip bitfields (for 16/32-bit BI_BITFIELDS)
+                    if compression = BI_BITFIELDS then
+                        pSrc += 3*4 -- 3 DWORD masks
+                    end if
+
+                    -- skip color table
+                    integer nColors
+                    if clrUsed!=0 then
+                        nColors = clrUsed
+                    elsif bpp<=8 then
+                        nColors = power(2,bpp)
+                    else
+                        nColors = 0
+                    end if
+
+                    pSrc += nColors*4
+                end if
+
+                integer stride = floor((bpp*w+31)/32)*4
+                for y=0 to h-1 do
+                    atom src_row = pSrc + y*stride,
+                         dst_row = pBits + y*w*4
+                    if bpp=32 then
+                        mem_copy(dst_row,src_row,w*4)
+                    else
+                        atom clr
+                        for x=0 to w-1 do
+                            if bpp=24 then
+                                integer {b,g,r} = peek({src_row+x*3,3})
+                                clr = r+g*#100+b*#10000
+                            else
+                                integer idx
+                                if bpp=8 then
+                                    idx = peek(src_row+x)*4
+                                elsif bpp=1 then
+                                    integer byte_ = peek(src_row+floor(x/8)),
+                                          mask = power(2,7-mod(x,8)),   
+                                       bit = and_bits(byte_,mask)!=0
+                                    idx = iff(bit?4:0)
+                                else
+                                    ?9/0 -- cannot trigger
+                                end if
+                                clr = peek4u(palette+idx)
+                            end if
+                            poke4(dst_row+x*4,clr)
+                        end for
+                    end if
+                end for
+            end if
+            DeleteDC(hdc)
+            GlobalUnlock(hDIB)
+        end if
+        CloseClipboard()
+    end if
+    return {hNew,pBits,w,h}
+end function
+
+--/* never got this anywhere near working... mime_ptr is garbage except for the first...
+function get_encoder_clsid(string mime)
+    -- enumerate encoders and find "image/png"
+    -- (standard GDI+ boilerplate)
+
+    atom pNum = allocate(4),
+         pSize = allocate(4)
+
+    GdipGetImageEncodersSize(pNum, pSize)
+
+    integer num = peek4u(pNum),
+            size = peek4u(pSize)
+    free(pNum)
+    free(pSize)
+
+    atom pEncoders = allocate(size)
+
+    GdipGetImageEncoders(num, size, pEncoders)
+
+    integer esz = get_struct_size(idImageCodecInfo)
+--  integer esz = size/num
+?{num,size,esz,esz*num}
+
+    for i=0 to num-1 do
+        atom p = pEncoders + i*esz
+        atom mime_ptr = get_struct_field(idImageCodecInfo,p,"MimeType")
+
+--      sequence ms = peek_string(mime_ptr)
+        sequence ms = peek_wstring(mime_ptr)
+        ?ms
+        if ms=mime then
+            atom clsid = allocate(16)
+            mem_copy(clsid, get_struct_field(idImageCodecInfo,p,"Clsid"), 16)
+            return clsid
+        end if
+    end for
+
+    return NULL
+end function
+
+procedure save_bitmap_to_png(atom hBitmap, string filename)
+
+--  atom gpBitmap = NULL
+    atom gpBitmap = allocate_word()
+
+    -- create GDI+ bitmap from HBITMAP
+    integer status = GdipCreateBitmapFromHBITMAP(hBitmap,NULL,gpBitmap)
+    if status!=0 then
+        ? "GdipCreateBitmapFromHBITMAP failed"
+    else
+        -- get PNG encoder CLSID
+        atom clsid = get_encoder_clsid("image/png")
+
+        status = GdipSaveImageToFile(gpBitmap,filename,clsid,NULL)
+        if status!=0 then
+            ? "GdipSaveImageToFile failed"
+        end if
+        GdipDisposeImage(gpBitmap)
+-- maybe (untried)
+--      GdipDisposeImage(peeknu(gpBitmap))
+    end if
+    free(gpBitmap)
+end procedure
+--*/
+
+procedure set_clipboard_dib(integer w, h, atom pBits)
+    integer dataSize = w*h*4
+    atom hMem = GlobalAlloc(GMEM_MOVEABLE,bmiLen+dataSize),
+         pMem = GlobalLock(hMem)
+
+    set_BMI(pMem, w, h)
+    mem_copy(pMem+bmiLen,pBits,dataSize)
+
+    GlobalUnlock(hMem)
+
+    if OpenClipboard(NULL) then
+        EmptyClipboard()
+        -- Aside: CF_DIB is mspaint compatible, CF_DIBV5 ain't.
+        SetClipboardData(CF_DIB,hMem)
+        CloseClipboard()
+    end if
+end procedure
+
+procedure toggle_corners(atom pBits, integer w, h)
+    if pBits!=NULL then
+
+        integer white = #00FFFFFF
+        integer black = #00000000
+
+        sequence corners = {peek4u(pBits + 0),
+                            peek4u(pBits + (w-1)*4),
+                            peek4u(pBits + (h-1)*w*4),
+                            peek4u(pBits + ((h-1)*w + w-1)*4)}
+        bool all_white = unique(corners)={white}
+        integer clr = iff(all_white?black:white)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for i,n in {5,3,2,1,1} do
+            integer im1w = (i-1)*w,
+                    hmiw = (h-i)*w
+            for j=0 to n-1 do
+                integer w1j = w-1-j
+                        -- tl,      tr,     bl,     br
+                for k in {im1w+j,im1w+w1j,hmiw+j,hmiw+w1j} do
+                    poke4(pBits+k*4,clr)
+                end for
+            end for
+        end for
+    end if
+end procedure
+
+function load_image_file(string filename)
+    atom pImage = GdipLoadImageFromFile(filename),
+            hdc = CreateCompatibleDC(NULL)
+    integer w = GdipGetImageWidth(pImage),
+            h = GdipGetImageHeight(pImage)
+    set_BMI(pBMI, w, -h)
+    atom hNew = CreateDIBSection(hdc,pBMI,DIB_RGB_COLORS,ppBits,NULL,0),
+        pBits = peeknu(ppBits),
+         rect = allocate(16),
+      bmpData = allocate(32) -- BitmapData
+    poke4(rect,{0,0,w,h})
+
+    GdipBitmapLockBits(pImage,rect,ImageLockModeRead,PixelFormat32bppARGB,bmpData)
+
+    atom srcScan0 = peeknu(bmpData+16) -- Scan0
+    integer srcStride = peek4s(bmpData+8)
+    if srcStride<0 then
+        srcScan0 += (h-1)*srcStride
+        srcStride = -srcStride
+    end if
+
+    -- copy rows (respect stride!)
+    for y=0 to h-1 do
+        atom src = srcScan0 + y*srcStride
+        atom dst = pBits + y*w*4
+        mem_copy(dst, src, w*4)
+    end for
+
+    GdipBitmapUnlockBits(pImage, bmpData)
+    GdipDisposeImage(pImage)
+
+    DeleteDC(hdc)
+    free(pBMI)
+    free(bmpData)
+    free(rect)
+
+    atom hBmp = hNew
+
+    return {hBmp,pBits,w,h}
+end function
+
+atom hBmp = NULL,
+     pBits = NULL
+integer imgW = 0, 
+        imgH = 0
+
+local procedure toggle_and_show(atom hWnd)
+--  integer w = 240, h = 80
+    integer w = 254, h = 87
+    if hBmp!=0 then
+        toggle_corners(pBits,imgW,imgH)
+        w = imgW+BORDER*2+14
+        h = imgH+BORDER*2+7+32
+    end if
+    SetWindowPos(hWnd,NULL,0,0,w,h,SWP_NOMOVE)
+end procedure
+
+--integer drag_hover = 0
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_CREATE:
+            {hBmp,pBits,imgW,imgH} = get_bitmap_from_clipboard()
+            toggle_and_show(hWnd)
+            DragAcceptFiles(hWnd,TRUE)
+            return 0
+
+----        case WM_DRAGENTER:
+--      case WM_MOUSEMOVE:
+--?{"MOUSEMOVE",drag_hover}
+--          if not drag_hover then
+--              drag_hover = 1
+--              InvalidateRect(hWnd,NULL,TRUE)
+--              return 0
+--          end if
+--
+----        case WM_DRAGLEAVE:
+--      case WM_MOUSELEAVE:
+--?"MOUSELEAVE"
+--          drag_hover = 0
+--          InvalidateRect(hWnd,NULL,TRUE)
+--          return 0
+
+        case WM_DROPFILES:
+            atom hDrop = wParam
+            integer count = DragQueryFile(hDrop, -1, NULL, 0)
+            if count>0 then
+                integer len = DragQueryFile(hDrop, 0, NULL, 0)
+                atom buffer = allocate(len+1)
+                {} = DragQueryFile(hDrop, 0, buffer, len+1)
+                string filename = peek_string(buffer)
+                {hBmp,pBits,imgW,imgH} = load_image_file(filename)
+                toggle_and_show(hWnd)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            DragFinish(hDrop)
+            return 0
+
+        case WM_LBUTTONDOWN:
+            if hBmp!=0 then
+                toggle_corners(pBits,imgW,imgH)
+--?"SAVING"
+--save_bitmap_to_png(hBmp, "win_clip.png")
+--?"SAVED"
+                set_clipboard_dib(imgW,imgH,pBits)
+                InvalidateRect(hWnd,NULL,TRUE)
+            end if
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd,pPAINTSTRUCT)
+            integer {?,?,w,h} = GetClientRect(hWnd)
+            FillRect(hdc,pRECT,GetStockObject(WHITE_BRUSH))
+--          if drag_hover then
+--              FrameRect(hdc, pRECT, highlight_brush)
+--          end if
+            if hBmp!=0 then
+                atom mem = CreateCompatibleDC(hdc)
+                {} = SelectObject(mem,hBmp)
+                BitBlt(hdc,BORDER,BORDER,imgW,imgH,mem,0,0,SRCCOPY)
+                DeleteDC(mem)
+            else
+                string noimage = "No image in clipboard"
+                integer l = length(noimage),
+                        x = floor((w-8*l)/2),
+                        y = floor((h-16)/2)
+                TextOut(hdc,x,y,noimage,l)
+            end if
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            GdiplusShutdown(gdiplusToken)
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd,msg,wParam,lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    GdiplusStartup(gdiplusToken, pGdiplusStartupInput, NULL)
+
+    RegisterClassEx("clipdemo",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0,"clipdemo","Clip img",
+        WS_OVERLAPPEDWINDOW,
+        100,100,300,200,
+        NULL,NULL,NULL,NULL)
+
+    ShowWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg,NULL,0,0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+
+main()
+*/
+
+--/*
+--
+-- demo\theGUI\gtk_clip.exw
+-- ========================
+--
+--  Clipboard demo, auto-crops the four corners of all me doc images for me.
+--  Also supports drag and drop, with full image loading support (png,jpg,etc).
+--
+--  Note: Clears clipboard on program termination: I fought GTK tooth and 
+--        nail over that, and lost - let me know if you can do any better.
+--  As a partial workaround, load_from_clipboard() loads from /tmp/clip.png
+--  which would have been left by a prior run, but that's not a general fix.
+--
+--requires(64,true)
+include theGUI.GTK.e
+
+atom pixbuf = NULL
+atom pixels = NULL
+integer imgW = 240, imgH = 80, stride = 0, n_chan = 0
+
+atom area, w1
+
+constant BORDER = 10
+
+procedure toggle_corners()
+    if pixbuf!=NULL then
+        integer white = peek({pixels,3})={255,255,255}
+        sequence v = repeat(iff(white?0:255),3)
+        --
+        --                             *****    
+        --                             ***
+        -- patch the four corners in a **    pattern:
+        --                             *
+        --                             *
+        --  
+        for y,w in {5,3,2,1,1} do
+            integer yt = (y-1)*stride, yb = (imgH-y)*stride
+            for x=1 to w do
+                int xl = (x-1)*n_chan, xr = (imgW-x)*n_chan
+                poke(pixels + yt + xl,v) -- TL
+                poke(pixels + yt + xr,v) -- TR
+                poke(pixels + yb + xl,v) -- BL
+                poke(pixels + yb + xr,v) -- BR
+            end for
+        end for
+    end if
+end procedure
+
+procedure update_globals()
+    imgW   = gdk_pixbuf_get_width(pixbuf)
+    imgH   = gdk_pixbuf_get_height(pixbuf)
+    stride = gdk_pixbuf_get_rowstride(pixbuf)
+    n_chan = gdk_pixbuf_get_n_channels(pixbuf)
+    pixels = gdk_pixbuf_get_pixels(pixbuf)
+end procedure
+
+procedure set_area_size(bool bAndWindow=false)
+    gtk_widget_set_size_request(area, imgW, imgH)
+    set_struct_field(idGdkRectangle,pRECT,"x",0)
+    set_struct_field(idGdkRectangle,pRECT,"y",0)
+    set_struct_field(idGdkRectangle,pRECT,"width",imgW)
+    set_struct_field(idGdkRectangle,pRECT,"height",imgH)
+    gtk_widget_size_allocate(area,pRECT)
+    if bAndWindow then
+        gtk_window_resize(w1, imgW+BORDER*2, imgH+BORDER*2)
+    end if
+end procedure
+
+procedure load_image_file(string filename)
+    atom err = NULL
+    pixbuf = gdk_pixbuf_new_from_file(filename, err)
+    if pixbuf=NULL then
+        ?{"load failed",filename}
+    else
+--      pixbuf = gdk_pixbuf_copy(pixbuf)
+        update_globals()
+        toggle_corners()
+        set_area_size(true)
+        gtk_widget_queue_draw(area)
+    end if
+end procedure
+
+procedure load_from_clipboard()
+    atom clip = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD)
+    pixbuf = gtk_clipboard_wait_for_image(clip)
+    if pixbuf=NULL then
+        string filename = `/tmp/clip.png`
+        atom err = NULL
+        pixbuf = gdk_pixbuf_new_from_file(filename, err)
+        if pixbuf!=NULL then
+            ?"loaded from "&filename
+        end if
+    end if
+    if pixbuf!=NULL then
+--      pixbuf = gdk_pixbuf_copy(pixbuf)
+        update_globals()
+        toggle_corners()
+        set_area_size(true)
+    end if
+    gtk_widget_queue_draw(area)
+end procedure
+
+atom png_data = NULL
+integer png_len = 0
+
+--/* valid, but no tmp file...
+procedure build_png_in_buffer()
+
+    atom pBuffer = allocate(machine_word())
+    atom pSize   = allocate(machine_word())
+
+    poken(pBuffer, 0)
+    poken(pSize,   0)
+
+    integer ok = gdk_pixbuf_save_to_buffer(pixbuf,pBuffer,pSize,"png",NULL)
+    if not ok then
+        ? "PNG encode failed"
+    else
+
+        atom buf = peeknu(pBuffer)   -- char*
+        integer len = peeknu(pSize)  -- size_t
+
+        -- free previous if any
+        if png_data!=NULL then
+            free(png_data)
+        end if
+
+        png_data = allocate(len)
+        png_len = len
+
+        mem_copy(png_data, buf, len)
+
+        -- free GTK buffer
+        g_free(buf)
+    end if
+
+    free(pBuffer)
+    free(pSize)
+end procedure
+--*/
+
+procedure build_png()
+    string tmp = "/tmp/clip.png"
+
+    gdk_pixbuf_save(pixbuf, tmp, "png", NULL)
+
+    string data = get_text(tmp)
+
+    png_len = length(data)
+    if png_data then free(png_data) end if
+    png_data = allocate(png_len)
+    poke(png_data, data)
+end procedure
+
+constant atom_png = gdk_atom_intern("image/png", FALSE),
+         atom_targets = gdk_atom_intern("TARGETS", FALSE),
+         pAtoms = allocate_word(atom_png),
+         ATOMS = 32, BYTES = 8
+
+function clipboard_get(atom clipboard, atom seldata, integer info, atom user_data)
+--?"clipboard_get" -- only triggers on 64 bit??? (yet still works on 32 bit...)
+    atom target = gtk_selection_data_get_target(seldata)
+    if target = atom_targets then -- return list of supported targets (just PNG)
+        gtk_selection_data_set(seldata,atom_targets,ATOMS,pAtoms,1)
+        return TRUE
+    elsif target = atom_png then
+        gtk_selection_data_set(seldata,atom_png,BYTES,png_data,png_len)
+        return TRUE
+    end if
+    return FALSE
+end function
+constant clipboard_get_cb = call_back({'+',clipboard_get})
+
+constant clip_targets = {{"TARGETS", 0, 0},
+                         {"image/png", 0, 1}
+                        },
+         nCT = length(clip_targets),
+         pClipTargets = gtk_target_table(clip_targets)
+
+procedure save_to_clipboard()
+    if pixbuf!=NULL and gdk_pixbuf_get_width(pixbuf) then
+        build_png()
+        atom clip = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD)
+        gtk_clipboard_set_with_data(clip,pClipTargets,nCT,clipboard_get_cb,NULL,NULL)
+    end if
+end procedure
+
+function draw(atom widget, cairo, integer id)
+    -- GTK3 version, invoked from GTK2 version
+    if pixbuf=NULL then
+        -- draw message
+        cairo_move_to(cairo, 20, 40)
+        cairo_show_text(cairo, "No image in clipboard")
+    else
+        gdk_cairo_set_source_pixbuf(cairo, pixbuf, BORDER, BORDER)
+        cairo_paint(cairo)
+    end if
+    return FALSE
+end function
+constant draw_cb = call_back({'+',draw})
+
+function expose_event(atom widget, event, integer id)
+    -- GTK2 version
+    atom win = gtk_widget_get_window(widget),
+         cairo = gdk_cairo_create(win)
+    integer res = draw(widget, cairo, id)
+    cairo_destroy(cairo)
+    return res
+end function
+constant expose_event_cb = call_back({'+',expose_event})
+
+function button_press(atom widget, event, integer id)
+    if pixbuf=NULL then return FALSE end if
+    toggle_corners()
+    save_to_clipboard()
+    gtk_widget_queue_draw(widget)
+    return TRUE
+end function
+constant button_press_cb = call_back({'+',button_press})
+
+function drag_data_received(atom widget, context, x, y, seldata, info, time_, id)
+    atom data = gtk_selection_data_get_data(seldata)
+    if data=NULL then return false end if
+    for uri in split(peek_string(data),'\n') do
+        -- crude URI -> filename
+--      if length(uri)>=7 and uri[1..7]="file://" then
+        if length(uri)>=8 and uri[1..8]="file:///" then
+-- (or maybe the kength 7 version and a secondary check for eg "/C:"->strip leading /)
+            string filename = trim_tail(uri[9..$],'\r')
+            filename = substitute(filename,"%20"," ")
+            load_image_file(filename)
+            exit
+        end if
+    end for
+    return true
+end function
+constant drag_data_received_cb = call_back({'+',drag_data_received})
+
+function key_press(atom widget, event, integer id)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+--      {} = gtk_main_quit(w1,NULL)
+--NO:       c_proc(gtk_main_quit)
+        gtk_main_quit()
+        return TRUE
+    elsif keyval='v' then
+        load_from_clipboard()
+        return TRUE
+    end if
+    return FALSE
+end function
+constant key_press_cb = call_back({'+',key_press})
+
+constant pText = allocate_string("text/uri-list"),
+         pTargets = allocate(24)
+mem_set(pTargets,0,24)
+poken(pTargets,pText)
+
+constant drag_sources = {{"text/uri-list", 0, 0}},
+         nDS = length(drag_sources),
+         pDragSources = gtk_target_table(drag_sources)
+
+
+procedure main()
+    gtk_init()
+
+    w1 = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(w1, "GTK Image Tool")
+
+    area = gtk_drawing_area_new()
+    gtk_container_add(w1, area)
+
+--  gtk_widget_set_size_request(area, 240, 80)
+    set_area_size()
+
+    -- signals
+    integer id = NULL
+
+    {string sig, atom cb} = iff(bGTK2?{"expose_event",expose_event_cb}:{"draw",draw_cb})
+    g_signal_connect_data(area, sig, cb, id)
+    g_signal_connect_data(area, "button-press-event", button_press_cb, id)
+    g_signal_connect_data(w1, "key-press-event", key_press_cb, id)
+    g_signal_connect_data(w1, "destroy", gtk_main_quit_cb, id)
+
+    -- enable mouse + DnD
+    gtk_widget_add_events(area, GDK_BUTTON_PRESS_MASK)
+--  gtk_drag_dest_set(area,GTK_DEST_DEFAULT_ALL,pTargets,1,GDK_ACTION_COPY)
+    gtk_drag_dest_set(area,GTK_DEST_DEFAULT_ALL,pDragSources,nDS,GDK_ACTION_COPY)
+    g_signal_connect_data(area,"drag-data-received",drag_data_received_cb,id)
+
+    gtk_widget_show_all(w1)
+
+    -- initial clipboard load
+    load_from_clipboard()
+
+    gtk_main()
+end procedure
+
+main()
+--*/
+
+
+--/*
+-- When you find an email is covered in =3D, =20 etc, copy the text
+-- to the windows clipboard and run this program.
+-- The encodings are stripped and the corrected text is both 
+-- displayed, and placed back on the clipboard. 
+-- Use Alt-F4 to close the window. [DEV and escape]
+-- You can also just leave it running in the background; alt-tab
+-- to it and the clipboard & display are automatically updated
+
+include arwen.ew
+--if setAutoFocusLabels(True) then end if   --DEV (something like this needed for Arwen)
+--with trace
+
+--Note: ignore the sizes here, see WM_SIZE below
+constant 
+main=create(Window,"Quoted Printable Decode",0,0,150,50,500,400,0),
+mle=create(MultiEditText,"",0,main,5,5,0.99,0.99,0),
+sh=create(CheckBox,"&Strip Html",0,main,5, 0.99, 14*6, 25,0),
+fq=create(CheckBox,"&Fix qpe",0,main,5, 0.99, 14*6, 25,0),
+hex=create(CheckBox,"&Hex View",0,main,100, 0.99, 14*6, 25,0),
+clip=create(CheckBox,"&Update Clipboard",0,main,200, 0.99, 22*6, 25,0)
+
+sequence hout
+    hout=repeat(-1,256)
+    for i = 0 to 9 do
+        hout[i+48]=i    -- '1'..'9' ['0' is already 0]
+    end for
+    for i = 10 to 15 do
+        hout[i+55]=i    -- 'A'..'F'
+        hout[i+87]=i    -- 'a'..'f'
+    end for
+
+constant
+ampdeadset={"&gt;","&lt;","&nbsp;","&amp;","<p>","<P>","<BR>"},
+adrep     ={ ">",   "<",   " ",     "&",    "",   "",   ""}
+
+global function qpd(sequence in, integer asHex, integer fixQPE, integer stripHtml)
+sequence result
+integer k, k2, k3, k4,
+        ko,ke, done
+sequence endtag
+
+    result={}
+    k=1
+    if asHex then
+        k2=1
+        while k<=length(in) do
+            if find(in[k],"\r\n") then
+                result&="\r\n"
+                if k<length(in) and find(in[k],"\r\n")=find(in[k+1],"\n\r") then
+                    k+=1
+                end if
+                k2=1
+            else
+                if k2>10 then
+                    result&="\r\n"
+                    k2=1
+                end if
+                result&=sprintf("%02x",in[k])
+                k2+=1
+            end if
+            k+=1
+        end while
+        return result
+    end if
+    if fixQPE then
+        while k <= length(in) do
+            if k<length(in)-1 
+            and in[k]='=' 
+            and hout[in[k+1]]!=-1 
+            and hout[in[k+2]]!=-1 then
+                result&=hout[in[k+1]]*16+hout[in[k+2]]
+                k+=3
+            elsif k<length(in)-1 
+            and in[k]='=' 
+            and in[k+1]='\r'
+            and in[k+2]='\n' then
+                k+=3
+            else
+                result&=in[k]
+                k+=1
+            end if
+        end while
+    else
+        result=in
+    end if
+    if stripHtml then   -- strip html
+        k2=1
+        while 1 do
+            k=match("<!--",result[k2..length(result)])  -- comment start
+            if k=0 then exit end if
+            k+=k2-1
+            k2=match("-->",result[k+4..length(result)]) -- comment end
+            if k2=0 then exit end if
+            k2+=k+3
+--          for i=k+4 to k2-1 do                                            -- specific spam test
+--              ch=result[i]
+--              if (ch>='0' and ch<='9')
+--              or (ch>='A' and ch<='Z')
+--              or (ch>='a' and ch<='z') then
+--                  if i=k2-1 then
+            result=result[1..k-1]&result[k2+3..length(result)]
+            k2=k
+--                      exit
+--                  end if
+--              else
+--                  k2=k+1
+--                  exit
+--              end if
+--          end for
+        end while
+
+        --
+        -- chop matching, eg <pre>..</pre>
+        --
+        done=1
+        ko=1            -- opening '<'
+        ke=1            -- ending '>', on the opening doobrie
+        while 1 do
+            ko=find('<',result[done..length(result)])
+            if ko=0 then exit end if
+            ke=find('>',result[done+ko..length(result)])
+            if ke=0 then exit end if
+            --
+            -- ok, now we have a tag
+            -- find the closing tag to look for
+            --
+            k3=find(' ',result[done+ko..done+ko+ke-2])-1
+            if k3=-1 then k3=ke-1 end if
+            endtag="</"&result[done+ko..done+ko+k3-1]&'>'
+            --
+            -- now find the equivalent closing html:
+            -- eg <pre>... </pre>
+            --
+            k4=match(endtag,result[done+ko+ke..length(result)])
+            if k4 then
+                result=result[1..done-1+ko-1]&
+                       result[done+ko+ke..done+ko+ke+k4-2]&
+                       result[done+ko+ke+k4+k3+2..length(result)]
+                done=1  -- far too hard; start again!
+            else
+                done+=ko+ke
+            end if
+        end while
+        for i=1 to length(ampdeadset) do
+            while 1 do
+                k=match(ampdeadset[i],result)
+                if k=0 then exit end if
+                result=result[1..k-1]&adrep[i]&result[k+length(ampdeadset[i])..length(result)]
+            end while
+        end for
+    end if
+
+    return result
+end function
+
+function MainHandler(integer id, integer msg, atom wParam, object lParam)
+sequence size
+    if wParam or object(lParam) then end if -- suppress warnings
+    if msg = WM_SIZE then
+        size = getClientRect(main) -- returns {x1,y1,x2,y2}
+        size[3] -= size[1]
+        size[4] -= size[2]
+--      setCtlSize(mle,size[3]-10,size[4]-40)
+--DEV
+--moveWindow() currently accepts 3 parameters; we want it to accept 3/5/6?)
+        void = c_func(xMoveWindow, {getHwnd(mle), 5, 5, size[3]-10, size[4]-40, 1})
+--      setRect(sh,5,size[4]-30,14*6,25,1)
+        void = c_func(xMoveWindow, {getHwnd(sh), 5, size[4]-30, 14*6, 25, 1})
+        void = c_func(xMoveWindow, {getHwnd(fq), 100, size[4]-30, 14*6, 25, 1})
+--      setRect(hex,100,size[4]-30,14*6,25,1)
+        void = c_func(xMoveWindow, {getHwnd(hex), 200, size[4]-30, 14*6, 25, 1})
+--      setRect(clip,200,size[4]-30,22*6,25,1)
+        void = c_func(xMoveWindow, {getHwnd(clip), 300, size[4]-30, 22*6, 25, 1})
+    elsif msg=WM_PAINT then
+--      setIndex(mle,{1,0})
+        void = sendMessage(mle, EM_SETSEL, 0, -1)
+--      paste(mle)
+        void = sendMessage(mle, WM_PASTE, 0, 0)
+        setText(mle,qpd(getText(mle),isChecked(hex),isChecked(fq),isChecked(sh)))
+        if isChecked(clip) then
+--          setIndex(mle,{1,0})
+            void = sendMessage(mle, EM_SETSEL, 0, -1)
+--          copy(mle)
+            void = sendMessage(mle, WM_COPY, 0, 0)
+        end if
+    elsif msg=WM_COMMAND then
+        if find(id,{sh,fq,hex,clip}) then
+            repaintWindow(main,False)
+        end if
+    elsif msg=WM_CHAR 
+      and wParam=VK_ESCAPE then
+        closeWindow(main)
+    end if
+    return 0
+end function
+setHandler({main,mle,sh,fq,hex,clip},routine_id("MainHandler"))
+
+WinMain(main,SW_NORMAL)
+--WinMain(main,SW_RESTORE)
+--*/

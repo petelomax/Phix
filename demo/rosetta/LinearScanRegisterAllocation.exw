@@ -1856,6 +1856,188 @@ demo\rosetta\Pythagorean_triples.exw -- demonstrates a 5-fold speedup by inlinin
 
 https://intezer.com/all-your-go-binaries-are-belong-to-us
 
+--OMG - better than 4-fold speedup: (cffi, nb windows API calling convention only...)
+--X{atom addr, integer safe} = get_proc_address(atom lib, string name) 
+--atom addr = get_proc_address(atom lib, string name) 
+requires(64,true) -- 40.49s!! --> 6.83s
+--requires(32,true) -- 21s --> 4.88s
+include builtins/mpfr.e
+constant m1 = mpz_init(1)
+constant mpir_dll = get_mpir_dll(),
+--     pa_mpq_add = get_proc_address(mpir_dll,"+__gmpq_add")[1]
+--     pa_mpq_add = get_proc_address(mpir_dll,"__gmpq_add")[1]/4,
+       pa_mpq_add = get_proc_address(mpir_dll,"__gmpq_add")/4,
+--  pa_mpq_set_si = get_proc_address(mpir_dll,"__gmpq_set_si")[1]/4
+    pa_mpq_set_si = get_proc_address(mpir_dll,"__gmpq_set_si")/4
+--?mpir_dll
+--?pa_mpq_add
+--?rmdr(pa_mpq_add,4)
+--/*
+--global procedure mpq_add(mpq rop, op1, op2)
+-- set rop to op1 + op2.
+    if rop=NULL then ?9/0 end if
+    if op1=NULL then ?9/0 end if
+    if op2=NULL then ?9/0 end if
+    if x_mpq_add=NULL then
+        x_mpq_add = define_c_proc(mpir_dll, "+__gmpq_add", {P,P,P})
+    end if
+    c_proc(x_mpq_add,{rop,op1,op2})
+
+    for i=la to 1 by -1 do
+        argi = args[i]
+        argdefi = argdefs[i]
+        integer xi = xmmi[i]
+
+                            mov edx,[argi]
+                            push edx
+
+                            mov eax,[argi]
+                            call :%pLoadMint
+                            push eax
+
+integer x_mpq_init = NULL
+
+--global function mpq_init(object v=0)
+    object res = allocate(7*W) -- (extra dword for MPZ_Q)
+    if x_mpq_init=NULL then
+        if mpir_dll=NULL then open_mpir_dll() end if
+        x_mpq_init = define_c_proc(mpir_dll, "+__gmpq_init", {P})
+    end if
+    c_proc(x_mpq_init,{res})
+    res = delete_routine(res,r_free_mpq)
+    poke4(res+6*W,MPZ_Q)
+    if v!=0 then
+--      if mpq(v) then              -- NO!!
+--          mpq_set(res, v)
+--      elsif mpz(v) then           -- NO!!
+--          mpq_set_z(res, v)
+        if integer(v) then
+            mpq_set_si(res, v)
+        elsif string(v) then
+            mpq_set_str(res, v)
+        else
+            ?9/0    -- what's v then?? (non-integer atom is invalid)
+        end if
+    end if
+    return res  
+--end function
+
+--*/
+function is_perfect(integer num)
+    mpq tot = mpq_init(),
+        fth = mpq_init()
+--  sequence f = factors(num,1)
+--  sequence f = mpz_factors(num,1,false) -- 101s!!
+--  for i=1 to length(f) do
+    for f in factors(num,1) do
+--      mpq_set_si(fth,1,f[i])
+--      mpq_set_si(fth,1,f)
+--/!* -- 4.88s:
+        #ilASM{
+            [32]
+                mov ecx,[pa_mpq_set_si]
+                mov eax,[f]
+                shl ecx,2
+                call :%pLoadMint
+                push eax
+                mov eax,[fth]
+                call :%pLoadMint
+                push 1
+                push eax
+--              call :%pLoadMint
+                call ecx
+                add esp,12
+-- 19.83s:
+            [64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                sub rsp,40
+                -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
+                mov rax,[f]
+                call :%pLoadMint
+                mov r8,rax
+                mov rdx,1
+                mov rax,[fth]
+                call :%pLoadMint
+                mov rcx,rax
+                mov rax,[pa_mpq_set_si]
+                shl rax,2
+                call rax
+                mov rsp,[rsp+40]
+            []
+        }
+--*!/
+--      mpq_set_z(fth,m1,f[i])
+--20.64s:
+--      mpq_add(tot,tot,fth)
+--/!* -- 14.5s:
+        #ilASM{
+            [32]
+                mov ecx,[pa_mpq_add]
+                mov eax,[fth]
+                shl ecx,2
+                call :%pLoadMint
+                push eax
+                mov eax,[tot]
+                call :%pLoadMint
+                push eax
+                push eax
+--              call :%pLoadMint
+                call ecx
+                add esp,12
+-- 6.83s:
+            [64]
+                mov rcx,rsp -- put 2 copies of rsp onto the stack...
+                push rsp
+                push rcx
+                or rsp,8    -- [rsp] is now 1st or 2nd copy:
+                            -- if on entry rsp was xxx8: both copies remain on the stack
+                            -- if on entry rsp was xxx0: or rsp,8 effectively pops one of them (+8)
+                            -- obviously rsp is now xxx8, whatever alignment we started with
+                sub rsp,40
+                -- first 4 parameters are passed in rcx/rdx/r8/r9 (or xmm0..3),
+                mov rax,[fth]
+                call :%pLoadMint
+                mov r8,rax
+                mov rax,[tot]
+                call :%pLoadMint
+                mov rcx,rax
+                mov rdx,rax
+                mov rax,[pa_mpq_add]
+                shl rax,2
+                call rax
+                mov rsp,[rsp+40]
+            []
+        }
+--*!/
+    end for
+    return mpq_cmp_si(tot,2,1)=0
+end function
+ 
+procedure get_perfect_numbers()
+    atom t0 = time()
+    integer lim = power(2,iff(platform()=JS?13:19))
+    for i=2 to lim do
+        if is_perfect(i) then
+            printf(1,"perfect: %,d\n",i)
+        end if
+    end for
+    printf(1,"elapsed: %3.2f seconds\n",time()-t0)
+ 
+    integer pn5 = power(2,12)*(power(2,13)-1) -- 5th perfect number
+    if is_perfect(pn5) then
+        printf(1,"perfect: %,d\n",pn5)
+    end if
+end procedure
+ 
+get_perfect_numbers()
+
+
 That'll do for now...
 
 A register may contain:

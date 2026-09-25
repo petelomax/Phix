@@ -49,7 +49,13 @@ downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
 -->
         <br>
         <br>
-        Of course drawing a 3D scene is no mean feat, you can get a glimpse of just how complicated it is by visiting this little 
+        Note: I consider it my responsibility to get OpenGL working on Windows and in a Web Browser, and right on the edge of my remit
+        lies GTK on Windows: some of the proof-of-concepts contain crafty little shortcuts such as using WinAPI to create textures, and
+        as noted elsewhere I&apos;ve given up all attempts to use anything other than WinAPI when it comes to the clipboard. It is down
+        to someone else to finish off the last 5% or so to get it all fully working on Linux (etc) - with whatever help I can offer, o/c.
+        <br>
+        <br>
+        Drawing a 3D scene is anything but a trivial task, you can get a glimpse of just how complicated it is by visiting this little 
         <a href="javascript:ExternalLink('ext932');" title='https://webglfundamentals.org/webgl/lessons/resources/webgl-state-diagram.html'
            id="ext932" style="color:#9B5565" >webgl state diagram</a>. If that does not confuse and frighten you, there is something
         wrong with you. OpenGL/WebGL is quite probably the simplest possible interface to getting the job done, but it inevitably 
@@ -57,6 +63,17 @@ downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
         Essentially it is just a matter of poking a bucketload of data and then telling it to go and do its thing, with the
         slight compilcation that vertext and fragment shaders are written in a completely different language (as constant strings).<br>
         Unfortunately I am not the person to ask, and am not going to make any attempt whatsoever to document that other language.
+        <br>
+        <br>
+        As with other popular C-based libraries, error handling and runtime diagnostics are carefuly constructed to deliver the worst 
+        possible developer experience. The phix wrapper crashes whenever it can/shd (bCrash flags can be added later should you really
+        want to see errors/pointlessly clutter up your code with your own error messages) but it can do little about the silent fails 
+        and random abrupt terminations, consider yourself duly warned. Where possible the wrapper streamlines things, for instance 
+        <a href>glBufferData</a>() expects <a href>GL_ARRAY_BUFFER</a> to be twinned with a <a href>glFloat32Array</a>, whereas when passed
+        <a href>GL_ELEMENT_ARRAY_BUFFER</a> it needs a glInt32Array, so the wrapper hides those methods from you, demands a sequence, 
+        and applies the right one, with the upshot you don&apos;t have to remember which and cannot get it wrong. Maybe over time the 
+        wrapper can also be trained to spot some of the (other) more common error cases the C code underneath handles badly, but there 
+        is no guarantee of that ever happening.
         <br>
         <br>
         This only attempts to document routines and constants actually used in the provided demos. It is not a tutorial, just a quick lookup.
@@ -72,7 +89,7 @@ downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
         create/design gaming levels rather than the game itself. 
         I will happily accept reduced performance in return for cross-platform operation, or a simpler and cleaner API. 
         Several of the demos have been modified to minimise CPU usage, which of course would be important on a shared, remote, or
-        battery-powered platform.
+        battery-powered platform - my focus is on <i>minimal</i> framerate, not (say) achieving 450+FPS.
 <!--
         , and in the specific instance of <a href="glNormal.htm"><span class="illegal">glNormal</span></a>(), 
         pGUI.e offers just two entry points instead of the ten variants offered in C, likewise <span class="illegal">glColor</span>, 
@@ -95,8 +112,8 @@ downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
         </small>
         <br>
         <br>
-        Let that all sink in. If you cannot imagine or arrange a few suitable things on the desktop in front of you
-        to resemble a 3D 'F', and verify the numbers above (esp 16), then I&apos;m afraid to say you are a lost cause.
+        Let that all sink in. If you cannot imagine or arrange <del>a few</del>three suitable things on the desktop in front 
+        of you to resemble a 3D 'F', and verify the numbers above (esp 16), then I&apos;m afraid to say you are a lost cause.
         Don&apos;t worry about the units: internally OpenGL maps everything to 0.0..1.0 or -1.0..+1.0 as needed anyway, 
         along with the "camera" position, so just use the numbers you find easiest. Do however bear in mind that we are
         (probably) going to be rotating about {0,0,0}, so making that the "centre of gravity" usually helps, though of
@@ -115,12 +132,15 @@ downloaded to C:\Program Files (x86)\Phix\pwa\js\poc\glsim.js
         <br>
         Next we want to apply a texture to each of those faces. This is a simple matter of matching each and every 
         vertex previously specified to the corresponding position on the texture. We can make things much simpler by 
-        declaring the faces in a consistent manner and applying textures using a standard platform-specific approach, 
-        which means opengl.e vs opengl.js in this context.
+        declaring the faces in a consistent manner and applying textures using a standard platform-specific approach. 
+<!--        which means opengl.e vs opengl.js in this context.-->
         Applying a world map to a sphere needs a bit more math and many more triangles, but it is basically the same. 
+        Note that <i>asking</i> OpenGL to draw 10,000 triangles is fairly cheap, in the sense it is a fairly light load on the CPU,
+        even if it turns into a fairly hefty one on the GPU. So it is not an issue should the following final step actually be 
+        several hundred of them, unless o/c you&amp;re asking it to do &ge;10x what would perfectly suffice.
         <br>
         <br>
-        The rest is fairly standard: store it with glBufferData(), and specify what it all means first by calling
+        The rest is fairly standard: store it with <a href>glBufferData</a>(), and specify what it all means first by calling
         glVertexAttribPointer() with the right size, type, and possibly stride settings, and finally 
         <a href>glDrawArrays</a>()
         with the desired mode, here GL_TRIANGLES, not forgetting the total length. Of course there are all sorts of

@@ -8,79 +8,263 @@
 -- DOC? There is a default natural size of about 23x33 (when child1/2 are both a canvas, which are 
 --                                                  effectively smaller or equal to everything else)
 --
-puts(1,"")
+-- Naming convention: gdx splitter = gH/Vbox({l,sizer,r}) -- (and not using t,b for a vbox)
+--                    tg_splitter_click(gdx sizer, ...) 
+--
+--puts(1,"")
 --requires(64,true)
 with javascript_semantics
---include theGUI.e
-include hGUI.e
-gSetGlobal(`DIAGNOSTICS`,"SET_NORM")
+--without debug
+include theGUI.e
+include builtins\syswait.ew
+include builtins\VM\pcmdlnN.e
+with debug
+--gSetGlobal(`DIAGNOSTICS`,true)
+--gSetGlobal(`DIAGNOSTICS`,"DUMPONREDRAW")
+--gSetGlobal(`DIAGNOSTICS`,"DUMPONRESIZE")
+--gSetGlobal(`DIAGNOSTICS`,`SET_NORM`)
 --gUseGTK() -- MIN/MAXSIZE now apply correctly [to the canvas] in tg_resize/tg_lm_disperse_user_sizes, but not window-drag...
             -- NB MAXSIZE does not work in the 2.24.10 (from Feb 2012!) GTK2 windows dlls I still use... (bug fixed 2013!)
 
-local constant HV = {"HORIZONTAL","VERTICAL"}
+--/*
+local constant split_attrs = {{  CX_SPLIT_DRAGG:=$,'b',`[DRAGG]`    }, -- (internal) t/f
+                              { CX_SPLIT_DRAGXY:=$,'n',`[DRAGXY]`   }}, -- (internal) last down/dragggable x|y 
+               CX_SPLIT_LEN = length(slider_attrs)
+--*/
 
-local procedure tg_draw_split(gdx splitter, integer w,h)
-    integer o = find(gGetAttribute(gGetParent(splitter),`ORIENTATION`),HV)
-    -- note the non-expanding w|h must be odd, else
-    --  a) this will typecheck due to the 0.5
-    --  b) the thing would display lop-sided.
-    {w,h} = {w-1,h-1}
-    {w,h} = {{w/2,h},{w,h/2}}[o]        -- \ *nb* these steps
-    integer {x,y} = {{w,0},{0,h}}[o]    -- / cannot be merged
-    gDrawLine(splitter,x,y,w,h,style:=TG_DOTTED)
+enum CX_SPLIT_DRAGG,
+     CX_SPLIT_DRAGXY,
+     CX_SPLIT_LEN = $
+sequence ctrl_xtra = {},
+         ctrl_size = {}
+
+-- copied verbatim from hGUI.e:
+local enum SZ_MARGIN,       -- (see MP_TRBL below)
+           SZ_W,            -- actual/final. NB for a gDialog, 
+           SZ_H,            -- GTK holds client size, WinAPI window size
+           SZ_NORMAL_W,     -- initial natural/normalised
+           SZ_NORMAL_H,
+           SZ_USER_W,       -- explicit (initial) overrides
+           SZ_USER_H,       -- (overidden/clobbered by mouse-resizing)
+           SZ_MIN_W,
+           SZ_MIN_H,
+           SZ_MAX_W,
+           SZ_MAX_H,
+           SZ_X,            -- nb ignore when window is maximised,
+           SZ_Y,            -- ie pretend these are {0,0} instead.
+           SZ_LENGTH = $
+-- suppress some unused warnings:
+if SZ_LENGTH or SZ_MARGIN or SZ_USER_H or SZ_USER_W or SZ_NORMAL_W or SZ_NORMAL_H then end if
+
+local constant HV = {`HORIZONTAL`,`VERTICAL`}
+
+local procedure tg_draw_sizer(gdx sizer, integer w,h)
+--?{"tg_draw_sizer",sizer, w,h}
+--{"tg_draw_sizer",6,10,48'0'}
+    -- (sizer is the middle bar, rather than the h/vbox container)
+    if gGetAttribute(sizer,`ACTIVE`) then
+        bool bHoriz = gGetInt(gGetParent(sizer),`ORIENTATION`)
+        -- note the non-expanding w|h must be odd, else
+        --  a) this will typecheck due to the 0.5
+        --  b) the thing would display lop-sided.
+--      {w,h} = {w-1,h-1}
+        {w,h} = {w-odd(w),h-odd(h)}
+        if bHoriz then w /= 2 else h /= 2 end if
+        integer {x,y} = iff(bHoriz?{w,0}:{0,h})
+        gDrawLine(sizer,x,y,w,h,style:=TG_DOTTED)
+    end if
 end procedure
 
+--local procedure tg_splitter_mouseleave(gdx splitter)
+--  gSetAttribute(splitter,`CURSOR`,NULL)
+--  ctrl_xtra[splitter][CX_SPLIT_DRAGG] = false
+--end procedure
 
-function hSplit(gdx child1, child2, string orientation="HORIZONTAL")
-    integer o = find(orientation,HV),
-            gBox = {gHbox,gVbox}[o]
---  gSetAttribute(s,`SPLIT`,`AYE`) -- (private/undocumented, creation-only)
-    gdx s = gCanvas(tg_draw_split,"SIZE=3x3,SPLIT=AYE"),
-      box = gBox({child1,s,child2},"SPLIT=AYE")
---DEV                               ^^^^ set CF_SPLIT directly instead!
-    gSetAttribute(s,`EXPAND`,HV[-o])
-    gSetAttribute(s,`BGCLR`,TG_CYAN)
---  gSetAttribute(s,`BGCLR`,TG_LIGHT_GREY)
---  gSetHandler(s,`CLICK`,tg_split_click)
---  gSetHandler(s,`MOUSEMOVE`,tg_split_mousemove)
---  gSetHandler(s,`MOUSELEAVE`,tg_split_mouseleave)
-    return box
+--ChatGPT also suggested this, but let's save that for a very rainy day...
+--/*
+function elastic(atom d, lo, hi)
+    if d < lo then
+        atom excess = lo - d
+--      return lo - excess/3  -- resistance factor (tweak this)
+        return lo - excess/(1 + excess/50)
+--      return lo - 50*(1 - exp(-excess/50))
+    elsif d > hi then
+        atom excess = d - hi
+--      return hi + excess/3
+        return hi + excess/(1 + excess/50)
+--      return hi + 50*(1 - exp(-excess/50))
+    end if
+    return d
+end function
+diff = elastic(diff, lodiff, hidiff)
+--Snap-back on release
+--Important: when mouse is released, you should snap back to hard limits:
+if diff < lodiff then diff = lodiff end if
+if diff > hidiff then diff = hidiff end if
+--*/
+
+constant integer tg_hsplit_get_size = gGetGlobal(`tg_hsplit_get_size`),
+                 tg_hsplit_save_size = gGetGlobal(`tg_hsplit_save_size`)
+
+local function tg_splitter_mousemove(gdx splitter, integer x,y, bool left)
+--local procedure tg_splitter_mousemove(gdx splitter, integer x,y, bool left, /*middle*/, /*right*/)
+--?{"tg_splitter_mousemove",splitter, x,y, left}
+    gdx l = gGetChild(splitter,1),
+        s = gGetChild(splitter,2),
+        r = gGetChild(splitter,3)
+--  gdx {l,s,r} = children_ids[splitter]
+    bool bActive = gGetAttribute(splitter,`ACTIVE`),
+         bDragg = ctrl_xtra[s][CX_SPLIT_DRAGG],
+         bHoriz = gGetInt(splitter,`ORIENTATION`)
+-- maybe better: 
+    ctrl_size[l] = tg_hsplit_get_size(l)
+    ctrl_size[s] = tg_hsplit_get_size(s)
+    ctrl_size[r] = tg_hsplit_get_size(r)
+    sequence idii = iff(bHoriz?{SZ_W,SZ_X,SZ_MIN_W,SZ_MAX_W}
+                              :{SZ_H,SZ_Y,SZ_MIN_H,SZ_MAX_H})
+    integer {szwh,szxy,szmin,szmax} = idii,
+            lsiz = ctrl_size[l][szwh],
+            ssiz = ctrl_size[s][szwh],
+            rsiz = ctrl_size[r][szwh],
+            lmin = ctrl_size[l][szmin],
+            rmin = ctrl_size[r][szmin],
+            lmax = ctrl_size[l][szmax],
+            rmax = ctrl_size[r][szmax],
+              xy = iff(bHoriz?x:y)
+    bool bOnSizer = bDragg or (bActive and xy>lsiz and xy<=(lsiz+ssiz)),
+--  bool bOnSizer = bDragg or (bActive and xy>=lsiz and xy<=(lsiz+ssiz+1)),
+         bRedraw = false
+    string wens = iff(bHoriz?`WE_RESIZE`:`NS_RESIZE`)
+--?bActive -- 1
+--?{bOnSizer,wens,xy,lsiz,ssiz}
+    gSetAttribute(s,`CURSOR`,iff(bOnSizer?wens:NULL))
+    if not left then -- (DEV maybe mouseleave? maybe not...)
+        ctrl_xtra[s][CX_SPLIT_DRAGG] = false
+    elsif bDragg then
+        integer dragxy = ctrl_xtra[s][CX_SPLIT_DRAGXY],
+                diffxy = xy-(dragxy+lsiz),
+                lodiff = lmin-lsiz,
+                hidiff = rsiz-rmin
+        if rmax!=0 then lodiff = max(lodiff, rsiz-rmax) end if
+        if lmax!=0 then hidiff = min(hidiff, lmax-lsiz) end if
+        if diffxy<lodiff then diffxy = lodiff end if
+        if diffxy>hidiff then diffxy = hidiff end if
+        lsiz += diffxy
+        rsiz -= diffxy
+        ctrl_size[l][szwh] = lsiz
+        ctrl_size[r][szwh] = rsiz
+        ctrl_size[s][szxy] += diffxy
+        ctrl_size[r][szxy] += diffxy
+        bRedraw = true
+    end if
+    tg_hsplit_save_size(l,ctrl_size[l]); ctrl_size[l]=NULL
+    tg_hsplit_save_size(s,ctrl_size[s]); ctrl_size[s]=NULL
+    tg_hsplit_save_size(r,ctrl_size[r]); ctrl_size[r]=NULL
+    
+    if bRedraw then gRedraw(splitter) end if
+--end procedure
+--?9/0
+    return bOnSizer
 end function
 
-gdx l = gCanvas(),
-    r = gCanvas(),
-  box = hSplit(l,r), 
---  box = hSplit(l,r,"VERTICAL"), -- (sweet!!)
--- dlg = gDialog(box,`gSplit`,`SIZE=0x112`)
--- dlg = gDialog(box,`gSplit`,`SIZE = 302x332`)
-  dlg = gDialog(box,`gSplit`)
-gSetAttribute(dlg,"MINSIZE","202x232") -- (ie a 200x200 canvas)
-gSetAttribute(dlg,"MAXSIZE","402x432") -- (ie a 400x400 canvas)
---DEV borken:
---gSetAttribute(cnv,"MINSIZE","200x200")
---gSetAttribute(dlg,"MAXSIZE","400x400")
---DEV broken/no visible difference... (works on a hbox - maybe I should just document it like that... and the BGCLR test below confirms that...)
---gSetAttribute(cnv,"MARGIN",10)
---excellent!
---gSetAttribute(cnv,"BGCLR","PARCHMENT")
---gSetAttribute(box,"BGCLR","BLUE")
-gShow(dlg)
-gMainLoop()
+local function tg_splitter_click(gdx sizer, sequence status, integer x, y) 
+--?{`tg_splitter_click`,sizer,status, x, y}
+    if gGetAttribute(sizer,`ACTIVE`) then
+        gdx splitter = gGetParent(sizer)
+        if status[1..2]="LS" then
+--?         SetCapture(hWnd)
+--?         gtk_widget_grab_focus(widget)
+--?         gtk_grab_add(widget)
+            bool bHoriz = gGetInt(splitter,`ORIENTATION`)
+            integer dxy = iff(bHoriz?x:y)
+            ctrl_xtra[sizer][CX_SPLIT_DRAGG] = true
+            ctrl_xtra[sizer][CX_SPLIT_DRAGXY] = dxy
+            return `CAPTURE`
+        elsif status[1..2]="LR" then
+            if ctrl_xtra[sizer][CX_SPLIT_DRAGG] then
+                ctrl_xtra[sizer][CX_SPLIT_DRAGG] = false
+--?             ReleaseCapture()
+--?             gtk_grab_remove(widget)
+                return `RELEASE`
+            end if
+        end if
+    end if
+    return TG_IGNORE
+end function
+
+function hSplit(gdx child1, child2, string orientation=`HORIZONTAL`, integer wh=3)
+    integer o = find(orientation,HV),
+            HboxOrVbox = {gHbox,gVbox}[o] -- (real thing can use gBox('H'|'V',...) directly)
+--  gSetAttribute(s,`SPLIT`,`AYE`) -- (private/undocumented, hSplit.exw-only, creation-only)
+    gdx sizer = gCanvas(tg_draw_sizer,`SIZE=%dx%d,SPLIT=AYE`,{wh,wh}),
+     splitter = HboxOrVbox({child1,sizer,child2},`SPLIT=AYE`)
+--DEV                                             ^^^^^^^^^ as next two instead!
+--  ctrl_flags[sizer] += CF_SPLIT
+--  ctrl_flags[splitter] += CF_SPLIT
+    if platform()!=JS then
+        -- fudge: astonishingly, this works fine despite the fact it does things like
+        --        ctrl_xtra[table] all over the shop, as if it were an integer, when
+        --        it is in fact an HtmlElement...
+--      ctrl_xtra = {}
+--      ctrl_size = {}
+--  else
+--      ctrl_xtra = repeat(0,splitter)
+        ctrl_xtra &= repeat(0,splitter-length(ctrl_xtra))
+        ctrl_size &= repeat(0,splitter-length(ctrl_size))
+    end if
+    object cx = repeat(0,CX_SPLIT_LEN)
+    ctrl_xtra[sizer] = cx
+    cx = 0
+    gSetAttribute(sizer,`EXPAND`,HV[-o])
+--  gSetAttribute(sizer,`BGCLR`,TG_CYAN)
+    gSetAttribute(sizer,`BGCLR`,TG_LIGHT_GREY)
+    gSetHandler(sizer,`CLICK`,tg_splitter_click)
+--  gSetHandler(splitter,`CLICK`,tg_splitter_click)
+--  gSetHandler(sizer,`MOUSEMOVE`,tg_splitter_mousemove)
+--DEV don't set this via gSetHandler/don't make that FOIII public.
+    gSetHandler(splitter,`MOUSEMOVE`,tg_splitter_mousemove)
+--  gSetHandler(sizer,`MOUSELEAVE`,tg_splitter_mouseleave) [not actually needed]
+    -- .. gSetAttributes() [in the final version]
+    return splitter
+end function
 
 --/*
-"WM_SETFOCUS"
-id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
- 1 gCanvas      0   0 300 300  11  15   0   0  2  0          CF_EXPANDB
- 2 gDialog    809 374 302 332 226  47 302 332  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
-
-oh dear:
-id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26865, gShow]
- 1 gCanvas      0   0 230 200  11  15 300 300  2  0          CF_EXPANDB
- 2 gDialog    847 516 232 232 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
-
-even worse, w/o minsize:
-id ---ctyp---   x   y   w   h  nw  nh  uw  uh  p  children   flags [26868, gShow]
- 1 gCanvas      0   0 120   0  11  15 300 300  2  0          CF_EXPANDB
- 2 gDialog    847 516 122  32 226  47   0   0  0  {1}        CF_CTNR+DECOR+RESIZE+MODAL+CLESC+MAPPED
-
+gdx l = gCanvas(),
+    r = gCanvas(),
+--  splitter = hSplit(l,r), 
+    splitter = hSplit(l,r,`VERTICAL`), -- (sweet!!)
+--  dlg = gDialog(splitter,`gSplit`,`SIZE=0x112`)
+    dlg = gDialog(splitter,`gSplit`,`SIZE = 305x332`)
+--  dlg = gDialog(splitter,`gSplit`)
+--gSetAttribute(dlg,`MINSIZE`,`205x232`) -- (ie 2*100x200 canvas for a gHsplit)
+--gSetAttribute(dlg,`MAXSIZE`,`405x432`) -- (ie 2*200x400 canvas for a gHsplit)
+gSetAttribute(dlg,`MINSIZE`,`202x235`) -- (ie 2*200x100 canvas for a gVsplit)
+gSetAttribute(dlg,`MAXSIZE`,`402x435`) -- (ie 2*400x200 canvas for a gVsplit)
+gSetAttribute(l,`MINSIZE`,`100x100`) -- (todo: honor that here [DONE])
+gSetAttribute(l,`MAXSIZE`,`300x300`) -- (todo: honor that here [DONE])
+--DEV borken (fix this elsewhere...):
+--gSetAttribute(cnv,`MINSIZE`,`200x200`)
+--gSetAttribute(dlg,`MAXSIZE`,`400x400`)
+--gSetAttribute(splitter,`MARGIN`,10) -- banned as it should be!
+--gSetAttribute(splitter,`ACTIVE`,false)
+gShow(dlg)
+gMainLoop()
 --*/
+
+--/!*
+procedure canvas_number(gdx canvas, integer w,h)
+    gDrawRect(canvas,1,1,w-2,h-2)
+    integer cid = gGetInt(canvas,`USER_DATA`)
+    gDrawText(canvas,w/2,h/2,`%d`,{cid},TG_C)
+end procedure
+
+gdx c1 = gCanvas(canvas_number,`USER_DATA=1`),
+    c2 = gCanvas(canvas_number,`USER_DATA=2`), 
+    c3 = gCanvas(canvas_number,`USER_DATA=3`),
+    vs = hSplit(c2,c3,`VERTICAL`),
+    hs = hSplit(c1,vs,`HORIZONTAL`),
+    dlg = gDialog(hs,`gSplit`,`SIZE=240x80`)
+gSetAttributes({c1,c2,c3},`BGCLR=PARCHMENT,FGCLR=OLIVE`)
+gMainLoop(dlg)
+--*!/
+

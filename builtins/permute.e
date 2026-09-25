@@ -164,36 +164,72 @@ function premutes(integer i)
 end function
 --*/
 
-global function combinations(sequence s, integer k, at=1, sequence res={}, part="")
-    --
-    -- eg join(combinations("123",2),',') ==> "12,13,23"
-    --
+local function combos(sequence s, res, part, integer k, at)
     if k=0 then -- got a full set
         res = append(res,part)
     else
-        if res={} then s=unique(s) end if
         if at+k-1<=length(s) then
             -- get all combinations with and without the next item:
-            res = combinations(s,k-1,at+1,res,append(deep_copy(part),s[at]))
-            res = combinations(s,k,at+1,res,part)
+            res = combos(s,res,append(deep_copy(part),s[at]),k-1,at+1)
+            res = combos(s,res,                 part,        k,  at+1)
         end if
     end if
     return res
 end function 
 
-global function combinations_with_repetitions(sequence s, integer k=length(s), at=1, sequence res={}, part="")
+global function combinations(sequence s, integer k)
     --
-    -- eg join(combinations_with_repetitions("123",2),',') ==> "11,12,13,22,23,33"
+    -- eg combinations("123",2) ==> {"12","13","23"}
     --
-    if length(part)=k then
+    s = unique(s,"STABLE")
+    if k=-1 then k = length(s) end if
+    return combos(s,{},"",k,1)
+end function 
+
+--/*
+DEV: this is apparently 3* faster than combinations()... (4.9s vs 15.1s)
+sequence combis = {}  
+  
+procedure recurse(sequence remaining,               /* digits remaining to compute ... */  
+                  integer needed,                   /* number of digits expected for a valid combination */  
+                  integer done=0,                   /* ... but do not use remaining[1..done] */  
+                  sequence selected = {})           /* digits already selected for a potential combination */  
+  if done=0 then combis = {} end if /* you can and probably will thank me later for that! */ 
+  integer nr = length(remaining)-done   -- number of digits remaining to compute  
+  integer ns = length(selected)    -- number of digits already selected for a potential combination  
+  if ns+nr = needed then  
+    combis = append(combis, selected & remaining[done+1..$]) 
+  elsif ns = needed then 
+    combis = append(combis, selected)  
+  else 
+--  elsif ns+nr>needed then 
+    done += 1 
+    -- select next  
+    recurse(remaining, needed, done, selected & remaining[done])  
+    -- skip next  
+    recurse(remaining, needed, done, selected)  
+  end if 
+end procedure
+--*/
+
+local function rep_combos(sequence s, res, part, integer k, at)
+    if k=0 then
         res = append(res,part)
     else
-        if res={} then s=unique(s) end if
         for at,sat in s from at do
-            res = combinations_with_repetitions(s,k,at,res,append(deep_copy(part),sat))
+            res = rep_combos(s,res,append(deep_copy(part),sat),k-1,at)
         end for
     end if
     return res
+end function
+
+global function combinations_with_repetitions(sequence s, integer k=-1)
+    --
+    -- eg combinations_with_repetitions("123",2) ==> {"11","12","13","22","23","33"}
+    --
+    s = unique(s,"STABLE")
+    if k=-1 then k = length(s) end if
+    return rep_combos(s,{},"",k,1)
 end function
 
 --/*

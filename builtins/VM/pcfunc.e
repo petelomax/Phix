@@ -406,6 +406,7 @@ global function get_proc_address(atom lib, string name)
             call :%pStoreMint
         []
           }
+--/* 23/7/26 moved below.
 --5/10/21 (safe_mode)
     integer safe
     #ilASM{
@@ -422,7 +423,25 @@ global function get_proc_address(atom lib, string name)
     end if
 lib += length(name) -- avoids xType=0 messages on lib [DEV, linux only]
     return {addr,safe}
---  return addr
+--*/
+    return addr
+end function
+
+local function get_safe(atom lib)
+    integer safe
+    #ilASM{
+        [32]
+            lea edi,[safe]
+        [64]
+            lea rdi,[safe]
+        []
+        call :%pGetSafe
+          }
+    if not safe and libaninit then
+        safe = find(lib,libaddrs)
+        if safe then safe = libsafe[safe] end if
+    end if
+    return safe
 end function
 
 procedure check(object o, integer level)
@@ -709,8 +728,9 @@ integer res
             name = toString(name,e74dcfpe,3) --DEV better messsage
         end if
 --5/10/21 (safe_mode)
---      addr = get_proc_address(lib,name)
-        {addr,safe} = get_proc_address(lib,name)
+        addr = get_proc_address(lib,name)
+--      {addr,safe} = get_proc_address(lib,name)
+        safe = get_safe(lib)
         if addr=NULL then
             if bCrash then
 --              crash("cannot link "&name,nFrames:=level+1)
@@ -787,8 +807,8 @@ global function define_c_var(atom lib, sequence name)
         name = toString(name,e74dcfpe,3)
     end if
 --5/10/21 (safe_mode)
---  atom addr = get_proc_address(lib,name)
-    atom {addr} = get_proc_address(lib,name)
+    atom addr = get_proc_address(lib,name)
+--  atom {addr} = get_proc_address(lib,name)
 -- we may want this?:
 --  if addr=0 then return -1 end if
     return addr
@@ -1041,6 +1061,10 @@ end if
     return r
 end function
 
+global function is_call_back(atom r)
+    return tinit and find(r,prevcb)!=0
+end function
+
 global procedure call(atom addr)
 integer prev_ebp4 -- (stored /4)
     #ilASM{
@@ -1275,10 +1299,10 @@ integer esp4
             pathno = symtab[T_fileset][fno][1]
 --          ?{"level",level,"rtnid",rtnid,"fno",fno,"pathno",pathno,"si",si}
         end for
-        string file = symtab[T_fileset][fno][2]
+        string filename = symtab[T_fileset][fno][2]
 --  string path = symtab[T_pathset][symtab[T_fileset][fno][1]]
         if pathno>2 
-        or not find(file,{"pcmdlnN.e"}) then
+        or not find(filename,{"pcmdlnN.e"}) then
 --if pathno=2 then
 --  ?{"pathno=2, (pcfunc.e line 1254) file is",file}
 --end if
@@ -1286,8 +1310,8 @@ integer esp4
                    bpath = symtab[T_pathset][1],
                    spath = substitute(path,`demo\pGUI`,`builtins`)
             if spath!=bpath
-            or not find(file,{"pgetpath.e","pdir.e","penv.e",
-                              "pcurrdir.e","mpfr.e","pGUI.e"}) then
+            or not find(filename,{"pgetpath.e","pdir.e","penv.e",
+                                  "pcurrdir.e","mpfr.e","pGUI.e"}) then
 --?{"path (pcfunc.e line 1262 [FATAL!])",path,"spath",spath,"bpath",bpath,"file",file}
                 fatalN(3,e124npism,rid)
 --else
@@ -1297,6 +1321,9 @@ integer esp4
 --?{"ok[2] (pcfunc.e line 1268)",pathno,"file",file}
         end if
     end if
+
+    integer pre_pad_la = length(args),
+            pre_pad_lad = length(argdefs)
 
     --20/8/15: (ensure shadow space and align)
 --DEV and platform()=WINDOWS??
@@ -1356,7 +1383,8 @@ integer esp4
     lad = length(argdefs)
     if la!=lad then
         -- e116rrnp: routine requires %d parameters, not %d
-        fatalN(3,e116rrnp,lad,la)
+--      fatalN(3,e116rrnp,lad,la)
+        fatalN(3,e116rrnp,pre_pad_lad,pre_pad_la)
     end if
     if flag=FUNC then
         if return_type=0 then fatalN(3,e117rdnrav) end if
