@@ -1,0 +1,434 @@
+﻿--
+-- demo/theGUI/gtk_OpenGL_texture.exw
+-- ==================================
+--
+-- gtk2_OpenGL_texture.exw - GTK2-only, without borders (DEAD)
+-- gtk3_OpenGL_texture.exw - GTK2/3, with 8-triangle borders
+-- gtk_OpenGL_texture.exw - GTK2/3, with 2-triangle borders and transparent hole
+--
+--requires(64,true)
+--puts(1,"")
+include theGUI.GTK.e
+include theGUI.WINAPI.e       -- (still needed for GetDC/wglMakeCurrent)
+include opengl.tgpoc.e
+
+-- ------------------------------------------------------------------
+-- Shaders (Simple pass-through for both textures)
+-- ------------------------------------------------------------------
+constant vertexShaderSource = `
+#version 300 es
+layout(location = 0) in vec3 aPos;          // vertex position
+layout(location = 1) in vec2 aTex;          // texture coordinate
+uniform mat4 uMVP;
+out vec2 vTex;
+void main()
+{
+    vTex = aTex;
+    gl_Position = uMVP * vec4(aPos,1.0);
+}`;
+
+constant fragmentShaderSource = `
+#version 300 es
+precision mediump float;
+in vec2 vTex;
+out vec4 fragColor;
+uniform sampler2D uTex;
+void main()
+{
+    fragColor = texture(uTex, vTex);
+}`;
+
+-- OpenGL texture names:
+integer hello_texture_id = 0,
+        border_texure_id = 0
+
+-- ------------------------------------------------------------------
+-- Texture 1: The "Hello!" bitmap (created once-only with cairo)
+-- ------------------------------------------------------------------
+procedure make_hello_texture()
+    integer tw = 100, th = 26
+    atom surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32,tw,th),
+         cairo = cairo_create(surf)
+
+    -- Fill background with a light-gray (0xFFF0F0F0)
+    cairo_set_source_rgb(cairo, 0.94, 0.94, 0.94)    -- ≈ 0xF0F0F0
+    cairo_paint(cairo)
+
+    -- Draw the text "Hello!" in black, centred
+    atom font = cairo_toy_font_face_create("Arial",
+                                           CAIRO_FONT_SLANT_NORMAL,
+                                           CAIRO_FONT_WEIGHT_NORMAL)
+    cairo_set_font_face(cairo,font)
+    cairo_set_font_size(cairo,20)
+    cairo_set_source_rgb(cairo,0,0,0)     -- black
+    sequence cte = cairo_text_extents(cairo, "Hello!")
+    atom {x_bearing,y_bearing,width,height,x_advance,y_advance} = cte,
+         x = (tw - width)/2.0 - x_bearing,
+         y = (th - height)/2.0 - y_bearing
+    cairo_move_to(cairo, x, y)
+    cairo_show_text(cairo, "Hello!")
+
+    -- Clean up Cairo objects we created for the texture
+    cairo_destroy(cairo)
+    cairo_font_face_destroy(font)
+
+    -- Pull the pixel data out of the surface (ARGB32 → little-endian BGRA)
+    atom pixel_data = cairo_image_surface_get_data(surf)
+--  integer stride = cairo_image_surface_get_stride(surf)   -- usually 4*width
+
+    -- Upload as an OpenGL texture
+--  glGenTextures(1, hello_texture_id)
+    hello_texture_id = glCreateTexture()
+    glBindTexture(GL_TEXTURE_2D, hello_texture_id)
+
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,                                 -- level
+                 GL_RGBA8,                          -- internal format
+                 tw, th,
+                 0,                                 -- border
+                 GL_BGRA,                           -- source format (matches Cairo's layout)
+                 GL_UNSIGNED_BYTE,
+                 pixel_data)                        -- pointer to the pixel data
+
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+    glBindTexture(GL_TEXTURE_2D, 0)
+
+    -- Free the surface (OpenGL now owns its own copy)
+    cairo_surface_destroy(surf)
+end procedure
+
+-- ------------------------------------------------------------------------------------------
+-- Texture 2: The border bitmap (full size, transparent hole, recreated every frame/change)
+-- ------------------------------------------------------------------------------------------
+integer {last_w,last_h} = {-1,-1}
+procedure make_border_texture(integer w, h)
+    if w!=last_w or h!=last_h then
+        {last_w,last_h} = {w,h}
+        -- Create a Cairo image surface (ARGB32) – w x h pixels
+        atom surf = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, w, h),
+            cairo = cairo_create(surf)
+
+        -- Fill background with a fawn colour
+        cairo_set_source_rgb(cairo, #E0/#FF, #80/#FF, #20/#FF)
+        cairo_paint(cairo)
+
+        -- Punch the hole: Set alpha to 0 in the center
+        cairo_set_operator(cairo, CAIRO_OPERATOR_CLEAR)
+        cairo_rectangle(cairo, 5, 5, w-10, h-10)
+        cairo_fill(cairo)
+        cairo_set_operator(cairo, CAIRO_OPERATOR_OVER)
+
+        -- Draw the border detail lines
+        cairo_set_source_rgb(cairo,0,0,0)
+        cairo_set_line_width(cairo, 0.5);
+        cairo_move_to(cairo, 2, 2)
+        cairo_line_to(cairo, w-3, 2)
+        cairo_line_to(cairo, w-3, h-3)
+        cairo_line_to(cairo, 2, h-3)
+        cairo_line_to(cairo, 2, 2)
+        cairo_stroke(cairo)
+
+        -- Clean up Cairo objects we created for the texture
+        cairo_destroy(cairo)
+
+        -- Pull the pixel data out of the surface (ARGB32 → little-endian BGRA)
+        atom pixel_data = cairo_image_surface_get_data(surf)
+--      integer stride = cairo_image_surface_get_stride(surf)   -- usually 4*width
+
+        -- Upload as an OpenGL texture
+--      glGenTextures(1, border_texure_id)
+        if border_texure_id=0 then -- (very first time only, thereafter reuse)
+            border_texure_id = glCreateTexture()
+        end if
+        glBindTexture(GL_TEXTURE_2D, border_texure_id)
+
+        glTexImage2D(GL_TEXTURE_2D,
+                     0,                                 -- level
+                     GL_RGBA8,                          -- internal format
+                     w, h,
+                     0,                                 -- border
+                     GL_BGRA,                           -- source format (matches Cairo's layout)
+                     GL_UNSIGNED_BYTE,
+                     pixel_data)                        -- pointer to the pixel data
+
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+--      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+--      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+--      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+--      glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+        glBindTexture(GL_TEXTURE_2D, 0)
+
+        -- Free the surface (OpenGL now owns its own copy)
+        cairo_surface_destroy(surf)
+    end if
+end procedure
+
+integer hello_shader_id = 0,    -- program id for the hello texture
+        vao_hello_texture = 0,  -- VAO (vertext array object) for the hello texture quad
+        vbo_hello_texture = 0,  -- VBO (vertex buffer object) for the "" (pos+texcoord)
+        border_shader_id = 0,   -- program id for the border texture
+        vao_border_texture = 0, -- VAO (vertext array object) for the border texture quad
+        vbo_border_texture = 0, -- VBO (vertex buffer object) for the border texture quad
+        uMVP_hello = 0,         -- uniform location in the hello texture shader
+        uMVP_border = 0,        -- uniform location in the border texture shader
+        uTex_hello = 0,         -- sampler uniform in the hello texture shader
+        uTex_border = 0         -- sampler uniform in the border texture shader
+
+    -- identity model-view-projection (will be updated in resize)
+    sequence identity = {1,0,0,0,
+                         0,1,0,0,
+                         0,0,1,0,
+                         0,0,0,1}
+
+procedure init_gl()
+--?"init_gl"
+--/*
+    -- Set up the pixel format and context
+    glSetPixelFormat(hDC)
+    hRC = wglCreateContext(hDC)
+    wglMakeCurrent(hDC, hRC)
+--*/
+--/* --?? (do GTK and JS first)
+    hRC = glMakeCurrent(hDC)
+--or:
+    glMakeCurrent(canvas)
+--*/
+    hello_shader_id = glCompileProgram(vertexShaderSource,fragmentShaderSource)
+    border_shader_id = glCompileProgram(vertexShaderSource,fragmentShaderSource)
+--  glUseProgram(hello_shader_id)
+
+    -- uniform locations
+    uMVP_hello = glGetUniformLocation(hello_shader_id, "uMVP")
+    uTex_hello = glGetUniformLocation(hello_shader_id, "uTex")
+    uMVP_border = glGetUniformLocation(border_shader_id, "uMVP")
+    uTex_border = glGetUniformLocation(border_shader_id, "uTex")
+
+    -- Create Vertex Array Objects (VAOs)
+    --    and Vertex Buffer Objects (VBOs)
+    vao_hello_texture = glCreateVertexArray()
+    vao_border_texture = glCreateVertexArray()
+    vbo_hello_texture = glCreateBuffer()
+    vbo_border_texture = glCreateBuffer()
+
+    -- Aside: In OpenGL, NDC stands for Normalized Device Coordinates. 
+    -- It is a small 3D cube space where all visible vertex coordinates must range from -1.0 to 1.0 
+    -- on the x, y, and z axes. Anything outside this cube is clipped and not shown on the screen.
+    -- Likewise on textures (the s and t in the table below) the positions run from 0.0 to 1.0
+    ------------------------------------------------------------------
+    -- Vertex data for a quad that covers NDC space (-1..1) in both X and Y
+    -- Two triangles: (-1,-1) ( 1,-1) ( 1,1) and (-1,-1) ( 1,1) (-1,1) [using GL_TRIANGLE_FAN]
+    -- We interleave position (3 floats) + texcoord (2 floats) → stride = 5 floats = 20 bytes
+    -- ------------------------------------------------------------------
+
+    -- Standard square-on quad (usually recommended)
+    sequence border_quad = {
+        -- x,   y,   z,   s,   t
+        -1.0, -1.0, 0.0, 0.0, 1.0,   -- 0  bottom-left
+         1.0, -1.0, 0.0, 1.0, 1.0,   -- 1  bottom-right
+         1.0,  1.0, 0.0, 1.0, 0.0,   -- 2  top-right
+        -1.0,  1.0, 0.0, 0.0, 0.0    -- 3  top-left
+    }
+
+    -- A quick and dirty but easy tilt effect, not the recommended way to do things:
+    -- Warning: mess about with this any more and you'll get affine transformations. Normally you'd
+    -- keep this square-on and apply an appropriate mvp (model-view-perspective) matrix on resize.
+
+    sequence hello_quad = {
+        -- x,   y,   z,   s,   t
+        -0.4, -0.6, 0.0, 0.0, 1.0,   -- 0  bottom-left
+         0.6, -0.4, 0.0, 1.0, 1.0,   -- 1  bottom-right
+         0.4,  0.6, 0.6, 1.0, 0.0,   -- 2  top-right
+        -0.6,  0.4, 0.0, 0.0, 0.0    -- 3  top-left
+    }
+
+    -- Bind and Fill VAOs and VBOs
+    for abq in {{vao_hello_texture,vbo_hello_texture,hello_quad},
+                {vao_border_texture,vbo_border_texture,border_quad}} do
+        {integer vao, integer vbo, sequence quad} = abq
+        glBindVertexArray(vao)
+
+        -- Bind and Fill the Vertex Buffer Object (VBO)
+        glBindBuffer(GL_ARRAY_BUFFER,vbo)
+        glBufferData(GL_ARRAY_BUFFER,quad,GL_STATIC_DRAW)
+
+        -- Configure Vertex Attributes (Stride is 5 floats = 20 bytes)
+        -- Attribute 0: Position (x, y, z) -> Offset 0
+        -- Vertex Positions (Index 0, 3 floats, stride 20, offset 0)
+        glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * 4, 0)
+        glEnableVertexAttribArray(0)
+
+        -- Attribute 1: Texture Coords (s, t) -> Offset 3 floats (12 bytes)
+        -- Texture Coordinates (Index 1, 2 floats, stride 20, offset 12)
+        glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * 4, 3 * 4)
+        glEnableVertexAttribArray(1)
+    end for
+
+    -- Unbind VAO safely to finalize state configuration
+    glBindBuffer(GL_ARRAY_BUFFER, 0)
+    glBindVertexArray(0)
+    
+    make_hello_texture()
+
+    glClearColor(1,1,224/255,1) -- parchment
+
+end procedure
+
+-- Native Windows WGL Context Objects
+atom hDC = 0,
+     hRC = 0
+
+-- GTK2 Callback: realize-signal mapping
+function on_drawing_area_realize(atom widget, atom user_data)
+--?"realise"
+    if bGTK2 then
+        -- In GTK2, widgets must be realized to grab their underlying window handles
+        atom gdk_window = gtk_widget_get_window(widget)
+    
+        -- Use GDK-Win32 specific helper to extract the raw OS HWND pointer
+        atom win32_hwnd = gdk_win32_window_get_impl_hwnd(gdk_window)
+        hDC = GetDC(win32_hwnd)
+    
+        -- Set up Win32 Pixel Format Descriptor for Modern Hardware Acceleration
+        glSetPixelFormat(hDC)
+        hRC = wglCreateContext(hDC)
+        wglMakeCurrent(hDC, hRC)
+
+        -- Now safe to execute context instructions
+--      init_gl()
+    else
+--      gtk_gl_area_make_current(area)
+--      gtk_gl_area_make_current(widget)
+    end if
+    return NULL
+end function
+constant realize_cb = call_back({'+',on_drawing_area_realize})
+
+-- GTK Callback: configure-event (equivalent to window resize / geometry allocation)
+--function on_configure_event(GtkWidget area, GdkEventConfigure event, gpointer data) return gboolean
+function on_configure_event(atom area, event, data)
+--  if hRC!=0 or not bGTK2 then
+        integer w = get_struct_field(idGdkEventConfigure,event,"width"),
+                h = get_struct_field(idGdkEventConfigure,event,"height")
+        glViewport(0,0,w,h)
+--  end if
+    return TRUE   -- let GTK propagate the event further
+end function
+constant configure_cb = call_back({'+',on_configure_event})
+
+function on_render(atom area, /*context*/, data)
+--  if bGTK3 then
+--      gtk_gl_area_make_current(area)
+--  else
+--      wglMakeCurrent(hDC, hRC)  -- doesn't hurt, doesn't help...
+--  end if
+
+    if hello_shader_id = 0 then
+        init_gl()
+    end if
+
+    gtk_widget_get_allocation(area, gtkRECT)
+    integer w = get_struct_field(idGdkRectangle,gtkRECT,"width"),
+            h = get_struct_field(idGdkRectangle,gtkRECT,"height")
+
+    make_border_texture(w,h)
+
+    glClear(GL_COLOR_BUFFER_BIT)
+
+    glUseProgram(hello_shader_id)
+    glBindVertexArray(vao_hello_texture)
+    -- Note: glUseProgram effectively clears all uniforms, so we must reset them
+    glUniform1i(uTex_hello, 0)
+    glUniformMatrix4fv(uMVP_hello, 1, GL_FALSE, identity)
+
+    -- Bind the Hello texture to texture unit 0
+    glActiveTexture(GL_TEXTURE0)
+    glBindTexture(GL_TEXTURE_2D, hello_texture_id)
+
+    -- Draw the quad (2 triangles = 6 indices)
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4)
+
+    -- Draw Border Overlay
+    glUseProgram(border_shader_id)
+    glBindVertexArray(vao_border_texture)
+    -- (ditto:)
+    glUniform1i(uTex_border, 0)
+    glUniformMatrix4fv(uMVP_border, 1, GL_FALSE, identity)
+    -- This is the key: enable blending so the Alpha=0 hole is transparent
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+    
+    glBindTexture(GL_TEXTURE_2D, border_texure_id)
+    glDrawArrays(GL_TRIANGLE_FAN, 0, 4)
+    glDisable(GL_BLEND)
+
+    -- Clean up bindings (not strictly required, but tidy)
+    glBindVertexArray(0)
+    glBindTexture(GL_TEXTURE_2D, 0)
+
+    return true
+--  return false
+end function
+constant render_cb = call_back({'+',on_render})
+
+-- GTK2 only:
+function on_drawing_area_expose(atom glarea, /*event*/, user_data)
+--?"expose"
+    {} = on_render(glarea,NULL,user_data)
+--no help/hindrance:
+--glFinish()
+-- critical (private to theGUI.e, GTK2 only):
+    glSwapBuffers(hDC)
+    return FALSE   -- we have handled the expose; GTK will not call the default handler
+--  return TRUE
+end function
+constant expose_cb = call_back({'+',on_drawing_area_expose})
+
+procedure main()
+    gtk_init()
+
+    -- Top-level window
+    atom window = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(window, "GTK + OpenGL – Hello texture")
+    gtk_window_set_default_size(window, 800, 600)
+    integer id = NULL
+    g_signal_connect_data(window, "destroy", gtk_main_quit_cb, id)
+    g_signal_connect_data(window,"key_press_event",escape_key_cb,id)
+
+    -- The OpenGL drawing area
+    atom glarea
+    if bGTK3 then
+        glarea = gtk_gl_area_new()
+        -- Request an OpenGL 3.3 core profile
+        gtk_gl_area_set_required_version(glarea,3,3)
+        gtk_gl_area_set_has_depth_buffer(glarea,FALSE)   -- we don't need depth
+        gtk_gl_area_set_has_stencil_buffer(glarea,FALSE)
+        g_signal_connect_data(glarea,"render",render_cb,id)
+    else
+        -- The OpenGL drawing area (Using standard GTK2 Drawing Area)
+        glarea = gtk_drawing_area_new()
+        -- We must ensure the widget has its own native Win32 window 
+        -- rather than sharing its parent's backing store.
+        gtk_widget_set_has_window(glarea,TRUE)
+        g_signal_connect_data(glarea,"realize",realize_cb,id)
+        g_signal_connect_data(glarea,"expose-event",expose_cb,id)
+    end if
+
+    -- Wire the GTK signals
+    g_signal_connect_data(glarea,"configure-event",configure_cb,id)
+
+    gtk_container_add(window,glarea)
+    gtk_widget_show_all(window)
+
+    gtk_main()
+end procedure
+main()
+
+
