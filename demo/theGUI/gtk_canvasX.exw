@@ -8,7 +8,7 @@
 --requires(64,true)
 include theGUI.GTK.e
 
-local function draw_cb(atom widget, cairo, user_data)
+local function draw(atom widget, cairo, user_data)
     -- GTK3 version, which gets the cairo context it should draw on.
     --  (also invoked from GTK2 version, with the cairo it created)
     gtk_widget_get_allocation(widget, pRECT)
@@ -41,18 +41,18 @@ local function draw_cb(atom widget, cairo, user_data)
 --  return true
     return false
 end function
-constant draw = call_back({'+',draw_cb})
+constant draw_cb = call_back({'+',draw})
 
-local function expose_cb(atom widget, /*event*/, user_data)
+local function expose(atom widget, /*event*/, user_data)
     -- GTK2 version, which needs to create a cairo context to draw on.
     --  (then invokes GTK3 version, passing said cairo just created)
     atom win = gtk_widget_get_window(widget),
        cairo = gdk_cairo_create(win)
-    integer res = draw_cb(widget,cairo,user_data)
+    integer res = draw(widget,cairo,user_data)
     cairo_destroy(cairo)
     return res
 end function
-constant expose_event = call_back({'+',expose_cb})
+constant expose_event_cb = call_back({'+',expose})
 
 procedure main()
     gtk_init()
@@ -64,7 +64,7 @@ procedure main()
 
     // Connect the destroy signal
     integer id = NULL
-    g_signal_connect_data(window,"destroy",gtk_main_quit,id)
+    g_signal_connect_data(window,"destroy",gtk_main_quit_cb,id)
     g_signal_connect_data(window,"key_press_event",escape_key_cb,id)
 
     // Create drawing area
@@ -72,12 +72,13 @@ procedure main()
     gtk_container_add(window, drawing_area)
 
     // Connect draw signal
-    {string sig, atom cb} = iff(bGTK2?{"expose_event", expose_event}:{"draw", draw})
+    {string sig, atom cb} = iff(bGTK2?{"expose_event", expose_event_cb}:{"draw", draw_cb})
     g_signal_connect_data(drawing_area,sig,cb,id)
 
     gtk_widget_show_all(window)
     gtk_main()
 end procedure
+?"main"
 main()
 
 --/*

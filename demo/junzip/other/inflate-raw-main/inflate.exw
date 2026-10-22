@@ -1,0 +1,650 @@
+﻿--without debug
+include builtins\VM\pprntfN.e
+include builtins\VM\pcfunc.e
+include builtins\penv.e
+include builtins\ppp.e
+include builtins\progress.e
+include builtins\cffi.e
+include builtins\LiteZip.e
+with debug
+include builtins\inflate.e
+
+--include ../../inflate.fasm
+
+--/*
+For testing my inflate program, I've created a tiny non-compressed block: 0x010100FEFF31 ==> "1",
+and a tiny fixed huffman block: 0x4b0400 ==> "a", and stitched them together both ways:
+0x000100FEFF314b0400 ==> "1a", and 0x4a04040100FEFF31 => "a1". What is the smallest dynamic
+block you can (artificially) create, and what might that look like stitched together with itself
+or the other two? Actually, can you create enough combinations to test all possible positions of
+bfinal/btype, especially those straddling or hard against a byte boundary?
+
+--*/
+
+-- examples of dynamic, fixed, uncompressed, and last two stitched together both ways,
+-- plus some single-byte variations, also bolted onto each other in a similar fasion,
+-- and for completeness the smallest possible stitchings that test every possible bit 
+-- position of the next bfinal/btype, esp those on or straddling byte boundaries:
+--constant he = {{x"25cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd03", -- DecompressionStream()
+constant he = {{x"25CB4112C0200843D12BD9916AB24C55EE7F240BACDEF02778A31368FE8B450FA9BA693AA1A6563A60D99F2F3B0E7A76E3A8FFDA63AB977C2F",  -- deflate() [better!]
+                 "F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95"},
+--/!*
+--             {x"05c1b109c0200000c1d585a454216044d27c91a04d700467fa11bc931624224f903265fcd24fb996e443be2a714a7a25dd1b",                -- "", ""
+               {x"FB307F46C387F93DF33FCC9F05A4A7ACFB307FF99A0FF397B57C983F71DF87F97DCD1FE62F990694078AF72E06E2A900",
+                x"F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95"},
+               {x"4b4c4a0600","abc"},
+               {x"010300FCFF313233","123"},
+               {x"000300FCFF3132334b4c4a0600","123abc"},
+--             {x"000300FCFF3132334b4c4a06","123abc"},
+               {x"4a4c4a06040300FCFF313233","abc123"},
+               {x"4b0400","a"},
+               {x"010100FEFF31","1"},
+               {x"4a4c4a06040100FEFF31","abc1"},
+               {x"000100FEFF314b0400","1a"},
+               {x"4a04040100FEFF31","a1"},
+--             {x"2d0200000000",""}, -- now correctly caught
+--             {x"258c4101000000203003","1"} --""
+               {x"edc1310d00000c03206dad7f5155b16309900000000000d70a00c03b03",
+                repeat('A',5000)&repeat('B',2500)},
+--DEV: (retry with stitch, once everything else is working)
+               {x"eCc1310d00000c03206dad7f5155b16309900000000000d70a00c03b0B0100FEFF31",
+                repeat('A',5000)&repeat('B',2500)&"1"},
+--             {x"ecc1310d00000c03206dad7f5155b16309900000000000d70a00c03b034b0400",
+               {x"ecc1310d00000c03206dad7f5155b16309900000000000d70a00c03b5B2200",
+                repeat('A',5000)&repeat('B',2500)&"a"},
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd030100feff31",
+--14,64 = 0b001000000
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd050100feff31",
+               {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd070100feff31", -- yay! (D+S)
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd090100feff31",
+                 "F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D951"},
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd97080000",
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd0F080000",
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd8F010000", --"95 "
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd2F090000", --"95b"
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd2F050000", --"95d"
+               {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd2F1100", --"95a" -- yay!! (D+F)
+                 "F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95a"},
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e54b0400", -- infinite loop... now caught
+--               "F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95?"},
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e597080000",
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e52d110000",
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e55d220000", --
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e5bd440000", --
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e57d890000", --
+--             {x"24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8fa3e5fd120100", --
+--             {x"0BB5F4294E7134374C4E051279860679AE0589897EA9494EE6A555E605E16600", -- ZR_
+--             {x"0bb5f4294e7134374c4e753437cc3334c8732d484cf44b4d72322fad322f08370300",    -- DecompressionStream()
+               {x"0BB5F4294E7134374C4E051279860679AE0589897EA9494EE6A555E605E16600",        -- deflate() [better!]
+                 "U9LsdA71ceA71n10nEpaaNebB7uz7pW6"},
+
+-- fine here:
+--             {x"4b4c040100","aaaaaa"},
+--             {x"4b4c040300","aaaaaaa"},
+--             {x"4b4c840000","aaaaaaaa"},
+--             {x"4b4c4a044300","abababab"},
+--             {x"4b4c4a844000","ababababa"},
+--             {x"4b4c4a844200","ababababab"},
+
+--D+S needed to be 24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd070100feff31, and
+--D+F needed to be 24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd2F1100.
+--None of the stitched examples were accepted by anything, feel free to have another go, but a more pressing matter has arisen:
+--While perfectly fine in the Phix version (and DecompressionStream), in the JavaScript (from which the Phix one was derived) it completely fails:
+--0x4b4c040100 ==> "aaaaaa". On closer inspection, the dxTree has a length of 0, not 32! Let me know if there is anything else you need to see.
+
+-- aaaaaaaaaaaaaaaaaaaaa:0
+-- aaaaaaaaaaaaa:1
+-- aaaaaa:2
+-- a:6
+-- aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:7
+-- 12344612793127471854865492:4 (dynamic!!)
+-- 123446127931274718548654921:1 
+-- 124375129873451723458912534:5
+-- 12437512987345172345891253:0
+-- 1243751298734517234589125:3
+
+--**DEV** fail: 4b4c4a044300 -- abababab - fixed
+-- 4b4c4a844000 -- ababababa
+-- 4b4c4a844200 -- ababababab
+-- 4b4c040100 -- aaaaaa
+-- 4b4c040300 -- aaaaaaa
+-- 4b4c840000 -- aaaaaaaa
+
+                -- <last 7+7> -- smallest dynamic huffman I could find with final bit lengths 0..7.
+               {x`05C1010100000082A0ADD8FF0F01C49466ED`, `aaaabaacabbabcacbc`},
+               {x`05C1010100000082A0ADD8FF0F01C4946675`, `aaaabaacabbabcacbb`},
+               {x`05C1010100000082A0ADD8FF0F01C4946639`, `aaaabaacabbabcacba`},
+               {x`05C1010100000082A0ADD8FF0F01C494661D`, `aaaabaacabbabcacb`},
+               {x`05C1010100000082A0ADD8FF0F01C494360E`, `aaaabaacabbabccaa`},
+               {x`05C1010100000082A0ADD8FF0F01C4541A07`, `aaaabaacabbbabcaa`},
+               {x`05C1010100000082A0ADD8FF0F01C494D6B603`, `aaaabaacabbabcbccc`},
+               {x`05C1010100000082A0ADD8FF0F01C49456DB01`, `aaaabaacabbabcbbcc`},
+
+                -- <last 7> -- smallest fixed huffman I could find with final bit lengths 0..7.
+               {x"4BB4C20600",       "a:::::::::::::::::::::"},                 -- fbl:0
+               {x"3334440600",       "11111111111111"},                         -- fbl:1
+               {x"CB2A010200",       "jtttt"},                                  -- fbl:2
+               {x"3330344002200E00", "010000000000001000"},                     -- fbl:3
+               {x"3334328401200B00", "12111111111211"},                         -- fbl:4
+               {x"3334340702200100", "117777177"},                              -- fbl:5
+               {x"330100",           "4"},                                      -- fbl:6
+               {x"4b4c2402580100",   "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:"}, -- fbl:7
+                -- </last 7+7> -- do not add any more tests below this, put them above instead.
+              }
+with trace
+function hexify(string s)
+    string res = ""
+    for ch in s do
+        res &= sprintf(`%02x`,ch)
+    end for
+    return res
+end function
+
+function stitch(string a, b, integer aBitsLeft, bBitsLeft)
+    integer a2 = a[2]
+--  a[2] = a2-iff(a2>'9'?odd(a2):even(a2)) -- kill bfinal
+    a[2] = a2-iff(a2>'9'?even(a2):odd(a2)) -- kill bfinal
+    -- note ^that means you have to do stitch(a,stitch(b,c)),
+    --     & cos it wdn't clear b, not stitch(stitch(a,b),c).
+    if aBitsLeft=0 then
+        a &= b
+    else
+        integer n = to_integer(a[-2..-1],0,16)
+        sequence bits = int_to_bits(n,8-aBitsLeft)
+--?{"last bits",bits}
+        assert(bits_to_int(bits)==n)
+        bool bNC = b[2]='1'
+        if bNC then
+            bits &= int_to_bits(1,aBitsLeft)
+        else
+            for i=1 to length(b) by 2 do
+                n = to_integer(b[i..i+1],0,16)
+                bits &= int_to_bits(n,8)
+--?{n,b[i..i+1],bits}
+            end for
+            integer lb = length(bits),
+                    wb = floor(lb/8)*8,
+--                  pb = (wb+1)*8-lb
+                    pb = wb+8-lb
+            if bBitsLeft+aBitsLeft>=8 then
+                bits = bits[1..wb]
+--          elsif pb then
+            else -- (since we now /know/ it's not 0)
+                assert(pb==aBitsLeft) -- sanity check
+                bits &= repeat(0,pb)
+            end if
+--?{"final",bits,length(bits)}
+        end if
+        a = a[1..-3]
+        for i=1 to length(bits) by 8 do
+            n = bits_to_int(bits[i..i+7])
+            a &= sprintf("%02x",n)
+        end for
+        if bNC then
+            if aBitsLeft<3 then
+                a&="00"
+            end if
+            a &= b[3..$]
+        end if
+    end if
+    return a
+end function
+procedure test(string a, b, ab, integer aBitsLeft, bBitsLeft)
+    string res = stitch(a,b,aBitsLeft,bBitsLeft)
+    assert(lower(res)==lower(ab))
+end procedure
+test("25cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd03",
+     "010100FEFF31",
+     "24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd070100feff31",6,0)
+test("25cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd03",
+     "4b0400",
+     "24cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd2F1100",6,6)
+test("edc1310d00000c03206dad7f5155b16309900000000000d70a00c03b03",
+     "010100FEFF31",
+     "eCc1310d00000c03206dad7f5155b16309900000000000d70a00c03b0B0100FEFF31",5,0)
+--   repeat('A',5000)&repeat('B',2500)&"1",0,0)
+test("edc1310d00000c03206dad7f5155b16309900000000000d70a00c03b03",
+     "4b0400",
+     "ecc1310d00000c03206dad7f5155b16309900000000000d70a00c03b5B2200",5,6)
+--   repeat('A',5000)&repeat('B',2500)&"a",0,0)
+
+include deflate.e
+
+for i,t in he do
+    string {h,e} = t, 
+            r = inflate(h),
+            ok = iff(r==e?"OK":"***ERROR***")
+--  printf(1,"%s (%d) %s\n",{ok,fbl,shorten(r,"chars")})
+    printf(1,"%s %s\n",{ok,shorten(r,"chars")})
+    if r!=e then 
+        printf(1,"  should be %s\n",{shorten(e,"chars")})
+?9/0
+    end if
+--NAH, I'm looking for ZipBufferRaw! 
+-- Plus, most of these are first-stab-hand-crafted-crap!
+-- (eg "1" is "stored" in 6 bytes when "fixed" wd be 3)
+if false then
+    string d = deflate(r)
+    if d!=h then
+--      ?9/0
+        printf(1,"%2d fail: %s\n       : %s\n",{i,hexify(d),hexify(h)})
+--wait_key()
+    end if
+end if
+--/*
+    integer le = length(e)
+    string u = repeat(' ',le)
+--  string u = repeat(' ',le*2)
+    integer res = UnzipBufferRaw(h,u)
+--  object res = UnzipBufferRaw(h,u)
+--  assert(u[le+1..$]==repeat(' ',le))
+--  u = u[1..le]
+    assert(u==e)
+--  if res!=ZR_OK then
+--      string u2 = repeat(' ',le*4)
+--      integer res2 = UnzipBufferRaw(h,u2)
+--  end if
+--*/
+    
+-- time to call this one a dead duck.... (see inflate.e instead)
+--/*
+Rather than try that, which I suspect would go into an infinite loop, I gave it twice as much memory as
+it needed at the get-go, to no avail, and trying it again with four times as much did not help either.
+It actually unpacks everything it should into pDst, whether I give it exact, twice, or four times what it needs.
+OK then, tried that and as predicted it just went into an infinite loop until it ran out of memory.
+I got that 0BB5F4294E7134374C4E051279860679AE0589897EA9494EE6A555E605E16600 from ZipBufferRaw(), interestingly
+CompressionStream() gives me 0bb5f4294e7134374c4e753437cc3334c8732d484cf44b4d72322fad322f08370300, two bytes
+larger (don't care) and UnzipBufferRaw() handles the latter flawlessly. One other thought occurs to me: I'm
+compiling Lite[Un]Zip sources from 2008, maybe I'm smacking my face against something which has been fixed in
+the latest zlib sources, but updating/recreating those 4767+4786 line files is way beyond my skill set.
+
+    string r2 = repeat(' ',length(r))
+    bool bOK = Inflate(r2,h)
+--  ?bOK
+    if not bOK then
+        {integer ec, string msg} = get_inflate_error_code()
+        printf(1,"%02d:%s error code (%s)\n",{ec,r2,msg})
+    end if
+--  ?r2
+--*/
+end for
+--wait_key()
+
+function to_hex(string s)
+    string res = ""
+    for i=1 to length(s) by 2 do
+        integer byte = to_integer(s[i..i+1],0,16)
+        res &= byte
+    end for
+    return res
+end function
+
+
+
+-- Combinations:
+for i=-8 to -1 do
+  for hei in {he[i],he[i-8]} do
+--  string {a,ae} = he[i],
+    string {a,ae} = hei,
+           ah = hexify(a)
+    for j=-8 to -1 do
+      for hej in {he[j],he[j-8]} do
+--      string {b,be} = he[j],
+        string {b,be} = hej,
+               bh = hexify(b),
+--if ah="3334440600" and bh="4BB4C20600" then trace(1) end if
+--string
+               ab = stitch(ah,bh,8+i,8+j),
+                e = ae&be,
+                r = inflate(to_hex(ab)),
+               ok = iff(r==e?"OK":"***ERROR***")
+--?{ah,bh,ab}
+        printf(1,"%s %s\n",{ok,shorten(r,"chars")})
+        if r!=e then 
+            printf(1,"%s %s\n",{ok,shorten(r,"chars")})
+            printf(1,"   should be %s\n",{shorten(e,"chars")})
+            ?{ah,bh}
+            ?ab
+?9/0
+        end if
+      end for
+    end for
+  end for
+end for
+
+--string dst = ">xxx<"
+--?inflate(x"4b4c4a0600",dst)
+--?dst
+
+--/!*
+--sequence spbl = {"aaaaaaaaaaaaaaaaaaaaa", -- 0
+--               "aaaaaaaaaaaaa", -- 1
+--               "aaaaaa", -- 2
+--               "1243751298734517234589125", -- 3
+--               "12344612793127471854865492", -- 4 (dynamic!!)
+--               "124375129873451723458912534", -- 5
+--               "a", -- 6
+--               "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:"} -- 7
+--fixed:
+--/*
+sequence spbl = 
+{{`4BB4C20600`, `a:::::::::::::::::::::`},
+ {`3334440600`, `11111111111111`},
+ {`CB2A010200`, `jtttt`},
+ {`3330344002200E00`, `010000000000001000`},
+ {`3334328401200B00`, `12111111111211`},
+ {`3334340702200100`, `117777177`},
+ {`330100`, `4`},
+ {`4b4c2402580100`,`aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:`}}
+--*/
+sequence spbl = 
+--{{`15C1891100000403B099FA50F65FCC4940D90D6605C6C194A7CBAB77`, `123446127931274718548654933333`}, -- 0
+-- {`05C10101000008C2B04CE015ED5FCC4D2E1839577288B6D969CE7A`, `123446127931274718548654921`}, -- 1
+-- {`05C1070100000802B04C1C05FB177303652F981318071D77C7473D`, `123446127931274718548654923`}, -- 2
+-- {`05C1070100000802B04C3CD1FEC5DC40D903F604D6C5C63BF149521E`, `123446127931274718548654933335`}, --3
+-- {`05C10101000008C2B04CE015ED5FCC4D2E1839577288B6D969CE0F`, `12344612793127471854865492`}, -- 4
+-- {`05C1070100000802B04C1C05FB177303652F981318071D77C7A707`, `12344612793127471854865493`}, -- 5
+-- {`05C10101000008C2B04CE015ED5FCC4D2E1839577288B6D969CEF203`, `1234461279312747185486549212`}, -- 6
+-- {`05C1070100000802B04C1C05FB177303652F981318071D77C747E801`,`1234461279312747185486549213`}} -- 7
+--{{`05C1010D00000C83304D04B2FB77F6D6BA84B0E560F6`, `344743114134643611634`},
+-- {`05C1010D00000082B0526C60FF62FE4850B2396D75`, `47484488749979778988`},
+-- {`05C1010D00000880B04A0273F66FE60F916B03CB658D3E`,
+--  `1131325230115173233022`},
+-- {`05C1010D00000C83304B6701FFD6DED2021C8676C81E`, `152511142145144501412`},
+-- {`05C10101000008C2B0501E78FF646EC11E4367A869A60F`,
+--  `5486347488785468565788`},
+-- {`05C1010D00000880B050828EFEC5FCA3065756216EB407`,
+--  `9499345654655449473559`},
+-- {`05C1010100000883B04CF2A3FD9BB971C4E0E83226ADC203`,
+--  `27235325155621533445522`},
+-- {`05C1050100000002A051F6FF6342A90E4E64C00E8752CB01`,
+--  `845893677563366749384597`}}
+
+--{{`05C1010100000880A04BA5F6FF5A001A84573B24F7`, `22334224235441024325`},
+-- {`05C1010D00000082B0526C60FF62FE4850B2396D75`, `47484488749979778988`},
+-- {`05C1010100000082A055A5FD3F1634A95D669CE2003D`, `65568695985898878977788`},
+-- {`05C1810100000403A097C2F8FF348539297A85531E`, `00036041002504006010`},
+-- {`05C1010100000802A04BA4FEDF169C685927096A0F`, `102033004340222000304`},
+-- {`05C1010D00000880B050828EFEC5FCA3065756216EB407`, `9499345654655449473559`},
+-- {`05C1010100000880A051A5F67F5900C7368D4286DA03`, `558547373665576756667`},
+-- {`05C1010100000883B05420EF5FCCADC66180D28EEC01`, `889575685556658975868`}}
+
+--{{`05C1010100000880A04BA5F6FF5A001A84573B24F7`, `22334224235441024325`},
+-- {`05C1010D00000082B0526C60FF62FE4850B2396D75`, `47484488749979778988`},
+-- {`05C1010100000082A055A5FD3F1634A95D669CE2003D`, `65568695985898878977788`},
+-- {`05C1810100000403A097C2F8FF348539297A85531E`, `00036041002504006010`},
+-- {`05C1010100000802A04BA4FEDF169C685927096A0F`, `102033004340222000304`},
+-- {`05C1010D000000C2A050FECEFEC9040CD6288C392907`, `453456535544848585464`},
+-- {`05C1010100000880A051A5F67F5900C7368D4286DA03`, `558547373665576756667`},
+-- {`05C1010100000883B05420EF5FCCADC66180D28EEC01`, `889575685556658975868`}}
+
+--{{`05C1010100000082A06FA9FF2F0542BA92B0E8`, `DCCEDDBEEDCECDEECE`},
+-- {`05C10101000008C3A06EC7F5AF2468D31C8579`, `CEBBCEBCDCCEECCCBC`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000001A06DE1FF26A5497561C81C`, `ACBBCACDBAADAAABDA`},
+-- {`05C10101000008C3A06EF8F5AF2448614766350F`, `BEBEEBBBDCBBEBDBDEEDB`},
+-- {`05C1010100000001A06FE4FF2505A391586B07`, `DDDDEDDCBDBBDECCDE`},
+-- {`05C10101000008C3A06EF2F5AF2434E5C6A1C503`, `EDCEECBDCCBCCCEDECC`},
+-- {`05C1010100000001A06DE8FF264526AADD46CA01`, `DDACDADBDBBCCCDDABDD`}}
+
+--{{`05C1010100000082A06FC6FF4D415633D2E2`, `BDCBBCDCDDBDBCBDD`},
+-- {`05C10101000008C3A06EC7F5AF2468D31C8579`, `CEBBCEBCDCCEECCCBC`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000001A06DE1FF26A5497561C81C`, `ACBBCACDBAADAAABDA`},
+-- {`05C10101000008C3A06EF8F5AF2448614766350F`, `BEBEEBBBDCBBEBDBDEEDB`},
+-- {`05C1010100000001A06FE4FF2505A391586B07`, `DDDDEDDCBDBBDECCDE`},
+-- {`05C1010100000082A071E1FF4BC16A632AA403`, `CEECCDDCDEEEDDDEDE`},
+-- {`05C1010100000001A06DE1FF262515A6A4C301`, `ABCABAADACAABCDAAA`}}
+
+--{{`05C1010100000082A06FC6FF4D415633D2E2`, `BDCBBCDCDDBDBCBDD`},
+-- {`05C10101000008C3A06EC7F5AF2468D31C8579`, `CEBBCEBCDCCEECCCBC`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000001A06DE1FF26A5497561C81C`, `ACBBCACDBAADAAABDA`},
+-- {`05C1010100000001A06FE2FF25451AEB50610E`, `CCBDBCEDECCCDCBCCEC`},
+-- {`05C1010100000001A06FE4FF2505A391586B07`, `DDDDEDDCBDBBDECCDE`},
+-- {`05C1010100000082A071E1FF4BC16A632AA403`, `CEECCDDCDEEEDDDEDE`},
+-- {`05C1010100000001A06DE1FF262515A6A4C301`, `ABCABAADACAABCDAAA`}}
+
+--{{`05C1010100000082A06FC6FF4D415633D2E2`, `BDCBBCDCDDBDBCBDD`},
+-- {`05C1010100000082A06FE1FF4D416AC38A74`, `DCDDBBCCCBDDCCDCD`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000001A06DE1FF26A5497561C81C`, `ACBBCACDBAADAAABDA`},
+-- {`05C1010100000001A06FE2FF25451AEB50610E`, `CCBDBCEDECCCDCBCCEC`},
+-- {`05C1010100000001A06FE4FF2505A391586B07`, `DDDDEDDCBDBBDECCDE`},
+-- {`05C1010100000082A071E1FF4BC16A632AA403`, `CEECCDDCDEEEDDDEDE`},
+-- {`05C1010100000001A06DE1FF262515A6A4C301`, `ABCABAADACAABCDAAA`}}
+
+--{{`05C1010100000082A06FC6FF4D415633D2E2`, `BDCBBCDCDDBDBCBDD`},
+-- {`05C1010100000082A06FE1FF4D416AC38A74`, `DCDDBBCCCBDDCCDCD`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000082A06DC9FF4F01A499B21C`, `CCCCBCBACACBBCABC`},
+-- {`05C1010100000001A06FE2FF25451AEB50610E`, `CCBDBCEDECCCDCBCCEC`},
+-- {`05C1010100000001A06FE4FF2505A391586B07`, `DDDDEDDCBDBBDECCDE`},
+-- {`05C1010100000082A071E1FF4BC16A632AA403`, `CEECCDDCDEEEDDDEDE`},
+-- {`05C1010100000001A06DE1FF262515A6A4C301`, `ABCABAADACAABCDAAA`}}
+
+--{{`05C1010100000082A06FC6FF4D415633D2E2`, `BDCBBCDCDDBDBCBDD`},
+-- {`05C1010100000082A06FE1FF4D416AC38A74`, `DCDDBBCCCBDDCCDCD`},
+-- {`05C1010100000040A071F87F49A5518A1036`, `EDDECEEDDCDCCECDE`},
+-- {`05C1010100000082A06DC9FF4F01A499B21C`, `CCCCBCBACACBBCABC`},
+-- {`05C1010100000082A06DC6FF4F0195D0980E`, `CCAAACACCCABCCBCA`},
+-- {`05C1010100000082A06DE4FF4F0134A91807`, `AAAACBACACCCAABAA`},
+-- {`05C1010100000082A071E1FF4BC16A632AA403`, `CEECCDDCDEEEDDDEDE`},
+-- {`05C1010100000001A06DE1FF262515A6A4C301`, `ABCABAADACAABCDAAA`}}
+
+--{{`05C1010100000082A0ADD8FF0F01C4946DE9`, `aaaabaacabbacccbab`},
+-- {`05C1010100000082A0ADD8FF0F01A4ACC576`, `aaaababbacbcbaacc`},
+-- {`05C1010100000082A0ADD8FF0F01C4D42C3B`, `aaaabaacabbcacbac`},
+-- {`05C1010100000082A0ADD8FF0F01B48C551C`, `aaaabcbacaacbbbaa`},
+-- {`05C1010100000082A0ADD8FF0F01D42A310E`, `aaaabbcbbbabaacaa`},
+-- {`05C1010100000082A06DE4FF4F0134A91807`, `AAAACBACACCCAABAA`},
+-- {`05C1010100000082A0ADD8FF0F01A4B698B503`, `aaaababbccbaacacbc`},
+-- {`05C1010100000082A0ADE4FF0F01CC46ADD201`, `aaaababbaaccbcccac`}}
+
+--{{`05C1010100000082A0ADD8FF0F01C494D5E6`, `aaaabaacabbacbbcca`},
+-- {`05C1010100000082A0ADD8FF0F01C4549A75`, `aaaabaacabbbabcacb`},
+-- {`05C1010100000082A0ADD8FF0F01C494B639`, `aaaabaacabbabccca`},
+-- {`05C1010100000082A0ADD8FF0F01C494561D`, `aaaabaacabbabcbbb`},
+-- {`05C1010100000082A0ADE4FF0F018C922D0E`, `aaaabaaccacabbcaa`},
+-- {`05C1010100000082A0ADE4FF0F018C4A1607`, `aaaabaacccacabcaa`},
+-- {`05C1010100000082A0ADD8FF0F01C4B46CAB03`, `aaaabaacabcbacccbb`},
+-- {`05C1010100000082A0ADD8FF0F01C454DBCA01`, `aaaabaacabbbcccbba`}}
+--
+--{{`05C1010100000082A0ADD8FF0F01C49466ED`, `aaaabaacabbabcacbc`},
+-- {`05C1010100000082A0ADD8FF0F01C4946675`, `aaaabaacabbabcacbb`},
+-- {`05C1010100000082A0ADD8FF0F01C4946639`, `aaaabaacabbabcacba`},
+-- {`05C1010100000082A0ADD8FF0F01C494661D`, `aaaabaacabbabcacb`},
+-- {`05C1010100000082A0ADD8FF0F01C494360E`, `aaaabaacabbabccaa`},
+-- {`05C1010100000082A0ADE4FF0F018C2C1507`, `aaaabaacabcacccaa`},
+-- {`05C1010100000082A0ADD8FF0F01C494B6B503`, `aaaabaacabbabcccbc`},
+-- {`05C1010100000082A0ADD8FF0F01C494B6DA01`, `aaaabaacabbabccbbc`}}
+
+--{{`05C1010100000082A0ADD8FF0F01C49466ED`, `aaaabaacabbabcacbc`},
+-- {`05C1010100000082A0ADD8FF0F01C4946675`, `aaaabaacabbabcacbb`},
+-- {`05C1010100000082A0ADD8FF0F01C4946639`, `aaaabaacabbabcacba`},
+-- {`05C1010100000082A0ADD8FF0F01C494661D`, `aaaabaacabbabcacb`},
+-- {`05C1010100000082A0ADD8FF0F01C494360E`, `aaaabaacabbabccaa`},
+-- {`05C1010100000082A0ADD8FF0F01C4541A07`, `aaaabaacabbbabcaa`},
+-- {`05C1010100000082A0ADD8FF0F01C494D6B603`, `aaaabaacabbabcbccc`},
+-- {`05C1010100000082A0ADD8FF0F01C49456DB01`, `aaaabaacabbabcbbcc`}}
+
+{{`05C1010100000082A0ADD8FF0F01C49466ED`, `aaaabaacabbabcacbc`},
+ {`05C1010100000082A0ADD8FF0F01C4946675`, `aaaabaacabbabcacbb`},
+ {`05C1010100000082A0ADD8FF0F01C4946639`, `aaaabaacabbabcacba`},
+ {`05C1010100000082A0ADD8FF0F01C494661D`, `aaaabaacabbabcacb`},
+ {`05C1010100000082A0ADD8FF0F01C494360E`, `aaaabaacabbabccaa`},
+ {`05C1010100000082A0ADD8FF0F01C4541A07`, `aaaabaacabbbabcaa`},
+ {`05C1010100000082A0ADD8FF0F01C494D6B603`, `aaaabaacabbabcbccc`},
+ {`05C1010100000082A0ADD8FF0F01C49456DB01`, `aaaabaacabbabcbbcc`}}
+
+--               "123446127931274718548654921:1 
+--               "12437512987345172345891253:0
+--integer cml = max(apply(spbl,length))
+--sequence ml = repeat(cml,8)
+--sequence ml = {34,22,14,38,38,38,6,38}
+--sequence ml = {28,20,10,38,38,38,6,38}
+--sequence ml = {26,18,10,28,24,16,6,14}
+--sequence ml = {26,18,10,26,22,16,6,14}
+--sequence ml = {18,14,10,22,16,16,6,14}
+--sequence ml = {18,10,10,22,16,16,6,14}
+--sequence ml = {10,10,10,16,16,16,6,14}
+-- dynamic:
+--sequence ml = {44,42,46,44,46,46,48,48}
+--sequence ml = {42,42,44,42,42,46,44,44}
+--sequence ml = {42,42,44,42,42,44,44,44}
+--sequence ml = {38,38,36,38,40,38,40,40}
+--sequence ml = {36,38,36,38,40,38,38,38}
+--sequence ml = {36,38,36,38,38,38,38,38}
+--sequence ml = {36,36,36,38,38,38,38,38}
+--sequence ml = {36,36,36,36,38,38,38,38}
+--sequence ml = {36,36,36,36,36,36,38,38}
+--sequence ml = {36,36,36,36,36,36,38,38}
+sequence ml = apply(vslice(spbl,1),length),
+         ul = apply(vslice(spbl,2),length)
+?ml
+integer cml = max(ul)
+integer iter=0
+do
+iter += 1
+    integer l = rand(cml)
+--  integer l = cml-5+rand(5)
+--  integer l = cml
+    string s = repeat(' ',l)
+    for i=1 to l do
+--      integer ch = rand(125-' ')+' '
+--      integer ch = rand(62)+'0'-1
+--      integer ch = rand(10)+'0'-1
+--      integer ch = rand(10)+'A'-1
+--      integer ch = rand(2)+'0'-1
+--      integer ch = rand(2)+'0'
+        integer ch = rand(3)+'a'-1
+        if i<=9 then ch='a' end if
+        if i=8 then ch='c' end if
+        if i=5 or i=10 or i=11 then ch='b' end if
+-- aaaabaacabbabcacbc
+-- aaaabaacabbabcacbb
+-- aaaabaacabbabcacba
+-- aaaabaacabbabcacb
+-- aaaabaacabbabccaa
+-- aaaabaacabcacccaa
+-- aaaabaacabbabcccbc
+-- aaaabaacabbabccbbc
+
+-- aaaabaacabbabcacbc
+-- aaaabaacabbabcacbb
+-- aaaabaacabbabcacba
+-- aaaabaacabbabcacb
+-- aaaabaacabbabccaa
+-- aaaabaacabbbabcaa
+-- aaaabaacabbabcbccc
+-- aaaabaacabbabcbbcc
+-- 12345678901
+--      integer ch = rand(5)+':'-1
+--      integer ch = rand(4)+':'-1
+--      integer ch = rand(3)+':'-1
+--      integer ch = rand(2)+':'-1
+--      integer ch = rand(6)+':'-1
+--      integer ch = i+'0'-1
+--      if ch>'9' then ch += 'A'-'9'-1 end if
+--      if ch>'Z' then ch += 'a'-'Z'-1 end if
+--      if ch>'a' then ch = ':' end if
+        s[i] = ch
+    end for
+--s = "jtttt" -- 1
+--s = "25cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd03"
+    string c = ZipBufferRaw(s),
+           d = deflate(s),
+          hc = hexify(c),
+--         u = repeat(' ',l),
+           t = inflate(c)
+if d!=c then ?9/0 end if
+    --DEV: chalk this one down as unfixable.... (and maybe abandon LiteUnZip...[.dll])
+--  object res = UnzipBufferRaw(c,u)
+--  if not integer(res) then
+--      progress("")
+--      printf(1,"%s\n",res)
+--      integer res2 = UnzipBufferRaw(c,u)
+--  end if
+        
+--  integer res = 0
+--  integer res = UnzipBufferRaw(c,u,dlen:=l+100)
+--/*
+Ah, you're looking at code which never went in because it would not compile (Z_STREAM is defined/used in LiteUnzip.c,
+but not LiteZip.c). My ZipBufferRaw wraps ZipCreateBuffer, ZipAddBufferRaw, ZipGetMemory, and ZipClose, and I've seen
+it fail in ZipAddBufferRaw but more often in ZipClose. Ask if you need anything more than this:
+
+<<<
+
+    iter = 1108
+    l = 36'$'
+    s = `5jyXgzhcgj3FgSieCzBLrXbmgSi68oCLx8tm`
+--  i = 37'%'
+--  ch = 109'm'
+    c[1..25] = {51'3',205,170,140,72'H',175,202,72'H',78'N',207,50'2',118'v',75'K',15,206,76'L',117'u',174,114'r',242,41')',138,72'H',202,5}
+    c[26..36] = {178,205,44',',242,157,125'}',42'*',44',',74'J',114'r',1}
+    hc = `33CDAA8C48AFCA484ECF32764B0FCE4C75AE72F2298A48CA05B2CD2CF29D7D2A2C4A7201`
+--        33cdaa8c48afca484ecf32764b0fce4c75ae72f2298a48ca4d0fce34b3c877f6a9b028c90500
+    u = `5jyXgzhcgj3FgSieCzBLrXbmgSi68oCLx8tm`
+    t = `5jyXgzhcgj3FgSieCzBLrXbmgSi68oCLx8tm`
+--       5jyXgzhcgj3FgSieCzBLrXbmgSi68oCLx8tm
+    res = `ZR_NOALLOC      = 2   -- Failed to allocate memory`
+    lc = 38'&'
+--*/
+--  assert(u==s)
+    assert(t==s)
+--      integer bits = readBits(3),
+--            bfinal = bits && 1,
+    integer btype = and_bits(c[1],6) >> 1
+ if btype=0b10 then -- dynamic
+
+    integer lc = length(hc)
+progress("%d: %d: %d: %s\r",{fbl,l,iter,s})
+--progress("%d: %d: %d: %s\r",{fbl,lc,iter,hc})
+    fbl += 1
+--  if lc<ml[fbl] then
+--  if lc<ml[fbl] or (lc=ml[fbl] and s<lower(spbl[fbl][2])) then
+    if lc<ml[fbl] or (lc=ml[fbl] and s<spbl[fbl][2]) then
+        ml[fbl] = lc
+        ul[fbl] = l
+        cml = max(ul)       
+        spbl[fbl] = {hc,s}
+        progress("")
+        pp(ml)
+        pp(spbl,{pp_Nest,1})
+    end if
+ end if
+until get_key()!=-1
+progress("")
+?ml
+--*!/
+
+-- 35,500 iterations, 3.25MB/s on that tiny 96 byte jobbie - plenty fast enough for me!
+--/*
+That 0x2d0200000000 goes into an infinite loop, adding nulls to output until it runs out of memory.
+That bug should of course be fixed in it's own right, but perhaps more importantly JavaScript's 
+DecompressionStream rejects that completely. (I've added some length limits of 1000 for now.)
+I think these are all the relevant bits, lmk if there's anything else you'd like to see.
+
+Alas, 0x258c4101000000203003 is not accepted by DecompressionStream either, but at least it is
+now also rejected by my code.
+
+The D is fine but the D + S and D + F don't pass muster, with any of the three.
+For boundary straddling checks, the earlier shortest version I had fits the screen better, which is
+0x25cbc10dc0300843d195a84253fbe8a6f1fe235581d3135fc6411308078d451fa9be99da473d5ae54456bfdeead818d593b3ff7b8f4fa3e5fd03
+(58 bytes) which decompresses to 
+"F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95" (48 bytes)
+
+
+atom t1 = time()+1
+string {h,e} = he[1]
+integer iter = 0
+do 
+    iter += 1
+    string r = inflate_raw(h)
+until time()>t1
+printf(1,"%,d iterations: %s/s\n",{iter,file_size_k(iter*length(e))})
+--*/
+?"done"
+wait_key()
+
+

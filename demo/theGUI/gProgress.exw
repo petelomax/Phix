@@ -5,29 +5,20 @@
 --requires(64,true)
 with javascript_semantics
 include theGUI.e
---gUseGTK()
-gdx pbar
-atom f = 0
+gUseGTK()
 
-procedure action(gdx timer)
-    f += 0.1
---  f = 0.2
-    gSetAttribute(pbar,"VALUE",f)
---  if f>=1 then
---?gGetAttribute(pbar,"MAX")
-    if f>=gGetAttribute(pbar,"MAX") then
-        gSetAttribute(timer,"RUN",false)
+procedure tick(gdx timer)
+    gdx pbar = gGetAttribute(timer,`USER_DATA`)
+    atom v = gGetAttribute(pbar,`VALUE`)
+    v += 1.23
+    gSetAttribute(pbar,`VALUE`,v)
+    if v>=100 then
+        gSetAttribute(timer,`RUN`,false)
     end if
 end procedure
 
-pbar = gProgressBar()
---pbar = gProgressBar("DASHED=YES, MAX=0.3")
---pbar = gProgressBar("DASHED=YES, MIN=-1")
---pbar = gProgressBar("ORIENTATION=VERTICAL")
---pbar = gProgressBar("SIZE=500x10")
-gdx hbox = gHbox({pbar},"MARGIN=9x9"),
-    dlg = gDialog(hbox,"gProgressBar",`SIZE=240x80`),
---  dlg = gDialog(hbox,"gProgressBar"),
-    timer = gTimer(action,1000,true)
-gShow(dlg)
-gMainLoop()
+gdx pbar = gProgressBar(),
+    hbox = gHbox({pbar},`MARGIN=10,SPACE=AROUND`),
+    dlg = gDialog(hbox,`gProgress`,`SIZE=240x80`),
+    timer = gTimer(tick,100,true,pbar)
+gMainLoop(dlg)

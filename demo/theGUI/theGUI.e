@@ -2070,6 +2070,7 @@ local function tg_WinAPI_wm_ignorable(integer msg)
         or find(msg,{/*1, WM_CREATE*/ 3, /*WM_MOVE*/ 6, /*WM_ACTIVATE*/ /*8, WM_KILLFOCUS*/ 10, /*WM_ENABLE*/
                      12, /*WM_SETTEXT*/ 13, /*WM_GETTEXT*/ 14, /*WM_GETTEXTLENGTH*/ 19, /*WM_QUERYOPEN*/
                      20, /*WM_ERASEBKGND*/ 24, /*WM_SHOWWINDOW*/ 26, /*WM_WININICHANGE*/ 28, /*WM_ACTIVATEAPP*/ 
+                     29, /*WM_FONTCHANGE*/
                      30, /*WM_TIMECHANGE*/ 31, /*WM_CANCELMODE*/ 33, /*WM_MOUSEACTIVATE*/ 48, /*WM_SETFONT*/
                      70, /*WM_WINDOWPOSCHANGING*/ 71, /*WM_WINDOWPOSCHANGED*/ 77, /*WM_KEYF1*/
                      78, /*WM_NOTIFY*/ 83, /*WM_HELP*/ 85, /*WM_NOTIFYFORMAT*/ 123, /*WM_CONTEXTMENU*/ 
@@ -2088,7 +2089,7 @@ local function tg_WinAPI_wm_ignorable(integer msg)
                    /*561, WM_ENTERSIZEMOVE*/
                      562, /*WM_EXITSIZEMOVE*/ 641, /*WM_IME_SETCONTEXT*/ 642, /*WM_IME_NOTIFY*/
                      648, /*WM_IME_REQUEST*/
-                     674, /*WM_NCMOUSELEAVE*/ 799, /*WM_DWMNCRENDERINGCHANGED*/
+                     674, /*WM_NCMOUSELEAVE*/ 793, /*WM_APPCOMMAND*/ 799, /*WM_DWMNCRENDERINGCHANGED*/
                      })
 end function
 
@@ -6812,6 +6813,8 @@ local procedure tg_show_menu(gdx owner, menu, integer mdx, x, y)
     integer parent = ctrl_xtra[menu][CX_MENUS][mdx][MX_PARENT]
     if parent<=0 then
         ctrl_xtra[menu][CX_MEXTRA][mdx][MX_OWNER] = owner
+        integer prev = ctrl_xtra[owner][DX_ACTIVEPOP]
+        if prev!=NULL then ?9/0 end if
         ctrl_xtra[owner][DX_ACTIVEPOP] = menu
     end if
     atom hPopup = tg_ensure_popup(menu,mdx),
@@ -6890,13 +6893,17 @@ procedure tg_hide_up(gdx menu, integer mdx)
     until parent<=0
 end procedure
 
+--with trace
 --DEV should this be named tg_hide_popup?
-local procedure tg_hide(gdx id)
+local procedure tg_hide_popup(gdx id)
+--?{"tg_hide",id}
+--trace(1)
+--?9/0
     integer ct = ctrl_types[id]
     string idt = ctrl_names[ct]
     if ct=MENU then
         tg_hide_submenus(id,1,true)
-    else
+    elsif sequence(ctrl_hdc[id]) then
         atom {hWnd,?,owner,w,h} = ctrl_hdc[id]
         if backend=TG_GTK then
             c_proc(x_gtk_widget_hide,{hWnd})
@@ -6904,7 +6911,7 @@ local procedure tg_hide(gdx id)
             c_proc(xShowWindow,{hWnd,SW_HIDE})
         elsif backend=TG_JS then    
             #ilJS{
-                crash(`JS (tg_hide)`);
+                crash(`JS (tg_hide_popup)`);
             #}ilJS
         else
             ?9/0 -- unknown backend
@@ -6921,7 +6928,8 @@ local function tg_gtk_kill_menu(gdx dlg)
     assert(ct=DIALOG)
     gdx menu = ctrl_xtra[dlg][DX_ACTIVEPOP]
     if menu then
-        tg_hide(menu)
+--DEVcheck this in gVidCut, Esc when seekbar popup showing
+        tg_hide_popup(menu)
         return true
     end if
     return false
@@ -7304,6 +7312,8 @@ local procedure tg_menubar_showtop(gdx menu, integer hov)
         end if
         tg_show_menu(dlg,menu,mdx,x,y)
 --printf(1,"ctrl_xtra[%d][DX_ACTIVEPOP] = %d (%d)\n",{dlg,menu,source_line()})
+        integer prev = ctrl_xtra[dlg][DX_ACTIVEPOP]
+        if prev!=NULL then ?9/0 end if
         ctrl_xtra[dlg][DX_ACTIVEPOP] = menu
     end if
 end procedure
@@ -7702,6 +7712,8 @@ local function tg_key_handler(gdx dlg, integer key, bool ctrl, shift, alt, bUp)
     integer id = gGetFocus()
     if id=0 then id = dlg end if
     gdx menu = ctrl_xtra[dlg][DX_ACTIVEPOP]
+--  bool bVideo = menu and ctrl_types[menu]=VIDEO 
+--  if bVideo then menu = NULL end if -- (no help, no hindrance...)
     if alt and not menu and key>='A'
     and tg_process_mnemonics(dlg,upper(key)) then
         return true
@@ -7794,14 +7806,23 @@ local function tg_key_handler(gdx dlg, integer key, bool ctrl, shift, alt, bUp)
         end if
         if menu and key=VK_ESC then
 --      if menu and key=VK_ESC and not bUp then
-            integer ct = ctrl_types[id]
-            if ct=MENU then
+--          integer ct = ctrl_types[id]
+            integer cm = ctrl_types[menu]
+--?{id,menu,ct,cm}
+--          if ct=MENU then
+            if cm=MENU then
                 integer mdx = tg_menu_visible(menu,1,true)
                 tg_hide_one_menu(menu,mdx,true)
             else
-                tg_hide(menu)
+                tg_hide_popup(menu)
             end if
-            return true
+--          return true
+--          return not bVideo
+--          return ctrl_types[menu]!=VIDEO 
+--          if ctrl_types[menu]!=VIDEO then return true end if
+            if cm!=VIDEO then return true end if
+--          if ctrl_types[menu]!=CANVAS then return true end if
+--          bUp = false
         end if
 -- 23/12/25 (fixes esc closing both windows in hDialogs.exw)
 --      bool bClose = key=VK_ESC and and_bits(CF_CLOSE_ON_ESC,ctrl_flags[dlg])!=0
@@ -8439,9 +8460,10 @@ local function tg_WinAPI_process_key(integer id, msg, atom wParam, lParam, bool 
             elsif ct=LIST then -- (gDropDown)
                 return tg_list_key(popup,key,ctrl,shift) 
             elsif ct=CANVAS then
-                return true -- hText.exw[?]
+--              return true -- hText.exw[?]
             elsif ct=VIDEO then
-                return true -- gVidCut.exw[?]
+--              return true -- gVidCut.exw[?]
+--              return false -- gVidCut.exw[?]
             else
                 ?9/0 --{"key",popup,ct,ctrl_names[ct]} -- (should never trigger)
             end if
@@ -8805,7 +8827,7 @@ local function tg_click_handler(gdx dlg, sequence status, integer x, y)
     integer clickhandler = gGetHandler(id,`CLICK`),
                       ct = ctrl_types[id]
     if ct!=MENU and menu and status[2]='S' then
-        crash("tg_hide(menu)") -- yet to see this happen...
+        crash("tg_hide_popup(menu)") -- yet to see this happen...
     end if
     if and_bits(ctrl_flags[id],CF_CANVAS) then
         if tg_scrollbar_click(id,status,x,y) then
@@ -10889,9 +10911,11 @@ local procedure tg_redraw_canvas(gdx canvas)
     integer {w, h} = gGetIntInt(canvas,`SIZE`)
     if ctrl_types[canvas]=VIDEO then
         gdx dlg = gGetDialog(canvas)
+        atom hWnd = NULL
         if dlg=NULL then
             assert(and_bits(ctrl_flags[canvas],CF_POPUP))
             dlg = ctrl_hdc[canvas][3]
+            hWnd = ctrl_hdc[canvas][1]
         end if
         atom window = ctrl_handles[dlg], handle, video_child,
           draw_area = ctrl_xtra[canvas][CX_MPV_AREA]
@@ -10934,6 +10958,7 @@ local procedure tg_redraw_canvas(gdx canvas)
                 ?9/0 -- (unknown backend)
             end if
             ctrl_xtra[canvas][CX_MPV_AREA] = draw_area
+            if hWnd then handle = hWnd end if -- a popup
             mpv_init(handle)
         end if
         bool bMax = gGetAttribute(dlg,`MAXIMISED`),
@@ -11238,7 +11263,7 @@ local function tg_WinAPI_WndProc(atom hWnd, msg, wParam, lParam)
        or msg=WM_ENTERSIZEMOVE  -- 561
 --     or msg=WM_CAPTURECHANGED -- 533
        or msg=WM_SYSCOMMAND then    -- 274
-        if popup then tg_hide(popup) end if
+        if popup then tg_hide_popup(popup) end if
 
     elsif msg=WM_CHAR
        or msg=WM_KEYDOWN
@@ -11246,14 +11271,15 @@ local function tg_WinAPI_WndProc(atom hWnd, msg, wParam, lParam)
        or msg=WM_SYSCHAR
        or msg=WM_SYSKEYDOWN
        or msg=WM_SYSKEYUP then
+--if ctrl_types[id]!=VIDEO then
         bool bUp = msg=WM_KEYUP or msg=WM_SYSKEYUP
         if tg_WinAPI_process_key(id,msg,wParam,lParam,bUp)=0 then return 0 end if
 --      return 1
         return 0
-
+--end if
     elsif msg=WM_MOUSEWHEEL
        or msg=WM_MOUSEHWHEEL then
-        if popup then tg_hide(popup) end if
+        if popup then tg_hide_popup(popup) end if
         tg_WINAPI_mousewheel(id, msg, lParam, wParam)
 
     elsif msg>=WM_LBUTTONDOWN
@@ -11262,7 +11288,7 @@ local function tg_WinAPI_WndProc(atom hWnd, msg, wParam, lParam)
                       msg=WM_RBUTTONDOWN or 
                       msg=WM_MBUTTONDOWN or
                       msg=WM_XBUTTONDOWN) then 
-            tg_hide(popup)
+            tg_hide_popup(popup)
         end if
         return tg_WinAPI_BUTTONDOWN(id,msg,wParam,lParam,hWnd)
 
@@ -11319,7 +11345,7 @@ local function tg_WinAPI_WndProc(atom hWnd, msg, wParam, lParam)
 
     elsif msg=WM_MOVING
        or msg=WM_SIZING then
-        if popup then tg_hide(popup) end if
+        if popup then tg_hide_popup(popup) end if
         atom pRect = lParam
         integer left = get_struct_field(idRECT,pRect,`left`),
                  top = get_struct_field(idRECT,pRect,`top`),
@@ -13534,6 +13560,8 @@ local integer numLockOn = -1,
         return gImage_from_XPM(tg_XPM_from_shorthand(name))
     elsif name=`tg_popup` then -- undocumented, for hText/DataPick/DropDown.exw
         return tg_popup
+    elsif name=`tg_hide_popup` then -- undocumented, for gVidCut.exw
+        return tg_hide_popup
     elsif name=`tg_get_sig` then -- undocumented, for several
         return tg_get_sig
     elsif name=`tg_redraw_scrollbars` then -- undocumented, for hTable.exw
@@ -17469,7 +17497,7 @@ local function tg_WinAPI_PopupWndProc(atom hWnd, msg, wParam, lParam)
 
             case WM_ACTIVATE:  -- (not strictly needed, but safer)
                 if LOWORD(wParam)=WA_INACTIVE then
-                    tg_hide(popup)
+                    tg_hide_popup(popup)
                 end if
                 return 0
 
@@ -17532,7 +17560,7 @@ local function tg_WinAPI_PopupWndProc(atom hWnd, msg, wParam, lParam)
 end function
 bool bPopupWndProcRegistered = false
 
-local procedure tg_popup(gdx owner, ctrl) -- (exported via gGetGlobal to hText.exw)
+local procedure tg_popup(gdx owner, ctrl) -- (exported via gGetGlobal to hText.exw, and now gVidCut.exw)
     gdx dlg = gGetDialog(owner)
     integer ct = ctrl_types[ctrl],
             {w,h} = gGetIntInt(ctrl,`USERSIZE`),
@@ -17562,6 +17590,9 @@ local procedure tg_popup(gdx owner, ctrl) -- (exported via gGetGlobal to hText.e
     if x+w>screen_width then x = x+ow-w end if  -- flip horizontally
     if y+h>screen_height then y = y-oh-h end if -- flip vertically
     ctrl_flags[ctrl] = or_bits(ctrl_flags[ctrl],CF_POPUP)
+    integer prev = ctrl_xtra[dlg][DX_ACTIVEPOP]
+--  if prev!=NULL then ?9/0 end if
+    if prev!=NULL then tg_hide_popup(prev) end if
     ctrl_xtra[dlg][DX_ACTIVEPOP] = ctrl
     atom hWnd = ctrl_hdc[ctrl][1], hPopup, hDraw,
          hOwn = ctrl_handles[dlg]

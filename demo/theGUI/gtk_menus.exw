@@ -1,0 +1,776 @@
+﻿--
+-- demo\theGUI\gtk_menus.exw
+-- =========================
+--
+--  Multiple menu demo
+--
+--       highlight = CreateSolidBrush(0x00FFD0A0),
+--(GTK2:#4B6983, GTK3:#4A90D9)
+--       highlight = CreateSolidBrush(0x00FEF0E8), -- (maybe)
+-- items: (with icon and submenu): 126x72, GTK2: 117x67, GTK3: 112x78
+-- {Normal, html-stripped}: 171x50, GTK2: 126x46, GTK3: 136x54
+--Windows height is 6+lines*22.
+--gGetGlobal("gPopup"), maybe... (internal, unsupported)
+--puts(1,"")
+--requires(64,true)
+without debug
+include builtins\cffi.e
+include builtins\VM\pcfunc.e
+include builtins\VM\pprntfN.e
+--include theGUI.WINAPI.e
+include theGUI.GTK.e
+with debug
+
+--integer TG_MENUITEM_HEIGHT = 24 -- overwritten in create_menu_font() [WinAPI only]
+integer TG_MENUITEM_HEIGHT = 21 -- overwritten in create_menu_font() [WinAPI only]
+--integer TG_MENUITEM_HEIGHT = 19 -- overwritten in create_menu_font() [WinAPI only]
+
+sequence menus = {}  -- all menus live here - flat version of supplied nested definitions.
+
+-- contents of each menus[i]:
+enum MX_ITEMS,  -- sequence of items
+     MX_PARENT, -- parent menu index, or 0
+     MX_OWNER,  -- when ""!=0, use it's MX_POPUP, else this??
+     MX_POPUP,  -- HWND or GtkWidget*, or NULL
+     MX_WIDGET, -- (GTK only)
+     MX_KEYMODE,-- if keyboard used
+     MX_HOT,    -- hot item
+     MX_SEL,    -- selected item
+     MX_WIDTH,  -- widest+gutters
+     MX_HEIGHT, -- 4+sum(7|ITEMH)+4
+     MX_X,      -- last position (optional)
+     MX_Y
+
+-- contents of each menus[i][MX_ITEMS]:
+enum MX_TEXT,       -- if "-", it's a separtator
+     MX_SUBMENU,    -- index into menus, or 0
+     MX_ENABLED -- t/f, false on separators
+
+-- example items:
+-- {"Open",0,true}
+-- {"Recent Files",submenu_id,false}
+
+local type mid(integer mdx)
+    return mdx>0
+end type
+
+procedure compute_menu_size(mid mdx)
+    integer width = 40,  -- padding baseline
+            height = 8   -- (4+4, top+btm)
+    atom fontmap = pango_cairo_font_map_get_default(),
+         context = pango_font_map_create_context(fontmap),
+          layout = pango_layout_new(context),
+            desc = pango_font_description_from_string("Segoe UI 9")
+    pango_layout_set_font_description(layout,desc)
+    for text in vslice(menus[mdx][MX_ITEMS],MX_TEXT) do
+        if text="-" then
+            height += 7
+        else
+            pango_layout_set_text(layout,text,-1)
+            integer {tw,th} = pango_layout_get_pixel_size(layout)
+            width = max(width,tw)
+            height += TG_MENUITEM_HEIGHT
+        end if
+    end for
+    g_object_unref(layout)
+    g_object_unref(context)
+    pango_font_description_free(desc)
+    width += 32 -- add gutter
+    menus[mdx][MX_WIDTH] = width
+    menus[mdx][MX_HEIGHT] = height
+end procedure
+
+function top_position(mid mdx, integer n)
+    -- compute the top y-position of the n'th item in menus[mdx]
+    -- (obviously must match height calculation in compute_menu_size)
+    integer top = 4
+    for text in vslice(menus[mdx][MX_ITEMS][1..n-1],MX_TEXT) do
+        top += iff(text="-"?7:TG_MENUITEM_HEIGHT)
+    end for
+    return top
+end function
+
+function build_menu(sequence def, integer parent=0)
+    -- convert the nested structure passed to gMenu(children) into a flat linked table.
+    menus &= 0 -- reserve slot
+    mid mdx = length(menus)
+    sequence items = {}
+    for mitem in def do
+        if string(mitem) then
+            -- Aside: in the real thing, items w/o id are illegal...
+            -- plain item or separator
+            items &= {{mitem,0,mitem!="-"}}
+        else
+            -- submenu
+            integer sdx = build_menu(mitem[2],mdx)
+            bool enabled = length(menus[sdx][MX_ITEMS])>0
+            items &= {{mitem[1],sdx,enabled}}
+        end if
+    end for                   -- Ownr,hWnd,hWgt,keybd,hot,sel,w,h,x,y:
+    menus[mdx] = {items, parent, NULL,NULL,NULL,false,  0,  0,0,0,0,0}
+    compute_menu_size(mdx)
+    return mdx
+end function
+
+function draw(atom widget, cairo, integer mdx)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+    sequence items = menus[mdx][MX_ITEMS]
+    integer w = menus[mdx][MX_WIDTH],
+            h = menus[mdx][MX_HEIGHT],
+           kb = menus[mdx][MX_KEYMODE],
+     hot_item = menus[mdx][MX_HOT]
+
+    -- background
+    cairo_set_source_rgb(cairo, 1,1,1)
+    cairo_rectangle(cairo, 0,0,w,h)
+    cairo_fill(cairo)
+    c_proc(x_cairo_set_line_width,{cairo,1})
+
+    atom layout = pango_cairo_create_layout(cairo)
+    atom desc = pango_font_description_from_string("Segoe UI 9")
+    pango_layout_set_font_description(layout,desc)
+
+    pango_layout_set_text(layout,"Yy",-1)
+    integer y = 4,
+           th = pango_layout_get_pixel_size(layout)[2],
+--         th = GetTextExtentPoint32(hdc, "Yy")[2],
+           hh = floor((TG_MENUITEM_HEIGHT-th)/2)
+    for i,item in items do
+        string text = item[MX_TEXT]
+        if text="-" then
+            cairo_set_source_rgb(cairo,0.7,0.7,0.7)
+            y += 3
+            cairo_move_to(cairo,4,y)
+            cairo_line_to(cairo,w-4,y)
+            cairo_stroke(cairo)
+            y += 4
+        else
+            if i=hot_item then
+                if kb then
+                    cairo_set_source_rgb(cairo,0,0,0)
+                    cairo_rectangle(cairo,2.5,y+2.5,w-4,TG_MENUITEM_HEIGHT-4)
+                    cairo_stroke(cairo)
+                else
+                    cairo_set_source_rgb(cairo,0.90,0.94,0.99) -- light blue
+                    cairo_rectangle(cairo,0,y,w,TG_MENUITEM_HEIGHT)
+                    cairo_fill(cairo)
+                end if
+            end if
+            if not item[MX_ENABLED] then
+                cairo_set_source_rgb(cairo,0.5,0.5,0.5)
+            else
+                cairo_set_source_rgb(cairo,0,0,0)
+            end if
+            pango_layout_set_text(layout,text,-1)
+            cairo_move_to(cairo,8,y+hh-1)
+            pango_cairo_show_layout(cairo,layout)
+            y += TG_MENUITEM_HEIGHT
+        end if
+    end for
+
+    g_object_unref(layout)
+    pango_font_description_free(desc)
+
+    -- border
+    cairo_set_source_rgb(cairo,0.8,0.8,0.8)
+    cairo_rectangle(cairo,0,0,w,h)
+    cairo_stroke(cairo)
+
+    return false
+end function
+constant draw_cb = call_back({'+',draw})
+
+local function expose_event(atom widget, /*event*/, integer mdx)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = gtk_widget_get_window(widget),
+       cairo = gdk_cairo_create(win)
+    integer res = draw(widget,cairo,mdx)
+    cairo_destroy(cairo)
+    return res
+end function
+constant expose_event_cb = call_back({'+',expose_event})
+
+-- callbacks for the matching xx routines below:
+-- (needed since eg ensure_popup must set mousemove, but mousemove calls ensure_popup)
+local atom menu_mousemove_cb, menu_click_cb, menu_leave_cb
+--, popup_click_cb
+
+local function get_menu_root(mid mdx)
+    integer parent = mdx
+    do
+        mdx = parent
+        parent = menus[mdx][MX_PARENT]
+    until parent<=0
+    return mdx
+end function
+
+local function get_menu_owner(mid mdx)
+    while menus[mdx][MX_PARENT]>0 do
+        mdx = menus[mdx][MX_PARENT]
+    end while
+    return menus[mdx][MX_OWNER]
+end function
+
+local function ensure_popup(mid mdx)
+    atom hPopup = menus[mdx][MX_POPUP],
+         hOwner = get_menu_owner(mdx)
+    if hPopup=NULL then
+        hPopup = gtk_window_new(GTK_WINDOW_POPUP)
+--DEV or GDK_WINDOW_TYPE_HINT_DROPDOWN_MENU??
+        gtk_window_set_type_hint(hPopup,GDK_WINDOW_TYPE_HINT_POPUP_MENU)
+        gtk_window_set_decorated(hPopup,false)
+
+        atom menu = gtk_drawing_area_new()
+        gtk_container_add(hPopup,menu)
+
+        atom event_mask = GDK_POINTER_MOTION_MASK + 
+                          GDK_BUTTON_PRESS_MASK + 
+                          GDK_LEAVE_NOTIFY_MASK
+        gtk_widget_add_events(menu,event_mask)
+
+        menus[mdx][MX_POPUP] = hPopup
+        menus[mdx][MX_WIDGET] = menu
+
+        {string signal, atom cb} = iff(bGTK2?{"expose_event",expose_event_cb}
+                                      /*GTK3*/:{      "draw",draw_cb        }) 
+        g_signal_connect_data(menu,signal,cb,mdx)
+        g_signal_connect_data(menu,"motion_notify_event",menu_mousemove_cb,mdx)
+        g_signal_connect_data(menu,"button_press_event",menu_click_cb,mdx)
+        g_signal_connect_data(menu,"leave-notify-event",menu_leave_cb,mdx)
+
+--      g_signal_connect_data(hPopup,"button_press_event",popup_click_cb,mdx)
+    end if
+    gtk_window_set_transient_for(hPopup,hOwner)
+
+    return hPopup
+end function
+
+-- set by get_monitor_info()
+integer mon_left,
+        mon_top,
+        mon_right,
+        mon_bottom
+
+function adjust_menu_pos(integer x, y, w, h)
+    integer nx = x, ny = y
+    -- flip horizontally
+    if x + w > mon_right then nx = x - w end if
+    -- flip vertically
+    if y + h > mon_bottom then ny = y - h end if
+    -- clamp (important for tiny screens / extreme cases)
+    if nx < mon_left then nx = mon_left end if
+    if ny < mon_top  then ny = mon_top  end if
+    return {nx, ny}
+end function
+
+--The following works fine on GTK2 but leaves menus where they last were on GTK3
+procedure show_menu(mid mdx, integer x, y, atom hOwner=NULL)
+    if menus[mdx][MX_PARENT]<=0 then
+        menus[mdx][MX_OWNER] = hOwner
+    end if
+    atom hPopup = ensure_popup(mdx),
+          hMenu = menus[mdx][MX_WIDGET]
+    menus[mdx][MX_HOT] = 0
+    menus[mdx][MX_SEL] = 0
+
+    integer w = menus[mdx][MX_WIDTH],
+            h = menus[mdx][MX_HEIGHT],
+      {nx,ny} = adjust_menu_pos(x, y, w, h)
+    menus[mdx][MX_X] = nx
+    menus[mdx][MX_Y] = ny
+--  gtk_window_move(hPopup,nx,ny)
+    gtk_widget_set_size_request(hMenu,w,h)
+--  set_struct_field(idGdkRectangle,pRECT,"x",0)
+--  set_struct_field(idGdkRectangle,pRECT,"y",0)
+--  set_struct_field(idGdkRectangle,pRECT,"width",w)
+--  set_struct_field(idGdkRectangle,pRECT,"height",h)
+--  gtk_widget_size_allocate(hMenu,pRECT)
+--  gtk_widget_size_allocate(hPopup,pRECT)
+    gtk_window_resize(hPopup,w,h)
+
+    gtk_widget_show_all(hPopup)
+    gtk_window_move(hPopup,nx,ny)
+end procedure
+
+procedure hide_one_menu(mid mdx, bool bKeepKbd)
+    atom hPopup = menus[mdx][MX_POPUP]
+    if hPopup!=NULL then
+        gtk_widget_hide(hPopup)
+        if bKeepKbd and menus[mdx][MX_KEYMODE] then
+            integer parent = menus[mdx][MX_PARENT]
+            if parent>0 then
+                menus[parent][MX_KEYMODE] = true
+--              hWnd = menus[parent][MX_POPUP]
+--              InvalidateRect(hWnd,NULL,false)
+                atom widget = menus[parent][MX_WIDGET]
+                gtk_widget_queue_draw(widget)
+            end if
+        end if
+-- optional, I think:
+--      menus[mdx][MX_KEYMODE] = false
+    end if
+    menus[mdx][MX_HOT] = 0
+end procedure
+
+function menu_visible(mid mdx, bool bLowest)
+    -- returns 0 if mdx is not visible, else the lowest(/topmost) visible submenu or mdx if none
+    atom hWnd = menus[mdx][MX_POPUP]
+--  if hWnd!=NULL and IsWindow(hWnd) and IsWindowVisible(hWnd) then
+    if hWnd!=NULL and gtk_widget_get_visible(hWnd) then
+        if bLowest then
+            for item in menus[mdx][MX_ITEMS] do
+                integer submenu = item[MX_SUBMENU]
+                if submenu then
+                    submenu = menu_visible(submenu,true)
+                    if submenu then return submenu end if
+                end if
+            end for
+        end if
+        return mdx
+    end if
+    return 0
+end function
+
+procedure hide_submenus(mid mdx, bool bAndItself)
+    -- hide any submenus when we hover on summat else (sometimes several levels up),
+    -- also used to close an entire menu from the root menu and everything downwards
+    while true do
+        integer submenu = menu_visible(mdx,true)
+        if submenu=0 or submenu=mdx then exit end if
+        hide_one_menu(submenu,false)
+    end while
+    if bAndItself then
+        hide_one_menu(mdx,false)
+    end if
+end procedure
+
+procedure hide_up(mid mdx)
+    -- hide the lowest level menu and all parents of it
+    integer parent = mdx
+    do
+        mdx = parent
+        hide_one_menu(mdx,false)
+        parent = menus[mdx][MX_PARENT]
+    until parent<=0
+end procedure
+
+function hit_test(mid mdx, integer x, y)
+    integer w = menus[mdx][MX_WIDTH],
+            h = menus[mdx][MX_HEIGHT]
+    if x>=0 and x<=w and y>=4 and y<=h-4 then
+        integer top = 4, btm
+        for i,item in menus[mdx][MX_ITEMS] do
+            btm = top+iff(item[MX_TEXT]="-"?7:TG_MENUITEM_HEIGHT)
+            if y<top then exit end if
+            if y<=btm then
+                return iff(item[MX_ENABLED]?i:0)
+            end if
+            top = btm
+        end for
+    end if
+    return 0
+end function
+
+procedure open_child_menu(mid submenu, menu, integer sel_item)
+    integer mx = menus[menu][MX_X],
+            my = menus[menu][MX_Y],
+            pw = menus[menu][MX_WIDTH],
+            cw = menus[submenu][MX_WIDTH],
+            ch = menus[submenu][MX_HEIGHT],
+            px = mx+pw-4, -- try right...
+            nx = iff(px+cw>mon_right?mx-cw+4:px),   
+            ny = my+top_position(menu,sel_item)
+    {nx,ny} = adjust_menu_pos(nx,ny,cw,ch)
+    show_menu(submenu,nx,ny)
+end procedure
+
+procedure update_recent_menu(mid mdx, string text)
+    -- mdx is new/open/close, Recent Files is on that same menu
+    integer ri = find("Recent Files",vslice(menus[mdx][MX_ITEMS],MX_TEXT)),
+           sdx = menus[mdx][MX_ITEMS][ri][MX_SUBMENU]
+    sequence items = menus[sdx][MX_ITEMS]
+    menus[sdx][MX_ITEMS] = 0 -- (kill refcount)
+    if text="Close" then
+        if length(items) then items = items[1..-2] end if
+    else
+        items &= {{lower(text),0,true}}
+    end if
+    menus[sdx][MX_ITEMS] = items
+    compute_menu_size(sdx)
+    -- and enable/disable Recent Files
+    menus[mdx][MX_ITEMS][ri][MX_ENABLED] = length(items)>0
+end procedure
+
+procedure menu_item_selected(mid mdx, string text)
+    integer rdx = get_menu_root(mdx)
+    atom handle = menus[rdx][MX_OWNER]
+    c_proc(x_gtk_window_set_title,{handle,text})
+--  c_proc(xSetWindowText,{handle,text})
+    if find(text,{"New","Open","Close"}) then
+        update_recent_menu(mdx,text)
+--  elsif text="Help" then ?9/0 -- (diag aid)
+    end if
+end procedure
+
+function next_enabled(sequence items, integer i, d)
+    integer l = length(items)
+    for k=1 to l do
+        i += d
+        if i<1 then 
+            i = l
+        elsif i>l then
+            i = 1
+        end if
+        if items[i][MX_ENABLED] then
+            return i
+        end if
+    end for
+    return 0
+end function
+
+function process_menu_keydown(mid mdx, integer key)
+    -- invoked from main_key rather than menu_key (GTK)
+    -- invoked from WndProc rather than PopupWndProc (WinAPI)
+    sequence items = menus[mdx][MX_ITEMS]
+    integer sel_item = menus[mdx][MX_SEL]
+    atom hMenu = menus[mdx][MX_WIDGET]
+--if key=GDK_KEY_End then ?9/0 end if -- debug aid
+
+    if key=GDK_KEY_Up
+    or key=GDK_KEY_Down then
+        integer d = iff(key=GDK_KEY_Up?-1:+1)
+        sel_item = next_enabled(items,sel_item,d)
+        if sel_item<0 then ?9/0 end if
+        menus[mdx][MX_SEL] = sel_item
+        menus[mdx][MX_HOT] = sel_item
+        menus[mdx][MX_KEYMODE] = true
+
+        gtk_widget_queue_draw(hMenu)
+        return true
+
+    elsif key=GDK_KEY_Return 
+      and sel_item>0
+      and items[sel_item][MX_SUBMENU]=0 then
+        menu_item_selected(mdx,items[sel_item][MX_TEXT])
+        hide_up(mdx)
+        return true
+
+    elsif key=GDK_KEY_Right
+       or key=GDK_KEY_Return then
+        if sel_item>0 then
+            integer submenu = items[sel_item][MX_SUBMENU]
+            if submenu and items[sel_item][MX_ENABLED] then
+                menus[mdx][MX_KEYMODE] = true
+                menus[mdx][MX_HOT] = 0
+--              InvalidateRect(hWnd,NULL,false)
+                gtk_widget_queue_draw(hMenu)
+                open_child_menu(submenu,mdx,sel_item)
+--              tg_open_child_menu(menu,submenu,mdx,sel_item)
+                -- auto-select top item:
+                menus[submenu][MX_KEYMODE] = true
+                integer first = next_enabled(menus[submenu][MX_ITEMS], 0, +1)
+                menus[submenu][MX_SEL] = first
+                menus[submenu][MX_HOT] = first
+            end if
+        end if
+
+    elsif key=GDK_KEY_Left then
+        integer parent = menus[mdx][MX_PARENT]
+        if parent>0 then
+            hide_one_menu(mdx,false)
+            menus[parent][MX_HOT] = menus[parent][MX_SEL]
+            menus[parent][MX_KEYMODE] = true
+--          hWnd = menus[parent][MX_POPUP]
+--          InvalidateRect(hWnd,NULL,false)
+            hMenu = menus[parent][MX_WIDGET]
+            gtk_widget_queue_draw(hMenu)
+        end if
+
+    elsif key=GDK_KEY_Escape then
+-- not winAPI...
+--      hide_popup()
+        if gtk_widget_get_visible(hMenu) then
+            hide_one_menu(mdx,true)
+            return true
+        end if
+    end if
+
+    return false
+end function
+
+function menu_mousemove(atom widget, atom event, integer mdx)
+    integer {x,y} = get_struct_fields(idGdkEventMotion,event,{"x","y"}),
+            hit = hit_test(mdx,x,y),
+       hot_item = menus[mdx][MX_HOT],
+           prev = menus[mdx][MX_SEL],
+            kbd = menus[mdx][MX_KEYMODE]
+    if hit<0 then ?9/0 end if
+    if hit then
+        sequence item = menus[mdx][MX_ITEMS][hit]
+        integer submenu = item[MX_SUBMENU]
+        if submenu=0 then
+            hide_submenus(mdx,false)
+        elsif hit!=prev and not kbd then
+--      elsif hit!=prev then
+            if prev then
+                hide_submenus(mdx,false)
+            end if
+            if item[MX_ENABLED] then
+                open_child_menu(submenu,mdx,hit)
+--              tg_open_child_menu(menu,submenu,mdx,hit)
+            end if
+        end if
+    end if
+    -- cancel MX_KEYMODE (only) when **ON** a different item,
+    -- else (not ""), update on any change (inc on/off/in/out).
+    bool bRedraw = (hit or not kbd) and hit!=hot_item
+    if bRedraw then
+        menus[mdx][MX_KEYMODE] = false
+        menus[mdx][MX_HOT] = hit
+        menus[mdx][MX_SEL] = hit
+        gtk_widget_queue_draw(widget)
+--      gtk_widget_queue_draw(menus[mdx][MX_WIDGET])
+    end if
+    return true
+end function
+menu_mousemove_cb = call_back({'+',menu_mousemove})
+
+procedure menu_leftclick(integer mdx)
+    integer hot_item = menus[mdx][MX_HOT]
+    if hot_item>0 then
+        sequence item = menus[mdx][MX_ITEMS][hot_item]
+        if item[MX_ENABLED] and item[MX_SUBMENU]=0 then
+            menu_item_selected(mdx,item[MX_TEXT])
+            hide_up(mdx)
+        end if
+    end if
+end procedure
+
+function menu_click(atom widget, atom event, integer mdx)
+    integer button = get_struct_field(idGdkEventButton,event,"button")
+    if button=1 then -- left
+        menu_leftclick(mdx)
+    end if
+    return true
+end function
+menu_click_cb = call_back({'+',menu_click})
+
+function menu_leave(atom widget, atom event, integer mdx)
+    if not menus[mdx][MX_KEYMODE] then
+        menus[mdx][MX_HOT] = 0
+        gtk_widget_queue_draw(widget)
+    end if
+    return true
+end function
+menu_leave_cb = call_back({'+',menu_leave})
+
+--NO!!
+--local function popup_click(atom widget, atom event, atom mdx)
+--  hide_all()
+--  return false
+--end function
+--popup_click_cb = call_back({'+',popup_click})
+
+--NO, it needs to be per-menu/dlg, ditto main_menu_id...
+--SUG: local atom hOwner = NULL -- HWND or GtkWidget* of main window, owner of the menus
+--   hMain = NULL -- (WinAPI name)
+atom wMain = NULL -- (GtkWindget* of main window, owner of the menus)
+integer main_menu_id = 0
+
+local function main_draw(atom widget, cairo, /*user_data*/)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer width = get_struct_field(idGdkRectangle,pRECT,"width"),
+           height = get_struct_field(idGdkRectangle,pRECT,"height")
+
+    cairo_set_source_rgb(cairo, 1.0, 1.0, 0.875); -- (TG_PARCHMENT)
+--  cairo_set_source_rgb(cairo, 1.0, 1.0, #E0/#FF); 
+    cairo_rectangle(cairo, 0, 0, width, height);
+    cairo_fill(cairo);
+
+    // Set the color and line width
+    cairo_set_source_rgb(cairo, 0, 0, 0) // black
+    cairo_set_line_width(cairo, 0.5)
+
+    // Draw the first diagonal \
+    cairo_move_to(cairo, 0, 0)
+    cairo_line_to(cairo, width, height)
+    cairo_stroke(cairo)
+
+    // Draw the second diagonal /
+    cairo_move_to(cairo, width, 0)
+    cairo_line_to(cairo, 0, height)
+    cairo_stroke(cairo)
+
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+--  return true
+    return false
+end function
+constant main_draw_cb = call_back({'+',main_draw})
+
+local function main_expose(atom widget, /*event*/, user_data)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = gtk_widget_get_window(widget),
+       cairo = gdk_cairo_create(win)
+    integer res = main_draw(widget,cairo,user_data)
+    cairo_destroy(cairo)
+    return res
+end function
+constant main_expose_event_cb = call_back({'+',main_expose})
+
+function main_click(atom widget, atom event, atom data)
+    if menu_visible(main_menu_id,false) then
+        hide_submenus(main_menu_id,true)
+    end if
+    integer button = get_struct_field(idGdkEventButton,event,"button")
+    if button=3 then -- right-click
+--      menus[main_menu_id][MX_OWNER] = widget
+        integer {x,y} = get_struct_fields(idGdkEventButton,event,{"x_root","y_root"})
+        show_menu(main_menu_id,x,y,wMain)
+    end if
+    return false
+end function
+constant main_click_cb = call_back({'+',main_click})
+
+local function main_key(atom /*winmain*/, event, /*data*/) -- (GTK only)
+    integer key = get_struct_field(idGdkEventKey,event,"keyval"),
+            mdx = menu_visible(main_menu_id,true)
+    if mdx then
+        return process_menu_keydown(mdx,key)
+    elsif key=GDK_KEY_Escape then
+        gtk_main_quit()
+    end if
+    return false -- propagate
+--  return true?? -- don't ""
+end function
+constant main_key_cb = call_back({'+',main_key})
+
+-- funct main_configure(atom /*widget*/, /*event*/, /*data*/)
+function main_focus_out(atom /*widget*/, /*event*/, /*data*/)
+-- funct grab_broken   (atom /*widget*/, /*event*/, /*data*/)
+-- funct main_scroll   (atom /*widget*/, /*event*/, /*data*/)
+    if menu_visible(main_menu_id,false) then
+        hide_submenus(main_menu_id,true)
+    end if
+    return false
+end function
+constant main_focus_out_cb = call_back({'+',main_focus_out})
+constant main_configure_cb = main_focus_out_cb
+constant grab_broken_cb = main_focus_out_cb
+constant main_scroll_cb = main_focus_out_cb
+
+function main_state(atom /*widget*/, event, /*data*/)
+    integer changed = get_struct_field(idGdkEventWindowState,event,"changed_mask"),
+            state   = get_struct_field(idGdkEventWindowState,event,"new_window_state")
+
+    if and_bits(changed,GDK_WINDOW_STATE_ICONIFIED)
+    and and_bits(state,GDK_WINDOW_STATE_ICONIFIED)
+    and menu_visible(main_menu_id,false) then
+        hide_submenus(main_menu_id,true)
+    end if
+    return false
+end function
+constant main_state_cb = call_back({'+',main_state})
+
+function main_motion(atom /*widget*/, event, /*data*/)
+    integer state = get_struct_field(idGdkEventMotion,event,"state")
+    if and_bits(state, GDK_BUTTON1_MASK)
+    and menu_visible(main_menu_id,false) then
+        hide_submenus(main_menu_id,true)
+    end if
+    return false
+end function
+constant main_motion_cb = call_back({'+',main_motion})
+
+procedure get_monitor_info(atom wMain)
+    -- aside: theGUI uses gGetGlobal(`SCREENSIZE`) instead, 
+    --        maybe I should really back-port that to here.
+    atom screen = gtk_window_get_screen(wMain),
+         gdkWin = gtk_widget_get_window(wMain),
+         monitor = gdk_screen_get_monitor_at_window(screen, gdkWin)
+    gdk_screen_get_monitor_geometry(screen, monitor, pRECT)
+    mon_left   = get_struct_field(idGdkRectangle, pRECT, "x")
+    mon_top    = get_struct_field(idGdkRectangle, pRECT, "y")
+    mon_right  = mon_left+get_struct_field(idGdkRectangle, pRECT, "width")
+    mon_bottom = mon_top+get_struct_field(idGdkRectangle, pRECT, "height")
+--/* or: 
+GdkDisplay *display = gtk_widget_get_display(widget);
+-- (however these next two are GTK3-only, not GTK2)
+GdkMonitor *monitor = gdk_display_get_monitor_at_window(display, gdkWin);
+gdk_monitor_get_geometry(monitor, &rect);
+--*/
+end procedure
+
+constant FILE_MENU = {"New",
+                      "Open",
+                      "-",
+                     {"Recent Files",{}},
+                      "Close"},
+         EDIT_MENU = {"Cut",
+                      "Copy",
+                      "Paste"},
+         MAIN_MENU = {{"File",FILE_MENU},
+                      {"Edit",EDIT_MENU},
+                      "Help",
+                      "Exit"}
+
+procedure main()
+    gtk_init()
+
+--ctrl_handles[id]:
+    wMain = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(wMain,"GTK Menu System")
+    gtk_window_set_default_size(wMain,500,300)
+
+    main_menu_id = build_menu(MAIN_MENU)
+
+    gtk_widget_add_events(wMain,GDK_BUTTON_PRESS_MASK+
+                                GDK_SCROLL_MASK+
+                                GDK_POINTER_MOTION_MASK)
+    integer id = NULL
+    g_signal_connect_data(wMain,"button_press_event",main_click_cb,id)
+    g_signal_connect_data(wMain,"key_press_event",main_key_cb,id)
+    g_signal_connect_data(wMain,"configure-event",main_configure_cb,id)
+    g_signal_connect_data(wMain,"focus-out-event",main_focus_out_cb,id)
+    g_signal_connect_data(wMain,"grab-broken-event",grab_broken_cb,id)
+    g_signal_connect_data(wMain,"scroll-event", main_scroll_cb,id)
+    g_signal_connect_data(wMain,"window-state-event",main_state_cb,id)
+    g_signal_connect_data(wMain,"motion_notify_event",main_motion_cb,id)
+    g_signal_connect_data(wMain,"destroy",gtk_main_quit_cb,id)
+
+    // Create drawing area
+    atom drawing_area = gtk_drawing_area_new()
+    gtk_container_add(wMain, drawing_area)
+
+    // Connect draw signal
+    {string sig, atom cb} = iff(bGTK2?{"expose_event",main_expose_event_cb}:{"draw",main_draw_cb})
+    g_signal_connect_data(drawing_area,sig,cb,id)
+
+    gtk_widget_show_all(wMain)
+    get_monitor_info(wMain)
+    gtk_main()
+end procedure
+
+main()
+
+--/*
+--must keep:
+focus_out_event
+window-state-event
+gtk_window_set_transient_for(popup,wMain)
+gtk_window_set_type_hint(popup,GDK_WINDOW_TYPE_HINT_POPUP_MENU)
+Equivalent for the WinAPI notes, for gtk menus/popups avoid:
+gdk_pointer_grab(...)
+gdk_keyboard_grab(...)
+gtk_grab_add(popup)
+all corresponding ungrabs:
+gtk_grab_remove(popup)
+gdk_pointer_ungrab(...)
+gdk_keyboard_ungrab(...)
+gtk_widget_set_can_focus(popup,true)
+gtk_widget_grab_focus(popup)
+--*/

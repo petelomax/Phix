@@ -1,0 +1,470 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>inflate_raw() Demo - Raw DEFLATE (hex input)</title>
+  <script>
+let fbl;
+// Plain-ES5 raw DEFLATE decompressor (RFC 1951, no zlib/gzip wrapper).
+// Usage: var out = inflate_raw(Uint8Array);
+/* SUG:
+function inflate(input, expectedSize) {
+    // Pre-allocate the exact output buffer if known upfront
+    var out = expectedSize ? new Uint8Array(expectedSize) : new Uint8Array(1024);
+    var outIdx = 0;
+    
+    // Inside your main loop when writing a literal:
+    if (ldx < 0) { // literal
+        if (outIdx >= out.length) {
+            // Fallback resizing if size wasn't known or exceeded
+            out = resizeBuffer(out); 
+        }
+        out[outIdx++] = sym;
+    }
+    ...
+}
+*/
+function inflate_raw(/*Uint8Array*/ input) {
+    // ----- Output buffer (grows as needed) -----
+    var outSize = input.length * 4;
+    if (outSize < 32768) outSize = 32768;
+    var out = new Uint8Array(outSize);
+    var outIdx = 0;
+    function ensure(need) {
+        var required = outIdx + need;
+        if (required > out.length) {
+            var n = out.length;
+            do { n = (n * 3) >>> 1; } while (n < required);
+            var newOut = new Uint8Array(n);
+            newOut.set(out);
+            out = newOut;
+        }
+    }
+
+    // Aside: Since the introduction of Generational Garbage Collection (2012..15),
+    // and typed arrays such as Uint8Array, the use of this sort of subarray stuff
+    // is significantly less critical, and may even slow things down. Remove it if
+    // (/when) it starts geting in the way (again). Pre-allocating an expectedSize,
+    // which is known >99% of the time, is far more promising than this ever was,
+    // ie in terms of boosting performance, should it ever be needed. (see above)
+
+    // ----- Reused memory tables (avoid GC churn) -----
+    var tableMemory = new Uint16Array(65536 + 320 + 512 + 32);
+    var lTable = tableMemory.subarray(0, 32768);       // Literals / CodeLengths
+    var dTable = tableMemory.subarray(32768, 65536);   // Distances
+    var sortedSymsMem = tableMemory.subarray(65536, 65536 + 320); // 320
+    var treeMemory = new Int32Array(48);                // Small temp
+//  var lxTree, dxTree;                                 // Fixed trees cache
+    var lxTree;                                         // 512-entry literal/length tree
+    var dxTree;                                         // 32-entry distance tree
+
+    // ----- Bit reader (LSB-first) -----
+    var bitBuf = 0, bitLen = 0, inpIdx = 0;
+    function refill(need) {
+        // Ensure at least `need` bits are available in bitBuf
+        while (bitLen < need && inpIdx < input.length) {
+            bitBuf |= input[inpIdx++] << bitLen;
+            bitLen += 8;
+        }
+    }
+    function readBits(n) {
+        if (n === 0) return 0;
+        refill(n);
+        var res = bitBuf & ((1 << n) - 1);
+        bitBuf >>>= n;
+        bitLen -= n;
+        return res;
+    }
+
+    // ----- Constants (from RFC 1951) -----
+    var ord = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+    var lensOf0 = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+    var ex0 = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+    var distsOf1 = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+    var ex1 = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+
+    var countsMem = treeMemory.subarray(0,16);
+    var offsetsMem = treeMemory.subarray(16,32);
+    var ms = new Uint8Array(320);
+    var clens = ms.subarray(0,19);
+
+    // ----- Build a Huffman tree into `lut` from `lens` -----
+    function buildTree(lens, lut) {
+        var counts = countsMem;
+        var i, l, maxBits = 0;
+        for (i = 0; i <= 15; i++) counts[i] = 0;
+        for (i = 0; i < lens.length; i++) {
+            l = lens[i];
+            if (l > 0) {
+                counts[l]++;
+                if (l > maxBits) maxBits = l;
+            }
+        }
+        var limit = 1 << maxBits;
+        var resLut = lut.subarray(0, limit);
+        var offsets = offsetsMem;
+        var off = 0;
+        for (i = 1; i <= maxBits; i++) {
+            offsets[i] = off;
+            off += counts[i];
+        }
+        var sorted = sortedSymsMem;
+        for (i = 0; i < lens.length; i++) {
+            l = lens[i];
+            if (l > 0) sorted[offsets[l]++] = i;
+        }
+        var rev = 0, sortedIdx = 0;
+        // FIXED: Added local 'var' to prevent leak into outer scopes
+        for (var treeLen = 1; treeLen <= maxBits; treeLen++) {
+            var step = 1 << treeLen;
+            var count = counts[treeLen];
+            for (i = 0; i < count; i++) {
+                var sym = sorted[sortedIdx++];
+                var entry = (treeLen << 9) | sym;
+                for (var j = rev; j < limit; j += step) resLut[j] = entry;
+                // Increment `rev` in bit-reversed order
+                var bit = 1 << (treeLen - 1);
+                while (rev & bit) {
+                    rev ^= bit;
+                    bit >>= 1;
+                }
+                rev ^= bit;
+            }
+        }
+        return resLut;
+    }
+
+    // ----- Decode a symbol using lut (returns 0-511) -----
+    function decodeSymbol(lut) {
+        // lut.length is a power of two → mask = lut.length-1
+        var mask = lut.length - 1;
+        refill(16); // ensure we have enough bits to index (maxBits ≤15)
+        var entry = lut[bitBuf & mask];
+        var len = entry >>> 9;
+        if (len == 0 || len > bitLen) {
+            throw "invalid huffman code / malformed stream";
+        }
+        bitBuf >>>= len;
+        bitLen -= len;
+        return entry & 0x1FF;
+    }
+
+    var fixedTreeOk = false;
+    var isFinal = 0;
+
+    // ----- Main decompression loop -----
+    while (!isFinal) {
+//  while ((!isFinal)&&(outIdx<1000)) {}
+        // Read block header (3 bits: BFINAL, BTYPE)
+        var bits = readBits(3);
+        isFinal = bits & 1;
+        var type = bits >> 1;
+
+        if (type === 0) { // ---- Uncompressed (stored) block ----
+            // ----- Byte-align the bit stream -----
+            inpIdx -= bitLen >> 3;  // rewind if rqd
+            bitBuf = bitLen = 0;    // discard any leftover bits
+            if (inpIdx + 4 > input.length) throw "truncated LEN";
+            var len = input[inpIdx++] | (input[inpIdx++] << 8),
+               nlen = input[inpIdx++] | (input[inpIdx++] << 8);
+            if (len !== (~nlen & 0xFFFF)) throw "bad NLEN";
+            if (inpIdx + len > input.length) throw "truncated data";
+            ensure(len); // ----- Copy the raw data -----
+            out.set(input.subarray(inpIdx, inpIdx + len), outIdx);
+            outIdx += len;
+            inpIdx += len; // advance past the data we just copied
+
+        } else { // ---- Compressed block (fixed or dynamic Huffman) ----
+            var lTree, dTree;
+            if (type === 1) { // Fixed Huffman
+                if (!fixedTreeOk) {
+                    fixedTreeOk = true;
+                    var offset = 65536 + 320;
+                    // Literal/length lengths
+                    var ls = ms.subarray(0,288);
+                    ls.fill(8,0,144);
+                    ls.fill(9,144,256);
+                    ls.fill(7,256,280);
+                    ls.fill(8,280,288);
+                    lxTree = tableMemory.subarray(offset, (offset += 512));
+                    buildTree(ls, lxTree);
+                    // Distance lengths
+                    var ds = ms.subarray(0,32).fill(5);
+//                  dxTree = tableMemory.subarray(offset+512, offset+512+32);
+// FIX: Remove the redundant "+ 512" additions. offset has already advanced!
+                    dxTree = tableMemory.subarray(offset, (offset += 32)); 
+                    buildTree(ds, dxTree);
+                }
+                lTree = lxTree;
+                dTree = dxTree;
+            } else if (type === 2) { // Dynamic Huffman
+                // Read HLIT, HDIST, HCLEN
+                var hlit = readBits(5) + 257;
+                var hdist = readBits(5) + 1;
+                var hclen = readBits(4) + 4;
+                // Code length code lengths (19 values, permuted by `ord`)
+                clens.fill(0);
+                for (i = 0; i < hclen; i++) {
+                    clens[ord[i]] = readBits(3);
+                }
+                // Build code length tree into lTable (temporary)
+                var clTree = buildTree(clens, lTable);
+                // Decode literal/length and distance code lengths
+                var allLens = ms.subarray(0, hlit + hdist).fill(0);
+
+                var idx = 0;
+                while (idx < hlit + hdist) {
+                    var sym = decodeSymbol(clTree);
+                    if (sym < 16) {
+                        allLens[idx++] = sym;
+                    } else {
+                        var rep = 0, val = 0;
+                        if (sym === 16) {
+                            rep = 3 + readBits(2);
+                            val = allLens[idx-1];
+                        } else if (sym === 17) {
+                            rep = 3 + readBits(3);
+                        } else if (sym === 18) {
+                            rep = 11 + readBits(7);
+                        }
+                        while (rep--) allLens[idx++] = val;
+                    }
+                }
+                // Build final trees
+                lTree = buildTree(allLens.subarray(0, hlit), lTable);
+                dTree = buildTree(allLens.subarray(hlit, hlit+hdist), dTable);
+            } else {
+                throw "unknown BTYPE";
+            }
+
+            // ----- Decode Huffman codes -----
+            // ----- Symbol Stream Processing Loop -----
+            while (true) {
+//          while (outIdx<1000) {}
+                if ((bitLen <= 0) && (inpIdx >= input.length)) throw "missing EOB";
+                var sym = decodeSymbol(lTree);
+                if (sym < 256) { // Literal
+                    ensure(1);
+                    out[outIdx++] = sym;
+                } else if (sym === 256) { // End of block marker
+                    break;
+                } else { // Length/distance pair
+                    // LZ77 Backreference Copy
+                    var lenIdx = sym - 257;
+                    var lenExtra = readBits(ex0[lenIdx]);
+                    var matchLen = lensOf0[lenIdx] + lenExtra;
+                    var distSym = decodeSymbol(dTree);
+                    var distExtra = readBits(ex1[distSym]);
+                    var matchDist = distsOf1[distSym] + distExtra;
+                    ensure(matchLen);
+                    // CRITICAL: Manual byte loop handles overlapping lookbacks correctly
+                    var copySrc = outIdx - matchDist;
+                    for (var j = 0; j < matchLen; j++) {
+                        out[outIdx++] = out[copySrc++];
+                    }
+                }
+            }
+        }
+    }
+fbl = bitLen;
+    if (inpIdx != input.length) throw "incomplete decode";
+    return new TextDecoder().decode(out.subarray(0, outIdx));
+}
+  </script>
+  <style>
+    body { font-family: system-ui, sans-serif;  margin: 20px; background: #f9fafb; color: #111; }
+    h1 { color: #1e40af; margin-bottom: 0; }
+    textarea { width: 100%; min-height: 120px; border-radius: 6px; resize: vertical; }
+      </style>
+</head>
+<body>
+
+<div>
+  <h1>inflate-raw.js Demo</h1>
+  <p>
+    Very lightweight raw DEFLATE decompressor (RFC 1951 -> no zlib/gzip headers).<br>
+    Compress Requires modern browser with <strong>CompressionStream('deflate-raw')</strong> support<br>
+<!--    (Chrome/Edge >=80, Firefox >=113, Safari >=16.4 - <b>nb</b> <i>not</i> using inflate-raw.js !! )
+    <strong>API note:</strong> <code>inflate_raw(base64String)</code> -> returns decoded <code>string</code>
+    <strong>note:</strong> you&apos;re not gonna get stored out of this easily, just use eg x"010300FCFF616263" -> abc.<br>
+    <small>(This will instead generate the shorter 4B4C4A0600, 5 bytes, fixed. Use 010300FCFF313233 -> 123 if you prefer)</small><br>
+    Here&apos;s a smallish dynamic: 😀🌟🚀🔮🧬🦄👾🎃🤖🌮🍣🍕
+<small>aka x"F09F9880F09F8C9FF09F9A80F09F94AEF09FA7ACF09FA684F09F91BEF09F8E83F09FA496F09F8CAEF09F8DA3F09F8D95"</small>
+-->
+
+  </p>
+
+  <h2>Interactive Round-trip Test</h2>
+  <p>
+    Enter text -> browser compresses it (raw deflate) -> convert to hex -> decompress with <code>inflate_raw</code>()
+  </p>
+  <textarea id="input-text">abc</textarea>
+
+  <div>
+    <button onclick="runInteractiveTest()">Compress <i>and</i> Decompress</button>
+    <button onclick="clearAll()">Clear</button>
+  </div>
+
+  <div class="stats">
+    Original size: <span id="orig-size">3</span> bytes |
+    Compressed size: <span id="comp-size">5</span> bytes |
+    Final: <span id="final-yn">-</span> |
+    Type: <span id="block-type">-</span>
+  </div>
+
+  <strong>Compressed data (hex):</strong>
+  <textarea id="hex-raw">4B4C4A0600</textarea>
+  <button onclick="runStaticTest()">Decompress (only)</button>
+  <button onclick="runStaticTest('useds')">Decompress (DecompressionStream)</button>
+  <br>
+  <br>
+
+  <strong>Decompressed result:</strong>
+  <div id="final-output" class="output" style="color:#1e40af; min-height:80px; overflow-wrap:anywhere;">-</div>
+</div>
+
+<script>
+const origSizeEl = document.getElementById('orig-size');
+const compSizeEl = document.getElementById('comp-size');
+const finalyn    = document.getElementById('final-yn');
+const blktype    = document.getElementById('block-type');
+const hexEl      = document.getElementById('hex-raw');
+const finalEl    = document.getElementById('final-output');
+
+async function runStaticTest(useds) {
+  const hexData = hexEl.value.trim();
+  if (!hexData) {
+    finalEl.innerHTML = '<span class="status-err">Please enter hex data first.</span>';
+    return;
+  }
+
+  try {
+    // Convert hex to bytes, then inflate_raw
+    const bytes = new Uint8Array(hexData.length / 2);
+    for (let i = 0; i < hexData.length; i += 2) {
+      bytes[i / 2] = parseInt(hexData.substr(i, 2), 16);
+    }
+    // Extract FIRST 3 bits for metadata
+    const firstByte = bytes[0];
+    const bfinal = firstByte & 1;
+    const btype = (firstByte >> 1) & 3;
+    
+    let typeStr;
+    switch(btype) {
+      case 0: typeStr = 'non'; break;
+      case 1: typeStr = 'fixed'; break;
+      case 2: typeStr = 'dynamic'; break;
+      case 3: typeStr = 'ERROR'; break;
+    }
+    finalyn.textContent = bfinal ? 'Y' : 'N';
+
+    let decompressed;
+    if (useds === 'useds') {
+        const ds = new DecompressionStream('deflate-raw');
+        const decompWriter = ds.writable.getWriter();
+        decompWriter.write(bytes);
+        decompWriter.close();
+        decompressed = await new Response(ds.readable).text();
+//// 6. Verify they match perfectly
+//const isMatch = (recreatedText === text);
+//console.log(`Match success: ${isMatch}`); 
+        blktype.textContent = typeStr;
+
+    } else {
+        decompressed = inflate_raw(bytes);
+        blktype.textContent = typeStr + " (fb:" + fbl +")";
+    }
+    compSizeEl.textContent = bytes.length;
+    origSizeEl.textContent = decompressed.length;
+
+    finalEl.innerHTML = `<span class="status-ok">Success!</span><br>${decompressed.replace(/&/g,'&amp;').replace(/</g,'&lt;')}`;
+  } catch (err) {
+    finalEl.innerHTML = `<span class="status-err">Error:</span> ${err}`;
+  }
+}
+
+async function runInteractiveTest() {
+
+  let text = document.getElementById('input-text').value.trim();
+  if (!text) {
+    finalEl.innerHTML = '<span class="status-err">Please enter some text first.</span>';
+    hexEl.textContent = '-';
+    return;
+  }
+  finalEl.textContent = 'Compressing...';
+  hexEl.textContent = 'Compressing...';
+
+  try {
+    // 1. Compress with native raw deflate
+    const cs = new CompressionStream('deflate-raw');
+    const writer = cs.writable.getWriter();
+    writer.write(new TextEncoder().encode(text));
+    writer.close();
+
+    const chunks = [];
+    for await (const chunk of cs.readable) chunks.push(chunk);
+
+    const totalLen = chunks.reduce((sum, c) => sum + c.length, 0);
+    const compressed = new Uint8Array(totalLen);
+    let offset = 0;
+    for (const chunk of chunks) {
+      compressed.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    origSizeEl.textContent = new TextEncoder().encode(text).length;
+    compSizeEl.textContent = totalLen;
+
+    // 2. Convert to hex and display with metadata
+    let hex = '';
+    for (let i = 0; i < compressed.length; i++) {
+      hex += compressed[i].toString(16).padStart(2, '0');
+    }
+    
+    // Extract FIRST 3 bits for metadata
+    const firstByte = compressed[0];
+    const bfinal = firstByte & 1;
+    const btype = (firstByte >> 1) & 3;
+    
+    let typeStr;
+    switch(btype) {
+      case 0: typeStr = 'non'; break;
+      case 1: typeStr = 'fixed'; break;
+      case 2: typeStr = 'dynamic'; break;
+      case 3: typeStr = 'ERROR'; break;
+    }
+    finalyn.textContent = bfinal ? 'Y' : 'N';
+//  blktype.textContent = typeStr;
+
+    hexEl.value = hex;
+
+    // 3. Decompress
+    //[Aside: using DecompressionStream("deflate-raw") here would prove nowt]
+    const result = inflate_raw(compressed);
+    blktype.textContent = typeStr + " (fb:" + fbl +")";
+
+    finalEl.textContent = result;
+
+    if (result !== text) {
+      finalEl.innerHTML += '<br><br><span class="status-err">Warning: round-trip mismatch!</span>';
+    }
+
+  } catch (err) {
+    finalEl.innerHTML = `<span class="status-err">Error:</span> ${err.message}<br><small>(Browser may not support CompressionStream('deflate-raw'))</small>`;
+    hexEl.textContent = '-';
+  }
+}
+
+function clearAll() {
+  document.getElementById('hex-raw').textContent = '-';
+  document.getElementById('final-output').textContent = '-';
+  document.getElementById('orig-size').textContent = '-';
+  document.getElementById('comp-size').textContent = '-';
+  document.getElementById('final-yn').textContent = '-';
+  document.getElementById('block-type').textContent = '-';
+}
+</script>
+</body>
+</html>
+

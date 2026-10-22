@@ -1,0 +1,233 @@
+--
+-- demo\theGUI\gtk_tip.exw
+-- =======================
+--
+--  As gtk_splitter1.exw but with tooltips
+--
+--requires(64,true)
+--Next up, I'd like to do the same for GTK, and here's the starting point for that:
+    
+include theGUI.GTK.e
+
+bool clip = false -- type 'C' to toggle
+
+enum CX_SPLIT_HWIDTH,
+     CX_SPLIT_RATIO, -- (left) 0.0..1.0 
+     CX_SPLIT_DRAGG, -- t/f
+     CX_SPLIT_LEN = $
+
+sequence ctrl_xtra
+
+local function draw(atom widget, cairo, integer id)
+    -- GTK3 version, which gets the cairo context it should draw on.
+    --  (also invoked from GTK2 version, with the cairo it created)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer w = get_struct_field(idGdkRectangle,pRECT,"width"),
+            h = get_struct_field(idGdkRectangle,pRECT,"height"),
+           hw = ctrl_xtra[id][CX_SPLIT_HWIDTH]
+    atom l = floor((w - hw) * ctrl_xtra[id][CX_SPLIT_RATIO]),
+         m = floor(l+hw/2),
+         r = l+hw
+
+    if clip then
+        cairo_rectangle(cairo,w/8,h/8,w*0.75,h*0.75)
+        cairo_clip(cairo)
+    end if
+
+    // Left pane
+    cairo_set_source_rgb(cairo, 0.9, 0.9, 1.0);
+    cairo_rectangle(cairo, 0, 0, l, h);
+    cairo_fill(cairo);
+
+    // Right pane
+    cairo_set_source_rgb(cairo, 1.0, 0.9, 0.9);
+    cairo_rectangle(cairo, r, 0, w-r, h);
+    cairo_fill(cairo);
+
+    // Left X
+    cairo_set_source_rgb(cairo, 0, 0, 0)
+    cairo_set_line_width(cairo,0.5)
+    cairo_move_to(cairo, 0, 0)
+    cairo_line_to(cairo, l, h)
+    cairo_move_to(cairo, l, 0)
+    cairo_line_to(cairo, 0, h)
+    // Right X
+    cairo_move_to(cairo, r, 0)
+    cairo_line_to(cairo, w, h)
+    cairo_move_to(cairo, w, 0)
+    cairo_line_to(cairo, r, h)
+    cairo_stroke(cairo)
+
+    // Splitter bar
+    cairo_set_source_rgb(cairo, 0.85, 0.85, 0.85);
+    cairo_rectangle(cairo, l, 0, hw, h);
+    cairo_fill(cairo);
+    cairo_set_source_rgb(cairo, 0.2, 0.2, 0.2)
+    cairo_set_dash(cairo,{2,2})
+    cairo_move_to(cairo, m, 0)
+    cairo_line_to(cairo, m, h)
+    cairo_stroke(cairo)
+
+    -- TRUE to stop other handlers from being invoked for the event. FALSE to propagate the event further.
+    return true
+end function
+constant draw_cb = call_back({'+',draw})
+
+local function expose_event(atom widget, /*event*/, integer id)
+    -- GTK2 version, which needs to create a cairo context to draw on.
+    --  (then invokes GTK3 version, passing said cairo just created)
+    atom win = gtk_widget_get_window(widget),
+       cairo = gdk_cairo_create(win)
+    integer res = draw(widget,cairo,id)
+    cairo_destroy(cairo)
+    return res
+end function
+constant expose_cb = call_back({'+',expose_event})
+
+--integer was_panel = 0
+
+local function motion(atom widget, event, integer id)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer w = get_struct_field(idGdkRectangle,pRECT,"width"),
+            x = get_struct_field(idGdkEventButton,event,"x")
+    if ctrl_xtra[id][CX_SPLIT_DRAGG] then
+        ctrl_xtra[id][CX_SPLIT_RATIO] = max(0,min(1,x/w))
+        gtk_widget_queue_draw(widget)
+    else
+        integer hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+                 l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+                 r = l+hw
+        atom gdk_window = gtk_widget_get_window(widget)
+        if x>=l and x<=r then
+            atom display = gdk_window_get_display(gdk_window),
+              col_resize = gdk_cursor_new_from_name(display, "col-resize")
+            gdk_window_set_cursor(gdk_window,col_resize)
+        else
+            gdk_window_set_cursor(gdk_window,NULL)
+        end if
+--      integer panel = iff(x<l?1:iff(x<=r?2:3))
+--      if panel!=was_panel then
+--          gtk_widget_set_has_tooltip(widget, panel==1) -- left only
+--          gtk_widget_set_has_tooltip(widget, panel==3) -- right only
+--          was_panel = panel
+--      end if
+    end if
+-- does not seem to change anything.. (not that I saw any reason to add it in the first place):
+--One small improvement: right now the tooltip won't necessarily refresh immediately when crossing the splitter because GTK caches tooltip queries somewhat aggressively.
+--So inside motion(), after determining side changes, you may want:
+--  gtk_tooltip_trigger_tooltip_query(gtk_widget_get_display(widget))
+--but only when the side changes, otherwise it becomes noisy.
+    return TRUE;
+end function
+constant motion_cb = call_back({'+',motion})
+
+function button_press(atom widget, event, integer id)
+    gtk_widget_get_allocation(widget, pRECT)
+    integer x = get_struct_field(idGdkEventButton,event,"x"),
+            w = get_struct_field(idGdkRectangle,pRECT,"width"),
+           hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+            l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+            r = l+hw
+    if get_struct_field(idGdkEventButton,event,"button")==1
+    and x>=l and x<=r then
+        ctrl_xtra[id][CX_SPLIT_DRAGG] = true
+        gtk_widget_grab_focus(widget)
+        gtk_grab_add(widget)
+    end if
+    return TRUE;
+end function
+constant button_press_cb = call_back({'+',button_press})
+
+function button_release(atom widget, event, integer id)
+    if get_struct_field(idGdkEventButton,event,"button")==1 
+    and ctrl_xtra[id][CX_SPLIT_DRAGG] then
+        ctrl_xtra[id][CX_SPLIT_DRAGG] = false
+        gtk_grab_remove(widget)
+    end if
+    return true
+end function
+constant button_release_cb = call_back({'+',button_release})
+
+local function key(atom winmain, event, /*data*/) -- (GTK only)
+    integer keyval = get_struct_field(idGdkEventKey,event,"keyval")
+    if keyval=GTK_ESC then
+        c_proc(x_gtk_main_quit)
+    elsif upper(keyval)='C' then
+        clip = not clip
+        gtk_widget_queue_draw(winmain)
+    end if
+    return true
+end function
+global constant key_cb = call_back({'+',key})
+
+function query_tooltip(atom widget, integer x, y, keyboard_mode, tooltip, integer id)
+
+    gtk_widget_get_allocation(widget, pRECT)
+
+    integer w = get_struct_field(idGdkRectangle,pRECT,"width"),
+           hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+            l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+            r = l+hw
+--?{l,x,r}
+
+    if x<l then
+
+        gtk_tooltip_set_text(tooltip, "This is the left panel")
+        return TRUE
+
+    elsif x>r then
+
+        gtk_tooltip_set_text(tooltip, "This is the right panel")
+--      gtk_tooltip_set_text(tooltip, NULL) -- (no help) - ah, return false!
+        return TRUE
+
+    end if
+
+    return FALSE
+end function
+constant query_tooltip_cb = call_back({'+',query_tooltip})
+
+procedure main()
+    gtk_init()
+
+    integer splitter = 1 -- (gdx)
+    object spx = repeat(0,CX_SPLIT_LEN)
+    spx[CX_SPLIT_RATIO] = 0.5
+    spx[CX_SPLIT_HWIDTH] = 5
+    ctrl_xtra = {spx}
+    spx = 0
+
+    atom window = gtk_window_new(GTK_WINDOW_TOPLEVEL)
+    gtk_window_set_title(window, "Resizable Single Canvas Split")
+--  gtk_window_set_default_size(window, 600, 400)
+    gtk_window_set_default_size(window, 238, 48) -- for 240x80...
+
+    integer id = splitter
+    g_signal_connect_data(window,"destroy",gtk_main_quit_cb,id)
+    g_signal_connect_data(window,"key_press_event",key_cb,id)
+
+    atom area = gtk_drawing_area_new()
+    {string signal, atom cb} = iff(bGTK2?{"expose_event",expose_cb}:{"draw",draw_cb})
+    g_signal_connect_data(area,signal,cb,id)
+
+    atom mask = or_all({GDK_BUTTON_PRESS_MASK,
+                        GDK_BUTTON_RELEASE_MASK,
+                        GDK_POINTER_MOTION_MASK})
+    gtk_widget_add_events(area,mask)
+    gtk_widget_set_has_tooltip(area, TRUE)
+
+    g_signal_connect_data(area,"motion-notify-event",motion_cb,id)
+    g_signal_connect_data(area,"button-press-event",button_press_cb,id)
+    g_signal_connect_data(area,"button-release-event",button_release_cb,id)
+    g_signal_connect_data(area,"query-tooltip",query_tooltip_cb,id)
+
+    gtk_container_add(window, area)
+    gtk_widget_show_all(window)
+    gtk_main()
+end procedure
+main()
+
+--/*
+    gtk_tooltip_set_tip_area(...)
+--*/
+

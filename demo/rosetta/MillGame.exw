@@ -18,8 +18,8 @@ with javascript_semantics
 constant title = "Nine Men's Morris"
 requires("1.0.6")
 puts(1,"")
---include theGUI.e
-include ..\theGUI\hGUI.e -- fine... but wrong size on GTK...
+include theGUI.e
+--include ..\theGUI\hGUI.e -- fine... but wrong size on GTK...
 --gUseGTK() -- DEV wrong bgclr, until it isn't (mouseleave??) [still wrong with gDrawRect, btw)]
           -- ah, it's not tg_fill_image() but create.... [FIXED]
 
@@ -73,7 +73,7 @@ atom COMPUTER_OPPONENT = 0      -- play versus computer?
 atom COMPUTER_WHITE = 0         -- computer plays white?
 --atom CHOOSING_CAPTURE = 0     -- we're awaiting selection of opponent piece
 atom CAPTURE = 0                -- we're awaiting selection of opponent piece
-atom status = 0                -- StaticText control for status
+--atom status = 0              -- StaticText control for status
 
 function is_mill(integer pos, player)
     -- true if pos is part of a mill for player (after move)
@@ -230,6 +230,25 @@ function computersturn()
     return 0
 end function
 
+function ispartofpair(integer pos, player)
+    -- at least one mill line containing pos has another player piece and one empty
+    for i=1 to length(MILLS) do
+        sequence m = MILLS[i]
+        if find(pos, m) then
+            integer countp=0, counte=0
+            for k=1 to 3 do
+                if m[k] != pos then
+                    if BOARD[m[k]] = player then countp += 1
+                    elsif BOARD[m[k]] = EMPTY then counte += 1
+                    end if
+                end if
+            end for
+            if countp = 1 and counte = 1 then return 1 end if
+        end if
+    end for
+    return 0
+end function
+
 function computerchoosecapture(integer enemy)
     if allinmills(enemy) then
         sequence candidates = {}
@@ -261,22 +280,16 @@ function computerchoosecapture(integer enemy)
     return 1
 end function
 
-function ispartofpair(integer pos, player)
-    -- at least one mill line containing pos has another player piece and one empty
-    for i=1 to length(MILLS) do
-        sequence m = MILLS[i]
-        if find(pos, m) then
-            integer countp=0, counte=0
-            for k=1 to 3 do
-                if m[k] != pos then
-                    if BOARD[m[k]] = player then countp += 1
-                    elsif BOARD[m[k]] = EMPTY then counte += 1
-                    end if
-                end if
-            end for
-            if countp = 1 and counte = 1 then return 1 end if
-        end if
-    end for
+function checkisgameover()
+    if GAME_OVER then return 1 end if
+    if WINNER != 0 then return 1 end if
+--  if SELECTED != -1 or CHOOSING_CAPTURE or inplacementphase(TURN) then return 0 end if
+    if SELECTED != -1 or CAPTURE or inplacementphase(TURN) then return 0 end if
+    if countpieces(WHITE) < 3 or countpieces(BLACK) < 3 or not canmove(TURN) then
+        WINNER = 3 - TURN
+        GAME_OVER = 1
+        return 1
+    end if
     return 0
 end function
 
@@ -322,19 +335,6 @@ function computermove(integer player)
     end if
     TURN = 3 - player
     return 1
-end function
-
-function checkisgameover()
-    if GAME_OVER then return 1 end if
-    if WINNER != 0 then return 1 end if
---  if SELECTED != -1 or CHOOSING_CAPTURE or inplacementphase(TURN) then return 0 end if
-    if SELECTED != -1 or CAPTURE or inplacementphase(TURN) then return 0 end if
-    if countpieces(WHITE) < 3 or countpieces(BLACK) < 3 or not canmove(TURN) then
-        WINNER = 3 - TURN
-        GAME_OVER = 1
-        return 1
-    end if
-    return 0
 end function
 
 function pcolor(integer player)
