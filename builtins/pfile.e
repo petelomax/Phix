@@ -9,10 +9,10 @@ include file_utils.e
 
 --#withtype bool
 
---atom finit = 0, W, xGetFileAttributes, xMoveFile, xDeleteFile, xCopyFile, 
+--atom xGetFileAttributes,
 atom finit = 0, W, xMoveFile, xDeleteFile, xCopyFile, 
      xCreateDirectory, xRemoveDirectory, xGetLogicalDriveStrings, xGetDriveType, 
-     xCreateFileA, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
+     xCreateFileW, xSetFilePointer, xSetEndOfFile, xSetFileTime, xGetSystemTime,
      xSystemTimeToFileTime, xCloseHandle, xGetLastError,
      last_file_error -- (debug aid)
 --,x40
@@ -31,21 +31,29 @@ procedure initf()
 --  xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesA", {C_PTR}, C_INT)
 ----    xGetFileAttributes      = iff(W?define_c_func(lib, "GetFileAttributesExA", {C_PTR,C_INT,C_PTR}, C_INT)
 --                                 :define_c_func(lib, "access", {C_PTR, C_INT}, C_INT))
-    xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_PTR, C_PTR, C_INT}, C_BOOL)
+--  xMoveFile               = iff(W?define_c_func(lib, "MoveFileExA", {C_PTR, C_PTR, C_INT}, C_BOOL)
+    xMoveFile               = iff(W?define_c_func(lib, "MoveFileExW", {C_PTR, C_PTR, C_INT}, C_BOOL)
                                    :define_c_func(lib, "rename", {C_PTR, C_PTR}, C_INT))
-    xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_PTR}, C_BOOL)
+--  xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileA", {C_PTR}, C_BOOL)
+    xDeleteFile             = iff(W?define_c_func(lib, "DeleteFileW", {C_PTR}, C_BOOL)
                                    :define_c_func(lib, "unlink", {C_PTR}, C_INT))
-    xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_PTR, C_PTR, C_BOOL}, C_BOOL)
+--  xCopyFile               = iff(W?define_c_func(lib, "CopyFileA", {C_PTR, C_PTR, C_BOOL}, C_BOOL)
+    xCopyFile               = iff(W?define_c_func(lib, "CopyFileW", {C_PTR, C_PTR, C_BOOL}, C_BOOL)
                                    :-1)             -- (done manually)
-    xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_PTR, C_PTR}, C_BOOL)
+--  xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryA", {C_PTR, C_PTR}, C_BOOL)
+    xCreateDirectory        = iff(W?define_c_func(lib, "CreateDirectoryW", {C_PTR, C_PTR}, C_BOOL)
                                    :define_c_func(lib, "mkdir", {C_PTR, C_INT}, C_INT))
-    xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_PTR}, C_BOOL)
+--  xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryA", {C_PTR}, C_BOOL)
+    xRemoveDirectory        = iff(W?define_c_func(lib, "RemoveDirectoryW", {C_PTR}, C_BOOL)
                                    :define_c_func(lib, "rmdir", {C_PTR}, C_INT))
+--DEV saved for a rainy day...
     xGetLogicalDriveStrings = iff(W?define_c_func(lib, "GetLogicalDriveStringsA", {C_UINT,C_PTR}, C_UINT)
+--  xGetLogicalDriveStrings = iff(W?define_c_func(lib, "GetLogicalDriveStringsW", {C_UINT,C_PTR}, C_UINT)
                                    :-1)             -- (just yield "\")
     xGetDriveType           = iff(W?define_c_func(lib, "GetDriveTypeA", {C_PTR}, C_UINT)
                                    :-1)             -- (just yield "\",DRIVE_FIXED)
-    xCreateFileA            = iff(W?define_c_func(lib, "CreateFileA", {C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR}, C_PTR)
+--  xCreateFileA            = iff(W?define_c_func(lib, "CreateFileA", {C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR}, C_PTR)
+    xCreateFileW            = iff(W?define_c_func(lib, "CreateFileW", {C_PTR,C_INT,C_INT,C_PTR,C_INT,C_INT,C_PTR}, C_PTR)
                                    :-1)             -- (all done by truncate, next)
     xSetFilePointer         = iff(W?define_c_func(lib, "SetFilePointer", {C_PTR, C_LONG, C_PTR, C_INT}, C_BOOL)
                                    :-1)             -- (all done by truncate, next)
@@ -166,7 +174,11 @@ global function set_file_size(string filename, atom size)
              INVALID_HANDLE_VALUE = #FFFFFFFF
         integer OPEN_EXISTING = 3,
                 FILE_BEGIN = 0
-        atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL})
+--DEV use createFileW:
+--      atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL})
+        atom pFilename = allocate_wstring(utf8_to_utf16(filename)),
+             fh = c_func(xCreateFileW,{pFilename, GENERIC_WRITE, 0, NULL, OPEN_EXISTING, 0, NULL})
+        free(pFilename)
         if (fh == INVALID_HANDLE_VALUE) then return "cannot open" end if
         if c_func(xSetFilePointer,{fh, size, NULL, FILE_BEGIN})=0
         or c_func(xSetEndOfFile,{fh})=0 then res = "cannot set size" end if
@@ -209,7 +221,10 @@ global function set_file_date(string filename, integer date_type=D_MODIFICATION)
                 sizeofFILETIME = 8,
                 sizeofSYSTEMTIME = 16
 
-        atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+--      atom fh = c_func(xCreateFileA,{filename, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+        atom pFilename = allocate_wstring(utf8_to_utf16(filename)),
+             fh = c_func(xCreateFileW,{pFilename, GENERIC_WRITE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL})
+        free(pFilename)
         if (fh == INVALID_HANDLE_VALUE) then
             res = "cannot open"
         else
@@ -268,6 +283,7 @@ global function get_logical_drives(integer drive_type=-1)
     if platform()=WINDOWS then
         if not finit then initf() end if
         res = {}
+--DEV? use GetLogicalDriveStringsW?
         integer buflen = c_func(xGetLogicalDriveStrings,{0,NULL})
         atom buffer = allocate(buflen), pbuf = buffer
         {} = c_func(xGetLogicalDriveStrings,{buflen,buffer})
@@ -315,7 +331,11 @@ global function rename_file(string src, string dest, bool overwrite=false)
         if get_file_type(src)!=FILETYPE_DIRECTORY then
             flags = or_bits(flags,MOVEFILE_REPLACE_EXISTING)
         end if
-        ret = c_func(xMoveFile, {src, dest, flags})
+--      ret = c_func(xMoveFile, {src, dest, flags})
+        atom pSrc = allocate_wstring(utf8_to_utf16(src)),
+             pDst = allocate_wstring(utf8_to_utf16(dest))
+        ret = c_func(xMoveFile, {pSrc, pDst, flags})
+        free({pSrc,pDst})
 
     elsif platform()=LINUX then
 
@@ -348,9 +368,13 @@ local function copy_one_file(string src, dest, bool overwrite=false)
     end if
 
     if platform()=WINDOWS then
-        success = c_func(xCopyFile, {src, dest, not overwrite})
+--      success = c_func(xCopyFile, {src, dest, not overwrite})
+        atom pSrc = allocate_wstring(utf8_to_utf16(src)),
+             pDst = allocate_wstring(utf8_to_utf16(dest))
+        success = c_func(xCopyFile, {pSrc, pDst, not overwrite})
 --      if success=0 then ?{"copy_one_file",c_func(xGetLastError,{})} end if
         if success=0 then last_file_error = c_func(xGetLastError,{}) end if
+        free({pSrc,pDst})
     else
         success = 0
         if file_exists(src) then
@@ -389,7 +413,11 @@ global function move_file(string src, dest, bool overwrite=false)
         if get_file_type(src)!=FILETYPE_DIRECTORY then
             flags = or_bits(flags,MOVEFILE_REPLACE_EXISTING)
         end if
-        ret = c_func(xMoveFile, {src, dest, flags})
+--      ret = c_func(xMoveFile, {src, dest, flags})
+        atom pSrc = allocate_wstring(utf8_to_utf16(src)),
+             pDst = allocate_wstring(utf8_to_utf16(dest))
+        ret = c_func(xMoveFile, {pSrc, pDst, flags})
+        free({pSrc,pDst})
 
 --if ret=0 then
 --  if platform()=WINDOWS then
@@ -421,9 +449,16 @@ end function
 global function delete_file(string filename)
 
     if not finit then initf() end if
-    integer res = c_func(xDeleteFile, {filename})
-    if platform()=LINUX then
-        res = not res
+--  integer res = c_func(xDeleteFile, {filename})
+    integer res
+    if platform()=WINDOWS then
+        atom pFilename = allocate_wstring(utf8_to_utf16(filename))
+        res = c_func(xDeleteFile, {pFilename})
+        free(pFilename)
+    elsif platform()=LINUX then
+        res = not c_func(xDeleteFile, {filename})
+    else
+        ?9/0
     end if
     return res
 end function
@@ -461,7 +496,10 @@ global function create_directory(string name, integer mode=0o700, bool make_pare
 
     elsif platform()=WINDOWS then
 
-        ret = c_func(xCreateDirectory, {name, 0})
+--      ret = c_func(xCreateDirectory, {name, 0})
+        atom pName = allocate_wstring(utf8_to_utf16(name))
+        ret = c_func(xCreateDirectory, {pName, 0})
+        free(pName)
 
     end if
 
@@ -626,9 +664,16 @@ global function remove_directory(string dir_name, bool force=false)
         end if
     end for
 
-    ret = c_func(xRemoveDirectory, {dir_name})
-    if platform()=LINUX then
-        ret = not ret
+--  ret = c_func(xRemoveDirectory, {dir_name})
+    if platform()=WINDOWS then
+        atom pDirName = allocate_wstring(utf8_to_utf16(dir_name))
+--      ret = c_func(xRemoveDirectory, {dir_name})
+        ret = c_func(xRemoveDirectory, {pDirName})
+        free(pDirName)
+    elsif platform()=LINUX then
+        ret = not c_func(xRemoveDirectory, {dir_name})
+    else
+        ?9/0
     end if
     return ret
 end function

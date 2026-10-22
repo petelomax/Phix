@@ -29,7 +29,7 @@
 --  """
 --  ini_load("xpEditer",ini_defaults)
 --  ...
---      ini_restore("xpEditer") -- (be sure "session" isn't active)
+--      ini_switch("xpEditer") -- (be sure "session" isn't active)
 --      w = ini_setting("Width")
 --  ...
 --      -- reload files if any from the previous session:
@@ -40,11 +40,11 @@
 --  ...
 --      -- add a new file to the session when opened:
 --      -- (override bMustExist when it likely won't)
---      ini_restore("session") -- (it costs very little to play safe)
+--      ini_switch("session") -- (it costs very little to play safe)
 --      ini_set(filepath,sprintf("{%d,%d",{x,y}),false)
 --  ...
 --      -- remove from session when file is closed:
---      ini_restore("session") -- (ditto)
+--      ini_switch("session") -- (ditto)
 --      ini_delete_name(filepath)
 --  ...
 --      ini_save("session")
@@ -56,7 +56,7 @@ local integer ini_idx = -1  -- currently active/open [should never be 0, -1==nee
 --
 -- Should you only be using a single ini file, any fiddling this may or may not do with the
 -- following should be completely seamless, otherwise the application code will need several
--- ini_restore("ini_name") dotted about, before any init_set() or ? = ini_setting() calls,
+-- ini_switch("ini_name") dotted about, before any init_set() or ? = ini_setting() calls,
 -- with bMustExist use (below) designed to help quickly locate any such omissions.
 --
 local sequence ini_names,
@@ -134,7 +134,7 @@ global procedure ini_load(string ini_name, ini_default="")
     end for
 end procedure
 
-global procedure ini_restore(string ini_name)
+global procedure ini_switch(string ini_name)
     -- only ever needed when there (may) have been multiple ini_load() calls.
     if ini_idx then
 --      assert(ini_idx>0,"no prior ini_load()?")
@@ -161,8 +161,8 @@ global procedure ini_save(string ini_name)--="")
     -- course it is far safer to be sure you are in fact saving the correct thing.
     --
 --  assert(ini_idx>0,"no prior ini_load()?")
---  if length(ini_name) then ini_restore(ini_name) end if
-    if length(ini_name) or ini_idx<0 then ini_restore(ini_name) end if
+--  if length(ini_name) then ini_switch(ini_name) end if
+    if length(ini_name) or ini_idx<0 then ini_switch(ini_name) end if
     if platform()!=JS then
         string config_filename = ini_filename(ini_name)
         integer fn = open(config_filename,"w")

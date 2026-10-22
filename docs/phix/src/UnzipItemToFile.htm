@@ -16,9 +16,7 @@
             include builtins\LiteZip.e
             <br>
             <br>
-            <a href>object</a> res = UnzipItemToFile(<a href>atom</a> hzip,
-                                                                  <a href>ZIPENTRY</a> ze,
-                                                                  <a href>string</a> filename="")
+            <a href>object</a> res = UnzipItemToFile(<a href>atom</a> hzip, <a href>ZIPENTRY</a> ze, <a href>string</a> filename="")
          </td>
         </tr>
         <tr>
@@ -32,6 +30,10 @@
             hzip: the result of a successful call to <a href>UnzipOpenFile</a>().<br>
             ze: the recent subject of a successful <a href>UnzipGetItem</a>() or <a href>UnzipFindItem</a>() call.<br>
             filename: the output file, if omitted (or length 0) uses the value already in ze (see <a href>UnzipGetFileName</a>).
+            <br>
+            <br>
+            Note: from what I can decipher, it seems to strip the drive letter off the filename, so you may need to (eg) 
+            <a href>chdir</a>(`E:\`) or <a href>UnzipSetBaseDir</a>() to that <small>(I&apos;ve only tested it on C:)</small>.
             <br>
             <br>
             Returns ZR_OK (=0) or a string error message.
@@ -70,7 +72,8 @@ string filename = UnzipGetFileName(ze) -- `test\readme.txt`
 
 ?UnzipItemToFile(hzip,ze,filename)  -- writes "", prints 0 (ZR_OK)
 
-UnzipClose(hzip)
+hzip = UnzipClose(hzip)
+ze = free(ze)
 </eucode-->
 <pre>
 <font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
@@ -83,7 +86,8 @@ UnzipClose(hzip)
 </i></font>
 <font color="#0000FF">?</font><font color="#7060A8">UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#000000">filename</font><font color="#0000FF">) </font><font color="#000080"><i> -- writes "", prints 0 (ZR_OK)
 </i></font>
-<font color="#7060A8">UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">ze</font><font color="#0000FF"> =</font><font color="#7060A8"> free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
 </pre>
               </div>
              </div>
@@ -114,13 +118,14 @@ integer numitems = UnzipGetItems(hzip,ze)
 UnzipSetBaseDir(hzip,"test")
 
 for i=1 to numitems do
-    integer res = UnzipGetItem(hzip, ze, i-1)
+    integer res = UnzipGetItem(hzip,ze,i)
 --  string filename = UnzipGetFileName(ze)
-    res = UnzipItemToFile(hzip, ze)--, filename)
+    res = UnzipItemToFile(hzip,ze)--,filename)
     printf(1,"\r%2d%%",{(i/numitems)*100})
 end for
 
-UnzipClose(hzip)
+hzip = UnzipClose(hzip)
+ze = free(ze)
 puts(1,"\ndone\n")
 </eucode-->
 <pre>
@@ -132,13 +137,14 @@ puts(1,"\ndone\n")
 <font color="#7060A8">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"test"</font><font color="#0000FF">)
 </font>
 <font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> numitems</font><font color="#008080"> do</font>
-<font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipGetItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">)</font>
+<font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipGetItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">)</font>
 <font color="#000080"><i>--  string filename = UnzipGetFileName(ze)</i></font>
-<font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">)</font><font color="#000080"><i>--, filename)</i></font>
+<font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)</font><font color="#000080"><i>--,filename)</i></font>
 <font color="#7060A8">    printf</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\r%2d%%"</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#008080">(</font><font color="#000000">i</font><font color="#0000FF">/</font><font color="#000000">numitems</font><font color="#008080">)</font><font color="#0000FF">*</font><font color="#000000">100</font><font color="#800000">}</font><font color="#0000FF">)</font>
 <font color="#008080">end for
 </font>
-<font color="#7060A8">UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">ze</font><font color="#0000FF"> =</font><font color="#7060A8"> free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
 <font color="#7060A8">puts</font><font color="#0000FF">(</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008000">"\ndone\n"</font><font color="#0000FF">)</font>
 </pre>
               </div>

@@ -31,7 +31,7 @@
             This serves to define the ZIPENTRY type.
             <br>
             <br>
-            You <a href="usingtypes.htm#can">could</a> also call it like an ordinary function to determine whether 
+            You <i><a href="usingtypes.htm#can">could</a></i> also call it like an ordinary function to determine whether 
             an object is a ZIPENTRY, though I would quite strongly discourage anyone from relying on that.
          </td>
         </tr>
@@ -48,14 +48,47 @@
           <b>Comments:</b>
          </td>
          <td>
-            The ZIPENTRY type is just a simple internal structure that is used to iterate over the contents of a zip file.
+            The ZIPENTRY type is just a simple internal structure that is used to iterate over the contents of a zip file.<br>
+            new_ZIPENTRY() simply returns <a href>allocate_struct</a>(idZE), where idZE is defined as:
+            <br>
+            <br>
+<!--eucode>
+global constant idZE = define_struct(`typedef struct {
+                                        DWORD           Index;
+                                        DWORD           Attributes;
+                                        FILETIME        AccessTime, CreateTime, ModifyTime;
+                                        unsigned long   CompressedSize;
+                                        unsigned long   UncompressedSize;
+                                        char            Name[MAX_PATH];
+                                     } ZIPENTRY;`)
+</eucode-->
+<pre>
+<font color="#008080">global constant</font><font color="#000000"> idZE</font><font color="#0000FF"> =</font><font color="#7060A8"> define_struct</font><font color="#0000FF">(</font><font color="#008000">`typedef struct {
+                                        DWORD           Index;
+                                        DWORD           Attributes;
+                                        FILETIME        AccessTime, CreateTime, ModifyTime;
+                                        unsigned long   CompressedSize;
+                                        unsigned long   UncompressedSize;
+                                        char            Name[MAX_PATH];
+                                     } ZIPENTRY;`</font><font color="#0000FF">)</font>
+</pre>
+            <br>
+            and you can get and set fields within it using eg <nobr>ucs = <a href>get_struct_field</a>(idZE,ze,"UncompressedSize")</nobr> and
+            <nobr><a href>set_struct_field</a>(idZE,ze,"CompressedSize",cs)</nobr> respectively, though that is fairly rarely needed, in fact
+            only when playing about with raw memory buffers instead of the much more common disk files.
+<!--
             <br>
             <br>
             While you can of course declare a ZIPENTRY variable without initialising it, or indeed give it a name other 
             than ze, there is no other way to create a valid ZIPENTRY value than by invoking new_ZIPENTRY().
+-->
             <br>
             <br>
-            When you have finished using a ZIPENTRY variable, dispose of it using <a href>free</a>().
+            When you have finished using a ZIPENTRY variable, dispose of it using ze = <a href>free</a>(ze).
+            <br>
+            <br>
+            Fun fact: the public ZIPENTRY type allows ze to be NULL, to facilitate the latter, whereas LiteZip itself quite often uses 
+            a private ZIP_ENTRY type that does not permit NULL, rather than littering up the code with <a href>assert</a>(ze!=NULL).
          </td>
         </tr>
         <tr>
@@ -63,15 +96,6 @@
           <b>Example:</b>
          </td>
          <td>
-           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
-            <div class="codeSnippetContainerCodeContainer">
-             <div class="codeSnippetToolBar">
-              <div class="codeSnippetToolBarText">
-               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_18c73i47-z63b-1876-123h-8b2483c92346');">Copy</a>
-              </div>
-             </div>
-             <div id="CodeSnippetContainerCode_18c73i47-z63b-1876-123h-8b2483c92346" class="codeSnippetContainerCode" dir="ltr">
-              <div style="color:Black;">
 <!--eucode>
 include builtins\LiteZip.e
 
@@ -86,10 +110,6 @@ free(ze)
 ...</font>
 <font color="#7060A8">free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
 </pre>
-              </div>
-             </div>
-            </div>
-           </div>
          </td>
         </tr>
         <tr>

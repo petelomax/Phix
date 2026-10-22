@@ -247,7 +247,7 @@ global function create_pipe(integer inherit=0)
     return res
 end function
 
-global function read_stdin_pipe(string cmd, object dflt="?9/0")
+global function read_stdout_pipe(string cmd, object dflt="?9/0")
     sequence pipes = {0,create_pipe(INHERIT_READ),0}
     atom hProc = system_exec(cmd,12,pipes),
          hPipe = pipes[PIPE_OUT][READ_PIPE]

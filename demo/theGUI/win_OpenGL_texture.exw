@@ -1,0 +1,526 @@
+﻿--
+-- demo/theGUI/win_OpenGL_texture.exw
+-- ==================================
+--
+--requires(64,true)
+--/*
+The following now all works perfectly, let's get something similar working on GTK, still on Windows.
+I've also provided a simple GTK template from earlier.
+--*/
+include theGUI.WINAPI.e
+global type cdCanvas(object x) return atom(x) end type
+global integer cdCanvasGetImageRGB, rgb
+include opengl.tgpoc.e
+
+constant vertexShaderSource = `
+#version 300 es
+layout(location = 0) in vec3 aPos;          // vertex position
+layout(location = 1) in vec2 aTex;          // texture coordinate
+uniform mat4 uMVP;
+out vec2 vTex;
+void main()
+{
+    vTex = aTex;
+    gl_Position = uMVP * vec4(aPos,1.0);
+}`;
+
+constant fragmentShaderSource = `
+#version 300 es
+precision mediump float;
+in vec2 vTex;
+out vec4 fragColor;
+uniform sampler2D uTex;
+void main()
+{
+    fragColor = texture(uTex, vTex);
+}`;
+
+integer shader_program = 0,
+        vertex_array_object = 0
+atom hDC = 0,   -- main window device context
+     hRC = 0    -- WGL rendering context (WM_CREATE -> WM_DESTROY)
+
+constant ppBits = allocate(machine_word())
+
+integer texID = 0           -- OpenGL texture name
+constant texWidth = 100,    -- size of the generated bitmap
+        texHeight = 26  -- top-down
+
+integer uMVP
+
+-- ------------------------------------------------------------------
+-- Create an OpenGL texture that contains the rendered text "Hello!"
+-- ------------------------------------------------------------------
+procedure make_hello_texture()
+    -- 1) Create a 32-bit top-down DIB (BGRA) that we can draw into with GDI
+    integer bmihSize = get_struct_size(idBITMAPINFOHEADER)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSize",bmihSize)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biWidth",texWidth)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biHeight",-texHeight)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biPlanes",1)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biBitCount",32)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biCompression",BI_RGB)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSizeImage",0)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biXPelsPerMeter",0)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biYPelsPerMeter",0)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrUsed",0)
+    set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrImportant",0)
+    poken(ppBits,0)
+    atom hBmp = CreateDIBSection(0,pBITMAPINFOHEADER,DIB_RGB_COLORS,ppBits,0,0)
+
+    -- 2) Get a memory DC compatible with the screen and select the bitmap
+    atom memDC = CreateCompatibleDC(0)
+    atom oldBmp = SelectObject(memDC,hBmp)
+
+    -- 3) Clear the bitmap to a pleasant background (e.g. light-gray)
+    --    We'll use 0xFFF0F0F0 (A=FF, R=F0, G=F0, B=F0)
+    atom pBits = peeknu(ppBits)
+    poke4(pBits,0xFFF0F0F0)
+    mem_copy(pBits+4,pBits,texWidth*abs(texHeight)*4-4)
+
+    -- 4) Draw the text
+    --    Choose a font – we use the system GUI font, size 20, bold, black
+    atom hFont = CreateFont(
+                    -20, 0, 0, 0,          -- height, width, escapement, orientation
+                    FW_NORMAL,             -- weight
+                    FALSE, FALSE, FALSE,   -- italic, underline, strikeout
+                    DEFAULT_CHARSET,
+                    OUT_DEFAULT_PRECIS,
+                    CLIP_DEFAULT_PRECIS,
+                    DEFAULT_QUALITY,
+                    DEFAULT_PITCH || FF_SWISS,
+                    "Arial")               -- face name (any sans-serif works)
+--  if hFont=0 then crash("CreateFont failed") end if
+    atom oldFont = SelectObject(memDC, hFont)
+
+    --    Set text colour to black (0xFF000000) and background to transparent
+    SetTextColor(memDC, 0x000000)          -- COLORREF: 0x00BBGGRR
+    SetBkMode(memDC, TRANSPARENT)
+
+    --    Center the string in the bitmap
+    integer txtLen = length("Hello!"),
+           {cx,cy} = GetTextExtentPoint32(memDC,"Hello!"),
+                 x = floor((texWidth-cx)/2),
+                 y = floor((abs(texHeight)-cy)/2)+1
+    TextOut(memDC, x, y, "Hello!", txtLen)
+
+    -- 5) Clean up GDI objects we created for the texture
+    {} = SelectObject(memDC, oldFont)
+    DeleteObject(hFont)
+    {} = SelectObject(memDC, oldBmp)
+    DeleteDC(memDC)
+
+    -- 6) Upload the bitmap as an OpenGL texture
+--  glGenTextories(1, texID)               -- Phix binding: glGenTextures
+    texID = glCreateTexture()
+    glBindTexture(GL_TEXTURE_2D, texID)
+
+    glTexImage2D(GL_TEXTURE_2D,
+                 0,                     -- level
+                 GL_RGBA8,              -- internal format
+                 texWidth, abs(texHeight),
+                 0,                     -- border (must be 0)
+                 GL_BGRA,               -- format of the source data
+                 GL_UNSIGNED_BYTE,
+                 pBits)                 -- pixel data memory address
+
+    --    Set simple filtering (nearest is fine for such a small texture)
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
+--  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)
+
+    --    Unbind the texture (good practice)
+    glBindTexture(GL_TEXTURE_2D, 0)
+
+    --    Free the bitmap memory – OpenGL now owns its own copy
+    DeleteObject(hBmp)
+end procedure
+
+procedure init_opengl(atom hDC)
+
+    -- Set up the pixel format and context
+    glSetPixelFormat(hDC)
+    hRC = wglCreateContext(hDC)
+    wglMakeCurrent(hDC, hRC)
+--/* --?? (do GTK and JS first)
+    hRC = glMakeCurrent(hDC)
+--*/
+    shader_program = glCompileProgram(vertexShaderSource,fragmentShaderSource)
+
+--  glUseProgram(shader_program)
+
+    -- uniform locations
+    uMVP = glGetUniformLocation(shader_program, "uMVP")
+--  if uMVP=-1 then crash("Could not find uMVP uniform") end if
+    integer uTex = glGetUniformLocation(shader_program, "uTex")
+--  if uTex=-1 then crash("Could not find uTex uniform") end if
+
+    -- Set the texture sampler to texture unit 0
+    glUniform1i(uTex, 0)
+
+    -- identity model-view-projection (we will update it in WM_SIZE)
+    glUniformMatrix4fv(uMVP, 1, GL_FALSE, {  -- identity
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,1
+    })
+
+    -- Aside: In OpenGL, NDC stands for Normalized Device Coordinates. 
+    -- It is a small 3D cube space where all visible vertex coordinates must range from -1.0 to 1.0 
+    -- on the x, y, and z axes. Anything outside this cube is clipped and not shown on the screen.
+    ------------------------------------------------------------------
+    -- Vertex data for a quad that covers NDC space (-1..1) in both X and Y
+    -- Two triangles: (-1,-1) ( 1,-1) ( 1,1) and (-1,-1) ( 1,1) (-1,1)
+    -- We interleave position (3 floats) + texcoord (2 floats) → stride = 5 floats = 20 bytes
+    -- ------------------------------------------------------------------
+    // recommended:
+--  sequence quadPosTex = {
+--      -- x,   y,   z,   s,   t
+--      -1.0, -1.0, 0.0, 0.0, 1.0,   -- 0  bottom-left
+--       1.0, -1.0, 0.0, 1.0, 1.0,   -- 1  bottom-right
+--       1.0,  1.0, 0.0, 1.0, 0.0,   -- 2  top-right
+--      -1.0,  1.0, 0.0, 0.0, 0.0    -- 3  top-left
+--  }
+    -- A quick and dirty but easy tilt effect, not the recommended way to do things:
+    -- Warning: mess about with this any more and you'll get affine transformations. Normally you'd
+    -- keep this square-on and apply an appropriate mvp (model-view-perspective) matrix in WM_SIZE.
+    sequence quadPosTex = {
+        -- x,   y,   z,   s,   t
+        -0.4, -0.6, 0.0, 0.0, 1.0,   -- 0  bottom-left
+         0.6, -0.4, 0.0, 1.0, 1.0,   -- 1  bottom-right
+         0.4,  0.6, 0.6, 1.0, 0.0,   -- 2  top-right
+        -0.6,  0.4, 0.0, 0.0, 0.0    -- 3  top-left
+    }
+
+    -- Indices splitting the quad into two standard triangles
+--  sequence indices = {
+--      0, 1, 2,   -- Triangle 1
+--      0, 2, 3    -- Triangle 2
+--  }
+
+    -- Create and Bind Vertex Array Object (VAO)
+--  vertex_array_object = glGenVertexArray()
+    vertex_array_object = glCreateVertexArray()
+    glBindVertexArray(vertex_array_object)
+
+    -- Create, Bind, and Fill the Vertex Buffer Object (VBO)
+--  integer vbo = glGenBuffer()
+    integer vbo = glCreateBuffer()
+    glBindBuffer(GL_ARRAY_BUFFER, vbo)
+    glBufferData(GL_ARRAY_BUFFER, quadPosTex, GL_STATIC_DRAW)
+
+--/*
+    -- Create, Bind, and Fill the Element Buffer Object (EBO / IBO)
+--  integer ebo = glGenBuffer()
+    integer ebo = glCreateBuffer()
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo)
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices, GL_STATIC_DRAW)
+--*/
+
+    -- Configure Vertex Attributes (Stride is 5 floats = 20 bytes)
+    -- Attribute 0: Position (x, y, z) -> Offset 0
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * 4, 0)
+    glEnableVertexAttribArray(0)
+
+    -- Attribute 1: Texture Coords (s, t) -> Offset 3 floats (12 bytes)
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * 4, 3 * 4)
+    glEnableVertexAttribArray(1)
+
+    -- Unbind VAO safely to finalize state configuration
+    glBindVertexArray(0)
+    
+    -- ------------------------------------------------------------------
+    -- Create the dynamic texture
+    -- ------------------------------------------------------------------
+    make_hello_texture()
+
+    glClearColor(1,1,224/255,1) -- parchment
+
+end procedure
+
+constant magenta = 0xFF00FF -- the transparent colour (almost but not TG_MAGENTA)
+--       fawn_brush = CreateSolidBrush(0xE08020)
+
+bool useOpenGL = true
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_CREATE:
+            hDC = GetDC(hWnd)
+if useOpenGL then
+            init_opengl(hDC)
+end if
+            return 0
+
+        case WM_SIZE:
+            integer {?,?,w,h} = GetClientRect(hWnd)   -- (sets pRECT)
+            if hRC!=0 then
+                glViewport(0,0,w,h)                  -- <<< adjust OpenGL viewport >>>
+--              glViewport(150,150,w-300,h-300)                  -- <<< adjust OpenGL viewport >>>
+
+                -- Pass an Identity Matrix so vertex (-1 to 1) targets fill the window directly
+                sequence identity_mat = {1,0,0,0,
+                                         0,1,0,0,
+                                         0,0,1,0,
+                                         0,0,0,1}
+                glUseProgram(shader_program)
+                glUniformMatrix4fv(uMVP,1,GL_FALSE,identity_mat)
+            end if
+            InvalidateRect(hWnd,NULL,false)          -- trigger a repaint
+            return 0
+
+        case WM_PAINT:
+            atom h2DC = BeginPaint(hWnd, pPAINTSTRUCT) -- (not needed // ** use the OpenGL-bound hDC!! **)
+if useOpenGL then
+            glClear(GL_COLOR_BUFFER_BIT || GL_DEPTH_BUFFER_BIT)
+
+            -- Bind shaders and geometry
+            glUseProgram(shader_program)
+            glBindVertexArray(vertex_array_object)
+
+            -- Bind our Hello texture to slot 0
+            glActiveTexture(GL_TEXTURE0)
+            glBindTexture(GL_TEXTURE_2D, texID)
+
+            -- Draw the 6 elements (2 triangles) forming our quad
+--          glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0)
+            glDrawArrays(GL_TRIANGLE_FAN, 0, 4)
+
+            -- Clean up bindings
+            glBindVertexArray(0)
+            glBindTexture(GL_TEXTURE_2D, 0)
+    
+            -- Make sure the GPU has finished before we start GDI calls
+            -- (without this resize mullers the border)
+            glFinish()
+
+            -- Present
+            glSwapBuffers(hDC)
+end if
+
+            -- Build the fawn-border bitmap (client-area sized)
+            -- (suitable one(s) will already be created in tg_draw_control_images)
+            integer {?,?,w,h} = GetClientRect(hWnd)   -- (sets pRECT)
+ if w>0 and h>0 then
+            -- create a memory DC compatible with the window DC
+            atom memDC = CreateCompatibleDC(hDC)
+            -- 32-bit DIB section (BGRA layout, alpha in the high byte)
+            integer bmihSize = get_struct_size(idBITMAPINFOHEADER)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSize",bmihSize)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biWidth",w)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biHeight",-h) -- top-down
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biPlanes",1)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biBitCount",32)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biCompression",BI_RGB)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biSizeImage",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biXPelsPerMeter",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biYPelsPerMeter",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrUsed",0)
+            set_struct_field(idBITMAPINFOHEADER,pBITMAPINFOHEADER,"biClrImportant",0)
+            poken(ppBits,0)
+            atom hBitmap = CreateDIBSection(hDC,pBITMAPINFOHEADER,DIB_RGB_COLORS,ppBits,0,0),
+                 oldBmp = SelectObject(memDC, hBitmap)
+
+            -- Initialise whole bitmap to some background colour
+            atom pBits = peeknu(ppBits)
+            poke4(pBits,0xE08020) -- (any will do here, I'll call that fawn)
+--          mem_copy(pBits+4,pBits,-1)
+            mem_copy(pBits+4,pBits,w*h*4-4)
+
+            -- Now create a transparent hole punch:
+    if w>10 and h>10 then
+            set_struct_field(idBITMAPINFOHEADER, pBITMAPINFOHEADER, "biWidth", w-10)
+            set_struct_field(idBITMAPINFOHEADER, pBITMAPINFOHEADER, "biHeight", -(h-10)) -- top-down
+            atom hHole = CreateDIBSection(hDC, pBITMAPINFOHEADER, DIB_RGB_COLORS, ppBits, 0, 0),
+                 holeDC = CreateCompatibleDC(hDC),
+                 holdBmp = SelectObject(holeDC, hHole)
+            pBits = peeknu(ppBits)
+            poke4(pBits,magenta)
+            integer l = (w-10)*(h-10)*4-4
+            if l<=0 then ?9/0 end if
+            mem_copy(pBits+4,pBits,l)
+
+            -- And punch the transparent hole (all the way up in the real thing):
+            BitBlt(memDC, 5,5,w,h, holeDC, 0,0, SRCCOPY)
+
+
+            -- Cleanup the hole punch:
+            {} = SelectObject(holeDC, holdBmp)
+            DeleteObject(hHole)
+            DeleteDC(holeDC)
+    end if
+--/!*
+            -- 5 pixel border with a line running round it (now relies on bgclr)
+--          FillRect(memDC,{0,0,w,5},fawn_brush)        -- top strip
+--          FillRect(memDC,{0,h-5,w,h},fawn_brush)      -- bottom strip
+--          FillRect(memDC,{0,5,5,h-5},fawn_brush)      -- left strip
+--          FillRect(memDC,{w-5,5,w,h-5},fawn_brush)    -- right strip
+            MoveToEx(memDC, 2, 2, NULL)     -- tl
+            LineTo(memDC, w-3, 2)           -- tr
+            LineTo(memDC, w-3, h-3)         -- br
+            LineTo(memDC, 2, h-3)           -- bl
+            LineTo(memDC, 2, 2)             -- back to tl
+--*!/
+            TransparentBlt(hDC, 0,0,w,h, memDC, 0,0,w,h, magenta)
+
+            -- does not seem to be strictly necessary, but won't hurt to leave it it:
+            GdiFlush()                  -- make sure the GDI commands reach the screen
+            -- BeginPaint does this for us:
+--          ValidateRect(hWnd, NULL)    -- no further WM_PAINT unless we invalidate
+
+            {} = SelectObject(memDC, oldBmp)
+            DeleteObject(hBitmap)
+            DeleteDC(memDC)
+ end if
+
+            EndPaint(hWnd,pPAINTSTRUCT) -- (not strictly needed)
+            return 0
+
+        case WM_CHAR:
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            end if
+
+        case WM_DESTROY:
+            if hRC!=0 then
+                wglMakeCurrent(NULL,NULL)
+                wglDeleteContext(hRC)
+                hRC = 0
+            end if
+            if hDC!=0 then
+                ReleaseDC(hWnd,hDC)
+                hDC = 0
+            end if
+            if texID!=0 then
+--              glDeleteTextures(1, texID)
+                glDeleteTexture(texID)
+                texID = 0
+            end if
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd,msg,wParam,lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("ScrollCanvas",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0, "ScrollCanvas", "OpenGL Demo",
+                               WS_OVERLAPPEDWINDOW,
+                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+                               NULL, NULL, 0, NULL)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg,NULL,0,0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+
+
+--/*
+
+Aha! The real (pun intended) problem was that glFloat32Array(indices) should have been glInt32Array(indices).
+One snag remains in that it crashes horribly somewhere deep inside DefWindowProc when I resize the window down
+to a silly small size, probably because something here passes a negative height which is treated as massively
+positive and ends up corrupting a huge chunk of memory. I suspect it is more likely to be in the GDI parts of
+this than OpenGL. Where would you suggest best adding guards against that sort of thing?
+mem_copy
+
+Excellent. The layout manager in theGUI uses a nested hierachy whereby each container creates a bitmap with some
+previously specified background colour, BitBlting any children onto that before being itself BitBlted onto its
+parent or the screen (with that last step now AlphaBlended). When OpenGL is drawing the entire client area we
+don't have to do any of that or in fact anything at all, however when it is (only) drawing some nested canvas, 
+I'm thinking of creating a fully transparent bitmap and using that to "punch transparent holes" into all of the
+parent cointainer bitmaps, once/whenever the size/positon changes, deliberately using BitBlt not AlphaBlend,
+with each container now having two bitmaps (working and initial state) and probably a "has holes" flag.
+Do you think that will work? (ANSWERED MYSELF)
+
+Phix runs on desktop/Windows, desktop/Linux, and in a web browser.
+On the desktop, interpretation works by creating a block of x86/x64 binary (using a builtin assembler) and 
+executing it, whereas compilation works by laboriously writing out PE/COFF and ELF binaries byte-by-byte. 
+On the GUI side I have developed my own theGUI, which utilises raw WinAPI/GDI and GTK as back-ends.
+For the web browser, a separate transpiler generates a complete standalone HTML/JavaScript file. One day I hope
+to get the transpiler working in a web browser, and throw in some PHP snippets, to achieve something similar to
+CodePen, but that's not the priority right now. Steps are already in progress to utilise JS/WebGL inside theGUI.
+Two glaring holes are the ability to run (natively, not just in a browser) on Android and macOS. Previously I
+have decided that a PWA is going to be the best fit for Android(/iOS?), but today I'd like to focus on macOS.
+
+I will set the lowest possible bar for a GUI: mouse and keyboard events, and a basic image/bitmap with text and 
+the setting of individual pixels, obviously with some way to BitBlt/TransparentBlt that to screen. OpenGL would 
+be nice, but is not actually a deal breaker. All such stuff should reside in theGUI, maybe also GTK-based.
+The real difficulty for me is to build and test trivial proof-of-concept demos, that can be built from a small 
+number of source files that it would be possible/reasonable for me to auto-generate.
+Focusing on that last sentence, what approaches/strategies might you suggest, ideally simple/low-level, esp in
+terms of the toolchain requirements? The three platforms I currently support (Windows, Linux, browser) are all
+achieved in pure Phix with no external tools at all, but I can relax that restriction for macOS if needed. All 
+development will be on a Windows platform.
+
+https://vinitkumar.me/how-to-generate-fat-binary-mac/  << try this first
+
+https://hacktricks.wiki/en/macos-hardening/macos-security-and-privilege-escalation/macos-files-folders-and-binaries/universal-binaries-and-mach-o-format.html
+
+-- proper mvp,(not tried)
+        case WM_SIZE:
+            integer {?,?,w,h} = GetClientRect(hWnd)
+            if w <= 0 or h <= 0 then return 0 end if
+            
+            if hRC!=0 then
+                glViewport(0,0,w,h)
+
+                -- 1) Perspective Projection configuration
+                atom aspect = w / h
+                atom fov = 1.0 / tan(45.0 * 0.5 * 3.14159265 / 180.0) -- Field of view scale
+                atom zNear = 0.1
+                atom zFar = 100.0
+                atom rZ = zFar / (zNear - zFar)
+                atom tZ = (zFar * zNear) / (zNear - zFar)
+
+                -- 2) Perspective Projection Matrix
+                sequence proj = { fov/aspect, 0,   0,  0,
+                                  0,          fov, 0,  0,
+                                  0,          0,   rZ,-1,
+                                  0,          0,   tZ, 0 }
+
+                -- 3) Model Rotation/Translation Matrix (The Tilt)
+                -- We tilt around the Y-axis by 45 degrees, and push back by -1.5 on Z
+                atom angle = 45.0 * 3.14159265 / 180.0
+                atom cosA = cos(angle)
+                atom sinA = sin(angle)
+                
+                sequence modelView = { cosA, 0, -sinA, 0,
+                                       0,    1,  0,    0,
+                                       sinA, 0,  cosA, 0,
+                                       0,    0, -1.5,  1 } -- Translation: Z = -1.5
+
+                -- 4) Multiply matrices: mvp = modelView * proj
+                sequence mvp = repeat(0, 16)
+                for i = 0 to 3 do
+                    for j = 0 to 3 do
+                        atom val = 0
+                        for k = 0 to 3 do
+                            val += modelView[i*4 + k + 1] * proj[k*4 + j + 1]
+                        end for
+                        mvp[i*4 + j + 1] = val
+                    end for
+                end for
+
+                glUseProgram(shader_program)
+                glUniformMatrix4fv(uMVP, 1, GL_FALSE, mvp)
+            end if
+            InvalidateRect(hWnd,NULL,false)
+            return 0
+
+--*/
+

@@ -492,7 +492,8 @@ if not batchmode and not repl then
             puts(1,"\nPress Enter, or d for diagnostics...")
             if not find("-nopause",lower(command_line(true))) then
                 if find(wait_key(),"dD") then
-                    Extend_Existsing_Error_File = fn
+--                  Extend_Existing_Error_File = fn
+                    crash_file(fn)
                     ?9/0
                 end if
             end if

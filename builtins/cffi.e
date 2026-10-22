@@ -600,7 +600,7 @@ function parse_c_struct(bool bStruct, integer machine, base, packto=0)
 --   nested structs and unions are involved, instead it is assumed that
 --   the calling code is happy enough just to know where the first is.
 --
-string name="?", token, mtype, mname, subname
+string name="?", token, mtype, subtype, mname, subname
 integer signed, k, mult, size, subsize, align, substruct, offset
 integer sizeofS = 0, widest = 0, isstruct
 sequence members = {}, ptrnames = {}
@@ -608,57 +608,38 @@ sequence submembers, sm2i, submembernames
 sequence res
     if ch!='{' then
         name = stoken()
---?name
     end if
     if ch!='{' then cffi_error("{ expected") end if
     {} = stoken()
     while 1 do
         signed = 1
         mtype = stoken()
---11/5/19:
---      isstruct = equal(mtype,"struct")
         isstruct = (equal(mtype,"struct") and ch='{')
         if isstruct or equal(mtype,"union") then
---          res = parse_c_struct(isstruct,machine,base+sizeofS)
             res = parse_c_struct(isstruct,machine,base+sizeofS,packto)
             {subname,subsize,align,submembers} = res
---?subname
---DEV pad to align?
             if packto then align = packto end if
---          if packto=0 then
-                k = remainder(sizeofS,align)
-                if k then
-                    ?9/0
---                  padding = align-k
---                  sizeofS += padding
-                end if
---          end if
+            k = remainder(sizeofS,align)
+            if k then
+                ?9/0
+--              padding = align-k
+--              sizeofS += padding
+            end if
             for i=1 to length(submembers[1]) do
                 mname = submembers[1][i]
                 if length(subname) then
                     mname = subname&"."&mname
                 end if
                 sm2i = submembers[2][i]
---              if padding then
---  --              {mtype,size,offset,signed} = sm2i
---  --              offset += padding
---  --              sm2i = {mtype,size,offset,signed}
---                  sm2i[3] += padding
---              end if
---if mname="FAR" then ?9/0 end if
                 members = append(members,{mname,sm2i})
---              members = append(members,{mname,{mtype,size,offset,signed}})
             end for
---          widest = subsize
             widest = max(widest,align)
             sizeofS += subsize
         else
---9/5/18 support eg "int x,y;" (not just/vs only "int x;")
             while 1 do
                 {mname,substruct,mtype,size,align,signed} = do_type(mtype,machine)
                 if packto then align = packto end if
 
---if mname="FAR" then ?9/0 end if
                 if equal(mname,";") then
                     cffi_error("member name expected")
                 end if
@@ -670,12 +651,7 @@ sequence res
                             mult = 0
                         end if
                     else
---                      if mtype="ptr" then
---                          {} = stoken()
---                      else
-                            mult = toInt(stoken())
---if name="tagBITMAPINFO" then ?{"mult",mult,size} end if
---                      end if
+                        mult = toInt(stoken())
                     end if
                     if ch!=']' then cffi_error("] expected") end if
                     nch()
@@ -686,14 +662,9 @@ sequence res
                     cffi_error("bitfields are not (yet) supported")
                 end if
                 token = stoken()
---              if not equal(token,";") then cffi_error("; expected") end if
---              if size>widest then
                 if align>widest then
---                  widest = size
                     widest = align
                 end if
---              if bStruct then
---              if bStruct and not packto then
                 if bStruct and align>1 then
                     k = remainder(sizeofS,align)
                     if k then
@@ -704,17 +675,14 @@ sequence res
                     {submembernames,submembers} = smembers[substruct]
                     for i=1 to length(submembernames) do
                         subname = mname&"."&submembernames[i]
-                        {mtype,subsize,offset,signed} = submembers[i]
-                        members = append(members,{subname,{mtype,subsize,offset+base+sizeofS,signed}})
+                        {subtype,subsize,offset,signed} = submembers[i]
+                        members = append(members,{subname,{subtype,subsize,offset+base+sizeofS,signed}})
                     end for
                 else
---if mname="FAR" then ?9/0 end if
                     members = append(members,{mname,{mtype,size,base+sizeofS,signed}})
                 end if
                 if bStruct then
---if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS,mult,size} end if
                     sizeofS += size*mult
---if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS} end if
                 end if
                 if not equal(token,",") then exit end if
             end while
@@ -722,14 +690,10 @@ sequence res
         end if
         if ch='}' then exit end if
     end while
---  if not packto then
-        k = remainder(sizeofS,widest)
-        if k then
---if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS,widest,k} end if
-            sizeofS += widest-k
---if name="tagBITMAPINFO" then ?{"sizeofS",sizeofS} end if
-        end if
---  end if
+    k = remainder(sizeofS,widest)
+    if k then
+        sizeofS += widest-k
+    end if
     {} = stoken()   -- discard '}'
     if ch!=-1 then
         if ch!=';' then
@@ -743,7 +707,6 @@ sequence res
                     ptrnames = append(ptrnames,token)
                 else
                     token = stoken()
---21/9/19:
                     if token="FAR" then token = stoken() end if
                     if token="*" then token = stoken() end if
                 end if
@@ -755,7 +718,6 @@ sequence res
         end if
     end if
     res = {name,sizeofS,widest,columnize(members),ptrnames}
---if name="BITMAPINFO" then ?res end if
     return res
 end function
 

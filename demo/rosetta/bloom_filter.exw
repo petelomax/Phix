@@ -1,0 +1,134 @@
+--
+-- demo\rosetta\bloom_filter.exw
+-- =============================
+--
+sequence crc_table
+
+function crc32(string s)
+    if not object(crc_table) then // (ie not yet initialised)
+        crc_table = repeat(0,256)
+        for i=0 to 255 do
+            atom rem = i
+            for j=1 to 8 do
+                bool bOdd = odd(rem)
+                rem = floor(rem/2)
+                if bOdd then
+                    rem = xor_bitsu(rem,#EDB88320)
+                end if
+            end for
+            crc_table[i+1] = rem
+        end for
+    end if
+    atom crc = #FFFFFFFF
+    for c in s do
+        integer cdx = xor_bits(and_bits(crc,0xff),c)+1
+        crc = xor_bitsu(floor(crc/#100),crc_table[cdx])
+    end for
+    return not_bitsu(crc)
+end function
+
+// A (single/static) Bloom Filter (held as/in a binary string):
+integer m,k
+string bf
+
+procedure BloomFilter_Init(integer capacity=1_000_000, atom false_positive_rate=0.01)
+    assert(capacity>0,"Capacity must be positive")
+    assert(false_positive_rate>0 and false_positive_rate<1,
+            "False positive rate must be between 0 and 1")
+    
+    // Optimal m and k for the given capacity and false positive rate.
+    m = ceil(-capacity*log(false_positive_rate)/power(log(2),2))
+    k = max(1,round(m/capacity*log(2)))
+    bf = repeat('\0',ceil(m/8))
+end procedure
+
+function BloomFilter_BitNums(string item)
+    sequence res = repeat(0,k)
+    atom crc = crc32(item),
+          c1 = floor(crc/#10000),
+          c2 = and_bits(crc,#FFFF)
+    for i=1 to k do
+        res[i] = rmdr(c1+c2*(i-1),m)
+    end for
+    return res
+end function
+
+procedure BloomFilter_Add(string item)
+    for bit in BloomFilter_BitNums(item) do
+        integer bdx = floor(bit/8)+1,
+               mask = power(2,bit&&7)
+        bf[bdx] = or_bits(bf[bdx],mask)
+    end for
+end procedure
+
+function BloomFilter_Contains(string item)
+    for bit in BloomFilter_BitNums(item) do
+        integer bdx = floor(bit/8)+1,
+               mask = power(2,bit&&7)
+        if and_bits(bf[bdx],mask)=0 then return false end if
+    end for
+    return true
+end function
+
+function BloomFilter_Size()
+    -- Assume size is just bitmap length + some header.
+    return length(bf)+32
+end function
+
+function GetSetSize(sequence words)
+    -- Min possible size is null-separated words in contiguous memory + some header.
+    -- Note for convenience and performance words is actually/currently stored as 
+    -- 21,509 strings, each with padding + header as per FreeBASIC/Wren calcs, but 
+    -- that's clearly not the most memory-efficient way to do things by a long shot,
+    -- and besides, the stark difference this produces proves the point well enough.
+    return sum(apply(words,length))+length(words)+32
+end function
+
+// Main program
+constant words = unix_dict(), wc = length(words),
+         fmt = "\n"&`
+Words: %,d   (m = %d bits, k = %d)
+Estimated false positives: %7.3f%%
+   Actual false positives: %7.3f%% (target: 1%%)
+Bloom filter memory usage: %8s
+ minimum set memory usage: %8s`&"\n\n"
+BloomFilter_Init(wc,0.01)
+for w in words do BloomFilter_Add(w) end for
+for w in {"code","nosuchthing"} do
+    printf(1,"bloom filter contains `%s` : %t\n",{w,BloomFilter_Contains(w)})
+end for
+atom est_fpr = power(sum(apply(bf,count_bits))/m,k), act_fpr = 0
+string probe = repeat(' ',12)
+for p=1 to 100000 do
+    for i=1 to 12 do
+        probe[i] = rand_range('a','z')
+    end for
+    act_fpr += BloomFilter_Contains(probe)
+end for
+printf(1,fmt,{wc,m,k,
+              100*est_fpr, 100*act_fpr/100000,
+              file_size_k(BloomFilter_Size()),
+              file_size_k(GetSetSize(words))})
+integer missing = wc-sum(apply(words,BloomFilter_Contains))
+if missing then
+    printf(1,"%,d words missing from the bloom filter.\n",missing)
+else
+    printf(1,"All %,d dictionary words are in bloom filter.\n",wc)
+end if
+
+?"done"
+wait_key()
+--/*
+bloom filter contains `code` : true
+bloom filter contains `nosuchthing` : false
+
+Words: 25,109   (m = 240672 bits, k = 7)
+Estimated false positives:   0.722%
+   Actual false positives:   2.086% (target: 1%)
+Bloom filter memory usage:  29.41KB
+ minimum set memory usage: 201.64KB
+
+All 25,109 dictionary words are in bloom filter.
+
+Note: the 0.7/2.0 false positive rates are a direct consequence of using crc32: modifying the Julia example above to use crc32 yields similar values.
+--*/

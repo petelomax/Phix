@@ -1,0 +1,42 @@
+--
+-- demo\rosetta\Markov_chain_text_generator.exw
+-- ============================================
+--
+with javascript_semantics
+bool bGet = platform()!=JS and file_exists("alice_oz.txt")
+sequence words = split(iff(bGet?get_text("alice_oz.txt") :
+          "now he is gone she said he is gone for good."))
+integer dict = NULL
+ 
+function markov(integer n, m)
+    sequence key, data, res
+    if dict=NULL then
+        dict = new_dict()
+        for i,w in words from n+1 do
+            key = words[i-n..i-1]
+            data = append(deep_copy(getdd(key,{},dict)),w)
+            setd(key,data,dict)
+        end for
+    end if
+    integer start = rand(length(words)-n)
+    key = words[start..start+n-1]
+    res = deep_copy(key)
+    do
+        data = getdd(key,{},dict)
+        if data={} then exit end if
+        string suffix = data[rand(length(data))]
+        res = append(res,suffix)
+        key = append(key[2..$],suffix)
+    until length(res)>=m and find(suffix[$],".?!")
+    return join(res) -- or res[-m..-1]
+end function
+ 
+printf(1,"%s\n",{markov(2,70)})
+
+?"done"
+wait_key()
+--/*
+Step this way, please, and I will bite you. Oh, indeed! exclaimed the man. Who melted her? It was a body to cut it in two. 
+At once there came running up to her surprise, she found his own supper, and no one can withstand them. What can I help 
+being a humbug, he said, I'm sorry I had beaten the Wicked Witch said to herself, not in a louder tone.
+--*/

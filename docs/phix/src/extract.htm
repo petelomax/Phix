@@ -13,8 +13,7 @@
           <b>Definition:</b>
          </td>
          <td>
-         <a href>sequence</a> res = extract(<a href>sequence</a> source, indexes, 
-                                                           <a href>integer</a> invert=<a href>false</a>)
+         <a href>sequence</a> res = extract(<a href>sequence</a> source, indexes, <a href>integer</a> invert=<a href>false</a>)
          </td>
         </tr>
         <tr>
@@ -26,11 +25,12 @@
             <br>
             <br>
             source : the sequence from which to extract elements.<br>
-            indexes : a sequence of atoms, the indexes of the elements to be fetched in source.<br>
+            indexes : the indexes of the elements to be fetched in source.<br>
             invert : invert the indexes, and/or force <a href="html/glossary.htm#dwordseq">dword-sequence</a> return, see notes below.
             <br>
             <br>
-            Returns a sequence, of the same length as indexes.
+            Returns a sequence, of the same length as indexes. Elements of indexes can optionally be nested, eg {1,{2,3,4}} returns
+            {source[1],source[2][3][4]}, with the last of such being a pair to extract a slice.
          </td>
         </tr>
         <tr>
@@ -51,7 +51,7 @@
             after shuffling them about to do your thing (if you have a better explanation or example please feel free to pass it along).<br>
             Instead of using the indexes directly, they are used to construct the indexes to use: each (index[i])&apos;th index gets i.<br>
             If indexes is {1,2,3} it behaves identically whether invert is true or not, because [1/2/3] get 1/2/3, which is the same.<br>
-            However if indexes is {3,1,2} then [3/1/2] get 1/2/3, and it behaves as if {2,3,1} had been passed (and invert was false).<br>
+            However if indexes is {3,1,2} then [3/1/2] get 1/2/3, and it behaves as {2,3,1} with invert false.<br>
             To clarify, <code>..,{3,1,2},true)</code> [re-]creates indexes as {0,0,0} -> {0,0,1} -> {2,0,1} -> {2,3,1}, before being used.
             <br>
             <br>
@@ -62,7 +62,8 @@
             <br>
             If invert is odd/true/1/3 extract() inverts the indexes as just explained.<br>
             If invert is false/0/true/1 extract() returns a string when the source is said.<br>
-            If invert is &gt;=2 (eg 2 to avoid inversion, 3 to invert) extract() returns a <a href="html/glossary.htm#dwordseq">dword-sequence</a>.
+            If invert is &gt;=2 (eg 2 to avoid inversion, 3 to invert) extract() returns a <a href="html/glossary.htm#dwordseq">dword-sequence</a>.<br>
+            Fairly obviously, index inversion cannot be combined with nested indexes.
             <br><a name=reinstate></a>
          </td>
         </tr>
@@ -72,8 +73,8 @@
          </td>
          <td>
             <a href>sequence</a> res = <b>reinstate</b>(<a href>sequence</a> source, 
-                                                                       <a href>object</a> indexes, replacements, 
-                                                                       <a href>bool</a> invert=<a href>false</a>)
+                                                        <a href>object</a> indexes, replacements, 
+                                                        <a href>bool</a> invert=<a href>false</a>)
             <br>
             <br>
             Allows (for example) some previously extracted elements to be replaced, not necessarily but usually in the same order/slots.
@@ -99,7 +100,8 @@
             <a href>repeat</a>(0,<a href="max.htm">max</a>(indexes)) and then (and only then) a replacements of {} is replaced with
             <a href>tagset</a>(<a href>length</a>(indexes)), before of course performing the same processing as above,
             which can be used to create reverse index lookups.<br>
-            For example reinstate({},{3,5,7},{}) returns {0,0,1,0,2,0,3}, ie res[3] is 1 which is the position where the 3 was in indexes.<br>
+            For example reinstate({},{3,5,7},{}) returns {0,0,1,0,2,0,3}, ie res[3] is 1 which is the position where the 3 was in indexes.
+            There is as yet no equivalent in this routine for the nested indexes that extract() supports.<br>
             You could have just done a <a href>find</a>(3,indexes) instead, but in some cases that might not scale quite so well, or
             if you would have needed to make a copy anyway, you might as well convert it.
             <br>
@@ -118,6 +120,7 @@
          <td>
 <!--eucode>
 ?extract({11,13,15,17},{3,1,2,1,4}) -- prints {15,11,13,11,17}
+?extract({1,{2,3},4},{1,{2,{2,2}},3}) -- prints {1,{3},4}
 string s = "nip"
 ?reinstate(s,{3,1},extract(s,{1,3})) -- prints "pin"
 sequence sieve = reinstate(repeat(true,12),1,false) -- {false,true,true,true...}
@@ -131,6 +134,7 @@ sequence res = reinstate(repeat(0,12),{1,2},{1,1}) -- {1,1,0,0,0,0,0,0,0,0,0...}
 </eucode-->
 <pre>
 <font color="#0000FF">?</font><font color="#7060A8">extract</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">11</font><font color="#0000FF">,</font><font color="#000000">13</font><font color="#0000FF">,</font><font color="#000000">15</font><font color="#0000FF">,</font><font color="#000000">17</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {15,11,13,11,17}</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">extract</font><font color="#0000FF">(</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">4</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#00FF00">{</font><font color="#000000">2</font><font color="#0000FF">,</font><font color="#000000">2</font><font color="#00FF00">}</font><font color="#008080">}</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#800000">}</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints {1,{3},4}</i></font>
 <font color="#004080">string</font><font color="#000000"> s</font><font color="#0000FF"> =</font><font color="#008000"> "nip"</font>
 <font color="#0000FF">?</font><font color="#7060A8">reinstate</font><font color="#0000FF">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#800000">{</font><font color="#000000">3</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#800000">}</font><font color="#0000FF">,</font><font color="#7060A8">extract</font><font color="#800000">(</font><font color="#000000">s</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#000000">3</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints "pin"</i></font>
 <font color="#004080">sequence</font><font color="#000000"> sieve</font><font color="#0000FF"> =</font><font color="#7060A8"> reinstate</font><font color="#0000FF">(</font><font color="#7060A8">repeat</font><font color="#800000">(</font><font color="#004600">true</font><font color="#0000FF">,</font><font color="#000000">12</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#000000">1</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font><font color="#000080"><i> -- {false,true,true,true...}</i></font>

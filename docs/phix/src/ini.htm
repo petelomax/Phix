@@ -27,9 +27,12 @@
         garbage, along with hardware failure, malware, acts of god, terrorism, and user error.
         <br>
         <br>
-        Each line in the ini file is either a comment line, blank or with line[1] in "-/;=" 
-        <small>(caring not whether doubled as in "--" or "//")</small>, or<br>
-        a <i>&lt;keyname&gt;</i> = <i>&lt;setting&gt;</i> line, with an implied ' = ""' when no '=' is present
+        Separate files also mean you can ask to see one with less risk of someone accidentally posting their private keys for all to see.
+        <br>
+        <br>
+        Each line in the ini file is either (a) blank or a comment line, with line[1] in `-/;=` 
+        <small>(caring not whether doubled as in `--` or `//`)</small>, or<br>
+        (b) a <i>&lt;keyname&gt;</i> = <i>&lt;setting&gt;</i> line, with an implied &amp;' = ""' when no '=' is present
         <small>(and with <a href>trim</a>() applied to both halves)</small>.<br>
         Technically a comment <small>(nb whole line only)</small> is effectively held internally as `"" = "<i>text</i>"`
         <small>(including the comment marker)</small>, just so you know.<br>
@@ -41,27 +44,27 @@
 -->
         Individual settings can be integer or string: other content (esp floats) should be explicitly managed at the point of call 
         in a fairly straightforward mannner, via routines such as <a href>sprintf</a>() and <a href>scanf</a>().<br>
-        <small>[I might reconsider handling floats via "%g", but the "random precision" aspect rather deters me from doing that
+        <small>[I might reconsider handling floats via `%g`, but the "random precision" aspect rather deters me from doing that
                 without a pretty good cause, which hasn&apos;t arisen yet.]</small><br>
         No settings can exceed a single line, but you should be able to manage your own '\n' embedding easily enough.<br>
-        <small>(While it might be sensible to assue a limit of 32,767 bytes per line, ini.e itself imposes no such restriction,
-                     however keeping the .ini file human-editable is a much more important consideration.
-                Tip: ini.e treats say "text[01]".."text[10]" as ten distinct keynames, so I suppose you <i>could</i> 
-                     split/stitch on that sort of basis manually.)</small><br>
-        Note that ini.e also doesn&apos;t attempt any escape character or quote handling itself: that&apos;s all on you as well.<br>
-        Likewise an ini file cannot hold say "123" as an unquoted <i>string</i>, you may have to quote-strip/add manually.<br>
+        <small>(While it might be sensible to assume a limit of 32,767 bytes per line, ini.e itself imposes no such restriction.
+                     Keeping .ini files human-editable/readable is a much more important consideration.
+                Tip: ini.e treats say `text[01]`..`text[10]` as ten distinct keynames, so I suppose you could perhaps
+                     split/stitch on that sort of basis.)</small><br>
+        Note that ini.e also does <i>not</i> attempt any escape character or quote handling itself: that&apos;s all on you as well.<br>
+        Likewise an ini file cannot hold say `123` as an unquoted <i>string</i>, you may have to quote-strip/add manually.<br>
 <!--
          [See theEditor.exw for more examples.]<br>
 --]
         Line comments (--, //, or ;) are recognised/preserved, but there are NO block comments,
-        and line means the whole of it, eg "-- comment", NOT "keyname = setting -- comment", since
-        the latter simply sets "keyname" to "setting -- comment". Aka line[1] in "-/;" only.<br>
+        and line means the whole of it, eg `-- comment`, NOT `keyname = setting -- comment`, since
+        the latter simply sets `keyname` to `setting -- comment`. Aka line[1] in `-/;` only.<br>
 [!-- went the "aka" way just mentioned instead...
-        In practice, "-- comment" is preserved as name=="" plus that and no '=', whereas (say)
-        "--name = previous" is preserved as "--name" plus "previous" (with an implicit '='), and 
-        of course would rely on the application simply never querying/updating "--name". <br>
+        In practice, `-- comment` is preserved as name=="" plus that and no '=', whereas (say)
+        `--name = previous` is preserved as `--name` plus `previous` (with an implicit '='), and 
+        of course would rely on the application simply never querying/updating `--name`. <br>
 -->
-        Duplicate keynames are overwritten, but it displays some hopefully helpful warnings on the console if any such 
+        Duplicate keynames are overwritten, but it displays some hopefully helpful warnings on the console when any such 
         are detected. It should be difficult and perhaps impossible to accidentally create duplicate keynames, except 
         when they occur in the ini_default string, over which these routines have no direct control whatsoever, fairly
         obviously, about what an application decides to supply in that parameter.
@@ -85,53 +88,52 @@
 <!--eucode>
 include builtins\ini.e
 
-constant TED = "theEditor",
-     SESSION = TED&"_session",
-ini_defaults = """
+constant TED = `theEditor`,
+     SESSION = TED&`_session`,
+ini_defaults = `
 width = 240
 height = 80
 mainwin = {50,50}
-""",
-session_defaults = """
+`,
+session_defaults = `
 C:\Program Files (x86)\Phix\builtins\ini.e
 C:\Users\Pete\theEditor.ini
-"""
+`
 ini_load(TED,ini_defaults)
 ini_load(SESSION,session_defaults)
 -- ...
-    ini_restore(TED) -- (be sure SESSION isn't active)
-    integer w = ini_setting("width"),
-            h = ini_setting("height"),
-      {{x,y}} = scanf(ini_setting("mainwin"),"{%d,%d}")
+    ini_switch(TED) -- (be sure SESSION isn't active)
+    integer w = ini_setting(`width`),
+            h = ini_setting(`height`),
+      {{x,y}} = scanf(ini_setting(`mainwin`),`{%d,%d}`)
 -- ...
     -- reload files if any from the previous session:
-    ini_restore(SESSION) -- (entirely optional here)
+    ini_switch(SESSION) -- (entirely optional here)
     for key in ini_keynames(SESSION) do
         object setting = ini_setting(key)
-        if integer(setting) or length(setting) then
-            ?{"dunno what this is",key,setting}
-        elsif string(setting) then
-            string text = get_text(key)
-        else
-            -- setting can only be integer or string
-            crash("this should never actually happen")
+        if setting=="" then -- (all good/as expected)
+            string text = get_text(key) // +new_tab(?)
+        elsif integer(setting) or length(setting) then
+            ?{`dunno what this is`,key,setting}
+        else -- setting can only be integer or string
+            crash(`this should never actually happen`)
         end if
     end for
 -- ...
-    ini_restore(SESSION) -- (it costs very little to play safe)
+    ini_switch(SESSION) -- (it costs very little to play safe)
     -- add a new file to the session when opened:
     -- (override bMustExist when it likely won't)
     ini_set(filepath,"",false)
 -- ...
     -- remove from session when file is closed:
-    ini_restore(SESSION) -- (ditto)
+    ini_switch(SESSION) -- (ditto)
     ini_delete_key(filepath)
 -- ...
     -- update window placement if/when moved:
-    ini_restore(TED) -- (ditto)
-    ini_set("mainwin",sprintf("{%d,%d}",{x,y}))
-    ini_set("width",w)
-    ini_set("height",h)
+    ini_switch(TED) -- (ditto)
+    ini_set(`mainwin`,sprintf(`{%d,%d}`,{x,y}))
+    ini_set(`width`,w)
+    ini_set(`height`,h)
 -- ...
     ini_save(SESSION)
 -- ...
@@ -141,53 +143,52 @@ ini_save(TED) -- see eg C:\Users\Pete\theEditor.ini
 <pre>
 <font color="#008080">include</font><font color="#000000"> builtins\ini.e
 </font>
-<font color="#008080">constant</font><font color="#000000"> TED</font><font color="#0000FF"> =</font><font color="#008000"> "theEditor"</font><font color="#0000FF">,</font>
-<font color="#000000">     SESSION</font><font color="#0000FF"> =</font><font color="#000000"> TED</font><font color="#0000FF">&amp;</font><font color="#008000">"_session"</font><font color="#0000FF">,</font>
-<font color="#000000">ini_defaults</font><font color="#0000FF"> =</font><font color="#008000"> """
+<font color="#008080">constant</font><font color="#000000"> TED</font><font color="#0000FF"> =</font><font color="#008000"> `theEditor`</font><font color="#0000FF">,</font>
+<font color="#000000">     SESSION</font><font color="#0000FF"> =</font><font color="#000000"> TED</font><font color="#0000FF">&amp;</font><font color="#008000">`_session`</font><font color="#0000FF">,</font>
+<font color="#000000">ini_defaults</font><font color="#0000FF"> =</font><font color="#008000"> `
 width = 240
 height = 80
 mainwin = {50,50}
-"""</font><font color="#0000FF">,</font>
-<font color="#000000">session_defaults</font><font color="#0000FF"> =</font><font color="#008000"> """
+`</font><font color="#0000FF">,</font>
+<font color="#000000">session_defaults</font><font color="#0000FF"> =</font><font color="#008000"> `
 C:\Program Files (x86)\Phix\builtins\ini.e
 C:\Users\Pete\theEditor.ini
-"""</font>
+`</font>
 <font color="#7060A8">ini_load</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">,</font><font color="#000000">ini_defaults</font><font color="#0000FF">)</font>
 <font color="#7060A8">ini_load</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">,</font><font color="#000000">session_defaults</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (be sure SESSION isn&apos;t active)</i></font>
-<font color="#004080">    integer</font><font color="#000000"> w</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"width"</font><font color="#0000FF">),</font>
-<font color="#000000">            h</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">"height"</font><font color="#0000FF">),
-      {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#7060A8"> scanf</font><font color="#0000FF">(</font><font color="#7060A8">ini_setting</font><font color="#800000">(</font><font color="#008000">"mainwin"</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">"{%d,%d}"</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_switch</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (be sure SESSION isn&apos;t active)</i></font>
+<font color="#004080">    integer</font><font color="#000000"> w</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">`width`</font><font color="#0000FF">),</font>
+<font color="#000000">            h</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#008000">`height`</font><font color="#0000FF">),
+      {</font><font color="#800000">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#800000">}</font><font color="#0000FF">} =</font><font color="#7060A8"> scanf</font><font color="#0000FF">(</font><font color="#7060A8">ini_setting</font><font color="#800000">(</font><font color="#008000">`mainwin`</font><font color="#800000">)</font><font color="#0000FF">,</font><font color="#008000">`{%d,%d}`</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...
     -- reload files if any from the previous session:</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (entirely optional here)</i></font>
+<font color="#7060A8">    ini_switch</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (entirely optional here)</i></font>
 <font color="#008080">    for</font><font color="#000000"> key</font><font color="#008080"> in</font><font color="#7060A8"> ini_keynames</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#008080"> do</font>
 <font color="#004080">        object</font><font color="#000000"> setting</font><font color="#0000FF"> =</font><font color="#7060A8"> ini_setting</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font>
-<font color="#008080">        if</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> or</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
-<font color="#0000FF">            ?{</font><font color="#008000">"dunno what this is"</font><font color="#0000FF">,</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">setting</font><font color="#0000FF">}</font>
-<font color="#008080">        elsif</font><font color="#004080"> string</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
-<font color="#004080">            string</font><font color="#000000"> text</font><font color="#0000FF"> =</font><font color="#7060A8"> get_text</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font>
-<font color="#008080">        else</font>
-<font color="#000080"><i>            -- setting can only be integer or string</i></font>
-<font color="#7060A8">            crash</font><font color="#0000FF">(</font><font color="#008000">"this should never actually happen"</font><font color="#0000FF">)</font>
+<font color="#008080">        if</font><font color="#000000"> setting</font><font color="#0000FF">==</font><font color="#008000">""</font><font color="#008080"> then</font><font color="#000080"><i> -- (all good/as expected)</i></font>
+<font color="#004080">            string</font><font color="#000000"> text</font><font color="#0000FF"> =</font><font color="#7060A8"> get_text</font><font color="#0000FF">(</font><font color="#000000">key</font><font color="#0000FF">)</font><font color="#000080"><i> // +new_tab(?)</i></font>
+<font color="#008080">        elsif</font><font color="#004080"> integer</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> or</font><font color="#7060A8"> length</font><font color="#0000FF">(</font><font color="#000000">setting</font><font color="#0000FF">)</font><font color="#008080"> then</font>
+<font color="#0000FF">            ?{</font><font color="#008000">`dunno what this is`</font><font color="#0000FF">,</font><font color="#000000">key</font><font color="#0000FF">,</font><font color="#000000">setting</font><font color="#0000FF">}</font>
+<font color="#008080">        else</font><font color="#000080"><i> -- setting can only be integer or string</i></font>
+<font color="#7060A8">            crash</font><font color="#0000FF">(</font><font color="#008000">`this should never actually happen`</font><font color="#0000FF">)</font>
 <font color="#008080">        end if
     end for</font>
 <font color="#000080"><i>-- ...</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (it costs very little to play safe)
+<font color="#7060A8">    ini_switch</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (it costs very little to play safe)
     -- add a new file to the session when opened:
     -- (override bMustExist when it likely won&apos;t)</i></font>
 <font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#000000">filepath</font><font color="#0000FF">,</font><font color="#008000">""</font><font color="#0000FF">,</font><font color="#004600">false</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...
     -- remove from session when file is closed:</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
+<font color="#7060A8">    ini_switch</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
 <font color="#7060A8">    ini_delete_key</font><font color="#0000FF">(</font><font color="#000000">filepath</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...
     -- update window placement if/when moved:</i></font>
-<font color="#7060A8">    ini_restore</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
-<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"mainwin"</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#800000">(</font><font color="#008000">"{%d,%d}"</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">)</font>
-<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"width"</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">)</font>
-<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">"height"</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_switch</font><font color="#0000FF">(</font><font color="#000000">TED</font><font color="#0000FF">)</font><font color="#000080"><i> -- (ditto)</i></font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">`mainwin`</font><font color="#0000FF">,</font><font color="#7060A8">sprintf</font><font color="#800000">(</font><font color="#008000">`{%d,%d}`</font><font color="#0000FF">,</font><font color="#008080">{</font><font color="#000000">x</font><font color="#0000FF">,</font><font color="#000000">y</font><font color="#008080">}</font><font color="#800000">)</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">`width`</font><font color="#0000FF">,</font><font color="#000000">w</font><font color="#0000FF">)</font>
+<font color="#7060A8">    ini_set</font><font color="#0000FF">(</font><font color="#008000">`height`</font><font color="#0000FF">,</font><font color="#000000">h</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...</i></font>
 <font color="#7060A8">    ini_save</font><font color="#0000FF">(</font><font color="#000000">SESSION</font><font color="#0000FF">)</font>
 <font color="#000080"><i>-- ...</i></font>
@@ -231,34 +232,46 @@ C:\Users\Pete\theEditor.ini
             <nobr>%HOMEDRIVE%%HOMEPATH%\ini_name.ini</nobr> on Windows <small>(eg C:\Users\Pete\test.ini)</small>.<br>
             If ini_name <i>does</i> begin with '$' it is dropped and settings are stored in a system-wide location.<br>
             If there is a second '$' it is treated as $ini_name$configname otherwise configname is the
-            literal constant "config". On Windows the file is stored in %ALLUSERSPROFILE%\ini_name\configname.ini,
+            literal constant `config`. On Windows the file is stored in %ALLUSERSPROFILE%\ini_name\configname.ini,
             <small>(eg C:\ProgramData\theEditor\config.ini)</small>
             but currently Linux crashes since I have simply not decided where best to put it yet. 
             Likewise this could be a good candidate for any initial p2js experiments, as next. [DEV]<br>
             Under p2js, relies entirely on ini_default with no attempt to read/write anything to disk.<br>
             <small>[LocalStorage and/or some form of PHP API on a server remain untested options there.]</small><br>
             Invokes <a href>ini_filename</a>() internally, ini_default is completely ignored once the file already exists.<br>
-            The internal "structure" of ini_default, if you can call it that, is preserved indefinitely, including
-            any comments, unless you really go to town with <a href>ini_delete_key</a>(). 
-            The only way you could reorganise things (for your aesthetic reasons, the application should simply not care) 
-            or add comments, other than manually editing the file (at a time when it is <i>not</i> due to be overwritten, 
-            of course) would be to grab any details needed, <a href>ini_close</a>(), physically delete the 
-            file, and re-create with a "nicer" ini_default.<br>
-            Multiple invocations with the same ini_name, without an intervening <a href>ini_close</a>(), will
-            trigger a fatal error.<br>
+            Preserves order/structure including comments as best it can, but you shouldn&apos;t care/no guarantees.<br>
+            Multiple invocations of same ini_name without intervening <a href>ini_close</a>() trigger a fatal error.<br>
             </dd>
            </dl>
           </td>
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_restore></a>
+            <a name=ini_filename></a>
+            <nobr>string res =&nbsp;</nobr>
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_filename</b>(string ini_name)
+             <br>
+            </dt>
+            <dd class="pad">
+            Made available in case it proves useful, used internally by <a href>ini_load</a>().<br>
+            Returns the filename corresponding to ini_name, as described above.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_switch></a>
             <br>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>ini_restore</b>(string ini_name)
+            <b>ini_switch</b>(string ini_name)
              <br>
             </dt>
             <dd class="pad">
@@ -266,10 +279,10 @@ C:\Users\Pete\theEditor.ini
             to call just in case additional ini files start getting used, for instance by some library component you 
             later decide to start using. <small>[The alternative would be to force ini_name to be provided on every fetch 
             and set, which didn&apos;t feel right.]</small>
-            In other words, ini_restore() is "re-specify where we&apos;re storing things", rather than any form of recover 
-            or undo, and I suppose typically belongs at the start of a/each section/loop. 
-            For internal reasons, ini_restore("") does nothing, except prove at least one <a href>ini_load</a>() has occurred, and
-            is still "active" aka not <a href>ini_close</a>()&apos;d.
+            In other words, ini_switch() is "re-specify where we are storing things", rather than any form of recover or undo, and 
+            I suppose typically belongs at the start of a/each section/loop. 
+            For internal reasons, ini_switch("") does nothing, except prove at least one <a href>ini_load</a>() has occurred, and
+            is still "active" aka has not been <a href>ini_close</a>()&apos;d.
             </dd>
            </dl>
           </td>
@@ -287,11 +300,11 @@ C:\Users\Pete\theEditor.ini
             </dt>
             <dd class="pad">
             Note there are no checks whatsoever that ini_save() is ever actually called, except via <a href>ini_close</a>().<br>
-            Can be invoked multiple times per session with no side effects other than the ini file itself being overwritten.<br>
             Does nothing unless <a href>ini_dirty</a>() indicates it that needs/ought to (and then clears the dirty flag).<br>
+            Can be invoked multiple times per session with no side effects other than the ini file itself being overwritten.
             Invokes <a href>ini_as_string</a>() automatically and writes the result to disk (but not under p2js).<br>
-            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
+            The ini_name can be omitted shortly after an explicit <a href>ini_switch</a>(), but there is no harm whatsoever or 
+            measurable performance overhead in explicitly (re-)specifying it, ditto next three.
             </dd>
            </dl>
           </td>
@@ -310,48 +323,26 @@ C:\Users\Pete\theEditor.ini
             <dd class="pad">
             (optional) 
             Completely removes the specified entry from the internal tables and sets the active index to 0.<br>
-            An error occurs if there are any pending updates, aka <a href>ini_save</a>() missing, unless bIgnoreDirty is overidden.<br>
-            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.<br>
-            Provided for completeness only: there is no real benefit from ever bothering with this, other than verify-saved
-            or you are for some strange reason attempting the awkward/longhand re-creation method mentioned in <a href>ini_load</a>().
+            An error occurs when pending updates exist, aka <a href>ini_save</a>() missing, unless bIgnoreDirty is overidden.<br>
+            Provided for completeness only: there is no real benefit other than verify-saved, or delete/re-create use.<br>
             </dd>
            </dl>
           </td>
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_set></a>
+            <a name=ini_keynames></a>
+            <nobr>sequence res =&nbsp;</nobr>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>ini_set</b>(string keyname, object setting, bool bMustExist=true)
+            <b>ini_keynames</b>(string ini_name="")
              <br>
             </dt>
             <dd class="pad">
-            Individual settings can be integer or string: other content should be explicitly managed
-            (at the point of call) via <a href>sprintf</a>() and <a href>scanf</a>()
-            as shown above for the integer {x,y} position pairing.<br>
-            </dd>
-           </dl>
-          </td>
-         </tr>
-         <tr>
-          <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_setting></a>
-            object res =&nbsp;
-          </td>
-          <td align="left" style="padding: 0; border-style: none;">
-           <dl>
-            <dt>
-            <b>ini_setting</b>(sequence keyname, object dflt=0, bool bMustExist=true)
-             <br>
-            </dt>
-            <dd class="pad">
-            Result will be integer, string, or (when bMustExist is false) whatever type dflt was.<br>
-            keyname can be a string or {ini_name,keyname} to perform an automatic ini_restore(ini_name).<br>
-            When bMustExist is true, dflt is not actually used/returned, and an error occurs instead.<br>
+            Returns a list of all keynames currently stored.<br>
+            Probably more useful for, say, recent files than actual/proper/permanant settings.<br>
             </dd>
            </dl>
           </td>
@@ -376,38 +367,21 @@ C:\Users\Pete\theEditor.ini
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_keynames></a>
-            <nobr>sequence res =&nbsp;</nobr>
+            <a name=ini_as_string></a>
+            string res =&nbsp;
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>ini_keynames</b>(string ini_name="")
+            <b>ini_as_string</b>(string ini_name)
              <br>
             </dt>
             <dd class="pad">
-            Returns a list of all keynames currently stored.<br>
-            Probably more useful for, say, recent files than actual/proper/permanant settings.<br>
-            Omitting ini_name should only be done when there is an explicit <a href>ini_restore</a>() at the start of the code block,
-            and no harm whatsoever or measurable performance overhead in explicitly (re-)specifying it.
-            </dd>
-           </dl>
-          </td>
-         </tr>
-         <tr>
-          <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_filename></a>
-            <nobr>string res =&nbsp;</nobr>
-          </td>
-          <td align="left" style="padding: 0; border-style: none;">
-           <dl>
-            <dt>
-            <b>ini_filename</b>(string ini_name)
-             <br>
-            </dt>
-            <dd class="pad">
-            Made available in case it proves useful, used internally by <a href>ini_load</a>().<br>
-            Returns the filename corresponding to ini_name, as described above.<br>
+            Made available in case it proves useful, used internally by <a href>ini_save</a>().<br>
+            Returns the keynames and settings as a single text string (with embedded '\n').<br>
+            May possibly be useful in a JavaScript context, but probably not.<br>
+            Alternatively you might want to use <a href>ini_filename</a>() and this to hunt for 
+            and provide a suitable ini_default.<br>
             </dd>
            </dl>
           </td>
@@ -436,31 +410,47 @@ C:\Users\Pete\theEditor.ini
          </tr>
          <tr>
           <td align="right" style="padding: 0; border-style: none;">
-            <a name=ini_as_string></a>
-            string res =&nbsp;
+            <a name=ini_set></a>
           </td>
           <td align="left" style="padding: 0; border-style: none;">
            <dl>
             <dt>
-            <b>ini_as_string</b>(string ini_name)
+            <b>ini_set</b>(string keyname, object setting, bool bMustExist=true)
              <br>
             </dt>
             <dd class="pad">
-            Made available in case it proves useful, used internally by <a href>ini_save</a>().<br>
-            Returns the keynames and settings as a single text string (with embedded '\n').<br>
-            May possibly be useful in a JavaScript context, but probably not.<br>
-            Alternatively you might want to use <a href>ini_filename</a>() and this to hunt for 
-            and provide a suitable ini_default.<br>
+            Individual settings can be integer or string: other content should be explicitly managed
+            at the point of call via <a href>sprintf</a>() and <a href>scanf</a>()
+            as shown above for the integer {x,y} position pairing.<br>
             </dd>
            </dl>
           </td>
          </tr>
-
+         <tr>
+          <td align="right" style="padding: 0; border-style: none;">
+            <a name=ini_setting></a>
+            object res =&nbsp;
+          </td>
+          <td align="left" style="padding: 0; border-style: none;">
+           <dl>
+            <dt>
+            <b>ini_setting</b>(sequence keyname, object dflt=0, bool bMustExist=true)
+             <br>
+            </dt>
+            <dd class="pad">
+            Of course this is <i>the</i> most important/useful function of the lot <small>(saved the best for last)</small>.<br>
+            Result will be integer, string, or (when bMustExist is false) whatever type dflt was.<br>
+            keyname can be a string or {ini_name,keyname} to perform an automatic ini_switch(ini_name).<br>
+            When bMustExist is true/omitted, dflt is not actually used/returned, and an error occurs instead.<br>
+            </dd>
+           </dl>
+          </td>
+         </tr>
         </table>
        </div>
        <div style="clear:both;height:1px;"> </div>
        <br>
-        The bMustExist parameter is intended to help by shouting out missing <a href>ini_restore</a>().
+        The bMustExist parameter is intended to help by shouting out missing <a href>ini_switch</a>().
         Should you override it to false, and/or fail to mention something in the ini_default as passed to 
         <a href>ini_load</a>(), it becomes the application&apos;s sole responsiblity to ensure the correct ini file 
         is open/active. However some keynames, especially for instance filepaths, almost always need it to be overidden.
@@ -468,7 +458,7 @@ C:\Users\Pete\theEditor.ini
        <br>
         Should you want, for instance, to save the width and height of ten different windows, then rather than have ten
         "sections" with those fields duplicated in each, use unique names such as main_width, details_width, options_width, 
-        etc. Alternatively of course you could have main_window = "{10,10,800,600}", and so on, sharing the same sprintf()
+        etc. Alternatively of course you could have main_window = `{10,10,800,600}`, and so on, sharing the same sprintf()
         to pack and scanf() to unpack, and that way effectively make sub-fields anonymous as far as ini.e is concerneed.
        <br>
        <br>

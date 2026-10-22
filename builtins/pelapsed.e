@@ -84,7 +84,7 @@ global function elapsed_short(atom s, min_s=0, string fmt="")
 --
 atom m,h,d
 string res = ""
-    if min_s=0 or s>=min_s then
+    if min_s=0 or s>=min_s or fmt=":" then
         string minus = ""
         if s<0 then
             minus = "-"
@@ -93,7 +93,7 @@ string res = ""
         m = floor(s/60)
         s = remainder(s,60)
         res = sprintf("%ds",{s})
-        if m then
+        if m or fmt=":" then
             h = floor(m/60)
             m = remainder(m,60)
             res = sprintf("%d:%02d",{m,s})
@@ -114,7 +114,7 @@ string res = ""
             end if
         end if
         res = minus & res
-        if length(fmt) then
+        if length(fmt) and fmt!=":" then
             res = sprintf(fmt,{res})
         end if
     end if

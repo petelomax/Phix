@@ -1,0 +1,128 @@
+﻿--
+-- demo\rosetta\OCR_of_text_in_image.exw
+-- =====================================
+--
+--  Uses the same basic strategy as Wren, ie run tesseract, but 
+--  then uses hocr bounding boxes to determine whether the next
+--  word is on the same line (this left > prev right) and then
+--  to compute the needed spaces/linefeeds with trivial maths.
+--  Note the +7 fudge, which alternative maths might not need.
+--  Likewise the /14 'll likely be wrong for other font sizes.
+--
+requires(WINDOWS) -- (due to next constant, nowt else)
+constant tesseract = `C:\Program Files\Tesseract-OCR\tesseract.exe`,
+             image = `The_Road_Not_Taken_Frost_Poem.jpg`
+for file in {tesseract,image} do
+    if get_file_type(file)!=FILETYPE_FILE then
+        crash(`"%s" not found`,{file})
+    end if
+end for
+string cmd = sprintf(`"%s" "%s" out`,{tesseract,image})
+if system_exec(cmd)!=0
+or system_exec(cmd&` hocr`)!=0 then
+    crash(`error running "%s"`,{tesseract})
+end if
+printf(1,"Basic:\n\n%s\n",{get_text(`out.txt`)})
+printf(1,"Corrected:\n\n")
+include builtins\xml.e
+string hocr = substitute(get_text(`out.hocr`),{226,128,152},"")
+-- (kill off a couple of hallucinated unicode quotes  ^^ .. ^^)
+sequence xml = strict_html_parse(hocr[match(`<!DOCTYPE`,hocr)..$]),
+        html = xml[2]       -- \
+assert(html[1]=`html`)      --  } or deal with this
+sequence body = html[3][2]  -- /  in collect_words()
+assert(body[1]=`body`)      --/
+sequence words = {},
+          ltrb = {} 
+procedure collect_words(sequence xml)
+    if xml[1]=`span`
+    and xml[2][2][1]=`ocrx_word` then
+        words &= xml[3]
+        ltrb &= scanf(xml[2][2][3],`bbox %d %d %d %d; x_wconf %d`)
+        assert(length(words)=length(ltrb)) -- sanity check
+    else
+        for p in xml[3] do
+            collect_words(p)
+        end for
+    end if
+end procedure
+collect_words(body) -- aside: discards all tesseract-deduced structure
+integer pr = 0, pb = ltrb[1][2]
+string line = ""
+for i,w in words do
+    integer {l,t,r,b} = ltrb[i]
+    if l<pr then -- gotta be a new line then
+        printf(1,"%s\n",{line})
+        -- (the +7 is a fudge, as noted above)
+        line = repeat('\n',floor((t-pb)/(b-t+7)))
+        pr = 0
+    end if
+    line &= repeat(' ',ceil((l-pr)/14))&w
+    {pr,pb} = {r,b}
+end for
+printf(1,"%s\n",{line})
+
+--/*
+Basic:
+
+THE ROAD NOT TAKEN
+
+Two roads diverged in a yellow wood,
+And sorry I could not travel both
+And be one traveler, long I stood
+
+And looked down one as far as I could
+To where it bent in the undergrowth;
+
+‘Then took the other, as just as fair,
+And having perhaps the better claim
+Because it was grassy and wanted wear,
+Though as for that the passing there
+Had worn them really about the same,
+
+And both that morning equally lay
+
+In leaves no step had trodden black.
+Oh, I marked the first for another day!
+Yet knowing how way leads on to way
+I doubted if I should ever come back.
+
+I shall be telling this with a sigh
+Somewhere ages and ages hence:
+‘Two roads diverged in a wood, and I,
+I took the one less traveled by,
+
+And that has made all the difference.
+
+Corrected:
+
+          THE ROAD NOT TAKEN
+
+     Two roads diverged in a yellow wood,
+     And sorry I could not travel both
+     And be one traveler, long I stood
+     And looked down one as far as I could
+     To where it bent in the undergrowth;
+
+     Then took the other, as just as fair,
+     And having perhaps the better claim
+     Because it was grassy and wanted wear,
+     Though as for that the passing there
+     Had worn them really about the same,
+
+     And both that morning equally lay
+     In leaves no step had trodden black.
+     Oh, I marked the first for another day!
+     Yet knowing how way leads on to way
+     I doubted if I should ever come back.
+
+     I shall be telling this with a sigh
+     Somewhere ages and ages hence:
+     Two roads diverged in a wood, and I,
+     I took the one less traveled by,
+     And that has made all the difference.
+--*/
+
+?`done`
+wait_key()
+

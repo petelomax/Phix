@@ -31,7 +31,7 @@
             <br>
             hzip: the result of a successful call to <a href>UnzipOpenFile</a>().<br>
             ze: the result of a successful call to <a href>new_ZIPENTRY</a>().<br>
-            idx: a 0-based index, from 0 to the result of <a href>UnzipGetItems</a>()-1.
+            idx: a 1-based index, from 1 to the result of <a href>UnzipGetItems</a>().
             <br>
             <br>
             Returns ZR_OK (=0) or a string error message.
@@ -50,7 +50,7 @@
           <b>Comments:</b>
          </td>
          <td>
-            The <a href>UnzipGetItems</a>() routine invokes UnZipGetItem() with an idx of -1,
+            The <a href>UnzipGetItems</a>() routine invokes UnZipGetItem() with an idx of 0,
             and retrieves the Index field from the ze when it returns.
          </td>
         </tr>
@@ -78,27 +78,29 @@ integer numitems = UnzipGetItems(hzip,ze)
 UnzipSetBaseDir(hzip,current_dir()&`\test`)
 
 for i=1 to numitems do
-    integer res = UnzipGetItem(hzip, ze, i-1)
-    res = UnzipItemToFile(hzip, ze)
+    integer res = UnzipGetItem(hzip,ze,i)
+    res = UnzipItemToFile(hzip,ze)
 end for
 
-UnzipClose(hzip)
+hzip = UnzipClose(hzip)
+ze = free(ze)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
-
-</font><font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.2.zip"</font><font color="#0000FF">)
-</font><font color="#5E005E">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#5E005E"> new_ZIPENTRY</font><font color="#0000FF">()
-</font><font color="#004080">integer</font><font color="#000000"> numitems</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipGetItems</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)
-
-</font><font color="#5E005E">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#5E005E">current_dir</font><font color="#800000">()</font><font color="#0000FF">&amp;</font><font color="#008000">`\test`</font><font color="#0000FF">)
-
-</font><font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> numitems</font><font color="#008080"> do
-</font><font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipGetItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">,</font><font color="#000000"> i</font><font color="#0000FF">-</font><font color="#000000">1</font><font color="#0000FF">)
-</font><font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000"> ze</font><font color="#0000FF">)
-</font><font color="#008080">end for
-
-</font><font color="#5E005E">UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
+</font>
+<font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.2.zip"</font><font color="#0000FF">)</font>
+<font color="#7060A8">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#7060A8"> new_ZIPENTRY</font><font color="#0000FF">()</font>
+<font color="#004080">integer</font><font color="#000000"> numitems</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipGetItems</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)
+</font>
+<font color="#7060A8">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#7060A8">current_dir</font><font color="#800000">()</font><font color="#0000FF">&amp;</font><font color="#008000">`\test`</font><font color="#0000FF">)
+</font>
+<font color="#008080">for</font><font color="#000000"> i</font><font color="#0000FF">=</font><font color="#000000">1</font><font color="#008080"> to</font><font color="#000000"> numitems</font><font color="#008080"> do</font>
+<font color="#004080">    integer</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipGetItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#000000">i</font><font color="#0000FF">)</font>
+<font color="#000000">    res</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipItemToFile</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)</font>
+<font color="#008080">end for
+</font>
+<font color="#000000">hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">ze</font><font color="#0000FF"> =</font><font color="#7060A8"> free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
 </pre>
               </div>
              </div>

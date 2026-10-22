@@ -12,7 +12,7 @@ local integer ini_idx = -1  -- currently active/open [should never be 0, -1==nee
 --
 -- Should you only be using a single ini file, any fiddling this may or may not do with the
 -- following should be completely seamless, otherwise the application code may need several
--- ini_restore("ini_name") dotted about, before any init_set() or ? = ini_setting() calls,
+-- ini_switch("ini_name") dotted about, before any init_set() or ? = ini_setting() calls,
 -- with bMustExist use (below) //designed// to help quickly locate any such omissions.
 --
 local sequence ini_names,       -- filenames
@@ -133,7 +133,7 @@ local procedure check_ini() -- (used by all except ini_load)
     assert(ini_idx>0,"no prior ini_load()?")
 end procedure
 
-global procedure ini_restore(string ini_name)
+global procedure ini_switch(string ini_name)
     -- only ever needed when there (may) have been multiple ini_load() calls.
     if length(ini_name) 
     and (ini_idx<=0 or ini_names[ini_idx]!=ini_name) then
@@ -156,7 +156,7 @@ end procedure
 global function ini_as_string(string ini_name)
     -- (primarily intended for JavaScript use..)
     -- (made available in case it proves useful)
-    ini_restore(ini_name)
+    ini_switch(ini_name)
     string res = ""
     for i,keyname in keynames do
         object setting = settings[i]
@@ -175,7 +175,7 @@ global function ini_as_string(string ini_name)
 end function
 
 global function ini_dirty(string ini_name)
-    ini_restore(ini_name)
+    ini_switch(ini_name)
     return platform()!=JS and dirty[ini_idx]
 end function
 
@@ -198,7 +198,7 @@ global procedure ini_save(string ini_name="")
 end procedure
 
 global procedure ini_close(string ini_name="", bool bIgnoreDirty=false)
-    ini_restore(ini_name)
+    ini_switch(ini_name)
     if not bIgnoreDirty then
         assert(not ini_dirty(ini_name),"unsaved changes")
     end if
@@ -218,7 +218,7 @@ global procedure ini_close(string ini_name="", bool bIgnoreDirty=false)
 end procedure
 
 global function ini_keynames(string ini_name="")
-    ini_restore(ini_name)
+    ini_switch(ini_name)
     return filter(keynames,"!=","") -- (not comments)
 end function
 
@@ -229,7 +229,7 @@ local function ini_keydx(string keyname)
     return find(keyname,keynames)
 end function
 
--- Note: bMustExist is intended to help by shouting out missing ini_restore(),
+-- Note: bMustExist is intended to help by shouting out missing ini_switch(),
 --       should you override it to false, and/or fail to mention something in 
 --       the ini_default as passed to ini_load(), it becomes the application's 
 --       sole responsiblity to ensure the correct ini file is open/active.
@@ -238,7 +238,7 @@ end function
 --global function ini_setting(string keyname, object dflt=0, bool bMustExist=true)
 global function ini_setting(sequence keyname, object dflt=0, bool bMustExist=true)
     if not string(keyname) then
-        ini_restore(keyname[1])
+        ini_switch(keyname[1])
         keyname = keyname[2]
     end if
     integer k = ini_keydx(keyname)
@@ -281,7 +281,7 @@ global procedure ini_delete_key(string keyname, bool bMustExist=true)
 end procedure
 
 global procedure ini_delete_all(string ini_name="")
-    ini_restore(ini_name)
+    ini_switch(ini_name)
     sequence nk = {}, ns = {}
     for k,key in keynames do
         if key="" then -- keep comments

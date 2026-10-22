@@ -1,0 +1,141 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">UnzipItemToBuffer</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\LiteZip.e
+            <br>
+            <br>
+            <a href>object</a> res = UnzipItemToBuffer(<a href>atom</a> hzip, <a href>object</a> buf, <a href>integer</a> len, <a href>ZIPENTRY</a> ze)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Extracts to a memory buffer, in a single shot or (untested) suitably sized chunks.
+            <br>
+            <br>
+            hzip: the result of a successful call to <a href>UnzipOpenFile</a>().<br>
+            buf: allocated memory or better yet a binary string.<br>
+            len: the length of buf - will need to handle ZR_MORE when less than the uncompressed size.<br>
+            ze: the recent subject of a successful <a href>UnzipGetItem</a>() or <a href>UnzipFindItem</a>() call.
+            <br>
+            <br>
+            You could <a href>allocate</a>() buf, but then you&apos;d probably have to <a href>peek</a>({buf,len}) it, whereas buf=repeat(' ',len) is job done.<br>
+            You can get the uncompressed size, which you&apos;ll need, from get_struct_field(idZE,ze,"UncompressedSize").
+            <br>
+            <br>
+            Returns ZR_OK (=0), ZR_MORE (=5), or a string error message.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notp2js.htm#nofileio"><span class="illegal">Not supported</span></a>.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            Warning: during tesing of a since aborted attempt to get this working with a memory buffer, rather than a file, what looks for all the world
+            like a latent bug in the C code was found: it sets ze.CompressedSize to len, which is the uncompressed size. In the File case, I found that 
+            the compressed and uncompressed sizes were already correct on entry, but leaving them like that made it stop working!
+            <br>
+            <br>
+            Further troubles down the line made me abandon the UnzipOpenBufferRaw() -&gt; UnzipItemToBuffer() approach completely, and replace it with
+            a single-shot <a href>UnzipBufferRaw</a>(), which invokes the inflate code directly, rather than trying to fight through the LiteZip 
+            infrastructure code quirks to get there, but sadly that didn&apos;t help. All of which led me to create <a href>inflate</a>, which is rock
+            solid and recommended way to perform a buffer -&gt; buffer uncompress, with this routine left in place for file -&gt; buffer uncompress.
+            The bottom line is that dubious line has been left in, it seems that "from file" actually needs the compressed size to be "wrong" and works 
+            fine as long as it is, but some doubts remain. <br>
+            See also demo\junzip, which is the beginnings of a LiteZip-free and xxflate.e-based alternative.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example 1:</b>
+         </td>
+         <td>
+           <div id="code-snippet-1" class="codeSnippetContainer" xmlns="">
+            <div class="codeSnippetContainerCodeContainer">
+             <div class="codeSnippetToolBar">
+              <div class="codeSnippetToolBarText">
+               <a id="copytext" href="javascript:CopyToClipboard('CodeSnippetContainerCode_84d73i47-w53b-2276-qw37-8b2483c92346');">Copy</a>
+              </div>
+             </div>
+             <div id="CodeSnippetContainerCode_84d73i47-w53b-2276-qw37-8b2483c92346" class="codeSnippetContainerCode" dir="ltr">
+              <div style="color:Black;">
+<!--eucode>
+include builtins\LiteZip.e
+
+atom hzip = UnzipOpenFile("phix.0.7.7.1.zip")
+UnzipSetBaseDir(hzip,"test")
+ZIPENTRY ze = new_ZIPENTRY()
+?UnzipFindItem(hzip,ze,"readme.txt") -- prints 0 (ZR_OK)
+integer l = get_struct_field(idZE,ze,"UncompressedSize")
+string buf = repeat(' ',l)
+
+?UnzipItemToBuffer(hzip,buf,l,ze)   -- prints 0 (ZR_OK)
+
+hzip = UnzipClose(hzip)
+ze = free(ze)
+</eucode-->
+<pre>
+<font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
+</font>
+<font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.1.zip"</font><font color="#0000FF">)</font>
+<font color="#7060A8">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"test"</font><font color="#0000FF">)</font>
+<font color="#7060A8">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#7060A8"> new_ZIPENTRY</font><font color="#0000FF">()
+?</font><font color="#7060A8">UnzipFindItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#008000">"readme.txt"</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 0 (ZR_OK)</i></font>
+<font color="#004080">integer</font><font color="#000000"> l</font><font color="#0000FF"> =</font><font color="#7060A8"> get_struct_field</font><font color="#0000FF">(</font><font color="#000000">idZE</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#008000">"UncompressedSize"</font><font color="#0000FF">)</font>
+<font color="#004080">string</font><font color="#000000"> buf</font><font color="#0000FF"> =</font><font color="#7060A8"> repeat</font><font color="#0000FF">(</font><font color="#008000">&apos; &apos;</font><font color="#0000FF">,</font><font color="#000000">l</font><font color="#0000FF">)
+
+?</font><font color="#7060A8">UnzipItemToBuffer</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">buf</font><font color="#0000FF">,</font><font color="#000000">l</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">)  </font><font color="#000080"><i> -- prints 0 (ZR_OK)
+</i></font>
+<font color="#000000">hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">ze</font><font color="#0000FF"> =</font><font color="#7060A8"> free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
+</pre>
+              </div>
+             </div>
+            </div>
+           </div>
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>See Also:</b>
+         </td>
+         <td>
+          <a href>UnzipOpenFile</a>,
+          <a href>ZIPENTRY</a>,
+          <a href>UnzipGetItems</a>,
+          <a href>UnzipGetItem</a>,
+          <a href>UnzipClose</a>
+         </td>
+        </tr>
+       </table>
+       <div style="clear:both;height:1px;"> </div>
+       <br>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

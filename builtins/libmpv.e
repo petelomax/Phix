@@ -305,7 +305,7 @@ global procedure mpv_command_string(integer ctx, string command)
     do
         res = c_func(x_mpv_command_string,{ctx_table[ctx],command})
         if res==MPV_ERROR_SUCCESS then exit end if
-        ?{"mpv_command",command}
+        if retries>5 then ?{"mpv_command",command} end if
         sleep(0.1)
         retries += 1
     until retries>50
@@ -405,9 +405,17 @@ global procedure mpv_set_property(integer ctx, string name, integer mpv_format, 
     integer res = c_func(x_mpv_set_property_string,{ctx_table[ctx],name,data})
     if res!=MPV_ERROR_SUCCESS then
         string eres = mpv_error_string(res)
-        crash("mpv_set_property_string(%s,%s)==>%d [%s]",{name,data,res,eres})
+        crash("mpv_set_property(%s,%s)==>%d [%s]",{name,data,res,eres})
     end if
 --  if res!=0 then ?{"mpv_set_property_string",res,name,data} end if
+end procedure
+
+global procedure mpv_set_property_string(integer ctx, string name, data)
+    integer res = c_func(x_mpv_set_property_string,{ctx_table[ctx],name,data})
+    if res!=MPV_ERROR_SUCCESS then
+        string eres = mpv_error_string(res)
+        crash("mpv_set_property_string(%s,%s)==>%d [%s]",{name,data,res,eres})
+    end if
 end procedure
 
 global function mpv_terminate_destroy(integer ctx)

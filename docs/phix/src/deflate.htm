@@ -1,0 +1,103 @@
+<head>
+ <body>
+  <toc>
+   <these>
+    <get>
+     <stripped>
+      <h1 class="title">deflate</h1>
+      <div id="mainSection">
+       <table>
+        <col style="width: 5%"/>
+        <tr>
+         <td>
+          <b>Definition:</b>
+         </td>
+         <td>
+            include builtins\deflate.e -- plus deflate.(32|64).dll
+            <br>
+            <br>
+            <a href>string</a>/<a href>object</a> res = deflate(<a href>object</a> src, <a href>integer</a> s=1, e=-1)
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Description:</b>
+         </td>
+         <td>
+            Deflate (compress) a [slice of a] binary string or a raw memory buffer.
+            <br>
+            <br>
+            src: a memory address or better yet a binary string, from (say) <a href>get_text</a>(zip).<br>
+            s/e: the start/end byte positions (1-based) within src, e being optional only when src is a string.
+            <br>
+            <br>
+            Should you have identified some portion of src, rather than the whole thing, s and e can help by avoiding a slice operation 
+            for which you might not have enough memory. When src is a memory buffer, s must be 1 [aka add s-1 to an atom instead] and 
+            e must be provided, but otherwise you don&apos;t normally need to bother with them.
+            <br>
+            <br>
+            Returns a binary string or an integer error code. Personally I tend to declare res as a string and rely on the typecheck
+            for debugging. The error codes aren&apos;t particularly well documented or indeed at all yet, but errors should be pretty 
+            rare as long as you have provided reasonable parameters and have enough memory.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <a href="p2js.htm"><span class="pwap2js"><b>pwa/p2js:</b></span></a>
+         </td>
+         <td>
+          <a href="notp2js.htm#nofileio"><span class="illegal">Not supported</span></a>. There is a CompressionStream("deflate-raw"),
+          so it should just be a matter of getting p2js to sidestep include deflate.e and slapping some replacement straight into 
+          p2js.js, or perhaps (slightly less optimal sizewise) doing it #isJS{}#isJS-style in deflate.e directly, but not before 
+          someone or myself actually needs it.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Comments:</b>
+         </td>
+         <td>
+            The dlls (source and build script included) are about as small as you&apos;d ever get, clocking in at 19K and 22K for
+            32 and 64 bit respectively. Performance and compression ratios should be reasonably close to what other tools manage,
+            at least for individual large items, not that I&apos;ve actually bothered to test that, beyond watching it exceed 1,000 
+            small things per second while lots of other stuff was going on, including checking decompression matches the original
+            perfectly. The per-item overhead of the hll wrapper might make it look bad on some pointless benchmarks, but for any 
+            real-world use that would be utterly neglible and completely swamped by disk i/o or network latency.
+            <br>
+            <br>
+            Linux users are expected to build the .so themselves: there are a couple of untested makefiles for Lite[Un]Zip, but I
+            haven&apos;t made up any equivalent for deflate.h/c - not that I expect that to be tricky. See builtins\LiteZip, and
+            deflate.e has a hard-coded ".dll" which will also need changing.
+            <br>
+            <br>
+            Might one day get plugged into demo\junzip, which would be responsible for handling/creating .zip files, along with the 
+            self-extracting executables and Phix equivalent of a resource section that are mentioned in the LiteZip documentation.
+            <br>
+            <br>
+            Be warned the code is from 2008, though it should be fairly straightforward to check it against/update it from the latest 
+            zlib sources, which probably haven&apos;t changed too much.
+         </td>
+        </tr>
+        <tr>
+         <td>
+          <b>Example:</b>
+         </td>
+         <td>
+<!--eucode>
+-- src is a binary string from somewhere.
+string res = deflate(src)
+</eucode-->
+<pre>
+<font color="#000080"><i>-- src is a binary string from somewhere.</i></font>
+<font color="#004080">string</font><font color="#000000"> res</font><font color="#0000FF"> =</font><font color="#7060A8"> deflate</font><font color="#0000FF">(</font><font color="#000000">src</font><font color="#0000FF">)</font>
+</pre>
+         </td>
+        </tr>
+       </table>
+      </div>
+     </stripped>
+    </get>
+   </these>
+  </toc>
+ </body>
+</head>

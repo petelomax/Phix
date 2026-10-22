@@ -53,19 +53,30 @@ global function count_bits(object n, integer nFrames=2)
     end if
 --  if n>0 and n<1 then
 --  if n>0 and n!=floor(n) then
-    if n!=floor(n) then
-        if n>1 then
-            res = count_bits(floor(n),nFrames+1)
-            n -= floor(n)
-        end if
-        while n!=0 do
-            while n<1 do
-                n*=2
-            end while
-            n -= 1
+--  if n!=floor(n) then
+--      if n>1 then
+--          res = count_bits(floor(n),nFrames+1)
+--          n -= floor(n)
+--      end if
+--      while n!=0 do
+--          while n<1 do
+--              n*=2
+--          end while
+--          n -= 1
+--          res += 1
+--      end while
+--  else
+    atom f = n-floor(n)
+    if f then
+        n -= f
+        do
             res += 1
-        end while
-    else
+            while f<1 do
+                f*=2
+            end while
+            f -= 1
+        until f=0
+    end if
 --      if n<0 or n!=round(n) then
 --          string g = sprintf("%g",n)
 --          if not find('.',g) then g &= sprintf("%+g",n-round(n)) end if
@@ -84,14 +95,18 @@ global function count_bits(object n, integer nFrames=2)
 --          res += odd(n)
 --          n = floor(n/2)
 -- Kernigans bit counter:
--- eg n = 0b10101 && n-1=0b10100 => 0b10100
---    n = 0b10100 && n-1=0b10011 => 0b10000
---    n = 0b10000 && n-1=0b01111 => 0b00000
---          n = and_bits(n,n-1)
+--         eg n = 0b0001000001000001 && 
+--          n-1 = 0b0001000001000000 
+--             => 0b0001000001000000 &&
+--          n-1 = 0b0001000000111111
+--             => 0b0001000000000000 &&
+--          n-1 = 0b0000111111111111
+--             => 0b0000000000000000
+--  => res=3 iterations, not 16|32|64.
             n &&= n-1
             res += 1
         end while
-    end if
+--  end if
     return res
 end function
 

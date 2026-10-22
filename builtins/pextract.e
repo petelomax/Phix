@@ -3,12 +3,12 @@
 --
 
 global function extract(sequence source, indexes, integer invert=false)
-    integer l = length(indexes), ii
+    integer l = length(indexes)
 --  sequence res = repeat(0,l)
     if odd(invert) then
         sequence inverse = repeat(0,l)  // (or tagset??)
         for i=1 to l do
-            ii = indexes[i]
+            integer ii = indexes[i]
             inverse[ii] = i
         end for
         indexes = inverse
@@ -17,8 +17,24 @@ global function extract(sequence source, indexes, integer invert=false)
 --  sequence res = repeat(iff(invert=0 and string(source)?' ':0),l)
     sequence res = repeat(iff(invert<=1 and string(source)?' ':0),l)
     for i=1 to l do
-        ii = indexes[i]
-        res[i] = source[ii]
+        object idx = indexes[i]
+        if integer(idx) then
+            res[i] = source[idx]
+        else
+            assert(length(idx))
+            object si = source
+            for j,jdx in idx do
+                if integer(jdx) then
+                    si = si[jdx]
+                else
+                    assert(j=length(idx))
+                    assert(length(jdx)=2)
+                    integer {s,e} = jdx
+                    si = si[s..e]
+                end if
+            end for
+            res[i] = si
+        end if
     end for
     return res
 end function

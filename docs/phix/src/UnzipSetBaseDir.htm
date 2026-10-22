@@ -31,7 +31,23 @@
             basedir: can be an absolute or relative directory path.
             <br>
             <br>
-            Terminates in error on failure.
+            WARNING: Full paths are strongly recommended and operate in a rock-solid fashion, whereas a
+            relative directory prepends <a href>current_dir</a>(), which may sometimes change under your feet, 
+            and worse, `\test` is likely to be taken as `C:\test`.<br>
+            Of course in many cases "wherever, man" is fine, but "just hoping" it always will be is a poor 
+            long-term strategy: you should give some thought to using the user&apos;s home directory, an 
+            app-specific directory, a system-wide temp directory, or perhaps guarantee to be in the same 
+            directory as a specific one of the files being [un]compressed.<br>
+            That said, just after successfully opening "test.zip", "here" is probably fine too, except when
+            they&apos;ve downloaded to C:\Downloads but you were foolishly expecting somewhere else.
+            <br>
+            <br>
+            To explicitly pass full paths to the last (optional) parameter of <a href>UnzipItemToFile</a>(), 
+            you <i>must</i> first invoke UnzipSetBaseDir(hzip,``) to clear any tunzip->Rootdir[], or perhaps
+            something like `E:\` or maybe (temporarily) <a href>chdir</a>() to that.
+            <br>
+            <br>
+            Terminates in error on failure (which in this case means an invalid hzip).
          </td>
         </tr>
         <tr>
@@ -67,20 +83,22 @@ ZIPENTRY ze = new_ZIPENTRY()
 ?UnzipFindItem(hzip,ze,"readme.txt") -- prints 0 (ZR_OK)
 ?UnzipGetFileName(ze) -- prints `test\readme.txt`
 
-UnzipClose(hzip)
+hzip = UnzipClose(hzip)
+ze = free(ze)
 </eucode-->
 <pre>
-<font color="#000000"></font><font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
-
-</font><font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#5E005E"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.1.zip"</font><font color="#0000FF">)
-
-</font><font color="#5E005E">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"test"</font><font color="#0000FF">)
-
-</font><font color="#5E005E">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#5E005E"> new_ZIPENTRY</font><font color="#0000FF">()
-?</font><font color="#5E005E">UnzipFindItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#008000">"readme.txt"</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 0 (ZR_OK)
-</i></font><font color="#0000FF">?</font><font color="#5E005E">UnzipGetFileName</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints `test\readme.txt`
-
-</i></font><font color="#5E005E">UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#008080">include</font><font color="#000000"> builtins\LiteZip.e
+</font>
+<font color="#004080">atom</font><font color="#000000"> hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipOpenFile</font><font color="#0000FF">(</font><font color="#008000">"phix.0.7.7.1.zip"</font><font color="#0000FF">)
+</font>
+<font color="#7060A8">UnzipSetBaseDir</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#008000">"test"</font><font color="#0000FF">)
+</font>
+<font color="#7060A8">ZIPENTRY</font><font color="#000000"> ze</font><font color="#0000FF"> =</font><font color="#7060A8"> new_ZIPENTRY</font><font color="#0000FF">()
+?</font><font color="#7060A8">UnzipFindItem</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">,</font><font color="#000000">ze</font><font color="#0000FF">,</font><font color="#008000">"readme.txt"</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints 0 (ZR_OK)</i></font>
+<font color="#0000FF">?</font><font color="#7060A8">UnzipGetFileName</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font><font color="#000080"><i> -- prints `test\readme.txt`
+</i></font>
+<font color="#000000">hzip</font><font color="#0000FF"> =</font><font color="#7060A8"> UnzipClose</font><font color="#0000FF">(</font><font color="#000000">hzip</font><font color="#0000FF">)</font>
+<font color="#000000">ze</font><font color="#0000FF"> =</font><font color="#7060A8"> free</font><font color="#0000FF">(</font><font color="#000000">ze</font><font color="#0000FF">)</font>
 </pre>
               </div>
              </div>

@@ -577,8 +577,10 @@ end if
                     if toktype!=LETTER and toktype!=DIGIT then exit end if
 --                  if toktype!=LETTER and toktype!=DIGIT and (toktype!='$' or not is_js()) then exit end if
                 end while
-                if tok_ch='"' and i=tokstart+1 and src[tokstart]='x' then
+                if (tok_ch='"' or tok_ch='`')
+                and i=tokstart+1 and src[tokstart]='x' then
                     tokstart += 2 -- (skip the `x"`)
+                    integer closing_quote = tok_ch
                     while true do
                         i += 1
                         if i>length(src) then
@@ -586,8 +588,9 @@ end if
                             exit
                         end if
                         tok_ch = src[i]
-                        if tok_ch='"' then exit end if
-                        if not find(upper(tok_ch)," 0123456789ABCDEF_") then
+                        if tok_ch=closing_quote then exit end if
+                        if not find(upper(tok_ch)," 0123456789ABCDEF_")
+                        and (closing_quote='"' or not find(tok_ch,"\r\n\t")) then
                             {} = tok_error("unexpected char:"&tok_ch)
                             exit
                         end if

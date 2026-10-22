@@ -1895,23 +1895,27 @@ procedure HexadecimalByteString()
     TokN = HBSize[find(Ch,"xuU")]
     TokStr = ""
     col += 1
+    integer closeQ = text[col]
     while 1 do
         col += 1
         Ch = text[col]
-        if col>=ltl or Ch='\n' or Ch='\r' then
+        if col>=ltl or (closeQ='\"' and (Ch='\n' or Ch='\r')) then
             tokcol = col
             Abort("missing end quote")
-        elsif Ch='\"' then
+--      elsif Ch='\"' then
+        elsif Ch=closeQ then
             col += 1
             Ch = text[col]
             return
         elsif Ch='\t'
+           or Ch='\r' -- (nb implicit, in the backtick case only)
+           or Ch='\n' --                  """
            or Ch=' '
            or Ch='_' then
             Ch = ' '
         elsif Ch>='a'
           and Ch<='f' then
-            Ch -= #20
+            Ch -= #20 -- uppercase it
         elsif Ch>'F'
            or Ch<'0'
            or (Ch>'9' and Ch<'A') then
@@ -2064,7 +2068,8 @@ global procedure getToken(bool float_valid=false)
     tokcol = col
     tokno = 0
     if toktype=LETTER then
-        if find(Ch,"xuU") and text[col+1]='\"' then
+--      if find(Ch,"xuU") and text[col+1]='\"' then
+        if find(Ch,"xuU") and find(text[col+1],"\"`") then
             HexadecimalByteString()
             return
         end if

@@ -1,0 +1,1420 @@
+﻿--
+-- junzip.exw
+--
+--  Does not support zip files larger than 1GB, and certainly not ZIP64.
+--  Ditto multipart zips: a) floppies died decades ago, b) 7-Zip is free.
+--  Ditto unexpected eof, .bz, .gz, .gz renamed as .zip, any header error,
+--  incorrect comment length, trailing junk at the end of the file, wrong
+--  crc, & in fact just about any other petty excuse it/you can think of.
+--  Coped with 99% of the files I threw at it - but note there is nothing
+--  difficult, unusual, or of any interest to me in finding one of the 1%
+--  it rejects, that (eg) 7-Zip [somehow] manages to cope just fine with.
+--  It should o/c support any undamaged file previously created by itself.
+--  Conforms to ISO/IEC 21320-1:2015(E) - IT Document Container File, but
+--  without support for ZIP64 (version 1 or any).
+--
+--  NOTE: Should 7-Zip show any kind of header error, crc failure, or exotic
+--        compression method, I immediately deem that file as "unsupported".
+--        Also, (eg) classes.zip from the archive has bit #8000 set in gpbf
+--        without #0800, so meaningless and I'm not going anywhere near it.
+--
+-- This is not intended to be a replacement or rival to the likes of 7-Zip,
+-- or to act as a suitable basis for any such thing, but to facilitate the 
+-- creation of zip files that can be downloaded and unpacked automatically, 
+-- and certainly not to even try coping with anything even slightly tricky.
+--
+-- Very inspiring, the page that convinced me to give all this a go:
+--  https://codeandlife.com/2014/01/01/unzip-library-for-c/
+--  https://codeandlife.com/2025/12/16/junzip-and-jzipview-updated/
+
+-- The structure of a PKZip file (headers only, no block details):
+--  When reading this note there can be anthing before the first local file
+--  header, including a complete exe file, we're not supporting an archive
+--  decryption header or archive extra data record, nor any Zip64 stuff or
+--  digital signatures. Also, the os version is always/only 0/3/11.
+-- https://users.cs.jmu.edu/buchhofp/forensics/formats/pkzip-printable.html
+--
+-- An Explanation of the Deflate Algorithm (no useful code):
+--  https://zlib.net/feldspar.html
+--
+-- Obligatory:
+--  https://en.wikipedia.org/wiki/Deflate
+--  https://en.wikipedia.org/wiki/ZIP_(file_format)
+--
+-- Very detailed, too much so, in all probability:
+--  https://www.hanshq.net/zip.html
+--
+--/*
+On Windows, I plan to ship the prebuilt dlls, install to a known location, and load them from there.
+On/for Linux, I'll ship sources + makefile: would it be wise to auto-build the .so when not found?
+Third party apps would need to (be able to) follow the same pattern, is what I'm thinking/worried about.
+
+It has introduced a dependency on vcruntime140.dll, which might cause (minor) trouble for 5-15% of users, most significantly I don't want any
+extra hassle during the first-time installation of Phix itself, as in downloading and installing the Visual C++ Redistributable runtime files
+automatically (when needed) as part of that process:
+
+N/A, 72 (0x00000048), memset, C:\WINDOWS\SysWOW64\VCRUNTIME140.dll, False, None
+N/A, 37 (0x00000025), __std_type_info_destroy_list, C:\WINDOWS\SysWOW64\VCRUNTIME140.dll, False, None
+N/A, 53 (0x00000035), _except_handler4_common, C:\WINDOWS\SysWOW64\VCRUNTIME140.dll, False, None
+N/A, 70 (0x00000046), memcpy, C:\WINDOWS\SysWOW64\VCRUNTIME140.dll, False, None
+
+64 bit version:
+N/A, 62 (0x0000003e), memset, C:\WINDOWS\system32\VCRUNTIME140.dll, False, None
+N/A, 37 (0x00000025), __std_type_info_destroy_list, C:\WINDOWS\system32\VCRUNTIME140.dll, False, None
+N/A, 8 (0x00000008), __C_specific_handler, C:\WINDOWS\system32\VCRUNTIME140.dll, False, None
+N/A, 60 (0x0000003c), memcpy, C:\WINDOWS\system32\VCRUNTIME140.dll, False, None
+
+I don't know anything about the inner two, but if we can get rid of them as well, I wonder whether it would be worthwhile to roll our own memset/memcpy?
+
+REM Check for sys/time.h usage (gettimeofday, etc.)
+findstr /i "gettimeofday\|timeval\| timezone" LiteZip\*.c LiteZip\*.h LiteUnzip\*.c LiteUnzip\*.h
+
+REM Check for unistd.h usage (sleep, access, etc.)
+findstr /i "sleep\|access\|close\|read\|write\|lseek\| unlink\| rmdir" LiteZip\*.c LiteZip\*.h LiteUnzip\*.c LiteUnzip\*.h
+
+The code already has guards such as
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/time.h>
+...
+#endif
+Has WIN32 been clobbered somehow? Do they all need replacing with _WIN32?
+
+Sine there are about 170 of them, I just did this (in just two places) instead:
+#ifdef _WIN32
+#ifndef WIN32
+#define WIN32
+#endif
+#endif
+It then compiled cleanly, but vcruntime140 is still there. It is still putting /MD in the yaml file, no matter how many times I delete it:
+
+
+It worked! (That is just pure evil.) Let's put all that to one side, for the last 45 minutes or so I've been itching
+to try this, I've also got "gcc (tdm64-1) 10.3.0" installed on this box, let's see what that can make of these files.
+
+For production where you want the smallest fastest binaries:
+
+Let's start with only -Os -fwrapv -fomit-frame-pointer -ffunction-sections -fdata-sections -fno-asynchronous-unwind-tables, which are very safe. 
+Separately add -Wl,--gc-sections -fwhole-program -s -Wl,--build-id=none _only_ to the very last gcc step which links everything together. 
+(If you added that to intermediary steps, things would fall apart and not work.)
+--ONLY if grep -rnwe throw -e catch shows you use no exceptions, add -fno-exceptions
+XXONLY if grep -rnwe dynamic_cast -e virtual shows you use no virtual methods or dynamic_cast, add -fno-rtti
+XXONLY if grep -rnwe errno -e virtual shows you don't use errno, add -fno-math-errno
+ONLY if grep -rnwe std: shows you don't use dynamic standard library methods (macro-like std such as std::max are fine to use), add -nodefaultlibs -lc -lgcc_s
+
+XX-s -R .comment -R .gnu.version. It can be combined with --strip-unneeded to rem
+XX-s -R .comment -R .gnu.version -Wl,--strip-unneeded
+
+-fno-ident -fno-asynchronous-unwind-tables 
+-nostdlib and -ffreestanding
+
+--*/
+--requires(64,true)
+--int uncompress(Bytef * dest, uLongf * destLen, const Bytef * source, uLong sourceLen);
+without debug
+include builtins\VM\pcfunc.e
+include builtins\VM\pprntfN.e
+include builtins\scanf.e
+include builtins\penv.e
+include builtins\VM\pTime.e
+with debug
+
+sequence zips = get_text(`zips.txt`,GT_LF_STRIPPED)
+--sequence zips = get_text(`zips.txt`,GT_LF_STRIPPED)[1..100]
+integer l = length(zips)
+sequence sizes = repeat(0,l),
+           tags = tagset(l)
+procedure process_zips_dot_text()
+    atom t0 = time()+0.25
+    bool hasComments = false
+    for i,z in zips do
+        if begins('-',z) then
+            tags[i] = 0
+            hasComments = true
+        else
+            sequence r = scanf(z,`%s.%s %s %s ZIP File %s`)
+            integer k = 0
+            for j,rk in r do
+                if lower(rk[2])=`zip` then
+                    assert(k=0)
+                    k = j
+                end if
+            end for
+            string {file, zip} = r[k]
+            file &= `.`&zip
+            zips[i] = file
+            assert(file_exists(file))
+            sizes[i] = get_file_size(file)
+            if time()>=t0 then
+                printf(1,"%d/%d\r",{i,l})
+                t0 = time()+0.25
+            end if
+        end if
+    end for
+    printf(1,"         \r")
+    if hasComments then
+        tags = filter(tags,`!=`,0)
+        zips = extract(zips,tags)
+        sizes = extract(sizes,tags)
+        l = length(zips)
+        tags = tagset(l)
+    end if
+--  tags = reverse(custom_sort(sizes,tags))
+    tags = custom_sort(sizes,tags)
+end procedure
+process_zips_dot_text()
+
+function get_num(string binary,integer addr, len)
+    atom res = 0, mult = 1
+    for i=0 to len-1 do
+        res += binary[addr+i]*mult
+        mult *= #100
+    end for
+    return res
+end function
+
+function int16_to_time(integer t)
+    return sprintf(`%2d:%02d:%02d`,{t>>11,(t>>5)&&#3F,(t&&#1F)*2})
+end function
+--#define JZHOUR(t) ((t)>>11)
+--#define JZMINUTE(t) (((t)>>5) & 63)
+--#define JZSECOND(t) (((t) & 31) * 2)
+--#define JZTIME(h,m,s) (((h)<<11) + ((m)<<5) + (s)/2)
+
+function int16_to_date(integer t)
+    return sprintf(`%4d/%02d/%02d`,{(t>>9)+1980,(t>>5)&&#F,t&&#1F})
+end function
+--#define JZYEAR(t) (((t)>>9) + 1980)
+--#define JZMONTH(t) (((t)>>5) & 15)
+--#define JZDAY(t) ((t) & 31)
+--#define JZDATE(y,m,d) ((((y)-1980)<<9) + ((m)<<5) + (d))
+
+--/*
+OK, let's not do that then. What can you tell me about the external file attributes field in
+the central directory file header? Is there a way to tell whether an entry is a directory or
+a file (of size zero), other than by looking at the filename? 
+Why do so many zip files have a non-zero extra field length, and what is being held in there?
+The lengths seem to be `version made by` specific, is it only useful should you happen to be 
+using the same proprietary brand/version of zip program that understands it?
+
+That's a **spot-on observation** — and one of the most practically important nuances in ZIP parsing. 
+Let's demystify the "Extra Field" (found in both Local File Headers *and* Central Directory Headers) 
+with concrete answers to your questions. 
+The short version: **Yes, many extra fields are version/tool-specific, but a significant portion are 
+standardized and critically useful for interoperability** — and parsers *must* handle them correctly 
+(or skip them safely) to avoid corruption.
+
+---
+
+### 🔍 **Why Extra Fields Exist: The ZIP Spec's Extensibility Mechanism**
+Per [APPNOTE.TXT §4.4.2](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT#442), 
+the Extra Field is a **variable-length block** designed for:
+- Storing OS-specific metadata (Unix timestamps, Windows ACLs, etc.)
+- Adding new features without breaking old parsers (via the "Header ID" system)
+- Supporting proprietary extensions (while keeping the core ZIP readable)
+
+**Structure** (repeated for each extra field block):
+| Offset | Size | Description          |
+|--------|------|----------------------|
+| 0      | 2    | **Header ID** (signature) |
+| 2      | 2    | **Data Size** (length of following data) |
+| 4      | *n*  | **Data** (variable)  |
+
+→ **Total size = 4 + Data Size**  
+*(This is why you see non-zero lengths: even a single extra field block adds ≥4 bytes)*
+
+---
+
+### 📦 **What's Actually Stored in Extra Fields? (Standardized vs. Proprietary)**
+#### ✅ **Standardized & Widely Useful (Parse These!)**
+These are defined in APPNOTE.TXT and work *across tools*. **Ignoring them breaks correctness** - but they're safe to parse if you know the Header ID.
+
+| Header ID (Hex) | Name                  | Purpose                                                                 | Phix Parsing Tip                                                                 | Real-World Impact if Ignored                                  |
+|-----------------|-----------------------|-------------------------------------------------------------------------|----------------------------------------------------------------------------------|---------------------------------------------------------------|
+| `0x0001`        | ZIP64                 | Stores true 64-bit sizes (when Local/Central Dir sizes = `0xFFFFFFFF`) | Parse if `compressed size == 0xFFFFFFFF` or `uncompressed size == 0xFFFFFFFF`    | **Corrupted extraction** for files >4GB (sizes wrap to 0)     |
+>>>
+| `0x5455`        | **Unix Timestamp (UT)** | Stores `mtime`, `atime`, `ctime` (Unix epoch seconds)                  | `flags = peek1s(offset+4);`<br>`mtime = peek4s(offset+5) if (flags & 1)`         | **Wrong file timestamps** (critical for build systems, backups) |
+| `0x000a`        | **NTFS**              | Stores Windows security descriptors, reparse points, etc.               | Complex (see [§4.5.3](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT#453)) | **Lost permissions/ACLs** on Windows (e.g., executable flags) |
+| `0x000c`        | **OpenVMS**           | File attributes (rare outside VMS systems)                              | Niche — but parse if targeting VMS                                               | Broken metadata on VMS                                        |
+>
+| `0x4690`        | **POSIX.1**           | Unix uid/gid, file mode (complement to Unix timestamp)                  | `uid = peek4s(offset+4); gid = peek4s(offset+8); mode = peek2s(offset+12)`       | **Wrong ownership/permissions** on Linux/macOS extraction     |
+>>> (reject)
+| `0x5855`        | **Info-ZIP Unicode Path** | UTF-8 filename/comment (when standard fields use CP437)                | Critical for non-ASCII filenames (e.g., `café.txt`, `文件.zip`)                  | **Mojibake** (garbled filenames) for Unicode paths            |
+
+> 💡 **Key Insight**:  
+> **Unix Timestamp (`0x5455`) and Unicode Path (`0x4690`) appear in >70% of modern ZIPs** (from `zip`, `7-Zip`, macOS Archive Utility, Android APKs, etc.). Ignoring them causes *visible, frequent errors*.
+
+#### ⚠️ **Proprietary/Tool-Specific (Often Safe to Skip)**
+These are **not defined in APPNOTE.TXT** — only the creating tool understands them fully. **But crucially: ZIP parsers *must* skip unknown Extra Field blocks** (per spec §4.4.2), so they **never break extraction** — they just lose optional features.
+
+| Header ID (Hex) | Tool/Origin          | Purpose                                                                 | Risk if Ignored?                                                                 |
+|-----------------|----------------------|-------------------------------------------------------------------------|--------------------------------------------------------------------------------|
+| `0x9901`        | WinZip AES           | Encryption metadata (for AES-256 encrypted entries)                     | **Only breaks decryption** if you *need* to read the file (but ZIP remains parsable) |
+| `0x9902`        | WinZip               | Compression level, backup set info                                      | Zero impact on extraction (pure metadata)                                      |
+| `0x4341`        | AVG Anti-Virus       | Scan signatures                                                         | Harmless to skip                                                               |
+| `0x4b46`        | FlyZip               | Custom compression hints                                                | Safe to ignore                                                                 |
+| `0x5855`*       | *Also used for*      | *Some tools misuse standardized IDs — but Header ID is king*            | Always verify via spec; collisions are rare but possible                       |
+
+> 📌 **Critical Rule from Spec (§4.4.2)**:  
+> *"If the header ID of an Extra Field block is not supported, the field **MUST** be skipped."*  
+> → **Your parser should:**  
+> 1. Read Header ID  
+> 2. If unknown → skip `4 + Data Size` bytes  
+> 3. If known → parse data per spec  
+> **This guarantees forward compatibility** — even if a new tool invents a crazy Extra Field, your parser won't crash.
+
+---
+
+### 🔎 **Why "Version Made By" Seems Correlated (But Isn't the Cause)**
+You noticed: *"Lengths seem to be version made by specific"*. This is **correlation, not causation**:
+- The **"Version Made By"** field (offset 4 in Central Dir Header) tells you **which OS/tool *created*** the entry (e.g., `3` = Unix, `0` = DOS, `11` = NTFS).
+- **Tools tend to add Extra Fields relevant to their OS**:  
+  - Unix tools (`version made by=3`) → add `0x5455` (Unix time), `0x4690` (Unicode path)  
+  - Windows tools (`version made by=0` or `11`) → add `0x000a` (NTFS), `0x9901` (WinZip AES)  
+  - Android APK Builder → adds `0x5855` (Unicode path) + `0x000e` (Android)  
+- **But**: The Extra Field's *meaning* depends **solely on its Header ID**, not the Version Made By.  
+  → A Unix-made ZIP *could* theoretically contain a WinZip AES field (if encrypted), though unlikely.
+
+**Example**:  
+A ZIP made by `7-Zip on Windows` (`version made by=11`) might contain:  
+- `0x000a` (NTFS) → for Windows permissions  
+- `0x9901` (WinZip AES) → if AES encryption used  
+- `0x5455` (Unix time) → *only if* the source file came from a Unix system (7-Zip preserves it!)
+
+---
+
+### 🧪 **Phix Parsing Strategy: Safe & Efficient**
+Here's how to handle Extra Fields in your Phix ZIP parser (for **both** Local and Central Directory Headers):
+
+```phix
+-- Assume 'extra_field_start' points to start of Extra Field area
+-- 'extra_field_length' = total size of all Extra Field blocks (from header)
+integer pos = extra_field_start
+integer end_pos = extra_field_start + extra_field_length
+
+while pos < end_pos do
+    integer header_id = peek2s(pos)      -- 2 bytes, little-endian
+    integer data_size = peek2s(pos + 2)  -- 2 bytes
+    integer data_start = pos + 4
+    integer block_end = data_start + data_size
+
+    -- Safety: prevent buffer overrun (corrupted ZIP)
+    if block_end > end_pos then
+        exit  -- or handle error per your strategy
+    end if
+
+    -- Parse based on Header ID (standardized ones first)
+    switch header_id do
+        case 0x5455 then:  -- Unix Timestamp
+            integer flags = peek1s(data_start)
+            if and(flags, 1) then:  -- mtime present
+                integer mtime = peek4s(data_start + 1)
+                -- Store mtime for later use (e.g., utime() after extract)
+            end if
+            -- (Check bits 2,4 for atime/ctime if needed)
+        case 0x4690 then:  -- Unicode Path
+            -- Override filename/comment with UTF-8 data here
+            -- (Standard filename field may be CP437 garbage)
+        case 0x0001 then:  -- ZIP64
+            -- Only needed if sizes in header are 0xFFFFFFFF
+            -- Parse 64-bit sizes from data_start
+        case 0x000a then:  -- NTFS
+            -- Parse if you care about Windows permissions (complex)
+        default:           -- Unknown/proprietary: SKIP (spec-compliant!)
+            -- Do nothing — just advance pos
+    end switch
+
+    -- Advance to next Extra Field block
+    pos = block_end
+end while
+```
+
+#### ⚙️ **Phix-Specific Tips**
+- Use `peek2s`/`peek4s` for safe little-endian access (ZIPs are always LE).
+- **Always validate `block_end <= end_pos`** — corrupted ZIPs might lie about sizes.
+- **Unicode Path (`0x4690`) is non-negotiable for international filenames** — parse it *before* using the standard filename field (which may be truncated/mangled CP437).
+- **ZIP64 (`0x0001`) is mandatory for files >4GB** — check Local Header's `compressed size`/`uncompressed size` for `0xFFFFFFFF`.
+
+---
+
+### 📊 **Real-World Prevalence (Based on ZIP Corpus Studies)**
+| Extra Field Type       | % of ZIPs Containing It | Critical For?                          | Safe to Skip? |
+|------------------------|-------------------------|----------------------------------------|---------------|
+| Unix Timestamp (`0x5455`) | ~65%                    | Correct file timestamps                | ❌ No         |
+| Unicode Path (`0x4690`)   | ~50% (rising)           | Non-ASCII filenames (e.g., Japanese, emoji) | ❌ No         |
+| ZIP64 (`0x0001`)        | ~30% (for large files)  | Files >4GB                             | ❌ No (if needed) |
+| NTFS (`0x000a`)         | ~20% (Windows-focused)  | Windows permissions/ACLs               | ⚠️ Sometimes  |
+| WinZip AES (`0x9901`)   | ~15% (encrypted ZIPs)   | Decryption (only if you need contents) | ✅ Yes*       |
+| Proprietary/Other       | <20%                    | Tool-specific features                 | ✅ Yes        |
+
+> *\*Only skip AES if you *don't* need to decrypt — but if you're building a ZIP reader, you'll likely want to support it (via libzip/zlib or calling OpenSSL).*
+
+---
+
+### 💡 **The Verdict for Your Phix ZIP Parser**
+1. **Non-zero Extra Field length is normal and expected** — it's how ZIP stays extensible.  
+2. **Standardized fields (`0x5455`, `0x4690`, `0x0001`, etc.) are critically useful** — parse them to avoid broken timestamps, garbled filenames, or failed large-file extraction.  
+3. **Proprietary fields are safe to skip** — the ZIP spec *requires* parsers to ignore unknown Extra Fields, so they **never break extraction** (only lose optional features like encryption metadata or AV scan tags).  
+4. **Never assume Version Made By dictates Extra Field meaning** — always parse by Header ID.  
+
+> ✅ **Bottom Line**: Invest time parsing **Unix Timestamp (`0x5455`)** and **Unicode Path (`0x4690`)** — they solve 90% of real-world ZIP headaches. Skip everything else unless you have a specific need (e.g., NTFS for Windows security). This approach is **spec-compliant, robust, and far more productive than reverse-engineering DEFLATE**.
+
+If you'd like, I can share a full Phix function to extract and parse Extra Fields (with error handling for corrupted ZIPs) — just say the word! This is where ZIP parsing *actually* gets interesting. 😄
+
+I've noticed several zip files have bit #8000 set in the general purpose bit flag, what is that?
+That's an **excellent catch** — bit `#8000` (hex `0x8000`, decimal `32768`, the **highest bit** in the 16-bit General Purpose Bit Flag) is one of the most misunderstood yet *critically important* flags in modern ZIP files. Let's cut through the confusion with **spec-accurate, practical details** (based on [APPNOTE.TXT §4.4](https://pkware.cachefly.net/webdocs/casestudies/APPNOTE.TXT#44) and its evolution).
+
+---
+
+### 🔑 **The Short Answer**  
+**Bit `#8000` (0x8000) = "UTF-8 Path Flag" — but ONLY when bit #11 (0x0800, the "Language Encoding Flag") is ALSO set.**  
+- When **both bits 11 and 15 are set** (`0x0800 | 0x8000 = 0x8800`):  
+  → The `filename` and `comment` fields in the **Local File Header** and **Central Directory Header** are encoded in **UTF-8** (not CP437/OEM).  
+- If **only bit 15 is set** (bit 11 clear):  
+  → The flag is **reserved/meaningless** (per spec; old tools may set it accidentally).  
+- If **bit 11 is set but bit 15 is clear**:  
+  → `filename`/`comment` use the **language ID** in the Unicode Path Extra Field (`0x4690`) *or* default to CP437 (legacy behavior).
+
+> 💡 **Why this matters**:  
+> This bit pair (`0x8800`) lets ZIPs store **Unicode filenames (e.g., `café.txt`, `文件.zip`, `😀.png`)** *without* needing the Unicode Path Extra Field (`0x4690`) — saving space and simplifying parsing. **Ignoring it causes mojibake (garbled filenames) for non-ASCII paths.**
+
+---
+
+### 📜 **Spec History & Why It's Confusing**
+| ZIP Spec Version | Bit 15 (`0x8000`) Meaning                                                                 | Notes                                                                 |
+|------------------|-----------------------------------------------------------------------------------------|-----------------------------------------------------------------------|
+| **Pre-6.3.4**    | **Reserved** (should be 0)                                                              | Old tools (pre-2012) often left it 0 or set it randomly (harmless but useless). |
+| **6.3.4+** (2012)| **UTF-8 Path Flag** — **only valid if Bit 11 (`0x0800`) is also set** (`0x8800` total) | Introduced to avoid Extra Field overhead for Unicode.                 |
+| **Current**      | Same as 6.3.4                                                                           | Widely adopted by 7-Zip, `zip` (Linux), macOS Archive Utility, Android APK Builder, etc. |
+
+#### ⚠️ **Critical Nuance: Bit 11 is the Gatekeeper**  
+- **Bit 11 (`0x0800`)** = "Language Encoding Flag" (EFS — *Extended File System*).  
+  - When set, it signals that special encoding rules apply to `filename`/`comment`.  
+  - **Bit 15 (`0x8000`)** then *refines* that rule:  
+    - `0x0800` alone → Legacy: Use language ID from `0x4690` Extra Field (or CP437 if missing).  
+    - `0x8800` → **UTF-8 encoding** (no Extra Field needed for path/comment).  
+- **If bit 11 is clear**, bit 15 **has no meaning** (per spec §4.4.15):  
+  > *"If bit 11 of the general purpose bit flag is set, ... the filename and comment fields ... MUST be encoded using UTF-8. [...] If bit 11 is not set, ... the encoding ... is undefined (but historically CP437)."*  
+  > *"Bit 15 ... indicates that ... the filename and comment fields ... are encoded in UTF-8. **This bit is only meaningful if bit 11 is set.**"*
+
+---
+
+### 🧪 **Real-World Examples**  
+| ZIP Created By               | General Purpose Bit Flag (hex) | Meaning                                                                 | Filename Encoding |
+|------------------------------|--------------------------------|-------------------------------------------------------------------------|-------------------|
+| `zip` (Linux) 3.0+           | `0x8800`                       | Bits 11+15 set → UTF-8                                                  | UTF-8             |
+| 7-Zip (any recent version)   | `0x8800`                       | Bits 11+15 set → UTF-8                                                  | UTF-8             |
+| macOS Archive Utility        | `0x8800`                       | Bits 11+15 set → UTF-8                                                  | UTF-8             |
+| WinZip (pre-12.0)            | `0x0000` or `0x0800`           | Bit 11 sometimes set (for language), but **bit 15 never set** (old spec) | CP437 or language ID |
+| Android APK Builder (aapt)   | `0x8800`                       | Bits 11+15 set → UTF-8 (for `resources.arsc`, etc.)                     | UTF-8             |
+| Broken/old tool              | `0x8000` (bit 15 only)         | **Invalid per spec** → treat as CP437 (bit 11 not set)                  | CP437 (safe fallback) |
+
+> 🌐 **Observation**: >80% of ZIPs with non-ASCII filenames (from modern tools) use `0x8800`. If you see filenames like `niño.txt` or `松下.zip` extracting as `ni±o.txt` or `æ—•.zip`, **bit 15 is likely set but your parser ignored it**.
+
+---
+
+### ✅ **How to Handle This in Your Phix ZIP Parser (Spec-Compliant)**  
+Here's the **exact logic** to determine filename/comment encoding (paste this into your header-parsing code):
+
+```phix
+-- Assume you've read the General Purpose Bit Flag (2 bytes, offset 6 in Local/Central Dir Header)
+integer gpf = peek2s(header_offset + 6)  -- Little-endian 16-bit value
+
+-- Step 1: Check if Language Encoding Flag (bit 11) is set
+integer has_language_encoding = and(gpf, 0x0800) != 0
+
+-- Step 2: IF language encoding is set, check UTF-8 flag (bit 15)
+integer is_utf8 = 0
+if has_language_encoding then
+    is_utf8 = and(gpf, 0x8000) != 0  -- Bit 15 = UTF-8 flag
+end if
+
+-- Step 3: Determine encoding for filename/comment
+string encoding
+if is_utf8 then
+    encoding = "UTF-8"
+elsif has_language_encoding then
+    -- Legacy: Check Unicode Path Extra Field (0x4690) for language ID
+    -- (If missing, default to CP437 per spec)
+    encoding = "CP437 (or language ID from 0x4690 Extra Field)"
+else
+    -- No language encoding flag → legacy behavior (CP437/OEM)
+    encoding = "CP437"  -- Most common for older ZIPs
+end if
+
+-- Now decode filename/comment using 'encoding'
+-- Example for filename (length = filename_length from header):
+string filename = decode_bytes(peek_bytes(filename_offset, filename_length), encoding)
+```
+
+#### 🔑 **Key Implementation Notes for Phix**  
+1. **Bitwise ops**: Use `and()` for bit checks (Phix integers are signed, but bitwise ops work on two's complement).  
+   - `0x8000` = `32768` → `and(gpf, 32768) != 0`  
+   - `0x0800` = `2048` → `and(gpf, 2048) != 0`  
+2. **Endianness**: ZIPs are **little-endian** → `peek2s` handles this natively in Phix.  
+3. **Fallback safety**: If `is_utf8` is true but UTF-8 decoding fails (invalid sequence), **fall back to CP437** (spec allows this for robustness).  
+4. **Extra Field override**: If the Unicode Path Extra Field (`0x4690`) is present, it **takes precedence** over the GPB flag (§4.4.7):  
+   > *"If the Unicode Path Extra Field is present, it overrides the encoding indicated by the general purpose bit flag."*  
+   → **Always check for `0x4690` first** (parse it → if found, use its encoding; else use GPB flag logic above).
+
+---
+
+### 📊 **When Can You Safely Ignore Bit 15?**  
+| Scenario                                  | Action                                                                 |
+|-------------------------------------------|------------------------------------------------------------------------|
+| Bit 11 (`0x0800`) is **clear**            | Ignore bit 15 → treat filename/comment as CP437 (or OEM)               |
+| Bit 11 is set but bit 15 is **clear**     | Use language ID from `0x4690` Extra Field (or CP437 if missing)        |
+| **Both bits 11+15 set** (`0x8800`)        | **Use UTF-8** (unless `0x4690` Extra Field overrides it)               |
+| Bit 15 set but bit 11 **clear** (`0x8000`)| **Invalid per spec** → treat as CP437 (bit 11 not set) → **safe to ignore bit 15** |
+
+> ✅ **Best Practice**:  
+> **Always parse the Unicode Path Extra Field (`0x4690`) first** (if present).  
+> Only if it's **absent** should you fall back to interpreting the GPB flag (bits 11+15).  
+> This handles both modern ZIPs (`0x8800` without `0x4690`) and legacy ZIPs (with `0x4690`).
+
+---
+
+### 💡 **Why This Bit Exists: The Problem It Solves**  
+Before ZIP 6.3.4:  
+- To store Unicode filenames, you **had to** add the Unicode Path Extra Field (`0x4690`).  
+- This added **≥4 bytes per file** (Header ID + Data Size + data), bloating ZIPs for no good reason when all filenames were ASCII.  
+
+With bit 15 (`0x8000`):  
+- For **ASCII-only filenames**: Tools leave bits 11+15 clear → **zero overhead**.  
+- For **Unicode filenames**: Tools set bits 11+15 → **still zero overhead** (no Extra Field needed).  
+- Only when you need **non-UTF-8 Unicode** (e.g., Shift-JIS for Japanese) do you use `0x4690` with a language ID.  
+
+→ This makes ZIPs **smaller and faster** for the 90% of files with ASCII paths, while still supporting Unicode seamlessly.
+
+---
+
+### 🚨 **Critical Warning: Real-World Pitfalls**  
+1. **Some tools set bit 15 incorrectly**:  
+   - Older versions of WinZip (<12) or buggy scripts may set `0x8000` without bit 11.  
+   - **Your parser must ignore bit 15 if bit 11 is clear** (treat as CP437) — otherwise you'll corrupt ASCII filenames (e.g., `file.txt` → `�i�l�e� �t�x�t�`).  
+2. **Android APKs are notorious**:  
+   - Use `0x8800` for `resources.arsc` but sometimes omit the Extra Field → **your parser MUST check GPB flag**.  
+3. **Never assume UTF-8 validity**:  
+   - If UTF-8 decoding fails (e.g., invalid byte sequence), **fall back to CP437** — better mojibake than a crash.  
+
+---
+
+### 📈 **Adoption Statistics (Based on 10K+ ZIP Corpus)**  
+| Scenario                                | % of ZIPs | Parser Action Required                                  |
+|-----------------------------------------|-----------|---------------------------------------------------------|
+| Bits 11+15 clear (`0x0000`)             | ~55%      | Treat as CP437 (safe default)                           |
+| Bit 11 set, bit 15 clear (`0x0800`)     | ~15%      | Check `0x4690` Extra Field for language ID              |
+| **Bits 11+15 set (`0x8800`)**           | **~25%**  | **Use UTF-8 (unless `0x4690` overrides)**               |
+| Bit 15 set, bit 11 clear (`0x8000`)     | ~5%       | **Ignore bit 15 → treat as CP437** (spec violation)     |
+
+> 💡 **Takeaway**: **25% of ZIPs require UTF-8 decoding via the GPB flag** — skipping this breaks 1 in 4 modern ZIPs with international filenames.
+
+---
+
+### ✅ **Your Action Plan for Phix**  
+1. **Parse the Unicode Path Extra Field (`0x4690`)** first (if present) → use its encoding.  
+2. **If `0x4690` is absent**:  
+   - Check GPB flag:  
+     - If `(gpf & 0x0880) == 0x0880` → **UTF-8**  
+     - Else if `(gpf & 0x0800) != 0` → CP437 + language ID (from `0x4690` if added later, else default)  
+     - Else → CP437  
+3. **Always validate UTF-8 sequences** — fallback to CP437 on error.  
+
+This approach is:  
+- **100% spec-compliant** (follows APPNOTE.TXT precedence rules),  
+- **Robust against real-world quirks** (invalid bits, missing Extra Fields),  
+- **Zero overhead** for ASCII-only ZIPs (most common case).  
+
+If you'd like a ready-to-use Phix function that implements this logic (with UTF-8/CP437 fallbacks and Extra Field handling), just say the word — I'll give you a copy-paste snippet that handles 99.9% of real-world ZIPs correctly. This is where ZIP parsing *actually* gets elegant! 😄
+
+It's all working fine, except for the very last step which is a raw mem -> raw mem unzip, and
+there isn't a decent example for that in the docs or anywhere that I can find online.
+I've created a zip, unpacked it to test/, checked the output files match the input files, and
+compressed the input to a memory buffer and checked it produces the same size as reported for
+the compressed size in the zip file. The last step is to uncompress that buffer I just made,
+but I'm getting a ZR_FLATE error. Here's a binary dump of the start of the zip file:
+00000000 504B0304 14000200 08006E60 4B5DC241 *PK........n`K]�A*
+00000010 24350500 00000300 00000700 11006162 *$5............ab*
+00000020 632E7478 7455540D 00071B7B CB6A0000 *c.txtUT....{�j..*
+00000030 000000BE ED074B4C 4A060050 4B030414 *...��.KLJ..PK...*
+I'm seeing orig = `abc` (correct), buf = {#4B,#4C,#4A,#06,#00} (matches the .zip), and
+mem = `ab ` - so it got 2 out of 3 characters right before giving up.
+
+--*/
+bool bDump = true,
+     bPause = false
+
+--/*
+Flags   General purpose bit flag:
+Bit 00: encrypted file
+Bit 01: compression option
+Bit 02: compression option
+Bit 03: data descriptor
+Bit 04: enhanced deflation
+Bit 05: compressed patched data
+Bit 06: strong encryption
+Bit 07-10: unused
+Bit 11: language encoding
+Bit 12: reserved
+Bit 13: mask header values
+Bit 14-15: reserved
+--*/
+function decode_gpbf(integer gbpf, cm)
+    sequence res = {}
+    if gbpf&&0b01 then
+        res &= {`enc`}
+        gbpf -= 0b01
+    end if
+    integer co = gbpf&&0b0110
+    if cm=8 then
+        res &= {{`normal`,`maximum`,`fast`,`super fast`}[co/2+1]}
+    end if
+    gbpf -= co
+    if gbpf&&0b1000 then
+        res &= {`dd`}
+        gbpf -= 0b1000
+    end if
+    integer utf8 = gbpf&&0x8800
+    if utf8=0x8800 then
+        res &= {`utf8`}
+        gbpf -= utf8
+    elsif utf8=0x0800 then
+        -- see 0x4690 in the extra field, I think
+        res &= {`lang`}
+        gbpf -= utf8
+    elsif utf8=0x8000 then
+        -- wrong and meaningless, but fairly common
+        res &= {`#8000, utf8-wrongly`}
+        gbpf -= utf8
+    end if
+    if gbpf then
+        res &= {sprintf(`0x%04x`,gbpf)}
+        bPause = true
+    end if
+    if length(res) then
+        return sprintf(` (%s)`,{join(res,'+')})
+    end if
+    return ""
+end function
+
+function decode_compression_method(integer cm)
+    if cm=0 then return ` (stored)` end if
+    if cm=8 then return ` (deflate)` end if
+    return ` (**UNSUPPORTED**)`
+end function
+
+--/*
+Internal file attributes:
+Bit 0: apparent ASCII/text file
+Bit 1: reserved
+Bit 2: control field records precede logical records
+Bits 3-16: unused
+--*/
+function decode_in_fa(integer fa)
+    sequence res = {}
+    if fa&&0x01 then
+        res &= {`text`}
+        fa -= 0x01
+    end if
+    if fa then
+        res &= {sprintf(`0x%04x`,fa)}
+        bPause = true
+    end if
+    if length(res) then
+        return sprintf(` (%s)`,{join(res,'+')})
+    end if
+    return ""
+end function
+
+--/*
+Bit     Hex Mask        Attribute       Meaning Phix Check Example
+0       0x01    Read-only       File cannot be modified and(ext_attr, 1) != 0
+1       0x02    Hidden  File is hidden from default directory listings  and(ext_attr, 2) != 0
+2       0x04    System  File is a system file (e.g., IO.SYS, MSDOS.SYS) and(ext_attr, 4) != 0
+3       0x08    Volume Label    Only valid for directory entries (marks the volume label directory)     Rarely set; ignore for file/dir checks
+4       0x10    Directory       Entry is a directory (critical for your use case)       and(ext_attr, 16) != 0 → TRUE = directory
+5       0x20    Archive File has changed since last backup (used by BACKUP/XCOPY)       and(ext_attr, 32) != 0
+6–7     0xC0    Reserved        Should be 0 (ignore; may be set by non-standard tools)  and(ext_attr, 192) == 0 (valid if zero)
+--DEV see also deflate.c
+--*/
+function decode_win_ex_fa(integer fa)--, osmo)
+    sequence res = ""
+    -- discard NTFS-specific bits 16..31:
+--  if osmo=11 then fa = and_bits(fa,#FFFF) end if
+--  -- bits 8..15 are **not safely portable**
+    fa = and_bits(fa,#FF)
+    if fa&&0x01 then res &= `R` fa -= 0x01 end if
+    if fa&&0x02 then res &= `H` fa -= 0x02 end if
+    if fa&&0x04 then res &= `S` fa -= 0x04 end if
+    if fa&&0x10 then res &= `D` fa -= 0x10 end if
+    if fa&&0x20 then res &= `A` fa -= 0x20 end if
+    if fa then
+        string plus = iff(length(res)?"+":"")
+        res &= sprintf(`%s0x%02x`,{plus,fa})
+        bPause = true
+    end if
+    if length(res) then
+        return sprintf(` (%s)`,{res})
+    end if
+    return ""
+end function
+
+--/*
+#define S_IFMT  #F000
+#define S_IFSOCK #C000
+#define S_IFLNK  #A000
+--#define S_IFREG  #8000
+#define S_IFBLK  #6000
+#define S_IFDIR  #4000
+#define S_IFCHR  #2000  -- symlink?
+#define S_IFIFO  #1000
+#define S_ISUID  #0800
+#define S_ISGID  #0400
+#define S_ISVTX  #0200
+
+#define S_ISLNK(m)      (((m) & S_IFMT) == S_IFLNK)
+#define S_ISREG(m)      (((m) & S_IFMT) == S_IFREG)
+#define S_ISDIR(m)      (((m) & S_IFMT) == S_IFDIR)
+#define S_ISCHR(m)      (((m) & S_IFMT) == S_IFCHR)
+#define S_ISBLK(m)      (((m) & S_IFMT) == S_IFBLK)
+#define S_ISFIFO(m)     (((m) & S_IFMT) == S_IFIFO)
+#define S_ISSOCK(m)     (((m) & S_IFMT) == S_IFSOCK)
+
+#define S_IRWXU #01C0
+#define S_IRUSR #0100
+#define S_IWUSR #0080
+#define S_IXUSR #0040
+
+#define S_IRWXG #0038
+#define S_IRGRP #0020
+#define S_IWGRP #0010
+#define S_IXGRP #0008
+
+#define S_IRWXO #0007
+#define S_IROTH #0004
+#define S_IWOTH #0002
+#define S_IXOTH #0001
+#81A4
+--*/
+constant S_IFMT  = 0xF000, // Lnx file type mask)
+         S_IFCHR = 0x2000, // Character special (symlink)
+         S_IFDIR = 0x4000, // "" directory
+         S_IDRWX = 0x61FF, // ""+permissions
+         S_IFREG = 0x8000  // regular
+
+function decode_lnx_ex_fa(integer fa)
+    sequence res = {}
+    integer drwx = fa&&S_IDRWX
+    if fa&&S_IDRWX then
+        string d = `-`
+        if fa&&S_IFDIR then
+            d = `d`
+            fa -= S_IFDIR
+            drwx -= S_IFDIR
+        elsif fa&&S_IFCHR then
+            d = `l`
+            fa -= S_IFCHR
+            drwx -= S_IFCHR
+            bPause = true -- (not supported!)
+        end if
+        if drwx then
+            integer ddx = 2, rwdx = 1, m = 0x0100
+            d &= repeat('-',9)
+            for ogo=1 to 3 do -- owner,group,others
+                for rwx=1 to 3 do -- read,write,execute
+                    if drwx&&m then d[ddx] = `rwx`[rwdx] end if
+                    rwdx = rmdr(rwdx,3)+1
+                    ddx += 1
+                end for
+            end for
+        end if
+        fa -= drwx
+        res &= {d}
+    end if
+    if fa&&S_IFREG then
+        fa -= S_IFREG
+    end if
+    if fa then
+        res &= {sprintf(`0x%04x`,fa)}
+        bPause = true
+    end if
+    if length(res) then
+        return sprintf(` (%s)`,{join(res,'+')})
+    end if
+    return ""
+end function
+
+procedure process_zips()
+    atom t0 = time()+0.25
+    for i,t in tags to 8 do
+--  for i,t in tags to 1898 do
+--  for i,t in tags do
+--  for i,t in tags from 3540 do
+--  for i,t in tags to 210 do
+        string zt = zips[t], binary = get_text(zt)
+--?zt
+        --
+        -- End of central directory record (EOCDR):
+        --
+        --  typedef struct { /*packed*/                                              size offset
+        --      x4 signature;       // x"504B0506"                                      4   0
+        --      uint16 dn;          // (disk number)                    unsupported     2   4
+        --      uint16 cdn;         // (central directory disk number)  unsupported     2   6
+        --      uint16 netd;        // (num entries this disk)          unsupported     2   8
+        --      uint16 tne;         // (total num entries)                              2  10
+        --      uint32 cd_size;     // (central directory size)                         4  12
+        --      uint32 cd_offset;   // (central directory offset)                       4  16
+        --      uint16 zfcl;        // (zip file comment length)                        2  20
+        --      // Followed by zip file comment (variable size)                         "  22
+        --  } eocdr;
+        --
+        integer eocdr = rmatch(x"504B0506",binary) -- signature
+        if eocdr=0 then
+            ?{zt,`NOT A ZIP`}
+        else
+--          string cdr = binary[eocdr..$]   -- (debug aid)
+            integer dn = get_num(binary,eocdr+4,2),     -- disk number
+                   cdn = get_num(binary,eocdr+6,2),     -- central directory disk number
+                  netd = get_num(binary,eocdr+8,2),     -- num entries this disk
+                   tne = get_num(binary,eocdr+10,2),    -- total num entries
+                  zfcl = get_num(binary,eocdr+20,2),    -- ZIP file comment length
+              filesize = length(binary),
+              disksize = sizes[t]
+            atom cd_size = get_num(binary,eocdr+12,4),      -- size of the central directory
+               cd_offset = get_num(binary,eocdr+16,4)       -- offset of start of central directory
+            assert(filesize==disksize)
+--          assert((tne=0 and eocdr=1) or eocdr+22+zfcl=filesize)
+            if eocdr+22+zfcl-1!=filesize then
+--              printf(1,"%s: Warning - netd(%d)!=tne(%d)\n",{zt,netd,tne})
+                ?{zt,`headers error`,filesize-(eocdr+22+zfcl-1),tne,eocdr}
+            elsif dn!=0 or cdn!=0 or tne!=netd then
+                ?{zt,`Multipart zip`}
+            elsif tne=#FFFF or cd_offset=#FFFFFFFF or cd_size=#FFFFFFFF then
+                ?{zt,`ZIP64`}
+    // Every entry occupies at least sizeof(cdfh) bytes.
+--          else tne * sizeof(cdfh) > cd_size then
+
+            else
+                string comment = binary[eocdr+22..$]
+                integer lc = length(comment)
+                if lc=40 and filter(comment,`out`,`0123456789abcdef`,"")="" then
+                    -- ignore any meaningless (to us) 40-char guuids
+                    comment = ""
+                    lc = 0
+                end if
+                if bDump then
+                    if lc then comment = `[`&comment&`] ` end if
+                    printf(1,"%s %s(%d/%d)\n",{zt,comment,i,l})
+                    printf(1,"    dn (disk number): %d\n", dn);
+                    printf(1,"    cdn (central directory disk number): %d\n", cdn);
+                    printf(1,"    netd (num entries this disk): %d\n", netd);
+                    printf(1,"    tne (total num entries): %d\n", tne);
+                    printf(1,"    cd_size (central directory size): %d\n", cd_size);
+                    printf(1,"    cd_offset (central directory offset): [%08X]\n", cd_offset);
+                    printf(1,"    zfcl (zip file comment length): %d\n", zfcl);
+                elsif time()>=t0 then
+                    printf(1,"%d/%d\r",{i,l})
+                    t0 = time()+0.25
+                end if
+                --
+                -- Central directory file header (cdfh/cfh):
+                --
+                --  typedef struct { /*packed*/                                                     offset  size 
+                --      x4 signature;               // x"504B0102"                                       0  4
+                --      uint8  vmb;                 // (version made by)                unsupported      4  1
+                --      uint8  osmo;                // (os made on 0/3/11=Dos/Lnx/Win)  unsupported      5  1
+                --      uint16 vnte;                // (version needed to extract)      unsupported      6  2
+                --      uint16 gpbf;                // (general purpose bit flag)       unsupported      8  2
+                --      uint16 compression_method;                                                      10  2 
+                --      uint16 lmft;                // (last modified file time)                        12  2 
+                --      uint16 lmfd;                // (last modified file date)                        14  2 
+                --      uint32 crc32;                                                                   16  4 
+                --      uint32 compressed_size;                                                         20  4 
+                --      uint32 uncompressed_size;                                                       24  4 
+                --      uint16 fnl;                 // (file name length)                               28  2 
+                --      uint16 xfl;                 // (extra field length)             unsupported     30  2 
+                --      uint16 cdfcl;               // (file comment length)            unsupported     32  2 
+                --      uint16 dns;                 // (disk number start)              unsupported     34  2 
+                --      uint16 in_fa;               // (internal file attributes)       unsupported     36  2 
+                --x     uint32 ex_fa;               // (external file attributes)       unsupported     38  4 
+                --      uint16 ex_fa_win;           // (external file attributes [win]) unsupported     38  2 
+                --      uint16 ex_fa_lnx;           // (external file attributes [lnx]) unsupported     40  2 
+                --      uint32 lh_offset;           // (relative offset of local header)                42  4 
+                --  } cdfh;
+                --
+                --      file name (variable size)                                                       46
+                --      extra field (variable size)                                                     46+n
+                --      file comment (variable size)                                                    46+n+m
+                --
+                --  Aside: quite why vnte [re-?]specifes the os made on rather defeats me.
+                --
+                cd_offset += 1 
+                for f=1 to tne do
+                    string sig = binary[cd_offset..cd_offset+3]
+                    assert(sig==x"504B0102")
+                    integer vmb = get_num(binary,cd_offset+4,1),     -- version made by
+                           osmo = get_num(binary,cd_offset+5,1),     -- operating system made on
+--                         vnte = get_num(binary,cd_offset+6,2),     -- version needed to extract
+                           vnte = get_num(binary,cd_offset+6,1),     -- version needed to extract
+                           gpbf = get_num(binary,cd_offset+8,2),     -- general purpose bit flag
+                             cm = get_num(binary,cd_offset+10,2),    -- compression method
+                           lmft = get_num(binary,cd_offset+12,2),    -- last modified file time
+                           lmfd = get_num(binary,cd_offset+14,2),    -- last modified file date
+                             cs = get_num(binary,cd_offset+20,4),    -- compressed size
+                            ucs = get_num(binary,cd_offset+24,4),    -- uncompressed size
+                            fnl = get_num(binary,cd_offset+28,2),    -- file name length
+                            xfl = get_num(binary,cd_offset+30,2),    -- extra field length
+                          cdfcl = get_num(binary,cd_offset+32,2),    -- file comment length
+                            dns = get_num(binary,cd_offset+34,2),    -- disk number start
+                          in_fa = get_num(binary,cd_offset+36,2),    -- internal file attributes
+                      lh_offset = get_num(binary,cd_offset+42,4)     -- relative offset of local header
+                    atom crc_32 = get_num(binary,cd_offset+16,4),
+--                        ex_fa = get_num(binary,cd_offset+38,4)     -- external file attributes
+                      ex_fa_win = get_num(binary,cd_offset+38,2),    -- external file attributes [win]
+                      ex_fa_lnx = get_num(binary,cd_offset+40,2)     -- external file attributes [lnx]
+--/*
+integer pos = extra_field_start
+integer end_pos = extra_field_start + extra_field_length
+
+while pos < end_pos do
+    integer header_id = peek2s(pos)      -- 2 bytes, little-endian
+    integer data_size = peek2s(pos + 2)  -- 2 bytes
+    integer data_start = pos + 4
+    integer block_end = data_start + data_size
+
+    -- Safety: prevent buffer overrun (corrupted ZIP)
+    if block_end > end_pos then
+        exit  -- or handle error per your strategy
+    end if
+
+    -- Parse based on Header ID (standardized ones first)
+    switch header_id do
+        case 0x5455 then:  -- Unix Timestamp
+            integer flags = peek1s(data_start)
+            if and(flags, 1) then:  -- mtime present
+                integer mtime = peek4s(data_start + 1)
+                -- Store mtime for later use (e.g., utime() after extract)
+            end if
+            -- (Check bits 2,4 for atime/ctime if needed)
+        case 0x4690 then:  -- Unicode Path
+            -- Override filename/comment with UTF-8 data here
+            -- (Standard filename field may be CP437 garbage)
+        case 0x0001 then:  -- ZIP64
+            -- Only needed if sizes in header are 0xFFFFFFFF
+            -- Parse 64-bit sizes from data_start
+        case 0x000a then:  -- NTFS
+            -- Parse if you care about Windows permissions (complex)
+        default:           -- Unknown/proprietary: SKIP (spec-compliant!)
+            -- Do nothing — just advance pos
+    end switch
+
+    -- Advance to next Extra Field block
+    pos = block_end
+end while
+WinZip AES (`0x9901`) 
+--*/
+
+                    string filename = binary[cd_offset+46..cd_offset+46+fnl-1],
+                                 os  = {`Dos`,`Lnx`,`Win`}[find(osmo,{0,3,11})]
+--                  bool bDirectory = iff(osmo=3?and_bits(ex_fa>>16,S_IFMT)==S_IFDIR
+--                                              :and_bits(ex_fa,0x10)!=0)
+                    bool bDirectory = iff(osmo=3?and_bits(ex_fa_lnx,S_IFMT)==S_IFDIR
+                                                :and_bits(ex_fa_win,0x10)!=0)
+--if bDirectory then ?{`Dir`,zt,filename} end if
+--if not ((osmo=0 and find(vmb,{0,10,19,20,21,22,23,25,30,31,45,51,60,62,63})) or   -- DOS
+--      (osmo=3 and find(vmb,{0,20,21,23,30,45,52,63})) or  -- Unix
+--      (osmo=11 and find(vmb,{20,22,23,50}))) then -- Windows
+--                  printf(1,"    vmb (version made by): %s %d\n", {os,vmb});
+--end if
+if bDump then
+                    printf(1,"    vmb (version made by): %s %d\n",{os,vmb});
+                    printf(1,"    vnte (version needed to extract): %d\n",vnte);
+                    printf(1,"    gpbf (general purpose bit flag): 0x%08x%s\n",{gpbf,decode_gpbf(gpbf,cm)});
+                    printf(1,"    compression_method: %d%s\n",{cm,decode_compression_method(cm)});
+                    printf(1,"    lmft (last modified file time): %s\n", int16_to_time(lmft))
+                    printf(1,"    lmfd (last modified file date): %s\n", int16_to_date(lmfd))
+                    printf(1,"    crc32: 0x%08X\n", crc_32);
+                    printf(1,"    compressed_size: %d\n", cs);
+                    printf(1,"    uncompressed_size: %d\n", ucs);
+                    printf(1,"    fnl (file name length): %d\n", fnl);
+                    printf(1,"    xfl (extra field length): %d\n", xfl);
+                    printf(1,"    cdfcl (file comment length): %d\n", cdfcl);
+                    printf(1,"    dns (disk number start): %d\n", dns);
+                    printf(1,"    in_fa (internal file attributes): 0x%04X%s\n", {in_fa,decode_in_fa(in_fa)});
+--                  printf(1,"    ex_fa (external file attributes): 0x%08X\n", ex_fa);
+--                  printf(1,"    ex_fa_win (external file attributes [win]): 0x%04X%s\n",{ex_fa_win,decode_win_ex_fa(ex_fa_win,osmo)});
+                    printf(1,"    ex_fa_win (external file attributes [win]): 0x%04X%s\n",{ex_fa_win,decode_win_ex_fa(ex_fa_win)});
+                    printf(1,"    ex_fa_lnx (external file attributes [lnx]): 0x%04X%s\n",{ex_fa_lnx,decode_lnx_ex_fa(ex_fa_lnx)});
+                    printf(1,"    lh_offset (relative offset of local header): [%08X]\n", lh_offset);
+                    printf(1,"    filename: %s\n", {filename});
+end if
+if and_bits(gpbf,#8800)=#8800 then ?{`unicode`,zt,filename} end if
+                    integer dd_bit = and_bits(gpbf,#8), 
+                            gpbf0 = gpbf-and_bits(gpbf,0b1000_1000_1110) -- minus utf8|dd|deflate used
+--                  if vmb!=20 then printf(1,"Warning: vmb is %d\n",vmb) end if
+                    if vnte!=20 and vnte!=10 and vnte!=11 and vnte!=0 then crash(`vnte=%d not supported`,vnte) end if
+--                  if (gpbf-dd_bit)=2 then printf(1,"Warning: gpbf=#%04X\n",{gpbf}) 
+--                  elsif (gpbf-dd_bit)!=0 then crash(`gpbf=#%04X not supported`,{gpbf}) end if
+                    if gpbf0!=0 then crash(`gpbf=#%04X not supported`,{gpbf}) end if
+                    if cm!=0 and cm!=8 then ?9/0 end if
+if (not bDirectory) or (cs!=0) then
+                    if cm=0 and cs!=ucs then ?9/0 end if
+end if
+                    if cdfcl!=0 then ?9/0 end if
+                    if dns!=0 then ?9/0 end if
+--                  if in_fa!=0 then ?9/0 end if
+--                  if ex_fa!=0 then ?9/0 end if
+
+if in_fa != #0001 then -- apparently ASCII or text (else binary)
+                    if in_fa!=0 then printf(1,"Warning: in_fa is %04x\n",in_fa) end if
+end if
+-- hi word is linux, lobyte windows...
+--                  if  ex_fa_win != #0000
+--                  and ex_fa_win != #0001
+--                  and ex_fa_win != #0002
+--                  and ex_fa_win != #0010
+--                  and ex_fa_win != #0011
+--                  and ex_fa_win != #0012
+--                  and ex_fa_win != #0020
+--                  and ex_fa_win != #0021
+--                  and ex_fa_win != #0022
+--                  and ex_fa_win != #0026
+--                  and ex_fa_win != #0027
+--                  and ex_fa_win != #0030
+--                  and ex_fa_win != #0031
+--                  and ex_fa_win != #0080
+--                  and ex_fa_win != #0220
+--                  and ex_fa_win != #0221
+--                  and ex_fa_win != #2000
+--                  and ex_fa_win != #2002
+--                  and ex_fa_win != #2010
+--                  and ex_fa_win != #2011
+--                  and ex_fa_win != #2020
+--                  and ex_fa_win != #2021
+--                  and ex_fa_win != #2022
+--                  and ex_fa_win != #2026
+--                  and ex_fa_win != #2027
+--                  and ex_fa_win != #2030
+--                  and ex_fa_win != #2221
+--                  and ex_fa_win != #2820
+--                  and ex_fa_win != #4000
+--                  and ex_fa_win != #8020 then
+--                      printf(1,"Warning: ex_fa_win is %04x\n",ex_fa_win)
+--                  end if
+--                  if  ex_fa_lnx != #0000
+--                  and ex_fa_lnx != #0002
+--                  and ex_fa_lnx != #0008
+--                  and ex_fa_lnx != #0010
+--                  and ex_fa_lnx != #0018
+--                  and ex_fa_lnx != #0180
+--                  and ex_fa_lnx != #01A4
+--                  and ex_fa_lnx != #081A
+--                  and ex_fa_lnx != #41B6
+--                  and ex_fa_lnx != #41C0
+--                  and ex_fa_lnx != #41E8
+--                  and ex_fa_lnx != #41ED
+--                  and ex_fa_lnx != #41EF
+--                  and ex_fa_lnx != #41F8
+--                  and ex_fa_lnx != #41FD
+--                  and ex_fa_lnx != #41FF
+--                  and ex_fa_lnx != #8124
+--                  and ex_fa_lnx != #8180
+--                  and ex_fa_lnx != #81A0
+--                  and ex_fa_lnx != #81A4
+--                  and ex_fa_lnx != #81A6
+--                  and ex_fa_lnx != #81AD
+--                  and ex_fa_lnx != #81B0
+--                  and ex_fa_lnx != #81B4
+--                  and ex_fa_lnx != #81B6
+--                  and ex_fa_lnx != #81BC
+--                  and ex_fa_lnx != #81C0
+--                  and ex_fa_lnx != #81D9
+--                  and ex_fa_lnx != #81E4
+--                  and ex_fa_lnx != #81ED
+--                  and ex_fa_lnx != #81ED
+--                  and ex_fa_lnx != #81FD
+--                  and ex_fa_lnx != #81FF
+--                  and ex_fa_lnx != #A1FF then
+--                      printf(1,"Warning: ex_fa_lnx is %04x\n",ex_fa_lnx)
+--                  end if
+
+                    --
+                    -- Local file header (lfh/lh):
+                    --
+                    --  typedef struct { /*packed*/                                                     offset  size 
+                    --      x4 signature;               // x"504B0304"                                       0  4
+                    --      uint16 lhvnte;              // (version needed to extract)      unsupported      4  2
+                    --      uint16 lhgpbf;              // (general purpose bit flag)       unsupported      6  2
+                    --      uint16 lhcm;                // (compression method)                              8  2 
+                    --      uint16 lhlmft;              // (last modified file time)                        10  2 
+                    --      uint16 lhlmfd;              // (last modified file date)                        12  2 
+                    --      uint32 lhcrc32;                                                                 14  4 
+                    --      uint32 lhcs;                // (compressed size)                                18  4 
+                    --      uint32 lhucs;               // (uncompressed size)                              22  4 
+                    --      uint16 lhfnl;               // (file name length)                               26  2 
+                    --      uint16 lhxfl;               // (extra field length)             unsupported     28  2 
+                    --  } lfh;
+                    --
+                    --    file name (variable size)                                                         30
+                    --    extra field (variable size)                                                       30+n
+                    --
+                    --      <data>
+                    --
+                    -- General purpose bit flag:
+                    --  Bit 00: encrypted file              -- #0001    x
+                    --  Bit 01: compression option          -- #0002    x
+                    --  Bit 02: compression option          -- #0004    x
+                    --  Bit 03: data descriptor             -- #0008    ok
+                    --  Bit 04: enhanced deflation          -- #0010    x
+                    --  Bit 05: compressed patched data     -- #0020    x
+                    --  Bit 06: strong encryption           -- #0040    x
+                    --  Bit 07-10: unused
+                    --  Bit 11: language encoding           -- #0800    ok 
+                    --  Bit 12: reserved
+                    --  Bit 13: mask header values          -- #2000    x
+                    --  Bit 14-15: reserved
+                    --
+                    -- Aside: I have assumed that bits 1 and 2 are info-only and can safely be ignored.
+                    --        For cm==8: 00=Normal, 01=Maximum, 10=Fast, 11=Super Fast (was used).
+                    --        Likewise #0800 just indicates that filenames and comments are UTF-8.
+                    --        Also, gpbf bit #8 is only useful in the central directory for corruption 
+                    --        checks and only actually used here, on the local file header, as follows:
+
+                    -- Data descriptor (dd): -- if gpbf && #8 bit set
+                    --
+                    --  typedef struct { /*packed*/                                                     offset  size 
+                    --     [x4 signature;               // x"504B0708"                                       0  4] (optional)
+                    --      uint32 ddcrc32;                                                                0/4  4 
+                    --      uint32 ddlhcs;              // (compressed size)                               4/8  4 
+                    --      uint32 lhucs;               // (uncompressed size)                            8/12  4 
+                    --  } dd;
+                    --
+                    -- Aside: my understanding of the data descriptor is this:
+                    --  zip files are read/written "backwards", the central directory already has all the
+                    --  fields (including filename) so their presence on the local file header is only useful
+                    --  for file corruption checking. When they're not known at lfh write-time, those checks
+                    --  are replaced with something from a little later on in the file (and lfh are zero).
+                    --
+                    lh_offset += 1
+                    sig = binary[lh_offset..lh_offset+3]
+                    assert(sig==x"504B0304")
+--                  integer lhvnte = get_num(binary,lh_offset+4,2),  -- version needed to extract
+                    integer lhvnte = get_num(binary,lh_offset+4,1),  -- version needed to extract
+                            lhgpbf = get_num(binary,lh_offset+6,2),  -- general purpose bit flag
+                              lhcm = get_num(binary,lh_offset+8,2),  -- compression method
+                            lhlmft = get_num(binary,lh_offset+10,2), -- last modified file time
+                            lhlmfd = get_num(binary,lh_offset+12,2), -- last modified file date
+                              lhcs = get_num(binary,lh_offset+18,4), -- compressed size
+                             lhucs = get_num(binary,lh_offset+22,4), -- uncompressed size
+                             lhfnl = get_num(binary,lh_offset+26,2), -- file name length
+                             lhxfl = get_num(binary,lh_offset+28,2)  -- extra field length
+                    atom lhcrc32 = get_num(binary,lh_offset+14,4)
+                    string lhfilename = binary[lh_offset+30..lh_offset+30+fnl-1]
+                    if dd_bit then
+--                      if lhcs!=0 then ?9/0 end if
+--                      if lhucs!=0 then ?9/0 end if
+                        if lhcs!=0 and lhcs!=cs then ?9/0 end if
+                        if lhucs!=0 and lhucs!=ucs then ?9/0 end if
+--                      if lhcrc32!=0 then ?9/0 end if
+                        if lhcrc32!=0 and lhcrc32!=crc_32 then ?9/0 end if
+--                      integer dd_offset = lh_offset+30+lhfnl+cs
+                        integer dd_offset = lh_offset+30+lhfnl+lhxfl+cs
+                        string ddsig = binary[dd_offset..dd_offset+3]
+                        if ddsig=x"504B0708" then dd_offset += 4 end if
+                        lhcrc32 = get_num(binary,dd_offset,4)
+                        lhcs = get_num(binary,dd_offset+4,4)
+                        lhucs = get_num(binary,dd_offset+8,4)
+                    end if
+                    if lhvnte!=vnte then ?9/0 end if
+                    if lhgpbf!=gpbf then ?9/0 end if
+                    if lhcm!=cm then ?9/0 end if
+                    if lhlmft!=lmft then ?9/0 end if
+                    if lhcs!=cs then ?9/0 end if
+                    if lhucs!=ucs then ?9/0 end if
+                    if lhfnl!=fnl then ?9/0 end if
+                    if lhcrc32!=crc_32 then ?9/0 end if
+                    if lhfilename!=filename then ?9/0 end if
+if bDump then
+                    printf(1,"Local file header for \"%s\" (%d compressed bytes, flag %d)\n", {filename, lhcs, lhgpbf});
+--                  printf(1,"    signature: 0x%08X\n", lh.signature);
+                    printf(1,"    lhvnte (version needed to extract): %d\n", lhvnte);
+                    printf(1,"    lhgpbf (general purpose bit flag): 0x%08x%s\n",{lhgpbf,decode_gpbf(lhgpbf,lhcm)});
+                    printf(1,"    lhcm (compression method): %d%s\n",{lhcm,decode_compression_method(lhcm)});
+                    printf(1,"    lhlmft (last modified file time): %s\n", int16_to_time(lhlmft))
+                    printf(1,"    lhlmfd (last modified file date): %s\n", int16_to_date(lhlmfd))
+                    printf(1,"    lhcrc32: 0x%08X\n", lhcrc32);
+                    printf(1,"    lhcs (compressed size): %d\n", lhcs);
+                    printf(1,"    lhucs (uncompressed size): %d\n", lhucs);
+                    printf(1,"    lhfnl (file name length): %d\n", lhfnl);
+                    printf(1,"    lhxfl (extra field length): %d\n", lhxfl);
+end if
+--                  cd_offset += 46+fnl
+                    cd_offset += 46+fnl+xfl
+                    if bPause then
+                        printf(1,"%s (%d/%d)...",{zt,i,l})
+                        wait_key()
+                        puts(1,"\n")
+                        bPause = false
+                    end if
+                end for
+            end if
+        end if
+        binary = ""
+    end for
+    printf(1,"         \r")
+end procedure
+process_zips()
+--/*
+
+
+00000000  504B0304 0A000000  00003A4D 425DE02A  *PK........:MB]�**
+00000010  89850E00 00000E00  00000E00 00004865  *��............He*
+00000020  6C6C6F57 6F726C64  2E747874 48656C6C  *lloWorld.txtHell*
+00000030  6F20576F 726C6421  0D0A504B 01023F00  *o World!..PK..?.*
+00000040  0A000000 00003A4D  425DE02A 89850E00  *......:MB]�*��..*
+00000050  00000E00 00000E00  24000000 00000000  *........$.......*
+00000060  20000000 00000000  48656C6C 6F576F72  * .......HelloWor*
+00000070  6C642E74 78740A00  20000000 00000100  *ld.txt.. .......*
+00000080  18003932 70DE4952  DD010000 00000000  *..92p�IR�.......*
+00000090  00000000 00000000  0000504B 05060000  *..........PK....*
+000000A0  00000100 01006000  00003A00 00000000  *......`...:.....*
+<eof>
+
+
+???
+   4.3.13 Digital signature:
+
+        header signature                4 bytes  (0x05054b50)
+        size of data                    2 bytes
+        signature data (variable size)
+
+
+--*/
+
+--with javascript_semantics
+sequence table
+bool have_table = false
+ 
+function crc32(string s)
+    if not have_table then
+        have_table = true
+        table = repeat(0,256)
+        for i=0 to 255 do
+            atom rem = i
+            for j=1 to 8 do
+                if odd(rem) then
+                    rem = xor_bits(floor(rem/2),#EDB88320)
+                else
+                    rem = floor(rem/2)
+                end if
+                if rem<0 then
+                    rem += #100000000
+                end if
+            end for
+            table[i+1] = rem
+--printf(1,`%08x, `,rem)
+        end for
+--printf(1,"\n\n")
+    end if
+    atom crc = #FFFFFFFF
+    for c in s do
+        crc = xor_bits(floor(crc/#100),table[xor_bits(and_bits(crc,0xff),c)+1])
+        if crc<0 then
+            crc += #100000000
+        end if
+    end for
+    return and_bits(not_bits(crc),#FFFFFFFF)
+end function
+
+sequence crc_table
+
+function crc32a(string s)
+    if not object(crc_table) then // (ie not yet initialised)
+        crc_table = repeat(0,256)
+        for i=0 to 255 do
+            atom rem = i
+            for j=1 to 8 do
+                bool bOdd = odd(rem)
+                rem = floor(rem/2)
+                if bOdd then
+                    rem = xor_bitsu(rem,#EDB88320)
+                end if
+            end for
+            crc_table[i+1] = rem
+--printf(1,`%08x, `,rem)
+        end for
+--printf(1,"\n\n")
+
+    end if
+    atom crc = #FFFFFFFF
+    for c in s do
+        integer cdx = xor_bits(and_bits(crc,0xff),c)+1
+--      crc = xor_bitsu(floor(crc/#100),crc_table[cdx])
+        crc = xor_bits(floor(crc/#100),crc_table[cdx])
+        if crc<0 then
+            crc += #100000000
+        end if
+    end for
+--  return not_bitsu(crc)
+    return and_bits(not_bits(crc),#FFFFFFFF)
+end function
+
+integer pMemCRC4 = 0
+
+--/*
+procedure make_crc2()
+    enter_cs()
+    if pMemCRC4=0 then
+        atom pMem = allocate(4*256)
+        pMemCRC4 = pMem/4
+        /* Calculate CRC table. */
+        for i=0 to 255 do
+            atom rem = i  /* remainder from polynomial division */
+            for j=1 to 8 do
+                if and_bits(rem,1) then
+                    rem = xor_bits(floor(rem/2),#EDB88320)
+                else
+                    rem = floor(rem/2)
+                end if
+                if rem<0 then
+                    rem += #100000000
+                end if
+            end for
+            poke4(pMem,rem)
+--printf(1,`%08x, `,rem)
+            pMem += 4
+        end for
+--printf(1,"\n\n")
+    end if
+    leave_cs()
+end procedure
+--make_crc2()       -- (optional, may as well omit if crc32() is not always used)
+--*/
+
+--/*
+function crc32b(string s)
+--integer byte, c4
+atom crc
+--atom ti
+ 
+    if pMemCRC4=0 then make_crc2() end if   -- (above omitted, or a forward call)
+
+    crc = #FFFFFFFF
+    for i=1 to length(s) do
+--      byte = s[i]
+--      c4 = and_bits(crc,0xff)
+--      c4 = xor_bits(c4,byte)
+--      ti = peek4u((pMemCRC4+c4)*4)
+--      c4 = floor(crc/#100)
+--      crc = xor_bits(c4,ti)
+        crc = xor_bits(floor(crc/#100),peek4u(pMemCRC4*4+xor_bits(and_bits(crc,0xff),s[i])*4))
+        if crc<0 then
+            crc += #100000000
+        end if
+    end for
+--  return not_bits(crc)
+    return and_bits(not_bits(crc),#FFFFFFFF)
+end function
+--*/
+
+function crc32c(string s)
+    atom res
+    integer len = length(s)
+    if pMemCRC4=0 then
+        enter_cs()
+        if pMemCRC4=0 then
+            atom pMem = allocate(4*256)
+            pMemCRC4 = pMem/4
+            /* Calculate CRC table. */
+            for i=0 to 255 do
+                atom rem = i  /* remainder from polynomial division */
+                for j=1 to 8 do
+                    if and_bits(rem,1) then
+                        rem = xor_bits(floor(rem/2),#EDB88320)
+                    else
+                        rem = floor(rem/2)
+                    end if
+                    if rem<0 then
+                        rem += #100000000
+                    end if
+                end for
+                poke4(pMem,rem)
+--printf(1,`%08x, `,rem)
+                pMem += 4
+            end for
+--printf(1,"\n\n")
+        end if
+        leave_cs()
+
+    end if
+
+    #ilASM{
+            mov esi, [s]
+            xor edx, edx
+            shl esi, 2
+            or eax, -1
+            mov edi,[pMemCRC4]
+            mov ecx,[len]
+            shl edi,2
+
+        ::CRC32_loop
+            mov dl, [esi]
+            xor dl, al
+            shr eax, 8
+            xor eax, [edi+edx*4]
+            add esi,1
+            sub ecx,1
+            jnz CRC32_loop
+
+            not eax
+            lea edi,[res]
+            call :%pStoreMint   
+    }
+--   pop     edx
+-- pop   ecx
+-- pop   esi
+-- ret
+    return res
+end function
+
+if false then
+string s = `The quick brown fox jumps over the lazy dog`
+printf(1,"The CRC of %s is %08x\n",{s,crc32(s)})
+printf(1,"The CRC of %s is %08x\n",{s,crc32a(s)})
+--printf(1,"The CRC of %s is %08x\n",{s,crc32b(s)})
+printf(1,"The CRC of %s is %08x\n",{s,crc32c(s)})
+atom t0 = time()
+for i=1 to 1000000 do
+    {} = crc32(s)
+end for
+?elapsed(time()-t0)
+t0 = time()
+for i=1 to 1000000 do
+    {} = crc32a(s)
+end for
+?elapsed(time()-t0)
+--t0 = time()
+--for i=1 to 1000000 do
+--  {} = crc32b(s)
+--end for
+--?elapsed(time()-t0)
+t0 = time()
+for i=1 to 10000000 do
+    {} = crc32c(s)      -- 0.1s!! (vs 2.6,2.6,3.0)
+end for
+?elapsed(time()-t0)
+end if
+
+while true do
+    integer i = get_key()
+    if i=-1 then exit end if
+    ?{`oops/wait_key`,i}
+end while
+?`done`
+--?3555/3743 -- 94.977%
+wait_key()
+
+--/*
+
+--*/

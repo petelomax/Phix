@@ -117,7 +117,7 @@ procedure extract_zip(string filename)
 
     atom t1 = time()+1
     for i=1 to numitems do
-        integer res = UnzipGetItem(hzip, ze, i-1)
+        integer res = UnzipGetItem(hzip,ze,i)
         --DEV/SUG maybe delete .zip and try re-downloading?
         if res!=ZR_OK then ?9/0 end if
         res = UnzipItemToFile(hzip, ze)
@@ -129,7 +129,8 @@ procedure extract_zip(string filename)
         end if
     end for
     progress("")
-    UnzipClose(hzip)
+    hzip = UnzipClose(hzip)
+    ze = free(ze)
 end procedure
 
 global procedure install()

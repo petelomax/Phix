@@ -4295,7 +4295,7 @@ Global & Local Variables
     WordLists[20][8][523..527] = {`get_file_name`,`get_file_name_and_path`,`get_file_path`,`get_file_path_and_name`,`get_file_size`}
     WordLists[20][8][528..533] = {`get_file_type`,`get_interpreter`,`get_logical_drives`,`get_rand`,`get_struct_fields`,`get_struct_flags`}
     WordLists[20][8][534..539] = {`get_struct_name`,`get_struct_type`,`get_thread_exitcode`,`get_thread_id`,`ini_as_string`,`ini_delete_key`}
-    WordLists[20][8][540..548] = {`ini_filename`,`ini_keynames`,`ini_load`,`ini_restore`,`ini_save`,`ini_set`,`ini_setting`,`init_cs`,`is_dict`}
+    WordLists[20][8][540..548] = {`ini_filename`,`ini_keynames`,`ini_load`,`ini_switch`,`ini_save`,`ini_set`,`ini_setting`,`init_cs`,`is_dict`}
     WordLists[20][8][549..558] = {`is_inf`,`is_integer`,`is_nan`,`isatty`,`islower`,`isupper`,`leave_cs`,`map_get`,`median`,`mpfr`}
     WordLists[20][8][559..562] = {`mpir_open_dll`,`mpfr_get_versions`,`mpfr_get_default_precision`,`mpfr_set_default_precision`}
     WordLists[20][8][563..567] = {`mpfr_get_default_rounding_mode`,`mpfr_set_default_rounding_mode`,`mpfr_init`,`mpfr_inits`,`mpfr_init_set`}

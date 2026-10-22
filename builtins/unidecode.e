@@ -8,6 +8,7 @@
 --  Reduced to single character conversions only, so main table is 1/20th original size (15K vs 300K).
 --  Anything not represented in the following table is binned, as are duplicate consecutive spaces.
 --
+without debug
 sequence data = { -- underscores replaced with spaces at runtime, prevents editors from mangling spaces <==> tabs.
 {001,"________________________________________________________________________________________________________________________________________________________________ !____|___a_!__-__23'uP*,1o____?AAAAAA_CEEEEIIIIDNOOOOOxOUUUUY__aaaaaa_ceeeeiiiidnooooo/ouuuuy_y"},
 {002,"AaAaAaCcCcCcCcDdDdEeEeEeEeEeGgGgGgGgHhHhIiIiIiIiIi__JjKkkLlLlLlLlLlNnNnNn___OoOoOo__RrRrRrSsSsSsSsTtTtTtUuUuUuUuUuUuWwYyYZzZzZzsbBBb66OCcDDDdd3@EFfGG_IIKkllWNnOOo__Pp_22__tTtTUuYVYyZz____255_w|__!_________AaIiOoUuUuUuUuUu@AaAa__GgGgKkOoOo__j___Gg_WNnAa__Oo"},

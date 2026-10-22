@@ -16,12 +16,13 @@ procedure update_quality(integer i)
             qi = quality[i],
            adj = 1+(si<0)
     switch name 
-        case "Aged Brie":       quality[i] = min(qi+adj,50)
-        case "Backstage pass":  quality[i] = iff(si<0?0:min(qi+1+(si<10)+(si<5),50))
+        case "Aged Brie":       qi = min(qi+adj,50)
+        case "Backstage pass":  qi = iff(si<0?0:min(qi+1+(si<10)+(si<5),50))
         case "Sulfuras":        break
-        case "Conjured":        quality[i] = max(0,qi-2*adj)
-        else:                   quality[i] = max(0,qi-adj)
+        case "Conjured":        qi = max(0,qi-2*adj)
+        else:                   qi = max(0,qi-adj)
     end switch
+    quality[i] = qi
 end procedure
 
 function new_item(sequence item)
@@ -55,8 +56,8 @@ procedure ExampleGildedRose()
 
     for i=1 to length(items) do
         update_quality(i)
-        assert(sellin[i]=samples[i][EDAYS])
-        assert(quality[i]=samples[i][EQUALITY])
+        assert(sellin[i]=samples[i][EDAYS],"wrong sellin")
+        assert(quality[i]=samples[i][EQUALITY],"wrong quality")
     end for
 
     print_items()

@@ -12,6 +12,7 @@
 --  Requires LiteUnZip.dll and/or LiteZip.dll to be installed/distributed, but either
 --  may be absent, as long as only a subset of these routines are actually invoked.
 --
+--DEV done!
 --  NB: This is 32-bit Windows-only. While I have no objections to revisiting this if 
 --  someone compiles the source (see link above) into a 64-bit dll or 32/64.so, it is
 --  recommended to use eg system("unzip filename.zip -d dirname") or similar on linux.
@@ -29,21 +30,18 @@
 --  For my second test (source files not dlls), the difference was only 1.7%, so 
 --  the zip was 23% of the original, as opposed to 22.5% achieved by 7-zip.
 --
---  Not [yet] attempted:
+--  Not [yet] attempted (and I cannot see any need for them as yet):
 --
---   UnzipItemToBuffer
 --   UnzipItemToHandle
---   UnzipOpenBuffer[Raw]
+--   UnzipOpenBuffer
 --   UnzipOpenFileRaw
 --   UnzipOpenHandle[Raw]
 --
---   ZipAddBuffer[Raw]
+--   ZipAddBuffer
 --   ZipAddFileRaw
 --   ZipAddHandle[Raw]
 --   ZipAddPipe[Raw]
 --   ZipCreateHandle
---   ZipCreateBuffer
---   ZipGetMemory
 --   ZipResetMemory
 --   ZipOptions (options are TZIP_OPTION_GZIP and TZIP_OPTION_ABORT only anyway)
 --
@@ -103,7 +101,7 @@ atom zip = NULL,
 
 function find_dll(string dll_name)
     if platform()!=WINDOWS then ?9/0 end if
-    if machine_bits()!=32 then ?9/0 end if
+--  if machine_bits()!=32 then ?9/0 end if
     atom res = open_dll(dll_name,false)
     if res=NULL then
         -- try to load from \builtins
@@ -121,12 +119,14 @@ end function
 
 procedure zip_init()
     if zip!=NULL then ?9/0 end if -- sanity check
-    zip = find_dll("LiteZip.dll")
+--  zip = find_dll("LiteZip.dll")
+    zip = find_dll(sprintf("LiteZip.%d.dll",machine_bits()))
 end procedure
 
 procedure unzip_init()
     if unzip!=NULL then ?9/0 end if -- sanity check
-    unzip = find_dll("LiteUnZip.dll")
+--  unzip = find_dll("LiteUnZip.dll")
+    unzip = find_dll(sprintf("LiteUnZip.%d.dll",machine_bits()))
 end procedure
 
 --function link_c_func(atom dll, sequence name, sequence args, atom result)
@@ -165,7 +165,7 @@ end procedure
 
 include builtins\cffi.e
 
-constant tFT = """
+local constant tFT = """
 typedef struct _FILETIME {
   DWORD dwLowDateTime;
   DWORD dwHighDateTime;
@@ -174,45 +174,42 @@ typedef struct _FILETIME {
 idFT = define_struct(tFT)
 
 -- Struct used to retrieve info about an entry in an archive
---DEV cfii does not handle this!:
---  FILETIME        AccessTime, CreateTime, ModifyTime; // access, create, modify filetimes
 
-constant tZE = """
+local constant tZE = """
 typedef struct
 {
     DWORD           Index;
     DWORD           Attributes;
-    FILETIME        AccessTime;
-    FILETIME        CreateTime;
-    FILETIME        ModifyTime;
+    FILETIME        AccessTime, CreateTime, ModifyTime;
     unsigned long   CompressedSize;
     unsigned long   UncompressedSize;
     char            Name[MAX_PATH];
 } ZIPENTRY;
-""",
---global constant integer 
-idZE = define_struct(tZE)
---DEV... [fixed 6/3/18, once a new version gets shipped]
+"""
+global constant idZE = define_struct(tZE)
 constant integer {name_offset} = get_field_details(idZE, "Name") 
---constant {name_offset} = get_field_details(idZE, "Name") 
 
 global type ZIPENTRY(object o)
+    return atom(o)
+end type
+
+local type ZIP_ENTRY(object o)
     return atom(o) and o!=NULL
 end type
 
 global function new_ZIPENTRY()
--- result must be free()d manually
-    ZIPENTRY ze = allocate_struct(idZE)
+    -- result must be free()d manually
+    ZIP_ENTRY ze = allocate_struct(idZE)
     return ze
 end function
 
 atom xUnzipGetItem = NULL
-global function UnzipGetItem(atom hzip, ZIPENTRY ze, integer idx)
--- returns ZR_OK or a string error message
+global function UnzipGetItem(atom hzip, ZIP_ENTRY ze, integer idx)
+    -- returns ZR_OK or a string error message
     if xUnzipGetItem=NULL then
         xUnzipGetItem = define_c_func(unzip,"UnzipGetItemA",{C_PTR,C_PTR},C_INT)
     end if
-    set_struct_field(idZE,ze,"Index",idx)
+    set_struct_field(idZE,ze,"Index",idx-1)
     integer res = c_func(xUnzipGetItem,{hzip,ze})
     if res!=ZR_OK then
         return ZR_MESSAGES[res]
@@ -220,16 +217,16 @@ global function UnzipGetItem(atom hzip, ZIPENTRY ze, integer idx)
     return ZR_OK
 end function
 
-global function UnzipGetItems(atom hzip, ZIPENTRY ze)
--- returns the integer count of entries or a string error message
-    object res = UnzipGetItem(hzip, ze, -1)
+global function UnzipGetItems(atom hzip, ZIP_ENTRY ze)
+    -- returns the integer count of entries or a string error message
+    object res = UnzipGetItem(hzip,ze,0)
     if res=ZR_OK then
         res = get_struct_field(idZE,ze,"Index")
     end if
     return res
 end function
 
-global function UnzipGetFileName(ZIPENTRY ze)
+global function UnzipGetFileName(ZIP_ENTRY ze)
     string filename = peek_string(ze+name_offset)
     return filename
 end function
@@ -237,9 +234,9 @@ end function
 constant MAX_PATH = 260
 
 atom xUnzipFindItem = NULL
-global function UnzipFindItem(atom hzip, ZIPENTRY ze, string name, bool case_insensitive=false)
--- returns ZR_OK (and pZIPENTRY.Index etc) if found, or a string error message
--- (can be ZR_ARGS, ZR_NOTFOUND, ZR_NOTSUPPORTED, ZR_NOALLOC, ZR_CORRUPT, ...)
+global function UnzipFindItem(atom hzip, ZIP_ENTRY ze, string name, bool case_insensitive=false)
+    -- returns ZR_OK (and pZIPENTRY.Index etc) if found, or a string error message
+    -- (can be ZR_ARGS, ZR_NOTFOUND, ZR_NOTSUPPORTED, ZR_NOALLOC, ZR_CORRUPT, ...)
     if xUnzipFindItem=NULL then
         xUnzipFindItem = define_c_func(unzip,"UnzipFindItemA",{C_PTR,C_PTR,C_INT},C_INT)
     end if
@@ -252,9 +249,23 @@ global function UnzipFindItem(atom hzip, ZIPENTRY ze, string name, bool case_ins
     return res
 end function
 
+atom xUnzipItemToBuffer = NULL
+global function UnzipItemToBuffer(atom hzip, object pMem, integer len, ZIP_ENTRY ze)
+    -- returns ZR_OK or a string error message
+    if xUnzipItemToBuffer=NULL then
+        xUnzipItemToBuffer = define_c_func(unzip,"UnzipItemToBuffer",{C_PTR,C_PTR,C_INT,C_PTR},C_INT)
+    end if
+    integer res = c_func(xUnzipItemToBuffer,{hzip,pMem,len,ze})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    return ZR_OK
+end function
+
+
 atom xUnzipItemToFile = NULL
-global function UnzipItemToFile(atom hzip, ZIPENTRY ze, string filename="")
--- returns ZR_OK or a string error message
+global function UnzipItemToFile(atom hzip, ZIP_ENTRY ze, string filename="")
+    -- returns ZR_OK or a string error message
     if xUnzipItemToFile=NULL then
         xUnzipItemToFile = define_c_func(unzip,"UnzipItemToFileA",{C_PTR,C_PTR,C_PTR},C_INT)
     end if
@@ -266,21 +277,82 @@ global function UnzipItemToFile(atom hzip, ZIPENTRY ze, string filename="")
     return ZR_OK
 end function
 
-atom xUnzipClose = NULL
-global procedure UnzipClose(atom hzip)
--- terminates in error on failure
-    if xUnzipClose=NULL then
-        xUnzipClose = define_c_func(unzip,"UnzipClose",{C_PTR},C_INT)
+--/*
+--DWORD WINAPI UnzipOpenBufferRaw(HUNZIP *tunzip, void *z, DWORD len, const char *password)
+atom xUnzipOpenBufferRaw = NULL, pHUNZIP
+global function UnzipOpenBufferRaw(object pMem, integer len=-1)
+--
+-- Create an output buffer for a (single) subsequent UnzipItemToBuffer() to write to.
+-- returns ZR_OK or a string error message
+--
+    if len=-1 then len = length(pMem) end if -- binary string
+    assert(pMem!=NULL)
+    assert(len>0)
+    if xUnzipOpenBufferRaw=NULL then
+        xUnzipOpenBufferRaw = define_c_func(unzip,"UnzipOpenBufferRaw",{C_PTR,C_PTR,C_INT,C_PTR},C_INT)
+        pHUNZIP = allocate(machine_word())
     end if
-    integer res = c_func(xUnzipClose,{hzip})
-    if res!=ZR_OK then ?9/0 end if
-end procedure
+    integer res = c_func(xUnzipOpenBufferRaw,{pHUNZIP,pMem,len,NULL})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    atom hunzip = peekNS(pHUNZIP,machine_word(),false)
+    if hunzip=NULL then ?9/0 end if -- (should never happen)
+    return hunzip
+end function
+--*/
 
+--DWORD WINAPI UnzipBufferRaw(void* pSrc, DWORD slen, void* pDst, DWORD dlen)
+atom xUnzipBufferRaw = NULL
+global function UnzipBufferRaw(object pSrc, pDst, integer slen=-1, dlen=-1)
+--
+-- Unzip a raw buffer to memory
+-- pSrc and pDst can be memory addresses, or better yet binary strings.
+-- You must know the lengths of both in order to use this routine.
+-- slen/dlen of -1 are autmatically replaced with length(pDst/pSrc),
+--  but of course that will crash unless they are binary strings.
+-- returns ZR_OK or a string error message
+--
+    if slen=-1 then slen = length(pSrc) end if -- binary string
+    if dlen=-1 then dlen = length(pDst) end if -- binary string
+    assert(pSrc!=NULL)
+    assert(pDst!=NULL)
+    assert(slen>0)
+    assert(dlen>0)
+    if xUnzipBufferRaw=NULL then
+        if unzip=NULL then unzip_init() end if
+        xUnzipBufferRaw = define_c_func(unzip,"UnzipBufferRaw",{C_PTR,C_INT,C_PTR,C_INT},C_INT)
+    end if
+--?{slen,dlen}
+    integer res = c_func(xUnzipBufferRaw,{pSrc,slen,pDst,dlen})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    return res
+end function
+
+atom xUnzipClose = NULL
+global function UnzipClose(object hzip)
+    -- terminates in error on failure
+    if sequence(hzip) then
+        for i=1 to length(hzip) do
+            hzip[i] = UnzipClose(hzip[i])
+        end for
+    elsif hzip!=NULL then
+        if xUnzipClose=NULL then
+            xUnzipClose = define_c_func(unzip,"UnzipClose",{C_PTR},C_INT)
+        end if
+        integer res = c_func(xUnzipClose,{hzip})
+        if res!=ZR_OK then ?9/0 end if
+        hzip = NULL
+    end if
+    return hzip
+end function
 
 atom xZipCreateFile = NULL
 global function ZipCreateFile(string filename)--, nullable_string password)
--- returns an atom handle or a string error message
--- (you may want to delete_file() first)
+    -- returns an atom handle or a string error message
+    -- (you may want to delete_file() first)
     if xZipCreateFile=NULL then
         if zip=NULL then zip_init() end if
         xZipCreateFile = define_c_func(zip,"ZipCreateFileA",{C_PTR,C_PTR,C_PTR},C_INT)
@@ -291,6 +363,7 @@ global function ZipCreateFile(string filename)--, nullable_string password)
         return ZR_MESSAGES[res]
     end if
     atom hzip = peekNS(pHZIP,machine_word(),false)
+    if hzip=NULL then ?9/0 end if -- (should never happen)
     return hzip
 end function
 
@@ -347,21 +420,143 @@ global function ZipAddFolder(atom hzip, string zipname)
     return ZR_OK
 end function
 
+--DWORD WINAPI ZipCreateBuffer(HZIP *zipHandle, void *z, DWORD len, const char *password)
+atom xZipCreateBuffer = NULL, pHZIP
+function ZipCreateBuffer(object pMem, integer len=-1)
+--
+-- Create an output buffer for a (single) subsequent ZipAddBufferRaw() to write to.
+-- returns ZR_OK or a string error message
+--
+    if len=-1 then len = length(pMem) end if -- binary string
+    assert(pMem!=NULL)
+    assert(len>0)
+    if xZipCreateBuffer=NULL then
+        if zip=NULL then zip_init() end if
+        xZipCreateBuffer = define_c_func(zip,"ZipCreateBuffer",{C_PTR,C_PTR,C_INT,C_PTR},C_INT)
+        pHZIP = allocate(machine_word())
+    end if
+    integer res = c_func(xZipCreateBuffer,{pHZIP,pMem,len,NULL})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    atom hzip = peekNS(pHZIP,machine_word(),false)
+    if hzip=NULL then ?9/0 end if -- (should never happen)
+    return hzip
+end function
+
+--DWORD WINAPI ZipAddBufferRaw(HZIP tzip, const void *src, DWORD len)
+atom xZipAddBufferRaw = NULL
+function ZipAddBufferRaw(atom hzip, object pSrc, integer len=-1)
+--
+-- Compress a single item into the previously specified memory buffer (no headers).
+--  pSrc: from allocate(), or better yet a binary string, (say) get_text(GT_WHOLE_FILE+GT_BINARY).
+--  len: the length of the (uncompressed) input in bytes, optional when string(pSrc).
+-- returns ZR_OK or a string error message
+--
+    if xZipAddBufferRaw=NULL then
+        xZipAddBufferRaw = define_c_func(zip,"ZipAddBufferRaw",{C_PTR,C_PTR,C_INT},C_INT)
+    end if
+    if len=-1 then len = length(pSrc) end if
+    integer res = c_func(xZipAddBufferRaw,{hzip,pSrc,len})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    return ZR_OK
+end function
+
+--DWORD WINAPI ZipGetMemory(HZIP tzip, void **pbuf, DWORD *plen, HANDLE *base)
+atom xZipGetMemory = NULL, pBuf, pLen
+function ZipGetMemory(atom hzip)
+--
+-- Retrieve the compressed size from a successful <a href>ZipAddBufferRaw</a>() operation.
+-- returns ZR_OK or a string error message
+--
+    if xZipGetMemory=NULL then
+        xZipGetMemory = define_c_func(zip,"ZipGetMemory",{C_PTR,C_PTR,C_PTR,C_PTR},C_INT)
+        pBuf = allocate_word()
+        pLen = allocate_word()
+    end if
+    integer res = c_func(xZipGetMemory,{hzip,pBuf,pLen,NULL})
+    if res!=ZR_OK then
+        return ZR_MESSAGES[res]
+    end if
+    return peekns(pLen)
+end function
+
 atom xZipClose = NULL
-global procedure ZipClose(object hzip)
--- terminates in error on failure
+global function ZipClose(object hzip)
+    -- terminates in error on failure (not a valid non-null hzip)
     if sequence(hzip) then
         for i=1 to length(hzip) do
-            atom hzi = hzip[i]  -- (ensure non-nested)
-            ZipClose(hzi)
+            hzip[i] = ZipClose(hzip[i])
         end for
-    else
+    elsif hzip!=NULL then
         if xZipClose=NULL then
             xZipClose = define_c_func(zip,"ZipClose",{C_PTR},C_INT)
         end if
         integer res = c_func(xZipClose,{hzip})
         if res!=ZR_OK then ?9/0 end if
+        hzip = NULL
     end if
-end procedure
+    return hzip
+end function
 
+global function ZipGetMessage(integer err)
+    -- only useful for when ZipBufferRaw() returns an integer
+    return ZR_MESSAGES[err]
+end function
+
+--global function ZipBufferRaw(object src, dst, integer slen=-1, dlen=-1)
+--global function ZipBufferRaw(object src, integer slen=-1)
+--global function ZipBufferRaw(string src, integer slen=-1)
+--  if slen=-1 then slen = length(src) end if
+global function ZipBufferRaw(object src, integer s=1, e=-1)
+    if e=-1 then e = length(src) end if
+    integer slen = e-s+1,
+            dlen = slen+ceil(slen/4096)+11
+    string dst = repeat(' ',dlen)
+    object res = ZipCreateBuffer(dst,dlen)
+    if atom(res) then
+        atom hbuf = res
+--      if s!=1 then src = src[s..e] end if
+        if s!=1 then
+            res = 0 -- (kill any refcount)
+            assert(string(src))
+            #ilASM{
+                [32]
+                    mov eax,[src]
+--                  lea edi,[res]
+                    shl eax,2
+                    shr eax,2
+                    mov [res],eax
+                [64]
+                    mov rax,[src]
+--                  lea rdi,[res]
+                    shl rax,2
+                    shr rax,2
+                    mov [res],rax
+                []
+--                  call :%pStoreMint
+            }
+--          res = res*4+s-1
+            src = res*4+s-1
+--      else
+--          res = src
+        end if
+--      res = ZipAddBufferRaw(hbuf,res,slen)
+        res = ZipAddBufferRaw(hbuf,src,slen)
+        if res==ZR_OK then
+            integer cs = ZipGetMemory(hbuf)
+            assert(cs>0 and cs<=dlen)
+            dst = dst[1..cs]
+        end if
+        hbuf = ZipClose(hbuf)
+    end if
+    if string(res) then
+        res = find(res,ZR_MESSAGES)
+    else
+        res = dst
+    end if
+    return res
+end function
 

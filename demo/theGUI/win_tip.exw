@@ -1,0 +1,395 @@
+--
+-- demo\theGUI\win_tip.exw
+-- =======================
+--
+--  As win_splitter1.exw but for prototyping tooltips
+--
+--?""
+--requires(64,true)
+include theGUI.WINAPI.e
+
+--/*
+That's all working beautifully, thanks. One quick question: For an application with several windows,
+obviously only one of which is ever going to be topmost/active, is it fine to have just one hTooltip
+and use the same timers for all windows, or does each deserve their own?
+
+A single shared:
+
+hTooltip
+IDT_TIPSHOW
+IDT_TIPHIDE
+hover state
+
+is perfectly fine because:
+
+only one window can own the mouse at a time
+only one tooltip is normally visible
+tracked tooltips are inherently singleton-ish UX
+
+The main thing you need is to track which window currently "owns" the hover state.
+
+Typically:
+
+atom tip_hWnd = NULL
+integer hover_side = 0
+integer tip_side = 0
+
+then on mouse activity:
+
+tip_hWnd = hWnd
+
+and use tip_hWnd instead of local hWnd in timer handling.
+
+That way the timer callback knows which window initiated the hover.
+
+The only caveat is:
+
+kill timers when switching windows
+hide tooltip before reassigning ownership
+
+which you're already mostly doing.
+--*/
+bool tracking_mouse = false
+
+constant TOOLTIP_LEFT  = allocate_string("This is the left panel"),
+         TOOLTIP_RIGHT = allocate_string("This is the right panel")
+--constant TOOLTIP_LEFT  = "This is the left panel",
+--       TOOLTIP_RIGHT = "This is the right panel"
+
+constant IDT_TIPSHOW = 1001,
+         IDT_TIPHIDE = 1002
+
+atom hTooltip = NULL
+--integer tip_side = 0 -- 0:none, 1:left, 2:right
+integer tip_ctrl = 0
+
+bool bShowTimerActive = false,
+     bHideTimerActive = false
+--integer hover_side = 0
+integer hover_ctrl = 0
+
+procedure tg_WinAPI_create_tooltip(atom hWnd)
+    hTooltip = CreateWindowEx(WS_EX_TOPMOST,
+                              TOOLTIPS_CLASS,
+                              NULL,
+--                            TTS_NOPREFIX || TTS_ALWAYSTIP || TTS_BALLOON, -- (WS_POPUP??)
+--                            TTS_NOPREFIX || TTS_ALWAYSTIP,
+--What does SW_POPUP do on a tooltip? I cannot see any difference with or without it.
+--Also, TTS_ALWAYSTIP implies you'd get tootips on background and inactive windows, isn't that wrong?
+--                            WS_POPUP || TTS_ALWAYSTIP,
+--                            NULL,
+                              WS_POPUP,
+                              CW_USEDEFAULT, CW_USEDEFAULT,
+                              CW_USEDEFAULT, CW_USEDEFAULT,
+                              hWnd, NULL, 0, NULL)
+
+    set_struct_field(idTOOLINFO,pTOOLINFO,"uFlags",TTF_TRACK)
+    set_struct_field(idTOOLINFO,pTOOLINFO,"hWnd",hWnd)
+--  set_struct_field(idTOOLINFO,pTOOLINFO,"uId",1)
+--  set_struct_field(idTOOLINFO,pTOOLINFO,"lpszText",TOOLTIP_LEFT)
+    {} = SendMessage(hTooltip, TTM_ADDTOOL, 0, pTOOLINFO)
+end procedure
+
+bool clip = false -- type 'C' to toggle
+
+enum CX_SPLIT_HWIDTH,
+     CX_SPLIT_RATIO, -- (left) 0.0..1.0 
+     CX_SPLIT_DRAGG, -- t/f
+     CX_SPLIT_LEN = $
+
+constant id = 1 -- (DEV)
+sequence ctrl_xtra = {repeat(0,CX_SPLIT_LEN)}
+ctrl_xtra[id][CX_SPLIT_HWIDTH] = 5
+ctrl_xtra[id][CX_SPLIT_RATIO] = 0.5
+
+constant hResizeCursor = LoadCursor(IDC_SIZEWE),
+         wyte = CreateSolidBrush(0x00FFFFFF),
+         pink = CreateSolidBrush(0x00F0F0FF),
+         mild = CreateSolidBrush(0x00E8E8E8),
+         blue = CreateSolidBrush(0x00FFF0F0)
+
+function WndProc(atom hWnd, msg, wParam, lParam)
+    switch msg do
+
+        case WM_SIZE:
+            InvalidateRect(hWnd, NULL, false)
+            return 0
+
+        case WM_LBUTTONDOWN:
+            integer  x = LOWORD(lParam),
+             {l,t,r,b} = GetClientRect(hWnd),
+                    hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+                     w = r-l-hw
+            l = floor(w*ctrl_xtra[id][CX_SPLIT_RATIO])
+            r = l+hw
+            if x>=l and x<=r then
+                ctrl_xtra[id][CX_SPLIT_DRAGG] = true
+                SetCapture(hWnd)
+                SetCursor(hResizeCursor)
+            end if
+            return 0
+
+        case WM_MOUSEMOVE:
+            if not tracking_mouse then
+--          if false then --- (tips still work)
+                set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"dwFlags",TME_LEAVE)
+                set_struct_field(idTRACKMOUSEEVENT,pTRACKMOUSEEVENT,"hWndTrack",hWnd)
+                TrackMouseEvent(pTRACKMOUSEEVENT)
+                tracking_mouse = true
+            end if
+            integer  x = LOWORD(lParam),
+                     y = HIWORD(lParam),
+             {l,t,r,b} = GetClientRect(hWnd),
+                    hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+                     w = r-l-hw
+
+            l = floor(w*ctrl_xtra[id][CX_SPLIT_RATIO])
+            r = l+hw
+
+            if ctrl_xtra[id][CX_SPLIT_DRAGG] then
+
+                ctrl_xtra[id][CX_SPLIT_RATIO] = max(0,min(1,x/w))
+                InvalidateRect(hWnd, NULL, false)
+
+            else
+
+--              integer new_side
+                integer new_ctrl -- (:=hit_test)
+
+                if x<l then
+--                  new_side = 1
+                    new_ctrl = 1
+                elsif x>r then
+--                  new_side = 2
+                    new_ctrl = 2
+                else
+--                  new_side = 0
+                    new_ctrl = 0
+                    SetCursor(hResizeCursor)
+                end if
+
+--              if new_side!=tip_side then
+                if new_ctrl!=tip_ctrl then
+
+                    if bShowTimerActive then
+                        KillTimer(hWnd, IDT_TIPSHOW)
+                        bShowTimerActive = false
+                    end if
+                    if bHideTimerActive then
+                        KillTimer(hWnd, IDT_TIPHIDE)
+                        bHideTimerActive = false
+                    end if
+
+                    -- hide any current tooltip
+--                  set_struct_field(idTOOLINFO,pTOOLINFO,"uFlags",TTF_TRACK)
+                    set_struct_field(idTOOLINFO,pTOOLINFO,"hWnd",hWnd)
+--                  set_struct_field(idTOOLINFO,pTOOLINFO,"uId",1)
+
+if hTooltip!=NULL then
+                    {} = SendMessage(hTooltip,TTM_TRACKACTIVATE,false,pTOOLINFO)
+end if
+
+--                  tip_side = 0
+                    tip_ctrl = 0
+--                  hover_side = new_side
+                    hover_ctrl = new_ctrl
+
+--                  if new_side!=0 then
+                    if new_ctrl!=0 then
+--                  if tool_tips[new_ctrl]!=NULL then
+--                  if new_ctrl=1 then -- left only
+--                  if new_ctrl=2 then -- right only
+                        {} = SetTimer(hWnd, IDT_TIPSHOW, 750, NULL)
+                        bShowTimerActive = true
+                    end if
+                end if
+            end if
+            return 0
+
+        case WM_MOUSELEAVE:
+
+            tracking_mouse = false  -- (tips still work if omitted)
+--          tip_side = 0
+            tip_ctrl = 0
+
+--          set_struct_field(idTOOLINFO,pTOOLINFO,"uFlags",TTF_TRACK)
+            set_struct_field(idTOOLINFO,pTOOLINFO,"hWnd",hWnd)
+--          set_struct_field(idTOOLINFO,pTOOLINFO,"uId",1)
+if hTooltip!=NULL then
+            {} = SendMessage(hTooltip,TTM_TRACKACTIVATE,false,pTOOLINFO)
+end if
+
+            if bShowTimerActive then
+                KillTimer(hWnd, IDT_TIPSHOW)
+                bShowTimerActive = false
+            end if
+            if bHideTimerActive then
+                KillTimer(hWnd, IDT_TIPHIDE)
+                bHideTimerActive = false
+            end if
+--          hover_side = 0
+            hover_ctrl = 0
+            return 0
+
+        case WM_TIMER:
+
+            if wParam=IDT_TIPSHOW then
+
+                assert(bShowTimerActive)
+                KillTimer(hWnd, IDT_TIPSHOW)
+                bShowTimerActive = false
+
+--              if hover_side!=0 then
+                if hover_ctrl!=0 then
+
+                    atom msgpos = GetMessagePos()
+                    integer x = LOWORD(msgpos),
+                            y = HIWORD(msgpos)
+
+--                  set_struct_field(idTOOLINFO,pTOOLINFO,"uFlags",TTF_TRACK)
+                    set_struct_field(idTOOLINFO,pTOOLINFO,"hWnd",hWnd)
+--                  set_struct_field(idTOOLINFO,pTOOLINFO,"uId",1)
+
+                    atom pText -- [tg_raw_string_ptr(ctrl_tip[hover_ctrl]), instead of allocate_string()]
+
+--                  if hover_side=1 then
+                    if hover_ctrl=1 then
+                        pText = TOOLTIP_LEFT
+                    else
+assert(hover_ctrl=2)
+                        pText = TOOLTIP_RIGHT
+                    end if
+                    set_struct_field(idTOOLINFO,pTOOLINFO,"lpszText",pText)
+                    atom pos = (x+16) + (y+24)*#10000
+                    if hTooltip=NULL then tg_WinAPI_create_tooltip(hWnd) end if
+                    {} = SendMessage(hTooltip,TTM_UPDATETIPTEXT,0,pTOOLINFO)
+                    {} = SendMessage(hTooltip,TTM_TRACKPOSITION,0,pos)
+                    {} = SendMessage(hTooltip,TTM_TRACKACTIVATE,true,pTOOLINFO)
+
+--                  tip_side = hover_side
+                    tip_ctrl = hover_ctrl
+
+                    {} = SetTimer(hWnd, IDT_TIPHIDE, 3000, NULL)
+                    bHideTimerActive = true
+                end if
+
+                return 0
+
+            elsif wParam=IDT_TIPHIDE then
+
+                assert(bHideTimerActive)
+                KillTimer(hWnd, IDT_TIPHIDE)
+                bHideTimerActive = false
+
+--              set_struct_field(idTOOLINFO,pTOOLINFO,"uFlags",TTF_TRACK)
+                set_struct_field(idTOOLINFO,pTOOLINFO,"hWnd",hWnd)
+--              set_struct_field(idTOOLINFO,pTOOLINFO,"uId",1)
+
+if hTooltip!=NULL then
+                {} = SendMessage(hTooltip,TTM_TRACKACTIVATE,false,pTOOLINFO)
+end if
+--              tip_side = 0
+                tip_ctrl = 0
+                return 0
+            end if
+
+        case WM_LBUTTONUP:
+            if ctrl_xtra[id][CX_SPLIT_DRAGG] then
+                ctrl_xtra[id][CX_SPLIT_DRAGG] = false
+                ReleaseCapture()
+            end if
+            return 0
+
+        case WM_PAINT:
+            atom hdc = BeginPaint(hWnd, pPAINTSTRUCT), hClip
+
+            -- widthwise points of interest are: 0  l m r  w
+            --  where obviously SPLIT_HWIDTH covers l m r
+            -- (aside: in this rare case, single letter variables along
+            --         with that comment are actually much clearer than
+            --         lengthy names but without any comment would be..
+            --         at least, that is, in my current honest opinion)
+            integer {?,?,w,h} = GetClientRect(hWnd),
+                   hw = ctrl_xtra[id][CX_SPLIT_HWIDTH],
+                    l = floor((w-hw)*ctrl_xtra[id][CX_SPLIT_RATIO]),
+                    m = l+floor(hw/2),
+                    r = l+hw
+
+            if clip then
+                FillRect(hdc, pRECT, wyte) -- blank whole (this demo only!)
+                hClip = CreateRectRgn(w/8, h/8, w*7/8, h*7/8)
+                SelectClipRgn(hdc, hClip)
+            end if
+
+            -- Fill Left/Handle/Right areas
+            set_struct_field(idRECT,pRECT,"right",l)
+            FillRect(hdc, pRECT, pink)
+            set_struct_field(idRECT,pRECT,"left",l)
+            set_struct_field(idRECT,pRECT,"right",r)
+            FillRect(hdc, pRECT, mild)
+            set_struct_field(idRECT,pRECT,"left",r)
+            set_struct_field(idRECT,pRECT,"right",w)
+            FillRect(hdc, pRECT, blue)
+
+            -- Left X
+            MoveToEx(hdc, 0, 0, NULL);      LineTo(hdc, l-1, h-1)
+            MoveToEx(hdc, l-1, 0, NULL);    LineTo(hdc,   0, h-1)
+            -- Right X
+            MoveToEx(hdc, r, 0, NULL);      LineTo(hdc, w-1, h-1)
+            MoveToEx(hdc, w-1, 0, NULL);    LineTo(hdc,   r, h-1)
+
+            -- Handle
+            atom pen = ExtCreatePen(1, RGB(200, 200, 200),{1}),
+                 old = SelectObject(hdc, pen)
+            MoveToEx(hdc, m, 0, NULL);      LineTo(hdc, m, h)
+            {} = SelectObject(hdc, old)
+            DeleteObject(pen)
+
+            if clip then
+                SelectClipRgn(hdc, NULL)
+                DeleteObject(hClip)
+            end if
+
+            EndPaint(hWnd,pPAINTSTRUCT)
+            return 0
+
+        case WM_CHAR then
+            if wParam=VK_ESCAPE then
+                {} = SendMessage(hWnd,WM_CLOSE,0,0)
+            elsif upper(wParam)='C' then
+                clip = not clip
+                InvalidateRect(hWnd, NULL, false)
+            end if
+
+        case WM_DESTROY:
+            PostQuitMessage(0)
+            return 0
+    end switch
+
+    return DefWindowProc(hWnd, msg, wParam, lParam)
+end function
+constant WndProc_cb = call_back(WndProc)
+
+procedure main()
+    RegisterClassEx("SplitCanvasOne",WndProc_cb)
+
+    atom hWnd = CreateWindowEx(0, "SplitCanvasOne", "Splitter with ToolTips",
+                               WS_OVERLAPPEDWINDOW,
+--                             WS_OVERLAPPEDWINDOW || WS_CLIPCHILDREN, -- NO!
+                               CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+                               NULL, NULL, 0, NULL)
+
+--  tg_WinAPI_create_tooltip(hWnd)
+
+    ShowWindow(hWnd)
+    UpdateWindow(hWnd)
+
+
+    atom pMsg = allocate_struct(idMSG)
+    while GetMessage(pMsg, NULL, 0, 0) do
+        TranslateMessage(pMsg)
+        DispatchMessage(pMsg)
+    end while
+end procedure
+main()
+

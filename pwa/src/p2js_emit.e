@@ -277,8 +277,7 @@ function DoHexStr(string s)
     integer idx = 1
     while idx<=length(s) do
         integer ch = s[idx]
-        if ch=' '
-        or ch='_' then
+        if find(ch," _\t\r\n") then
             idx += 1
         else
             integer v = 0
@@ -294,8 +293,7 @@ function DoHexStr(string s)
                 idx += 1
                 if idx>length(s) then exit end if
                 ch = s[idx]
-                if ch=' ' then exit end if
-                if ch='_' then exit end if
+                if find(ch," _\t\r\n") then exit end if
             end for
 --          hexstr &= v
             hexstr &= sprintf(`\x%02x`,v)
